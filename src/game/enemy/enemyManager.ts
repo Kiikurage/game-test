@@ -7,7 +7,7 @@ import { NoiseField, type LineOfSight } from './perception';
 /** 敵の生成・更新・味方への Alert の伝播・音の受け口を束ねる。 */
 export interface EnemyManagerOptions {
   readonly lineOfSight: LineOfSight;
-  /** 経路問い合わせ。省略時は直線（ナビゲーションメッシュは #43）。 */
+  /** 経路問い合わせ。省略時は直線。 */
   readonly navigator?: Navigator;
   /** 敵の体（衝突・接地）の作り方。 */
   readonly createBody: (init: EnemyInit) => EnemyBody;
@@ -40,6 +40,11 @@ export class EnemyManager {
 
   constructor(private readonly options: EnemyManagerOptions) {}
 
+  /** 経路問い合わせ（デバッグ表示が経路・格子を読む）。 */
+  get navigator(): Navigator {
+    return this.options.navigator ?? directNavigator;
+  }
+
   /** 敵を 1 体生成して登録する。 */
   spawn(init: EnemyInit): Enemy {
     const random = (this.options.random ?? seededRandom)(init.id);
@@ -60,6 +65,7 @@ export class EnemyManager {
 
   /** 1 ステップ進める。音は敵の更新の後に期限を進める。 */
   update(dt: number, target: AiTarget): void {
+    this.options.navigator?.update?.();
     for (const e of this.enemies) e.update(dt, target);
     this.noises.advance(dt);
   }

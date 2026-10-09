@@ -94,7 +94,7 @@ export interface GameOptions {
   readonly dummies?: readonly DummySpec[];
   /** 敵の配置（レベルデータの `enemies`）。省略時は敵なし。 */
   readonly enemies?: readonly EnemySpawn[];
-  /** 敵の経路問い合わせ。省略時は直線（ナビゲーションメッシュは #43 で差し替える）。 */
+  /** 敵の経路問い合わせ。省略時は直線。レベルでは `levelGameOptions` が格子ナビゲータを渡す。 */
   readonly enemyNavigator?: Navigator;
   /** プレイヤーの開始位置と向き（ヨー）。省略時はテストシーンの広場。 */
   readonly spawn?: { readonly x: number; readonly z: number; readonly yaw: number };
@@ -379,6 +379,7 @@ export class Game {
     const collider = this.boxColliders.get(id);
     if (!collider) return false;
     collider.setEnabled(enabled);
+    this.enemies.navigator.setGateClosed?.(id, enabled); // 敵の経路も門の開閉に合わせる
     return true;
   }
 
