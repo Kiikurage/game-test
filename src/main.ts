@@ -31,7 +31,7 @@ interface DebugState {
   readonly sim: GameDebugState;
   /** E2E 用の操作（テレポートなど）。 */
   readonly dev: {
-    teleport(x: number, z: number, yaw: number): void;
+    teleport(x: number, z: number, yaw: number, y?: number): void;
     /** シミュレーションの一時停止（撮影用）。 */
     pause(paused: boolean): void;
     /** 指定した対象を直接ロックオンする（撮影用）。 */
@@ -184,8 +184,8 @@ async function bootstrap(): Promise<void> {
         return game.debugState;
       },
       dev: {
-        teleport: (x, z, yaw) => {
-          game.teleportPlayer(x, z, yaw);
+        teleport: (x, z, yaw, y) => {
+          game.teleportPlayer(x, z, yaw, y);
         },
         lock: (id) => game.lockOnTo(id),
         pause: (p) => {
