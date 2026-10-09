@@ -1,0 +1,247 @@
+{
+  "characters": {
+    "knight": {
+      "file": "characters/knight.glb",
+      "bytes": 516864,
+      "triangles": {
+        "source": 29834,
+        "output": 21252
+      },
+      "joints": 65,
+      "textureMemoryBytes": 18175317,
+      "textures": [
+        {
+          "material": "MI_Ranger",
+          "slot": "baseColor",
+          "from": "6630927B",
+          "size": "1024x1024",
+          "bytes": 53804
+        },
+        {
+          "material": "MI_Ranger",
+          "slot": "normal",
+          "from": "12713653B",
+          "size": "512x512",
+          "bytes": 48400
+        },
+        {
+          "material": "MI_Ranger",
+          "slot": "metallicRoughness",
+          "from": "10792085B",
+          "size": "512x512",
+          "bytes": 19162
+        },
+        {
+          "material": "MI_Regular_Male",
+          "slot": "baseColor",
+          "from": "1316151B",
+          "size": "1024x1024",
+          "bytes": 22120
+        },
+        {
+          "material": "MI_Regular_Male",
+          "slot": "normal",
+          "from": "4064184B",
+          "size": "512x512",
+          "bytes": 29806
+        },
+        {
+          "material": "MI_Regular_Male",
+          "slot": "metallicRoughness",
+          "from": "3160102B",
+          "size": "512x512",
+          "bytes": 12656
+        },
+        {
+          "material": "MI_Head",
+          "slot": "baseColor",
+          "from": "242345B",
+          "size": "512x512",
+          "bytes": 10718
+        }
+      ]
+    }
+  },
+  "animations": {
+    "file": "animations.glb",
+    "bytes": 749068,
+    "clips": [
+      {
+        "name": "Idle_Loop",
+        "source": "gaits.glb",
+        "duration": 2.5
+      },
+      {
+        "name": "Walk_Loop",
+        "source": "gaits.glb",
+        "duration": 1.333
+      },
+      {
+        "name": "Jog_Fwd_Loop",
+        "source": "gaits.glb",
+        "duration": 0.933
+      },
+      {
+        "name": "Sprint_Loop",
+        "source": "gaits.glb",
+        "duration": 0.667
+      },
+      {
+        "name": "Roll",
+        "source": "gaits.glb",
+        "duration": 1.467
+      },
+      {
+        "name": "Hit_Chest",
+        "source": "gaits.glb",
+        "duration": 0.333
+      },
+      {
+        "name": "Hit_Head",
+        "source": "gaits.glb",
+        "duration": 0.433
+      },
+      {
+        "name": "Death01",
+        "source": "gaits.glb",
+        "duration": 2.4
+      },
+      {
+        "name": "Sword_Attack",
+        "source": "gaits.glb",
+        "duration": 1.533
+      },
+      {
+        "name": "Sword_Idle",
+        "source": "gaits.glb",
+        "duration": 1.667
+      },
+      {
+        "name": "Jump_Start",
+        "source": "gaits.glb",
+        "duration": 1.333
+      },
+      {
+        "name": "Jump_Loop",
+        "source": "gaits.glb",
+        "duration": 2.5
+      },
+      {
+        "name": "Jump_Land",
+        "source": "gaits.glb",
+        "duration": 1.267
+      },
+      {
+        "name": "Interact",
+        "source": "gaits.glb",
+        "duration": 2
+      },
+      {
+        "name": "Sitting_Enter",
+        "source": "gaits.glb",
+        "duration": 1.3
+      },
+      {
+        "name": "Sitting_Idle_Loop",
+        "source": "gaits.glb",
+        "duration": 1.667
+      },
+      {
+        "name": "Sitting_Exit",
+        "source": "gaits.glb",
+        "duration": 1.033
+      },
+      {
+        "name": "Sword_Regular_A",
+        "source": "animations.glb",
+        "duration": 0.433
+      },
+      {
+        "name": "Sword_Regular_A_Rec",
+        "source": "animations.glb",
+        "duration": 0.967
+      },
+      {
+        "name": "Sword_Regular_B",
+        "source": "animations.glb",
+        "duration": 0.533
+      },
+      {
+        "name": "Sword_Regular_B_Rec",
+        "source": "animations.glb",
+        "duration": 1.033
+      },
+      {
+        "name": "Sword_Regular_C",
+        "source": "animations.glb",
+        "duration": 2
+      },
+      {
+        "name": "Sword_Regular_Combo",
+        "source": "animations.glb",
+        "duration": 3
+      },
+      {
+        "name": "Sword_Heavy_Combo",
+        "source": "animations.glb",
+        "duration": 4.333
+      },
+      {
+        "name": "Sword_Block",
+        "source": "animations.glb",
+        "duration": 1.233
+      },
+      {
+        "name": "Sword_Dash",
+        "source": "animations.glb",
+        "duration": 1.567
+      },
+      {
+        "name": "Idle_Shield_Loop",
+        "source": "animations.glb",
+        "duration": 2.5
+      },
+      {
+        "name": "Idle_Shield_Break",
+        "source": "animations.glb",
+        "duration": 1.067
+      },
+      {
+        "name": "Shield_Dash",
+        "source": "animations.glb",
+        "duration": 1.1
+      },
+      {
+        "name": "Shield_OneShot",
+        "source": "animations.glb",
+        "duration": 0.833
+      },
+      {
+        "name": "Hit_Knockback",
+        "source": "animations.glb",
+        "duration": 0.833
+      },
+      {
+        "name": "Melee_Hook",
+        "source": "animations.glb",
+        "duration": 0.467
+      },
+      {
+        "name": "Melee_Hook_Rec",
+        "source": "animations.glb",
+        "duration": 0.6
+      },
+      {
+        "name": "Consume",
+        "source": "animations.glb",
+        "duration": 1.333
+      }
+    ]
+  },
+  "props": {
+    "file": "props.glb",
+    "bytes": 18096,
+    "triangles": 950
+  },
+  "totalBytes": 1284028
+}

@@ -5,6 +5,7 @@ import { Game } from './game/game';
 import { InputSystem, type InputDebugState } from './input';
 import { createRenderer } from './render/renderer';
 import { GameView } from './render/gameView';
+import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { mountOrientationHint, showUnsupportedScreen } from './ui/overlays';
 
 /** E2E / デバッグ用に公開する読み取り専用の状態。 */
@@ -13,6 +14,8 @@ interface DebugState {
   readonly frames: number;
   readonly steps: number;
   readonly input: InputDebugState;
+  /** アセットパイプライン確認用のキャラクター表示（読み込み失敗時は undefined）。 */
+  readonly showcase?: ShowcaseState;
 }
 
 declare global {
@@ -36,6 +39,12 @@ async function bootstrap(): Promise<void> {
     const game = await Game.create();
     const view = new GameView(game, gameRenderer);
 
+    // アセットパイプライン（#10）の確認用。プレイヤー統合（#8）で置き換える。
+    const showcase = await CharacterShowcase.create(view.scene, view.camera).catch((e: unknown) => {
+      console.error('character showcase failed to load', e);
+      return undefined;
+    });
+
     new ResizeObserver(() => {
       view.resize();
     }).observe(root);
@@ -49,6 +58,7 @@ async function bootstrap(): Promise<void> {
         game.update(dt);
       },
       render: (alpha) => {
+        showcase?.update();
         view.render(alpha);
       },
     });
@@ -64,6 +74,9 @@ async function bootstrap(): Promise<void> {
       },
       get input() {
         return input.debugState;
+      },
+      get showcase() {
+        return showcase?.state;
       },
     };
     root.dataset.state = 'running';
