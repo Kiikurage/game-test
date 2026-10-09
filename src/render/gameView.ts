@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   Mesh,
+  type Object3D,
   MeshStandardNodeMaterial,
   PerspectiveCamera,
   Quaternion,
@@ -25,6 +26,8 @@ export class GameView {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(50, 1, 0.1, 500);
   readonly environment: Environment;
+  /** 影のカバー範囲が追従する対象（プレイヤー等）。未設定ならデモ立方体。 */
+  shadowFocusTarget: Object3D | null = null;
 
   private readonly cubeMesh: Mesh;
   private readonly postProcess: PostProcess;
@@ -69,7 +72,7 @@ export class GameView {
     this.game.cube.sample(alpha, this.tmpPosition, this.tmpQuaternion);
     this.cubeMesh.position.copy(this.tmpPosition);
     this.cubeMesh.quaternion.copy(this.tmpQuaternion);
-    this.environment.followShadowFocus(this.tmpPosition);
+    this.environment.followShadowFocus(this.shadowFocusTarget?.position ?? this.tmpPosition);
     this.postProcess.render();
     this.gameRenderer.endFrame();
   }
