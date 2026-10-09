@@ -138,3 +138,23 @@ game.combat.onHit((e: HitEvent) => …) // ヒットストップ・被弾リア�
 - **ダメージ**: `AttackProfile.damage`（整数）。崩し中 ×1.5（四捨五入）、ガード成功は `guardChipDamage`（10%、切り捨て）、ジャストは 0。ガード側が失うスタミナは `HitEvent.guardStaminaCost`（ジャストは 50%）で返し、消費は E2-6 が `stamina.consume` で行う。強靭度削りは `HitEvent.poiseDamage`（ガード時 0）。HP が 0 になった命中は `killed: true`。
 - **遮蔽**: `isBlocked`（Rapier のレイキャスト、地形・静的物のみ）で壁越しには当たらない。
 - **?debug**: `render/combatDebugView.ts` がハートボックス（プレイヤー緑・敵水色・無敵中は灰紫）とヒットボックス（赤、命中で黄）をワイヤ表示する。`window.__game.dev.swing()` で仮の横斬り（軽攻撃 1 の 12F + 4F）を出せる（実際の攻撃動作は #46）。
+
+## 回復瓶（#48）
+
+仕様は vertical-slice.md の 2.1（瓶の数）・2.3 節（回復）・2.4 節（先行入力 6F）。数値は `PLAYER_ACTIONS.heal` / `healEmpty`、クリップとマーカーは `player.heal`（`Consume` 全体を 54F に合わせる。`healApply` F26・`cancelOpen` F30）/ `player.healEmpty`（前半 14F を 20F に）。
+
+```ts
+player.flask             // Flask: count / max / available / use() / refill() / increaseMax() / restore() / onChange()
+player.health            // Health（Game は playerTarget の Health を渡す）。回復は health.heal(120)（最大 HP でクランプ）
+player.state             // 'heal'（54F）| 'healEmpty'（20F）。kind: 'action'（isActionable は false）
+player.events            // healStart（F1・瓶消費）/ healApply { amount }（F26）/ healEmpty
+game.events 'heal'       // { amount, hp, position }: HUD の HP ゲージ・光のパーティクル用。SE は 'sound'（sfx.heal-drink / sfx.heal-glow）
+game.respawn()           // 瓶を最大数まで補充（篝火・死亡）。礼拝堂のアイテムは flask.increaseMax()
+```
+
+- **入力**: `item`（PC は `R`）。先行入力は 6F（`INPUT_BUFFER_FRAMES`。入力層のバッファはアクション別: 攻撃 10F・ロール 8F・回復 6F。`input/config.ts`）。地上と、ロール F26–F32 のキャンセルで開始できる。
+- **開始条件**: HP が満タンなら入力だけ消費して何も起きない（瓶は減らない）。残数 1 以上なら回復、0 なら空振り（20F・回復なし・SE なし）。スタミナは不要。
+- **消費と加算**: 瓶は F1 で消費、HP 加算は `healApply` マーカー（F26）。F26 より前に仰け反り・転倒で状態を離れると加算は起きず、瓶だけ失われる。
+- **キャンセル**: F1–F25 はロール・攻撃・ガードへ不可。F30 からロール（先行入力あり）。攻撃・ガードは F36 から（`PLAYER_ACTIONS.heal.cancels` に窓があり、各チケットが状態グラフに遷移を足して `updateDrinking` で `canCancelTo` を見るだけで繋げられる）。
+- **移動**: 回復中・空振り中は入力方向へ 1.0 m/s（`MOVEMENT.heal`）。アニメーションは全身が Consume（足は動かさない）。
+- **デバッグ**: `window.__game.dev.damage(n)` で HP を減らせる。`sim.combat.flask` が残数。

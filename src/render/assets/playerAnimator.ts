@@ -29,7 +29,7 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     backstep: { fadeIn: 0.04, fadeOut: 0.1 },
   },
   combatIdle: 'Sword_Idle',
-  preload: ['roll', 'backstep', 'fall', 'land', 'flinch', 'knockdown'],
+  preload: ['roll', 'backstep', 'fall', 'land', 'flinch', 'knockdown', 'heal', 'healEmpty'],
 };
 
 /** 描画のデバッグ用に固定表示できるレイヤ（状態 ID または `idle` / `walk` / `jog` / `sprint`）。 */

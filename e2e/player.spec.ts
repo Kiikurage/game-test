@@ -313,3 +313,33 @@ test('a swing hits the dummy in front exactly once (hit resolution, ?debug wiref
   expect(after.combat.lastHitStopFrames).toBe(4);
   expect(errors).toEqual([]);
 });
+
+test('R drinks a flask: the drinking animation plays and HP is restored at F26', async ({
+  page,
+}) => {
+  await boot(page);
+  await page.evaluate(() => {
+    window.__game?.dev.damage(120);
+  });
+  const hp0 = (await sim(page)).combat.playerHp;
+  expect(hp0).toBe(180);
+  expect((await sim(page)).combat.flask).toBe(3);
+
+  await page.keyboard.press('KeyR');
+  await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('heal');
+  expect((await sim(page)).combat.flask).toBe(2);
+  // 全身が回復モーション（Consume）で再生される
+  await expect
+    .poll(() => page.evaluate(() => window.__game?.playerView?.clip), { timeout: 30_000 })
+    .toBe('Consume');
+  // F26 で +120（HP 300 が上限なので 300）
+  await expect.poll(async () => (await sim(page)).combat.playerHp, { timeout: 30_000 }).toBe(300);
+  expect((await sim(page)).events.healApply).toBe(1);
+  await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('idle');
+
+  // HP 満タンでは飲まない（瓶は減らない）
+  await page.keyboard.press('KeyR');
+  await page.waitForTimeout(500);
+  expect((await sim(page)).player.state).toBe('idle');
+  expect((await sim(page)).combat.flask).toBe(2);
+});

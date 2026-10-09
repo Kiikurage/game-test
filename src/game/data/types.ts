@@ -81,7 +81,8 @@ export type PlayerActionId =
   | 'plunge'
   | 'roll'
   | 'backstep'
-  | 'heal';
+  | 'heal'
+  | 'healEmpty';
 
 export interface PlayerActionData extends AttackDef {
   readonly id: PlayerActionId;

@@ -79,6 +79,13 @@ export interface GameEventMap {
     readonly broke: boolean;
     readonly heavy: boolean;
   };
+  /** 回復瓶で HP が加算された（F26）。HUD の HP ゲージ・光のパーティクル用。`amount` は実際に増えた HP。 */
+  heal: {
+    readonly amount: number;
+    /** 加算後の HP。 */
+    readonly hp: number;
+    readonly position?: Vec3Like;
+  };
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {
     readonly cue: string;
