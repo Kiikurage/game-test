@@ -29,6 +29,17 @@ export interface GameEventMap {
     readonly source: SoundSource;
     readonly position?: Vec3Like;
   };
+  /**
+   * アニメーションのイベントマーカーの発火（`hitStart` / `hitEnd` / `cancelOpen` / `invulnStart` / `invulnEnd` /
+   * `healApply`。足音は `footstep` へも変換される）。命中判定・演出・SE が購読する。`owner` は発火したキャラクター。
+   */
+  animMarker: {
+    readonly owner: string;
+    readonly marker: string;
+    readonly actionId: string;
+    readonly frame: number;
+    readonly position?: Vec3Like;
+  };
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {
     readonly cue: string;
