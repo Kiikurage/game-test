@@ -45,7 +45,8 @@ export class InputCollector {
     return (this.held.get(action)?.size ?? 0) > 0;
   }
 
-  setButton(source: InputSource, action: Action, down: boolean): void {
+  /** @param at イベント発生時刻[ms]（`event.timeStamp`）。省略時は呼び出し時刻。描画が重くハンドラが遅れても短押し判定がずれないようにする。 */
+  setButton(source: InputSource, action: Action, down: boolean, at?: number): void {
     let set = this.held.get(action);
     if (!set) {
       set = new Set();
@@ -58,11 +59,11 @@ export class InputCollector {
     const nowHeld = set.size > 0;
     if (!wasHeld && nowHeld) {
       this.pressedLatch.add(action);
-      this.pressedAt.set(action, this.now());
+      this.pressedAt.set(action, at ?? this.now());
     }
     if (wasHeld && !nowHeld) {
       this.releasedLatch.add(action);
-      this.releasedAt.set(action, this.now());
+      this.releasedAt.set(action, at ?? this.now());
     }
   }
 

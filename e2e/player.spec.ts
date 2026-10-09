@@ -27,6 +27,25 @@ const sim = (page: Page) =>
     return s;
   });
 
+/**
+ * キーを押し、入力システムがそのアクションの押下を受け付けるまで待つ。ソフトウェア描画では 1 フレームが非常に長く、
+ * キーイベントの処理がフレームに遅れることがあるため、受け付けられなければ押し直す（カウント済みなら二重に押さない）。
+ */
+async function pressAccepted(page: Page, code: string, action: 'dodge' | 'lockOn'): Promise<void> {
+  const count = () => page.evaluate((a) => window.__game?.input.pressCounts[a] ?? 0, action);
+  const before = await count();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.keyboard.press(code);
+    try {
+      await expect.poll(count, { timeout: 15_000 }).toBeGreaterThan(before);
+      return;
+    } catch {
+      // 押し直す
+    }
+  }
+  throw new Error(`${code} was never accepted as ${action}`);
+}
+
 const teleport = (page: Page, x: number, z: number, yaw: number) =>
   page.evaluate(
     ([px, pz, pyaw]) => {
@@ -113,7 +132,7 @@ test('a roll plays the Roll clip and fires the invulnerability and footstep mark
 
 test('Space without a direction does a backstep, and holding Space sprints', async ({ page }) => {
   await boot(page);
-  await page.keyboard.press('Space');
+  await pressAccepted(page, 'Space', 'dodge');
   await expect.poll(async () => (await sim(page)).events.backstepStart).toBe(1);
   await expect.poll(async () => (await sim(page)).player.state).toBe('idle');
 
@@ -132,7 +151,7 @@ test('lock-on: Q locks the nearest dummy, strafing keeps facing it, arrows switc
   page,
 }) => {
   await boot(page);
-  await page.keyboard.press('KeyQ');
+  await pressAccepted(page, 'KeyQ', 'lockOn');
   await expect.poll(async () => (await sim(page)).lockOn.targetId).toBe('dummy-a');
 
   // 右へストレイフ。対象を向いたまま、約 3.8 m/s で横へ動く
@@ -288,7 +307,7 @@ test('a swing hits the dummy in front exactly once (hit resolution, ?debug wiref
   });
   page.on('pageerror', (err) => errors.push(err.message));
   await page.goto('./?scene=test&quality=low&scale=0.25&debug');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   await expect.poll(async () => (await sim(page)).player.grounded).toBe(true);
 
   // dummy-a (0, -6) の 1.5m 手前で北向き

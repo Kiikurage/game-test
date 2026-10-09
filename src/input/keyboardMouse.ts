@@ -123,7 +123,7 @@ export class KeyboardMouseInput {
     }
     if (action) {
       this.keys.add(code);
-      this.collector.setButton('keyboard', action, true);
+      this.collector.setButton('keyboard', action, true, e.timeStamp);
     }
     if (code === TARGET_KEYS.left) this.collector.requestTargetSwitch(-1);
     if (code === TARGET_KEYS.right) this.collector.requestTargetSwitch(1);
@@ -141,7 +141,7 @@ export class KeyboardMouseInput {
     const stillHeld = Object.entries(KEY_ACTIONS).some(
       ([k, a]) => a === action && this.keys.has(k),
     );
-    if (!stillHeld) this.collector.setButton('keyboard', action, false);
+    if (!stillHeld) this.collector.setButton('keyboard', action, false, e.timeStamp);
   };
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -154,13 +154,13 @@ export class KeyboardMouseInput {
     const action = MOUSE_ACTIONS[e.button];
     if (!action) return;
     e.preventDefault(); // 中クリックのオートスクロール抑止
-    this.collector.setButton('mouse', action, true);
+    this.collector.setButton('mouse', action, true, e.timeStamp);
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {
     if (e.pointerType !== 'mouse') return;
     const action = MOUSE_ACTIONS[e.button];
-    if (action) this.collector.setButton('mouse', action, false);
+    if (action) this.collector.setButton('mouse', action, false, e.timeStamp);
   };
 
   private readonly onMouseMove = (e: MouseEvent): void => {
