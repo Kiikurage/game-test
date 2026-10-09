@@ -107,3 +107,43 @@ GitHub 上はすべてのエージェントが同じアカウントで動作す�
 
 - エージェントの環境からはリモートブランチを削除できない。マージ済みブランチは GitHub の「Automatically delete head branches」設定で自動削除する。
 - エージェントの環境からは GitHub Pages の公開 URL にアクセスできない。公開後の表示確認は人間に依頼する。
+
+## 8. 開発コマンド
+
+Node.js 22.12 以上。初回は `npm ci`。
+
+| コマンド | 内容 |
+| --- | --- |
+| `npm run dev` | Vite 開発サーバ（http://127.0.0.1:5173/game-test/） |
+| `npm run build` | 型チェック + 本番ビルド（`dist/`） |
+| `npm run lint` | ESLint（typescript-eslint strict）+ Prettier チェック。整形は `npm run format` |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest ユニットテスト（`src/**/*.test.ts`） |
+| `npm run e2e` | Playwright E2E（ビルド → preview 配信 → ヘッドレス WebGPU で起動確認） |
+| `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
+
+- PR 前に `npm run lint && npm run typecheck && npm test && npm run build && npm run e2e` を通す。
+- 見た目を変えたら `npm run shot` で撮って自分で画像を確認する（`shots/` は git 管理外）。
+- ヘッドレス WebGPU は SwiftShader で動かす。起動フラグは `scripts/chromium.mjs` に集約している
+  （`--enable-unsafe-webgpu --enable-unsafe-swiftshader --use-angle=swiftshader --enable-features=Vulkan --use-vulkan=swiftshader`。
+  Vulkan 指定が無いとキャンバスのスワップチェーンが作れず GPU デバイスがロストする）。
+  ローカルのブラウザは `CHROMIUM_PATH` で上書きできる（未指定なら `/opt/pw-browsers/chromium-1194` があればそれを使う）。
+  `playwright install` はローカルでは実行しない（CI のみ）。
+- ローカルの Chromium 141 は three r186 の `GPUTextureViewDescriptor.swizzle` を受け付けないため、
+  E2E / shot では `scripts/webgpuCompat.mjs` の互換シムを注入している（最新の Chrome では不要）。
+
+## 9. ソース構成と依存方向
+
+```
+src/
+  main.ts        起動・各層の組み立て（ここだけが全層を知る）
+  core/          純粋なロジック（DOM/three 非依存）: 固定ステップ、メインループ、WebGPU 判定、補間用 Transform
+  game/          シミュレーション（Rapier 物理含む）。描画・DOM に依存しない
+  render/        three/webgpu による描画。game の状態を読み取って描くだけ
+  input/         入力デバイス（未実装）。game には入力スナップショットだけ渡す
+  ui/            DOM オーバーレイ（非対応画面・横画面ヒント・今後の HUD）
+```
+
+- 依存方向: `main` → `render` / `game` / `input` / `ui` → `core`。`game` は `render` / `input` / `ui` を import しない。
+- シミュレーションは 60Hz 固定ステップ（`Game.update(dt)`）、描画はフレームごとに `alpha` で補間（`InterpolatedTransform`）。
+  描画対象の位置・回転は `InterpolatedTransform` として game 側に持たせ、render 側は `sample(alpha, ...)` で読む。

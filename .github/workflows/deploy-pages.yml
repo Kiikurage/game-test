@@ -20,13 +20,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
       - uses: actions/configure-pages@v5
 
-      # 現時点ではビルド工程なし。site/ をそのまま公開する。
-      # ゲーム本体のビルドを導入したら、ここでビルドしてその出力をアップロードする。
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: dist
 
   deploy:
     needs: build
