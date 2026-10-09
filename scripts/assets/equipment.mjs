@@ -996,10 +996,12 @@ export function buildItemsDocument({
       g.positions.push(...geo.positions);
       g.normals.push(...geo.normals);
       for (const i of geo.indices) g.indices.push(i + base);
+      const edge = edgeness(geo);
       for (let i = 0; i < geo.positions.length; i += 3) {
         const c = colors[kind](
           [geo.positions[i], geo.positions[i + 1], geo.positions[i + 2]],
           seed,
+          { n: [geo.normals[i], geo.normals[i + 1], geo.normals[i + 2]], edge: edge[i / 3] },
         );
         colorsOf[key].push(...c, 1);
       }

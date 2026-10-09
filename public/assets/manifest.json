@@ -243,10 +243,10 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 1522872,
+  "totalBytes": 1529668,
   "equipment": {
     "file": "equipment.glb",
-    "bytes": 105500,
+    "bytes": 109208,
     "triangles": 4490,
     "textureMemoryBytes": 0,
     "items": {
@@ -360,7 +360,7 @@
   },
   "exploration": {
     "file": "exploration.glb",
-    "bytes": 59728,
+    "bytes": 61260,
     "triangles": 2679,
     "textureMemoryBytes": 0,
     "items": {
@@ -393,7 +393,7 @@
   },
   "player": {
     "file": "player.glb",
-    "bytes": 73616,
+    "bytes": 75172,
     "triangles": 2748,
     "textureMemoryBytes": 0,
     "items": {
