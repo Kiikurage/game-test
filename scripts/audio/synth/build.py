@@ -165,7 +165,7 @@ def main():
             dict(
                 id=s.id,
                 kind=s.kind,
-                prefix=s.id.split(".")[0] if s.kind == "ui" else ".".join(s.id.split(".")[:2]),
+                prefix=("boss" if s.id.startswith("sfx.boss") else "enemy" if s.id.startswith("sfx.enemy") else "foot" if s.id.startswith("sfx.footstep") else s.group),
                 dur=x.shape[-1] / SR,
                 peak=float(np.max(np.abs(x))),
                 lufs=lufs,

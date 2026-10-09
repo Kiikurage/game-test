@@ -64,7 +64,7 @@ for _i, (_d, _f0, _f1) in enumerate([(0.26, 900, 3400), (0.24, 1100, 3800), (0.2
 
         return fn
 
-    sound(f"sfx.player.sword-light{_i}", "se", 80, G)(_mk())
+    sound(f"sfx.sword-light{_i}", "se", 80, G)(_mk())
 
 for _i, (_d, _f0, _f1) in enumerate([(0.46, 350, 1900), (0.5, 300, 1600)], 1):
 
@@ -76,7 +76,7 @@ for _i, (_d, _f0, _f1) in enumerate([(0.46, 350, 1900), (0.5, 300, 1600)], 1):
 
         return fn
 
-    sound(f"sfx.player.sword-heavy{_i}", "se", 80, G, lufs_offset=1.5)(_mk())
+    sound(f"sfx.sword-heavy{_i}", "se", 80, G, lufs_offset=1.5)(_mk())
 
 
 def _guard(rng, f0):
@@ -91,10 +91,10 @@ for _i, _f in enumerate([560, 650, 740], 1):
     def _mk(_f=_f):
         return lambda rng: _guard(rng, _f)
 
-    sound(f"sfx.player.guard{_i}", "se", 90, G)(_mk())
+    sound(f"sfx.guard{_i}", "se", 90, G)(_mk())
 
 
-@sound("sfx.player.guard-just", "se", 95, G, lufs_offset=1.0)
+@sound("sfx.guard-just", "se", 95, G, lufs_offset=1.0)
 def _guard_just(rng):
     metal = metal_hit(1050, 1.2, rng, brightness=1.0, damp=1.8)
     # 澄んだ高域の余韻（ジャストの合図）。倍音ではなく非調和の高い部分音を長く
@@ -121,14 +121,14 @@ def _cloth(rng, dur, lo, hi, bursts):
     return body * (0.35 + 0.65 * am) * env
 
 
-@sound("sfx.player.roll1", "se", 60, G, lufs_offset=-1.5)
+@sound("sfx.roll1", "se", 60, G, lufs_offset=-1.5)
 def _roll1(rng):
     c = _cloth(rng, 0.4, 500, 4500, [(0.25, 0.14, 1.0), (0.62, 0.1, 0.55)])
     land = thump(120, 62, 0.12, 0.03) * np.clip(tt(0.12) / 0.002, 0, 1)
     return fade(mix((c, 1.0, 0), (land, 0.18, 0.27)), 0.004, 0.05)
 
 
-@sound("sfx.player.roll2", "se", 60, G, lufs_offset=-1.5)
+@sound("sfx.roll2", "se", 60, G, lufs_offset=-1.5)
 def _roll2(rng):
     c = _cloth(rng, 0.44, 400, 3800, [(0.22, 0.12, 0.8), (0.5, 0.12, 1.0), (0.78, 0.08, 0.4)])
     land = thump(110, 58, 0.12, 0.03) * np.clip(tt(0.12) / 0.002, 0, 1)
@@ -143,11 +143,11 @@ def _hurt(rng, f, dur):
     return fade(mix((body, 0.9, 0.0), (flesh, 0.9, 0.0), (slice_, 0.7, 0.0), (tick, 0.7, 0.0)), 0.0008, 0.06)
 
 
-sound("sfx.player.hurt1", "se", 92, G)(lambda rng: _hurt(rng, 150, 0.32))
-sound("sfx.player.hurt2", "se", 92, G)(lambda rng: _hurt(rng, 125, 0.38))
+sound("sfx.hurt1", "se", 92, G)(lambda rng: _hurt(rng, 150, 0.32))
+sound("sfx.hurt2", "se", 92, G)(lambda rng: _hurt(rng, 125, 0.38))
 
 
-@sound("sfx.player.heal-drink", "se", 70, G, lufs_offset=-2)
+@sound("sfx.heal-drink", "se", 70, G, lufs_offset=-2)
 def _heal_drink(rng):
     n = int(1.0 * SR)
     out = np.zeros(n)
@@ -172,7 +172,7 @@ def _heal_drink(rng):
     return fade(lp(out + wet, 3500, 1), 0.01, 0.1)
 
 
-@sound("sfx.player.heal-glow", "se", 70, G, lufs_offset=-1)
+@sound("sfx.heal-glow", "se", 70, G, lufs_offset=-1)
 def _heal_glow(rng):
     dur = 2.6
     t = tt(dur)
@@ -187,7 +187,7 @@ def _heal_glow(rng):
     return fade(out, 0.002, 0.2)
 
 
-@sound("sfx.player.breathless", "se", 85, G, lufs_offset=-1)
+@sound("sfx.breathless", "se", 85, G, lufs_offset=-1)
 def _breathless(rng):
     # 息切れ: 声ではなく空気の音。口の形（フォルマント）が 2 度開いて閉じる
     dur = 1.0
@@ -214,10 +214,10 @@ def _flesh(rng, f, dur, decay, body_lo, lufs=0.0):
     return fade(mix((body, 1.0, 0), (soft, 1.0, 0), (crack, 1.0, 0)), 0.0006, 0.04)
 
 
-sound("sfx.hit.flesh-light1", "se", 85, G)(lambda rng: _flesh(rng, 135, 0.22, 0.05, 1200))
-sound("sfx.hit.flesh-light2", "se", 85, G)(lambda rng: _flesh(rng, 160, 0.2, 0.045, 1500))
-sound("sfx.hit.flesh-heavy1", "se", 88, G, lufs_offset=2)(lambda rng: _flesh(rng, 100, 0.42, 0.11, 900))
-sound("sfx.hit.flesh-heavy2", "se", 88, G, lufs_offset=2)(lambda rng: _flesh(rng, 88, 0.46, 0.13, 800))
+sound("sfx.hit-light1", "se", 85, G)(lambda rng: _flesh(rng, 135, 0.22, 0.05, 1200))
+sound("sfx.hit-light2", "se", 85, G)(lambda rng: _flesh(rng, 160, 0.2, 0.045, 1500))
+sound("sfx.hit-heavy1", "se", 88, G, lufs_offset=2)(lambda rng: _flesh(rng, 100, 0.42, 0.11, 900))
+sound("sfx.hit-heavy2", "se", 88, G, lufs_offset=2)(lambda rng: _flesh(rng, 88, 0.46, 0.13, 800))
 
 
 def _armor(rng, f, ring, dur, thump_decay, damp):
@@ -228,13 +228,13 @@ def _armor(rng, f, ring, dur, thump_decay, damp):
     return fade(mix((body, 1.0, 0), (clank, 0.55, 0), (tick, 0.5, 0), (grit, 0.5, 0)), 0.0006, 0.06)
 
 
-sound("sfx.hit.armor-light1", "se", 85, G)(lambda rng: _armor(rng, 180, 820, 0.36, 0.04, 0.3))
-sound("sfx.hit.armor-light2", "se", 85, G)(lambda rng: _armor(rng, 200, 980, 0.34, 0.035, 0.28))
-sound("sfx.hit.armor-heavy1", "se", 88, G, lufs_offset=2)(lambda rng: _armor(rng, 110, 480, 0.7, 0.09, 0.6))
-sound("sfx.hit.armor-heavy2", "se", 88, G, lufs_offset=2)(lambda rng: _armor(rng, 95, 410, 0.75, 0.1, 0.65))
+sound("sfx.hit-light3", "se", 85, G)(lambda rng: _armor(rng, 180, 820, 0.36, 0.04, 0.3))
+sound("sfx.hit-light4", "se", 85, G)(lambda rng: _armor(rng, 200, 980, 0.34, 0.035, 0.28))
+sound("sfx.hit-heavy3", "se", 88, G, lufs_offset=2)(lambda rng: _armor(rng, 110, 480, 0.7, 0.09, 0.6))
+sound("sfx.hit-heavy4", "se", 88, G, lufs_offset=2)(lambda rng: _armor(rng, 95, 410, 0.75, 0.1, 0.65))
 
 
-@sound("sfx.hit.defeat-collapse", "se", 80, G, lufs_offset=1)
+@sound("sfx.defeat-collapse", "se", 80, G, lufs_offset=1)
 def _defeat_collapse(rng):
     parts = [(thump(105, 38, 0.6, 0.16), 1.0, 0.0), (_noise_burst(rng, 0.3, 60, 900, 0.1), 0.7, 0.0)]
     # 鎧が崩れ落ちる: 大きさと間隔が減衰する金属片の打撃
@@ -249,7 +249,7 @@ def _defeat_collapse(rng):
     return fade(mix(*parts, length=int(1.5 * SR)), 0.0006, 0.2)
 
 
-@sound("sfx.hit.defeat-ash", "se", 80, G, lufs_offset=-1)
+@sound("sfx.defeat-ash", "se", 80, G, lufs_offset=-1)
 def _defeat_ash(rng):
     dur = 1.6
     n = int(dur * SR)
@@ -260,7 +260,7 @@ def _defeat_ash(rng):
     return fade(mix((puff, 0.8, 0), (grains, 1.4, 0.03), (low, 0.8, 0), (sh, 1.0, 0)), 0.002, 0.25)
 
 
-@sound("sfx.hit.guard-break", "se", 93, G, lufs_offset=2)
+@sound("sfx.guard-break", "se", 93, G, lufs_offset=2)
 def _guard_break(rng):
     metal = metal_hit(330, 1.2, rng, brightness=1.1, damp=1.4)
     body = thump(170, 42, 0.5, 0.11) * 1.1
@@ -276,8 +276,8 @@ def _deflect(rng, f0):
     return fade(mix((m, 1.0, 0), (tick, 0.6, 0), (body, 1.0, 0)), 0.0004, 0.1)
 
 
-sound("sfx.hit.shield-deflect1", "se", 90, G)(lambda rng: _deflect(rng, 1250))
-sound("sfx.hit.shield-deflect2", "se", 90, G)(lambda rng: _deflect(rng, 1480))
+sound("sfx.shield-deflect1", "se", 90, G)(lambda rng: _deflect(rng, 1250))
+sound("sfx.shield-deflect2", "se", 90, G)(lambda rng: _deflect(rng, 1480))
 
 
 # ============ 敵 ============

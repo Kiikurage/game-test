@@ -2,204 +2,204 @@
   "version": 1,
   "sounds": [
     {
-      "id": "sfx.player.sword-light1",
-      "source": "se/sfx.player.sword-light1.wav",
+      "id": "sfx.sword-light1",
+      "source": "se/sfx.sword-light1.wav",
       "kind": "se",
       "priority": 80,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.sword-light2",
-      "source": "se/sfx.player.sword-light2.wav",
+      "id": "sfx.sword-light2",
+      "source": "se/sfx.sword-light2.wav",
       "kind": "se",
       "priority": 80,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.sword-light3",
-      "source": "se/sfx.player.sword-light3.wav",
+      "id": "sfx.sword-light3",
+      "source": "se/sfx.sword-light3.wav",
       "kind": "se",
       "priority": 80,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.sword-heavy1",
-      "source": "se/sfx.player.sword-heavy1.wav",
+      "id": "sfx.sword-heavy1",
+      "source": "se/sfx.sword-heavy1.wav",
       "kind": "se",
       "priority": 80,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.sword-heavy2",
-      "source": "se/sfx.player.sword-heavy2.wav",
+      "id": "sfx.sword-heavy2",
+      "source": "se/sfx.sword-heavy2.wav",
       "kind": "se",
       "priority": 80,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.guard1",
-      "source": "se/sfx.player.guard1.wav",
+      "id": "sfx.guard1",
+      "source": "se/sfx.guard1.wav",
       "kind": "se",
       "priority": 90,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.guard2",
-      "source": "se/sfx.player.guard2.wav",
+      "id": "sfx.guard2",
+      "source": "se/sfx.guard2.wav",
       "kind": "se",
       "priority": 90,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.guard3",
-      "source": "se/sfx.player.guard3.wav",
+      "id": "sfx.guard3",
+      "source": "se/sfx.guard3.wav",
       "kind": "se",
       "priority": 90,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.guard-just",
-      "source": "se/sfx.player.guard-just.wav",
+      "id": "sfx.guard-just",
+      "source": "se/sfx.guard-just.wav",
       "kind": "se",
       "priority": 95,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.roll1",
-      "source": "se/sfx.player.roll1.wav",
+      "id": "sfx.roll1",
+      "source": "se/sfx.roll1.wav",
       "kind": "se",
       "priority": 60,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.roll2",
-      "source": "se/sfx.player.roll2.wav",
+      "id": "sfx.roll2",
+      "source": "se/sfx.roll2.wav",
       "kind": "se",
       "priority": 60,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.hurt1",
-      "source": "se/sfx.player.hurt1.wav",
+      "id": "sfx.hurt1",
+      "source": "se/sfx.hurt1.wav",
       "kind": "se",
       "priority": 92,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.hurt2",
-      "source": "se/sfx.player.hurt2.wav",
+      "id": "sfx.hurt2",
+      "source": "se/sfx.hurt2.wav",
       "kind": "se",
       "priority": 92,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.heal-drink",
-      "source": "se/sfx.player.heal-drink.wav",
+      "id": "sfx.heal-drink",
+      "source": "se/sfx.heal-drink.wav",
       "kind": "se",
       "priority": 70,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.heal-glow",
-      "source": "se/sfx.player.heal-glow.wav",
+      "id": "sfx.heal-glow",
+      "source": "se/sfx.heal-glow.wav",
       "kind": "se",
       "priority": 70,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.player.breathless",
-      "source": "se/sfx.player.breathless.wav",
+      "id": "sfx.breathless",
+      "source": "se/sfx.breathless.wav",
       "kind": "se",
       "priority": 85,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.flesh-light1",
-      "source": "se/sfx.hit.flesh-light1.wav",
+      "id": "sfx.hit-light1",
+      "source": "se/sfx.hit-light1.wav",
       "kind": "se",
       "priority": 85,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.flesh-light2",
-      "source": "se/sfx.hit.flesh-light2.wav",
+      "id": "sfx.hit-light2",
+      "source": "se/sfx.hit-light2.wav",
       "kind": "se",
       "priority": 85,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.flesh-heavy1",
-      "source": "se/sfx.hit.flesh-heavy1.wav",
+      "id": "sfx.hit-heavy1",
+      "source": "se/sfx.hit-heavy1.wav",
       "kind": "se",
       "priority": 88,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.flesh-heavy2",
-      "source": "se/sfx.hit.flesh-heavy2.wav",
+      "id": "sfx.hit-heavy2",
+      "source": "se/sfx.hit-heavy2.wav",
       "kind": "se",
       "priority": 88,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.armor-light1",
-      "source": "se/sfx.hit.armor-light1.wav",
+      "id": "sfx.hit-light3",
+      "source": "se/sfx.hit-light3.wav",
       "kind": "se",
       "priority": 85,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.armor-light2",
-      "source": "se/sfx.hit.armor-light2.wav",
+      "id": "sfx.hit-light4",
+      "source": "se/sfx.hit-light4.wav",
       "kind": "se",
       "priority": 85,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.armor-heavy1",
-      "source": "se/sfx.hit.armor-heavy1.wav",
+      "id": "sfx.hit-heavy3",
+      "source": "se/sfx.hit-heavy3.wav",
       "kind": "se",
       "priority": 88,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.armor-heavy2",
-      "source": "se/sfx.hit.armor-heavy2.wav",
+      "id": "sfx.hit-heavy4",
+      "source": "se/sfx.hit-heavy4.wav",
       "kind": "se",
       "priority": 88,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.defeat-collapse",
-      "source": "se/sfx.hit.defeat-collapse.wav",
+      "id": "sfx.defeat-collapse",
+      "source": "se/sfx.defeat-collapse.wav",
       "kind": "se",
       "priority": 80,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.defeat-ash",
-      "source": "se/sfx.hit.defeat-ash.wav",
+      "id": "sfx.defeat-ash",
+      "source": "se/sfx.defeat-ash.wav",
       "kind": "se",
       "priority": 80,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.guard-break",
-      "source": "se/sfx.hit.guard-break.wav",
+      "id": "sfx.guard-break",
+      "source": "se/sfx.guard-break.wav",
       "kind": "se",
       "priority": 93,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.shield-deflect1",
-      "source": "se/sfx.hit.shield-deflect1.wav",
+      "id": "sfx.shield-deflect1",
+      "source": "se/sfx.shield-deflect1.wav",
       "kind": "se",
       "priority": 90,
       "license": "synth-game-test"
     },
     {
-      "id": "sfx.hit.shield-deflect2",
-      "source": "se/sfx.hit.shield-deflect2.wav",
+      "id": "sfx.shield-deflect2",
+      "source": "se/sfx.shield-deflect2.wav",
       "kind": "se",
       "priority": 90,
       "license": "synth-game-test"
