@@ -7,6 +7,12 @@ import type { InputReader, InputSnapshot } from '../core/input';
 import { ThirdPersonCamera, type CameraCollision } from './camera/thirdPersonCamera';
 import { LockOnController, type LockOnEvent } from './lockOn/lockOnController';
 import { DummyTarget, type LockOnTarget } from './lockOn/targets';
+import { ENEMY_STATS, LAND_NOISE_MIN_HEIGHT, type NoiseKind } from './data';
+import { RapierEnemyBody } from './enemy/enemyBody';
+import { EnemyManager } from './enemy/enemyManager';
+import type { EnemyDebugInfo } from './enemy/enemy';
+import { directNavigator, type Navigator } from './enemy/navigation';
+import { motionNoise, playerMotion } from './enemy/perception';
 import { createPhysics, type Physics } from './physics';
 import { Player } from './player/player';
 import { tuning } from './tuning';
@@ -16,6 +22,7 @@ import {
   TARGET_GROUPS,
   WORLD_GROUPS,
 } from './world/groups';
+import type { EnemySpawn } from './world/level';
 import {
   DUMMIES,
   PLAYER_SPAWN,
@@ -68,6 +75,10 @@ export interface GameOptions {
   readonly boxes?: readonly BoxSpec[];
   /** ロックオン用のダミー。省略時はテストシーンのダミー（レベルでは空配列を渡す）。 */
   readonly dummies?: readonly DummySpec[];
+  /** 敵の配置（レベルデータの `enemies`）。省略時は敵なし。 */
+  readonly enemies?: readonly EnemySpawn[];
+  /** 敵の経路問い合わせ。省略時は直線（ナビゲーションメッシュは #43 で差し替える）。 */
+  readonly enemyNavigator?: Navigator;
   /** プレイヤーの開始位置と向き（ヨー）。省略時はテストシーンの広場。 */
   readonly spawn?: { readonly x: number; readonly z: number; readonly yaw: number };
 }
@@ -99,6 +110,8 @@ export class Game {
   readonly events = new EventBus<GameEventMap>();
 
   readonly player: Player;
+  /** 雑魚敵（生成・AI・音の受け口）。敵は `lockOnTargets` にも登録される。 */
+  readonly enemies: EnemyManager;
   readonly camera = new ThirdPersonCamera();
   readonly lockOn = new LockOnController();
   /** ロックオン対象。敵（#40 以降）は `LockOnTarget` を実装してここへ追加する。 */
@@ -183,6 +196,30 @@ export class Game {
     this.player = new Player(physics, this.spawnPosition, this.spawnYaw);
     this.cameraCollision = this.createCameraCollision(rapier);
     this.camera.reset(this.player.feet, this.spawnYaw);
+
+    // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
+    this.enemies = new EnemyManager({
+      lineOfSight: (from, to) => this.hasLineOfSight(from as Vector3, to as Vector3),
+      navigator: options.enemyNavigator ?? directNavigator,
+      createBody: (init) => {
+        const stats = ENEMY_STATS[init.type];
+        return new RapierEnemyBody(
+          physics,
+          init.x,
+          heightAt(init.x, init.z) + 0.02,
+          init.z,
+          stats.height,
+          stats.radius,
+        );
+      },
+    });
+    for (const spawnPoint of options.enemies ?? []) {
+      this.lockOnTargets.push(this.enemies.spawn(spawnPoint));
+    }
+    // 戦闘音（命中・ガード）は敵に聞こえる
+    this.events.on('hit', (e) => {
+      if (e.position) this.enemies.noises.emit(e.position, 'combat');
+    });
   }
 
   static async create(options: GameOptions = {}): Promise<Game> {
@@ -259,10 +296,51 @@ export class Game {
       cameraYaw: camera.yaw,
       lockTarget: this.lockOn.target,
     });
-    for (const e of player.events) this.eventCounts[e.type]++;
+    for (const e of player.events) {
+      this.eventCounts[e.type]++;
+      if (e.type === 'land' && e.fallHeight >= LAND_NOISE_MIN_HEIGHT) {
+        this.enemies.noises.emit(player.feet, 'land');
+      }
+    }
+    this.updateEnemies(dt);
     for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
+  }
+
+  /**
+   * 敵を 1 ステップ進める。プレイヤーの足音（歩き・走り・ダッシュ/ロール）をこのステップ分の音として出し、
+   * 敵はそれと視覚から気付く。
+   */
+  private updateEnemies(dt: number): void {
+    if (this.enemies.enemies.length === 0) return;
+    const { player } = this;
+    const motion = playerMotion(player.state, player.speed);
+    const kind = motionNoise(motion);
+    if (kind) this.enemies.noises.emit(player.feet, kind, { duration: dt });
+    this.enemies.update(dt, { position: player.feet, motion });
+    this.publishEnemyFootsteps();
+  }
+
+  /** 敵の足音（位置つき）をイベントバスへ流す。 */
+  private publishEnemyFootsteps(): void {
+    for (const enemy of this.enemies.enemies) {
+      for (const m of enemy.markerEvents) {
+        if (m.type !== 'footstep') continue;
+        const f = enemy.position;
+        this.events.emit('footstep', {
+          surface: this.footstepSurface(f.x, f.z),
+          gait: m.gait ?? 'run',
+          source: 'enemy',
+          position: { x: f.x, y: f.y, z: f.z },
+        });
+      }
+    }
+  }
+
+  /** 音を発生させる（敵に聞こえる）。鐘・壁の崩壊・回復瓶など、game 内外の音源から呼ぶ。 */
+  emitNoise(position: { x: number; y: number; z: number }, kind: NoiseKind): void {
+    this.enemies.noises.emit(position, kind);
   }
 
   /** アニメーションのイベントマーカーをイベントバスへ流す。足音は音のイベント（`footstep`）にも変換する。 */
@@ -388,6 +466,7 @@ export class Game {
       },
       events: { ...this.eventCounts },
       markers: { ...this.markerCounts },
+      enemies: this.enemies.debugInfo,
     };
   }
 }
@@ -417,4 +496,6 @@ export interface GameDebugState {
   >;
   /** イベントマーカーの種別ごとの発火回数。 */
   readonly markers: Readonly<Record<MarkerType, number>>;
+  /** 敵の状態（気付きゲージ・見失いなど）。 */
+  readonly enemies: readonly EnemyDebugInfo[];
 }

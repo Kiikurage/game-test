@@ -9,6 +9,7 @@ import { PlaygroundView } from './playground';
 import { LevelView } from './levelView';
 import type { Level } from '../game/world/level';
 import type { PlayerView } from './playerView';
+import type { EnemyViews } from './enemyView';
 import { createTestScene, type ColliderCylinder } from './testScene';
 import { ParticleSystem } from './particles';
 import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
@@ -38,6 +39,7 @@ export class GameView {
 
   private savedFog: Scene['fogNode'] | undefined;
   private playerView: PlayerView | null = null;
+  private enemyViews: EnemyViews | null = null;
   private readonly playground: PlaygroundView;
   private readonly postProcess: PostProcess;
   private readonly tmpPosition = new Vector3();
@@ -110,6 +112,11 @@ export class GameView {
     this.shadowFocusTarget = view.root;
   }
 
+  /** 敵の描画を登録する（毎フレーム補間・アニメーションを更新する）。 */
+  attachEnemies(views: EnemyViews): void {
+    this.enemyViews = views;
+  }
+
   /** コンテナサイズに合わせてレンダラとカメラのアスペクト比を更新する。 */
   resize(): void {
     const { width, height } = this.gameRenderer.resize();
@@ -122,6 +129,7 @@ export class GameView {
     this.gameRenderer.beginFrame(performance.now());
     if (this.useGameCamera) this.syncCamera(alpha);
     this.playerView?.update(alpha);
+    this.enemyViews?.update(alpha, this.camera);
     this.playground.update(this.camera);
     const focus = this.shadowFocusTarget?.position ?? this.game.player.feet;
     this.environment.followShadowFocus(focus);

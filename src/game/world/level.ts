@@ -638,12 +638,15 @@ export function validateLevel(data: LevelData): string[] {
  */
 export function levelGameOptions(
   level: Level,
-): Required<Pick<GameOptions, 'terrain' | 'terrainHeight' | 'boxes' | 'dummies' | 'spawn'>> {
+): Required<
+  Pick<GameOptions, 'terrain' | 'terrainHeight' | 'boxes' | 'dummies' | 'spawn' | 'enemies'>
+> {
   return {
     terrain: { vertices: level.terrain.vertices, indices: level.terrain.indices },
     terrainHeight: level.heightAt,
     boxes: [...level.boxes, ...level.boundaryBoxes],
     dummies: [],
     spawn: level.data.playerSpawn,
+    enemies: level.data.enemies,
   };
 }
