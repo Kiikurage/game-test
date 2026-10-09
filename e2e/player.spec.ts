@@ -3,14 +3,14 @@ import { startGame } from './helpers';
 
 test.describe.configure({ timeout: 120_000 });
 
-/** ソフトウェア描画でもシミュレーションが回るよう、最小品質・低解像度で起動する。足場・ダミーのあるテストシーン（?scene=test）で試す。 */
+/** ソフトウェア描画では描画が極端に遅いので、最小品質・低解像度で起動し、draw は省く（`?nodraw`。描画の検証は他の spec）。足場・ダミーのあるテストシーン（?scene=test）で試す。 */
 async function boot(page: Page): Promise<void> {
   const errors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=test&quality=low&scale=0.25');
+  await page.goto('./?scene=test&quality=low&scale=0.25&nodraw');
   await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
@@ -306,7 +306,7 @@ test('a swing hits the dummy in front exactly once (hit resolution, ?debug wiref
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=test&quality=low&scale=0.25&debug');
+  await page.goto('./?scene=test&quality=low&scale=0.25&nodraw&debug');
   await startGame(page);
   await expect.poll(async () => (await sim(page)).player.grounded).toBe(true);
 

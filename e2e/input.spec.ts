@@ -3,7 +3,7 @@ import { startGame } from './helpers';
 
 async function boot(page: Page): Promise<void> {
   // ソフトウェア描画（SwiftShader）でも入力ステップが回るよう、描画を最小品質・低解像度にする
-  await page.goto('./?quality=low&scale=0.25');
+  await page.goto('./?quality=low&scale=0.25&nodraw');
   await startGame(page);
   // 初回のパイプラインコンパイルで最初のフレームが重いので、ループが安定して回り出すまで待つ
   await expect

@@ -8,7 +8,7 @@ async function boot(page: Page): Promise<void> {
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25');
+  await page.goto('./?quality=low&scale=0.25&nodraw');
   await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
