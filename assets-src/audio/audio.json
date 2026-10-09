@@ -2,22 +2,319 @@
   "version": 1,
   "sounds": [
     {
-      "id": "ui.dummy-click",
-      "source": "dummy/click.wav",
-      "kind": "ui",
-      "priority": 70,
-      "gainDb": -3,
-      "license": "dummy-generated"
+      "id": "sfx.player.sword-light1",
+      "source": "se/sfx.player.sword-light1.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
     },
     {
-      "id": "ambient.dummy-hiss",
-      "source": "dummy/hiss.wav",
-      "kind": "ambient",
-      "loop": true,
-      "loopStart": 0,
-      "loopEnd": 0.5,
-      "priority": 10,
-      "license": "dummy-generated"
+      "id": "sfx.player.sword-light2",
+      "source": "se/sfx.player.sword-light2.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.sword-light3",
+      "source": "se/sfx.player.sword-light3.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.sword-heavy1",
+      "source": "se/sfx.player.sword-heavy1.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.sword-heavy2",
+      "source": "se/sfx.player.sword-heavy2.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.guard1",
+      "source": "se/sfx.player.guard1.wav",
+      "kind": "se",
+      "priority": 90,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.guard2",
+      "source": "se/sfx.player.guard2.wav",
+      "kind": "se",
+      "priority": 90,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.guard3",
+      "source": "se/sfx.player.guard3.wav",
+      "kind": "se",
+      "priority": 90,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.guard-just",
+      "source": "se/sfx.player.guard-just.wav",
+      "kind": "se",
+      "priority": 95,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.roll1",
+      "source": "se/sfx.player.roll1.wav",
+      "kind": "se",
+      "priority": 60,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.roll2",
+      "source": "se/sfx.player.roll2.wav",
+      "kind": "se",
+      "priority": 60,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.hurt1",
+      "source": "se/sfx.player.hurt1.wav",
+      "kind": "se",
+      "priority": 92,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.hurt2",
+      "source": "se/sfx.player.hurt2.wav",
+      "kind": "se",
+      "priority": 92,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.heal-drink",
+      "source": "se/sfx.player.heal-drink.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.heal-glow",
+      "source": "se/sfx.player.heal-glow.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.player.breathless",
+      "source": "se/sfx.player.breathless.wav",
+      "kind": "se",
+      "priority": 85,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.flesh-light1",
+      "source": "se/sfx.hit.flesh-light1.wav",
+      "kind": "se",
+      "priority": 85,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.flesh-light2",
+      "source": "se/sfx.hit.flesh-light2.wav",
+      "kind": "se",
+      "priority": 85,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.flesh-heavy1",
+      "source": "se/sfx.hit.flesh-heavy1.wav",
+      "kind": "se",
+      "priority": 88,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.flesh-heavy2",
+      "source": "se/sfx.hit.flesh-heavy2.wav",
+      "kind": "se",
+      "priority": 88,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.armor-light1",
+      "source": "se/sfx.hit.armor-light1.wav",
+      "kind": "se",
+      "priority": 85,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.armor-light2",
+      "source": "se/sfx.hit.armor-light2.wav",
+      "kind": "se",
+      "priority": 85,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.armor-heavy1",
+      "source": "se/sfx.hit.armor-heavy1.wav",
+      "kind": "se",
+      "priority": 88,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.armor-heavy2",
+      "source": "se/sfx.hit.armor-heavy2.wav",
+      "kind": "se",
+      "priority": 88,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.defeat-collapse",
+      "source": "se/sfx.hit.defeat-collapse.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.defeat-ash",
+      "source": "se/sfx.hit.defeat-ash.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.guard-break",
+      "source": "se/sfx.hit.guard-break.wav",
+      "kind": "se",
+      "priority": 93,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.shield-deflect1",
+      "source": "se/sfx.hit.shield-deflect1.wav",
+      "kind": "se",
+      "priority": 90,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.hit.shield-deflect2",
+      "source": "se/sfx.hit.shield-deflect2.wav",
+      "kind": "se",
+      "priority": 90,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.step1",
+      "source": "se/sfx.enemy.step1.wav",
+      "kind": "se",
+      "priority": 50,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.step2",
+      "source": "se/sfx.enemy.step2.wav",
+      "kind": "se",
+      "priority": 50,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.notice",
+      "source": "se/sfx.enemy.notice.wav",
+      "kind": "se",
+      "priority": 55,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.notice-minor",
+      "source": "se/sfx.enemy.notice-minor.wav",
+      "kind": "se",
+      "priority": 50,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.whoosh1",
+      "source": "se/sfx.enemy.whoosh1.wav",
+      "kind": "se",
+      "priority": 50,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.whoosh2",
+      "source": "se/sfx.enemy.whoosh2.wav",
+      "kind": "se",
+      "priority": 50,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.whoosh3",
+      "source": "se/sfx.enemy.whoosh3.wav",
+      "kind": "se",
+      "priority": 50,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.enemy.shield-raise",
+      "source": "se/sfx.enemy.shield-raise.wav",
+      "kind": "se",
+      "priority": 50,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.click",
+      "source": "ui/ui.click.wav",
+      "kind": "ui",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.confirm",
+      "source": "ui/ui.confirm.wav",
+      "kind": "ui",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.back",
+      "source": "ui/ui.back.wav",
+      "kind": "ui",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.item-get",
+      "source": "ui/ui.item-get.wav",
+      "kind": "ui",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.bonfire-light",
+      "source": "ui/ui.bonfire-light.wav",
+      "kind": "ui",
+      "priority": 85,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.bonfire-rest",
+      "source": "ui/ui.bonfire-rest.wav",
+      "kind": "ui",
+      "priority": 85,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.died-bell",
+      "source": "ui/ui.died-bell.wav",
+      "kind": "ui",
+      "priority": 90,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ui.boss-bar",
+      "source": "ui/ui.boss-bar.wav",
+      "kind": "ui",
+      "priority": 85,
+      "license": "synth-game-test"
     }
   ]
 }

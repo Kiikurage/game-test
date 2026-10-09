@@ -19,6 +19,7 @@
     "assets:fetch": "node scripts/assets/fetch.mjs",
     "assets:audio": "node scripts/audio/build.mjs",
     "assets:audio:check": "node scripts/audio/build.mjs --check",
+    "assets:audio:synth": "python3 scripts/audio/synth/build.py",
     "assets:build": "node scripts/assets/fetch.mjs && node scripts/assets/build.mjs"
   },
   "dependencies": {
