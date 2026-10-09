@@ -1,7 +1,7 @@
 {
   "version": 1,
   "format": "ogg-opus",
-  "totalBytes": 1374287,
+  "totalBytes": 4728933,
   "budgetBytes": 8388608,
   "sounds": [
     {
@@ -1009,6 +1009,72 @@
       "channels": 1,
       "bytes": 7880,
       "duration": 1.307
+    },
+    {
+      "id": "bgm.title",
+      "file": "bgm.title.ogg",
+      "bus": "bgm",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1,
+      "loopEnd": 61,
+      "priority": 40,
+      "gain": 1,
+      "channels": 2,
+      "bytes": 629903,
+      "duration": 61.507
+    },
+    {
+      "id": "bgm.boss",
+      "file": "bgm.boss.ogg",
+      "bus": "bgm",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1,
+      "loopEnd": 91,
+      "priority": 45,
+      "gain": 1,
+      "channels": 2,
+      "bytes": 896493,
+      "duration": 91.507
+    },
+    {
+      "id": "bgm.boss-layer",
+      "file": "bgm.boss-layer.ogg",
+      "bus": "bgm",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1,
+      "loopEnd": 91,
+      "priority": 46,
+      "gain": 1,
+      "channels": 2,
+      "bytes": 974058,
+      "duration": 91.507
+    },
+    {
+      "id": "bgm.victory",
+      "file": "bgm.victory.ogg",
+      "bus": "bgm",
+      "kind": "bgm",
+      "loop": false,
+      "priority": 50,
+      "gain": 1,
+      "channels": 2,
+      "bytes": 207811,
+      "duration": 20.007
+    },
+    {
+      "id": "bgm.ending",
+      "file": "bgm.ending.ogg",
+      "bus": "bgm",
+      "kind": "bgm",
+      "loop": false,
+      "priority": 40,
+      "gain": 1,
+      "channels": 2,
+      "bytes": 646381,
+      "duration": 60.007
     }
   ]
 }
