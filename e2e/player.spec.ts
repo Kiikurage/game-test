@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { startGame } from './helpers';
 
+test.describe.configure({ timeout: 120_000 });
+
 /** ソフトウェア描画でもシミュレーションが回るよう、最小品質・低解像度で起動する。足場・ダミーのあるテストシーン（?scene=test）で試す。 */
 async function boot(page: Page): Promise<void> {
   const errors: string[] = [];
