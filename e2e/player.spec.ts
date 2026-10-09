@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { startGame, tapKey } from './helpers';
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -68,7 +68,7 @@ async function pressAccepted(page: Page, code: string, action: 'dodge' | 'lockOn
   const count = () => page.evaluate((a) => window.__game?.input.pressCounts[a] ?? 0, action);
   const before = await count();
   for (let attempt = 0; attempt < 4; attempt++) {
-    await page.keyboard.press(code);
+    await tapKey(page, code);
     try {
       await expect.poll(count, { timeout: 15_000 }).toBeGreaterThan(before);
       return;
@@ -131,7 +131,7 @@ test('a short Space press rolls toward the stick direction and costs stamina', a
   const start = (await sim(page)).player;
 
   await page.keyboard.down('KeyD');
-  await page.keyboard.press('Space'); // 短押し = 離した時点でロール確定
+  await tapKey(page, 'Space'); // 短押し = 離した時点でロール確定
   await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
   expect((await sim(page)).player.stamina).toBeLessThan(start.stamina - 10);
 
@@ -149,7 +149,7 @@ test('a roll plays the Roll clip and fires the invulnerability and footstep mark
 }) => {
   await boot(page);
   await page.keyboard.down('KeyD');
-  await page.keyboard.press('Space');
+  await tapKey(page, 'Space');
   await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
   await expect
     .poll(async () => (await sim(page)).markers.invulnStart, { timeout: 30_000 })

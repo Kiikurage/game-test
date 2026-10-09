@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { startGame, tapKey } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で起動する。 */
 async function boot(page: Page): Promise<void> {
@@ -158,7 +158,7 @@ test('rolling in the 2.5m catacomb corridor does not pass through its walls', as
   });
   await page.waitForTimeout(500);
   await page.keyboard.down('KeyW');
-  await page.keyboard.press('Space');
+  await tapKey(page, 'Space');
   await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
   await page.waitForTimeout(1500);
   await page.keyboard.up('KeyW');

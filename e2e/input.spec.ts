@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { startGame, tapKey } from './helpers';
 
 async function boot(page: Page): Promise<void> {
   // ソフトウェア描画（SwiftShader）でも入力ステップが回るよう、描画を最小品質・低解像度にする
@@ -31,8 +31,7 @@ test.describe('keyboard', () => {
     await expect.poll(async () => (await input(page))?.move).toEqual({ x: 0, y: 0 });
 
     // 短押し = 回避（離した時点で確定）
-    await page.keyboard.down('Space');
-    await page.keyboard.up('Space');
+    await tapKey(page, 'Space');
     await expect.poll(async () => (await input(page))?.pressCounts.dodge).toBe(1);
     expect((await input(page))?.sprint).toBe(false);
 
