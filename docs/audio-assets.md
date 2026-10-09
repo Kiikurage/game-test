@@ -1,7 +1,7 @@
 # 音声素材パイプラインとライセンス記録（Issue #31）
 
 仕様: [vertical-slice.md](vertical-slice.md) 10 章。ランタイム側（バス・音量・ダッキング）は #30 の `docs/audio.md`、素材のローダは E7-1b。
-実素材はまだ含まない。パイプラインの動作確認用にダミー 2 件だけを入れている。
+素材は #36〜#38 で合成した自作物（§6）。外部の CC0 素材は取り込んでいない（§1 の調査結果と §6 の理由を参照）。
 
 ## 1. 素材の取得可否と方針（調査日: 2026-10-09）
 
@@ -42,7 +42,7 @@ public/assets/audio/manifest.json  ランタイムが読むマニフェスト（
 | `npm run assets:audio` | 検証 → Opus 変換 → マニフェスト生成 → 容量集計（超過で失敗、80% 超で警告） |
 | `npm run assets:audio -- --m4a` | iOS 向けの AAC（`.m4a`）も出力しマニフェストに `fallbackFile` を入れる |
 | `npm run assets:audio:check` | ffmpeg 不要。設定・ライセンス表・出力マニフェスト・出力ファイルのサイズ・容量予算の整合を検査（`npm test` にも同等のテストあり） |
-| `node scripts/audio/make-dummy.mjs` | ダミー元データ（`assets-src/audio/dummy/`）の再生成 |
+| `npm run assets:audio:synth` | 合成素材（`assets-src/audio/{se,ui,...}/*.wav`）の再生成と `audio.json` の更新（Python。§6） |
 
 ffmpeg / ffprobe（libopus 付き）が必要。CI では `apt-get install ffmpeg` してから実行する。
 
@@ -108,4 +108,48 @@ ffmpeg / ffprobe（libopus 付き）が必要。CI では `apt-get install ffmpe
 
 | キー | 用途 | 出典 URL | 作者 | ライセンス | 取得日 | 元ファイル・備考 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `dummy-generated` | パイプライン動作確認用ダミー（UI クリック風ビープ、ピンクノイズ） | `scripts/audio/make-dummy.mjs`（本リポジトリ） | 本リポジトリ（ffmpeg の `lavfi` で合成） | 自作（CC0 として公開） | 2026-10-09 | `assets-src/audio/dummy/click.wav`、`hiss.wav`。実素材に置き換えたら削除する |
+| `synth-game-test` | SE・UI・環境音・BGM のすべて（合成） | `scripts/audio/synth/`（本リポジトリ） | 本リポジトリ（Python + numpy/scipy による合成。外部素材・サンプルは一切使わない） | 自作（CC0 として公開） | 2026-10-09 | 元データ `assets-src/audio/{se,ui,...}/<id>.wav`（コミット済み）。再生成は `npm run assets:audio:synth` |
+
+## 6. 合成素材（#36 以降）
+
+オーナーへの素材調達依頼はしない方針のため、CC0 の外部素材は使わず、すべて `scripts/audio/synth/` の Python（numpy / scipy）で合成した。
+Kenney のスターターキット（`Starter-Kit-FPS` の `sounds/*.ogg`、CC0）は取得できたが、内容が SF 風のブラスター・ジャンプ音などでソウルライクの剣戟・足音・咆哮に合わないため採用していない。
+
+### 再生成
+
+```
+pip install -r scripts/audio/synth/requirements.txt
+npm run assets:audio:synth                        # WAV 再生成 + audio.json 更新（出力は決定的）
+npm run assets:audio:synth -- --report /tmp/rep   # 加えてスペクトログラム画像（グループごとの一覧）
+npm run assets:audio                              # Opus 化・マニフェスト・容量集計
+```
+
+CI は WAV をコミット済みとして `assets:audio` だけを実行する（Python は不要）。乱数シードは素材 ID から決まるので、再実行しても同じ波形になる。
+
+### 合成の考え方（`dsp.py`）
+
+| 対象 | モデル |
+| --- | --- |
+| 剣身・盾・鎧の金属音 | 自由-自由棒の非調和モード（比 1 / 2.76 / 5.40 / 8.93 / 13.3 / 18.6）の減衰正弦。高い部分音ほど速く減衰、接触の短い高域ノイズ |
+| 鐘 | 教会鐘の部分音比（hum / prime / tierce / quint / nominal ...）、低い部分音ほど長く鳴る + コンボリューション・リバーブ |
+| 肉・鎧の打撃 | 周波数が落ちる低域の正弦 + 低域通過ノイズの塊 + 金属のにぶい共鳴 |
+| 風切り | 白色ノイズを中心周波数が掃引するバンドパス（状態変数フィルタ）に通し、山形の振幅 |
+| 布（ロール） | ピンクノイズの帯域 + 低周波ゆらぎ（不規則なこすれ） |
+| うめき | のこぎり波の声帯音源（ジッター付き）+ 並列フォルマント + 軽い歪み + 息ノイズ |
+| 灰・焚き火 | ポアソン的なインパルス列を指数減衰カーネルで整形したパチパチ |
+
+### 品質検査（`build.py`）
+
+- 正規化: 種別ごとのピーク上限（SE 0.8 / UI 0.7、環境音 0.4、BGM 0.6。仕様書 10.2 節）と基準ラウドネス（SE の最大モメンタリー -16 LUFS、UI -18、BGM・環境音は統合ラウドネス）の**小さい方**に合わせる。K 重み付けは ITU-R BS.1770 の係数を自前実装（ゲーティングなし）。短い打撃音はピーク制限が先に効くため、ラウドネスは種別内で ±3 LU 程度の幅が残る。素材ごとの強弱は `lufs_offset` で付ける（強攻撃 +1.5〜2、足音 -4 など）。
+- 先頭・末尾 1ms のフェード、DC 除去、クリップ検出、端が 0 でないことの検査、内部の不連続（隣接サンプル差が局所 RMS の 14 倍超）の検出。1 件でも失敗するとビルドが失敗する。意図した鋭い立ち上がりを含む素材だけ `clicks_ok=True`。
+- 生成時に見つけて直した不具合: 打ち切られたノイズ・正弦の末尾クリック、リバーブに入れる前の波形の打ち切り。
+
+### SE・UI 素材（#36）
+
+出典はすべて `synth-game-test`（合成）。一覧と容量は `public/assets/audio/manifest.json`。
+
+素材 ID は `docs/audio.md` の cue 規約（末尾の連番を除いたものがバリエーショングループ）に合わせる。主な対応:
+`sfx.hit-light1〜4`（肉 2 + 鎧 2）/ `sfx.hit-heavy1〜4` → `hit` イベントの light / heavy、`sfx.guard1〜3` / `sfx.guard-break` → guard / guardBreak、
+`sfx.guard-just`・`sfx.shield-deflect1〜2`・`sfx.sword-light1〜3`・`sfx.sword-heavy1〜2`・`sfx.roll1〜2`・`sfx.hurt1〜2`・`sfx.heal-drink`・`sfx.heal-glow`・`sfx.breathless`・`sfx.defeat-collapse`・`sfx.defeat-ash` は `sound` イベントで cue を直接渡す。
+敵は `sfx.enemy.*`（プリロードの `field` グループ対象）、UI は `ui.*`（`title` グループ）。
+
