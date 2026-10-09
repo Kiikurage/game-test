@@ -283,7 +283,26 @@ knight.update(dt);
 - 剣は `hand_r`、盾は `lowerarm_l` に取り付ける（位置・向きは `character.ts` の `SOCKETS`）。
 - 動作確認ページ: `npm run dev` などで開き、URL に `?clip=Roll&t=0.5&view=left&dist=3` を付ける（`clip` クリップ名、`t` 再生位置を固定、`view` `front|left|right|back|close`、`dist` カメラ距離）。撮影は `SHOT_QUERY='?clip=…' npm run shot`（`'|'` 区切りで複数枚）。このページ内のキャラクター配置は #8 のプレイヤー統合で置き換える。
 
-### 7.6 簡易装備メッシュ（Issue #23）
+### 7.6 亡者マテリアル（Issue #22）
+
+UBC の騎士メッシュに、追加テクスチャなし・TSL のみで「亡者」の見た目を与える（`src/render/undead/`）。
+
+```ts
+const knight = assets.createCharacter('knight');
+const look = applyUndeadLook(knight.root, UNDEAD_VARIANTS.gaunt);   // マテリアルを亡者用に差し替える（インスタンスごとに生成）
+knight.root.scale.set(...look.buildScale);                           // 体型（ボスは 2.2 倍にこれを乗せる）
+look.setDissolve(elapsedFrames / DISSOLVE_FRAMES.soldier);           // 0..1。1 で完全に消える（雑魚 60F / ボス 90F）
+look.setEmber(1);                                                    // ボスのフェーズ 2: 眼・亀裂・小物が熾火色
+```
+
+- バリアント 4 種（`gaunt` / `bloated` / `scorched` / `drowned`）。肌色・斑の色・衣の色・錆の色・体型・フード/肩当て/ベルトの有無・眼の強さが異なる。`pickVariantId(rand, previous)` は直前と同じものを選ばない。
+- 肌（`MI_Regular_Male` / `MI_Head`）は元テクスチャの明度だけ借りた灰褐色 + Perlin ノイズの斑、眼窩の影。眼は顔テクスチャ上の 2 点の UV マスクで青白く発光（エミッシブ）。
+- 衣（`MI_Ranger`）は彩度を落として色替え、足元ほど泥で暗くする。肩当て・籠手（と UV の無い小物）は鉄 + 錆のノイズ。
+- ディゾルブはワールド座標の Perlin ノイズがしきい値を下回った画素を `discard`（ブレンドなし）。縁は焦げ + 熾火色に光る。
+- 追加コスト: フラグメントあたりノイズ 2〜3 回（斑・ひび・ディゾルブ）、テクスチャサンプルは元と同数。
+- 確認用: `?undead=gaunt|bloated|scorched|drowned|all&dissolve=0.5&ember=1`（`?view=front&dist=7` と併用）。
+
+### 7.7 簡易装備メッシュ（Issue #23）
 
 亡者兵・盾持ち・ボスの武器・防具。**すべて自作**（`scripts/assets/equipment.mjs` がコードで生成。素材由来のライセンスなし、テクスチャなし）。
 錆・汚れは頂点カラー（COLOR_0、ノイズで暗い鉄 → 赤茶の錆 → 擦れた地金）で表す。

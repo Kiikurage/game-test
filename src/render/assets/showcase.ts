@@ -1,8 +1,10 @@
-import { Timer, type Camera, type Mesh, type Object3D, type Scene } from 'three/webgpu';
+import { Timer, Vector3, type Camera, type Mesh, type Object3D, type Scene } from 'three/webgpu';
 import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
 import { EquipmentAssets, parseLoadoutName, type LoadoutName } from './equipment';
+import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
+import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
 
 /** E2E / デバッグ用に公開する状態。 */
 export interface ShowcaseState {
@@ -20,7 +22,9 @@ export interface ShowcaseState {
  *   `?clip=<クリップ名>`  再生するクリップ（既定 Idle_Loop）
  *   `&t=<秒>`             再生位置を固定する
  *   `&view=front|left|right|back|close` と `&dist=<m>`  キャラクターに寄ったカメラ位置（既定はゲームのカメラのまま）
- *   `&equip=soldier|shieldbearer|boss|all`  簡易装備メッシュを装着（boss は 2.2 倍、all は 3 体を横並び。盾持ちが中央）
+ *   `&undead=<gaunt|bloated|scorched|drowned|all>`  亡者マテリアルを適用（all は 4 バリアントを横並び）
+ *   `&dissolve=<0..1>` ディゾルブ進行度、`&ember=<0..1>` 熾火の強さ（亡者のみ）
+ *   `&equip=soldier|shieldbearer|boss|all`  簡易装備メッシュを装着（boss は 2.2 倍、all は盾持ち・亡者兵・ボスを横並び。亡者マテリアルと併用可）
  */
 export class CharacterShowcase {
   private readonly timer = new Timer();
@@ -50,30 +54,30 @@ export class CharacterShowcase {
     const frozenAt = t === null ? NaN : Number(t);
 
     const assets = await CharacterAssets.load(['knight']);
-    // 装備プレビュー: all は盾持ちを中央に、亡者兵を左、ボスを右に並べる
+    const undeadParam = params.get('undead');
+    const undeadIds =
+      undeadParam === 'all'
+        ? UNDEAD_VARIANT_IDS
+        : [parseVariantId(undeadParam)].filter((id) => id !== undefined);
     const equipParam = params.get('equip');
     const loadouts: LoadoutName[] =
       equipParam === 'all'
         ? ['shieldbearer', 'soldier', 'boss']
         : [parseLoadoutName(equipParam)].filter((n) => n !== undefined);
     const equipment = loadouts.length > 0 ? await EquipmentAssets.load() : undefined;
+    const lateral = { shieldbearer: 0, soldier: -1.7, boss: 2.6 };
+    const dissolve = Number(params.get('dissolve') ?? 0);
+    const ember = Number(params.get('ember') ?? 0);
     const facing = Math.atan2(4.5 - 0.8, 6 + 0.2); // カメラの方を向く
-    const lateral = { all_shieldbearer: 0, all_soldier: -1.7, all_boss: 2.6 };
-    const spawnEquipped = (loadout: LoadoutName | undefined): Character => {
+    const spawn = (index: number, count: number): Character => {
+      const loadout = loadouts[index];
       const c = assets.createCharacter('knight', loadout ? { sword: false, shield: false } : {});
-      const offset = equipParam === 'all' && loadout ? lateral[`all_${loadout}`] : 0;
+      // 横並びの間隔 1.6m（装備 all は種別ごとの位置）。向きに対して左右へ振る
+      const offset =
+        equipParam === 'all' && loadout ? lateral[loadout] : (index - (count - 1) / 2) * 1.6;
       c.root.position.set(0.8 + Math.cos(facing) * offset, 0, -0.2 - Math.sin(facing) * offset);
       c.root.rotation.y = facing;
-      if (loadout) {
-        equipment?.equipLoadout(c, loadout);
-        if (loadout === 'boss') c.root.scale.setScalar(2.2); // ボスは UBC を約 2.2 倍（仕様書 6.1 節）
-      }
-      return c;
-    };
-    const [primaryLoadout, ...otherLoadouts] = loadouts;
-    const character = spawnEquipped(primaryLoadout);
-    const extras = otherLoadouts.map((l) => spawnEquipped(l));
-    for (const c of extras) {
+      // 描画基盤（#7）の影の中に立たせる
       c.root.traverse((obj) => {
         if ((obj as { isMesh?: boolean }).isMesh) {
           obj.castShadow = true;
@@ -81,19 +85,26 @@ export class CharacterShowcase {
         }
       });
       scene.add(c.root);
-    }
-    // 描画基盤（#7）の影の中に立たせる
-    character.root.traverse((obj) => {
-      if ((obj as { isMesh?: boolean }).isMesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
+      if (loadout) {
+        equipment?.equipLoadout(c, loadout);
+        if (loadout === 'boss') c.root.scale.setScalar(2.2); // ボスは UBC を約 2.2 倍（仕様書 6.1 節）
       }
-    });
-    scene.add(character.root);
-    applyView(character, camera, params.get('view'), Number(params.get('dist')));
+      const id = undeadIds[index];
+      if (id !== undefined) {
+        const look: UndeadLook = applyUndeadLook(c.root, UNDEAD_VARIANTS[id]);
+        c.root.scale.multiply(new Vector3(...look.buildScale));
+        look.setDissolve(dissolve);
+        look.setEmber(ember);
+      }
+      return c;
+    };
+    const count = Math.max(1, undeadIds.length, loadouts.length);
+    const spawned = Array.from({ length: count }, (_, i) => spawn(i, count));
+    const [character, ...extras] = spawned as [Character, ...Character[]];
+    applyView(character, camera, params.get('view'), Number(params.get('dist')), 0.8, -0.2);
 
     const frozen = Number.isFinite(frozenAt);
-    for (const c of [character, ...extras]) {
+    for (const c of spawned) {
       const action = c.play(clip, { fade: 0 });
       if (frozen) {
         action.time = frozenAt;
@@ -140,11 +151,18 @@ const VIEW_ANGLES = {
 } as const;
 
 /** キャラクターを正面/側面/背面から映す位置へカメラを移す（デバッグ用）。 */
-function applyView(character: Character, camera: Camera, view: string | null, dist: number): void {
+function applyView(
+  character: Character,
+  camera: Camera,
+  view: string | null,
+  dist: number,
+  centerX: number,
+  centerZ: number,
+): void {
   if (view === null || !(view in VIEW_ANGLES)) return;
   const angle = character.root.rotation.y + VIEW_ANGLES[view as keyof typeof VIEW_ANGLES];
   const distance = Number.isFinite(dist) && dist > 0 ? dist : view === 'close' ? 2.2 : 4;
-  const target = character.root.position;
+  const target = { x: centerX, z: centerZ };
   camera.position.set(
     target.x + Math.sin(angle) * distance,
     view === 'close' ? 1.6 : 1.3,

@@ -739,11 +739,6 @@ const SWORD_SOCKET = {
   position: [0, 0.06, 0],
   quaternion: [0.4304, 0.561, 0.4304, 0.561],
 };
-const SHIELD_SOCKET = {
-  bone: 'lowerarm_l',
-  position: [-0.07, 0.11, 0],
-  quaternion: [0, -Math.SQRT1_2, 0, Math.SQRT1_2],
-};
 
 /**
  * id → { build(), socket } 。socket が文字列（ボーン名）のものはキャラクター空間で作ってあり、
@@ -753,8 +748,16 @@ export const ITEMS = {
   Sword_Rusty: { build: swordRusty, socket: SWORD_SOCKET },
   Axe_Rusty: { build: axeRusty, socket: SWORD_SOCKET },
   // 大斧: 握り位置は柄の下 1/3。右手ソケット（剣と同じ向き）
-  GreatAxe: { build: greatAxe, socket: SWORD_SOCKET },
-  GreatShield: { build: greatShield, socket: SHIELD_SOCKET },
+  // 待機姿勢（腕を下ろした状態）で柄を立て、刃を前に向けて体の脇に構える（頭の高さまで刃が来て視認できる）
+  GreatAxe: {
+    build: greatAxe,
+    socket: { bone: 'hand_r', position: [0, 0, 0], quaternion: [0.7071, 0, 0.7071, 0] },
+  },
+  // 待機姿勢で表面が正面（+Z）を向くように前腕の前側へ構える
+  GreatShield: {
+    build: greatShield,
+    socket: { bone: 'lowerarm_l', position: [0, 0.12, 0.13], quaternion: [0, 0, 1, 0] },
+  },
   Cuirass: { build: () => cuirass(false), socket: 'spine_03' },
   CuirassHeavy: { build: () => cuirass(true), socket: 'spine_03' },
   Pauldron_L: { build: () => pauldronLeft(0.85, 1), socket: 'upperarm_l' },
