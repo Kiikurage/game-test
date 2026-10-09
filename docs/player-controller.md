@@ -46,7 +46,7 @@ player.feet           // 足元のワールド座標（Vector3）
 player.yaw            // 向き。前方 = (sin yaw, cos yaw)
 player.speed          // 指令された水平速度 m/s
 player.invulnerable   // ロール F4–F15 / バックステップ F1–F8（被ダメージ判定を持たない）
-player.stamina        // Stamina: consume(n) / drain(perSecond, dt) / canStartAction / current
+player.stamina        // Stamina: canStart(cost) / consume(n) / drain(perSecond, dt) / update(dt, { guarding, sprinting }) / onEmpty(fn) / current / max / ratio
 player.events         // そのステップの通知（rollStart / backstepStart / land / staminaEmpty）
 player.animation      // PlayerAnimationState（#32 が読む。state, stateFrame, speed(実移動速度), localVelocity, lockedOn, yaw）
 player.rigidBody      // 物理ボディ（カメラ衝突の除外用）
@@ -58,6 +58,16 @@ player.teleport(pos, yaw)
 - **ロール / バックステップ**: `PLAYER_ACTIONS.roll` / `.backstep` のフレームデータどおり（全体 32F / 22F、距離 3.2m / 2.0m、無敵 F4–F15 / F1–F8）。入力（回避確定 = `buttons.dodge.pressed`）と同じステップで F1 が始まる。先行入力は `InputReader.consumeBuffered('dodge')` で消費。スタミナ 0 では開始できない。移動入力があればロール、なければバックステップ。ロール F26 から移動へキャンセル可。終了時にボタンが押されていればダッシュへ。
 - **落下 / 着地**: 接地が 4F 切れたら `fall`。1.2m 以上落ちると `land`（10F、3m 以上で 22F、速度 35%）。
 - **地形**: 40° まで登れ、それ以上は滑る。0.35m までの段差は自動で乗り越える（Rapier のオートステップ。接地中に下向きの移動量を与えるとオートステップが働かないので、接地中の鉛直速度は 0 とし、吸着は snap-to-ground に任せている）。見た目の跳ね上がりは `transform` だけ平滑化している。
+
+### スタミナ（#41）
+
+`player/stamina.ts`。仕様書 2.1〜2.3 節。すべて 60Hz の固定ステップ（フレーム単位）。
+
+- `canStart(cost)`: `cost <= 0`（回復など）または残量 > 0 なら true。**消費後に 0 になる動作は開始できる**が、0 のときは新規に開始できない。`canStartAction` は `canStart()` と同じ。
+- `consume(n)`: 動作**開始時**の一括消費（0 でクランプ）。回復待ちが 45F（0 になれば 60F）で再スタート。ガード被弾（E2-6）は `HitEvent.guardStaminaCost` をこれで消費する。
+- `drain(perSecond, dt)`: 継続消費（ダッシュ毎秒 10）。0 に達したら true。ダッシュはスタミナ 0 で走りに戻り、ボタンを離すまで再開しない（`Player.dashLocked`）。
+- `update(dt, { guarding, sprinting })`: 毎ステップ 1 回。最後の消費から 45F 後に毎秒 40（0.667/F）、ガード中は毎秒 20、走り・ダッシュ中は回復しない（待ち時間は進む）。
+- `onEmpty(fn)`: 0 に達した瞬間（開始消費・継続消費・ガード被弾のどれでも）。`Player` は `events` に `staminaEmpty` を積む（HUD 点滅・SE・息切れ用）。
 
 ### アニメーション（#32）
 
@@ -108,3 +118,23 @@ interface LockOnTarget {
 ## E2E / デバッグ用
 
 `window.__game.sim`（プレイヤー・カメラ・ロックオン・イベント累計）、`window.__game.dev`（`teleport(x, z, yaw)` / `pause(bool)` / `lock(id)` / `view(yawOffset, distance, pitchDeg)` / `pose(layer, time)`）、`window.__game.playerView`（再生中のクリップ）。`npm run shot` は `SHOT_SCRIPT=<module>` で撮影前に入力を注入できる（default export の `async (page, { name, index }) => {}`）。
+
+## 判定・ダメージ解決（#40）
+
+`src/game/combat/`（three 非依存）。仕様は vertical-slice.md の 2.3 / 4.2 節。
+
+```ts
+game.combat                          // HitResolver
+game.combat.addTarget(target)        // 被弾側（HitTarget）。UprightTarget が直立キャラの標準実装
+const atk = game.combat.startAttack(attackerId, 'player' | 'enemy', profile)   // 動作開始時（1 スイング = 1 インスタンス）
+game.combat.prime(atk, shape)        // 判定開始直前の姿勢（初回からスイープにする）
+game.combat.resolve(atk, shape)      // hitActive 中の毎ステップ。HitEvent[] を返す（ヒットストップ中は呼ばない）
+game.combat.endAttack(atk)
+game.combat.onHit((e: HitEvent) => …) // ヒットストップ・被弾リアクション・SE・パーティクルが購読
+```
+
+- **形状**（`shapes.ts`）: `capsuleShape`（武器: 半径 0.25m・長さ 1.1m。`WeaponPoseSource` がボーン姿勢を渡す）/ `sectorShape`（水平の扇形。`arcDeg >= 360` が全周、`circleShape`）。突進は原点が動く扇形で、前フレーム → 現在をスイープする。武器カプセルは端点を 0.1m 刻みで補間して判定するのでトンネリングしない。
+- **ハートボックス**: `UprightTarget(id, team, maxHp, HeartboxSpec[])`。敵・ボスは複数カプセル可（頭部判定なしなど）。`place(x, y, z, yaw)` で毎ステップ追従させ、`invulnerable`（無敵 F・被弾後無敵）・`staggered`（崩し中 ×1.5）・`guard`（E2-6）を持ち主が更新する。プレイヤーは `game.playerTarget`（`player.invulnerable` を毎ステップ反映）。
+- **ダメージ**: `AttackProfile.damage`（整数）。崩し中 ×1.5（四捨五入）、ガード成功は `guardChipDamage`（10%、切り捨て）、ジャストは 0。ガード側が失うスタミナは `HitEvent.guardStaminaCost`（ジャストは 50%）で返し、消費は E2-6 が `stamina.consume` で行う。強靭度削りは `HitEvent.poiseDamage`（ガード時 0）。HP が 0 になった命中は `killed: true`。
+- **遮蔽**: `isBlocked`（Rapier のレイキャスト、地形・静的物のみ）で壁越しには当たらない。
+- **?debug**: `render/combatDebugView.ts` がハートボックス（プレイヤー緑・敵水色・無敵中は灰紫）とヒットボックス（赤、命中で黄）をワイヤ表示する。`window.__game.dev.swing()` で仮の横斬り（軽攻撃 1 の 12F + 4F）を出せる（実際の攻撃動作は #46）。

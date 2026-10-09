@@ -127,6 +127,46 @@ describe('gameplay (player controller + camera + lock-on)', () => {
       run(5);
       expect(game.player.state).toBe('dash');
     });
+
+    it('reports staminaEmpty once when the dash drains the stamina to 0', () => {
+      run(10);
+      game.player.stamina.current = 0.5;
+      input.setMove(0, 1);
+      input.setSprint(true);
+      run(30);
+      expect(game.player.stamina.current).toBe(0);
+      expect(game.eventCounts.staminaEmpty).toBe(1);
+    });
+
+    it('does not regenerate while dashing or running, only after slowing to a walk or stopping', () => {
+      run(10);
+      game.player.stamina.consume(40);
+      input.setMove(0, 1);
+      run(120); // 走り続ける: 待ち時間が過ぎても回復しない
+      expect(game.player.stamina.current).toBe(60);
+      input.setMove(0, 0);
+      run(40);
+      expect(game.player.stamina.current).toBeGreaterThan(60);
+    });
+  });
+
+  describe('stamina and action start', () => {
+    it('starts a roll with less stamina than its cost, then reports empty and refuses the next one', () => {
+      run(10);
+      game.player.stamina.consume(90); // 残り 10 < ロールの 20
+      game.eventCounts.staminaEmpty = 0;
+      input.setMove(0, 1);
+      input.press('dodge');
+      run(1);
+      expect(game.player.state).toBe('roll');
+      expect(game.player.stamina.current).toBe(0);
+      expect(game.eventCounts.staminaEmpty).toBe(1);
+      run(PLAYER_ACTIONS.roll.startup + PLAYER_ACTIONS.roll.recovery + 1);
+      expect(game.player.state).not.toBe('roll');
+      input.press('dodge');
+      run(2);
+      expect(game.player.state).not.toBe('roll'); // 0 のあいだは新規に開始できない
+    });
   });
 
   describe('roll', () => {

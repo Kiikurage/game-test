@@ -15,6 +15,15 @@ import { directNavigator, type Navigator } from './enemy/navigation';
 import { motionNoise, playerMotion } from './enemy/perception';
 import { createPhysics, type Physics } from './physics';
 import { Player } from './player/player';
+import {
+  DebugSwing,
+  HitResolver,
+  PLAYER_HEARTBOXES,
+  UprightTarget,
+  uprightHeartbox,
+  type HitEvent,
+} from './combat';
+import { PLAYER_STATS } from './data';
 import { tuning } from './tuning';
 import {
   CAMERA_QUERY_GROUPS,
@@ -94,7 +103,10 @@ export interface StaticCylinderSpec {
   readonly euler?: readonly [number, number, number];
 }
 
+const HIT_LOG_MAX = 32;
 const GROUND_FALLBACK_HALF = 100;
+/** テストシーンのダミーの HP（判定の確認用。実質壊れない）。 */
+const DUMMY_HP = 99999;
 const TMP_QUAT = new Quaternion();
 const EULER_X = new Vector3(1, 0, 0);
 const EULER_Y = new Vector3(0, 1, 0);
@@ -118,6 +130,17 @@ export class Game {
   readonly lockOnTargets: LockOnTarget[] = [];
   /** テストシーンのダミー（描画用に別持ち）。 */
   readonly dummies: DummyTarget[] = [];
+  /** 判定・ダメージ解決（#40）。攻撃側は `combat.startAttack` / `resolve`、被弾側は `combat.addTarget`。 */
+  readonly combat = new HitResolver({
+    isBlocked: (from, to) => this.isBlockedByWorld(from, to),
+  });
+  /** プレイヤーの被弾側（ハートボックス・HP・無敵）。 */
+  readonly playerTarget = new UprightTarget('player', 'player', PLAYER_STATS.hp, PLAYER_HEARTBOXES);
+  /** ?debug 用の仮の攻撃（判定と可視化の動作確認。実際の攻撃動作は #46）。 */
+  readonly debugSwing = new DebugSwing(this.combat);
+  /** 命中イベントの累計（デバッグ・E2E 用）と直近のイベント。 */
+  readonly hitLog: HitEvent[] = [];
+  hitCount = 0;
   /** プレイヤーイベント（ロール開始など）の累計回数（デバッグ・E2E 用）。 */
   readonly eventCounts = { rollStart: 0, backstepStart: 0, land: 0, staminaEmpty: 0 };
   /** イベントマーカーの発火回数（E2E・デバッグ用）。 */
@@ -180,6 +203,11 @@ export class Game {
       const target = new DummyTarget(d.id, d.x, y, d.z, d.height, d.radius);
       this.dummies.push(target);
       this.lockOnTargets.push(target);
+      const heart = new UprightTarget(d.id, 'enemy', DUMMY_HP, [
+        uprightHeartbox(d.radius, d.height),
+      ]);
+      heart.place(d.x, y, d.z, 0);
+      this.combat.addTarget(heart);
       world.createCollider(
         rapier.ColliderDesc.cylinder(d.height / 2, d.radius)
           .setTranslation(d.x, y + d.height / 2, d.z)
@@ -196,6 +224,18 @@ export class Game {
     this.player = new Player(physics, this.spawnPosition, this.spawnYaw);
     this.cameraCollision = this.createCameraCollision(rapier);
     this.camera.reset(this.player.feet, this.spawnYaw);
+    this.combat.addTarget(this.playerTarget);
+    this.syncPlayerTarget();
+    this.combat.onHit((e) => {
+      this.hitCount++;
+      this.hitLog.push(e);
+      if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
+      this.events.emit('hit', {
+        kind: e.kind,
+        source: e.attackerId === 'player' ? 'player' : 'enemy',
+        position: e.position,
+      });
+    });
 
     // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
     this.enemies = new EnemyManager({
@@ -304,6 +344,9 @@ export class Game {
     }
     this.updateEnemies(dt);
     for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
+    this.syncPlayerTarget();
+    this.debugSwing.update(player.feet, player.yaw);
+    this.combat.step();
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
   }
@@ -371,6 +414,32 @@ export class Game {
       return snap.look.x > 0 ? 1 : -1;
     }
     return 0;
+  }
+
+  /** ハートボックスをプレイヤーの現在位置へ置き、無敵状態を反映する。 */
+  private syncPlayerTarget(): void {
+    const { player, playerTarget } = this;
+    playerTarget.place(player.feet.x, player.feet.y, player.feet.z, player.yaw);
+    playerTarget.invulnerable = player.invulnerable;
+  }
+
+  /** 攻撃者から命中位置までを地形・静的物が遮っているか（壁越しに当てない）。 */
+  private isBlockedByWorld(
+    from: { x: number; y: number; z: number },
+    to: { x: number; y: number; z: number },
+  ): boolean {
+    const { rapier, world } = this.physics;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.z - from.z;
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist < 1e-4) return false;
+    const ray = new rapier.Ray(
+      { x: from.x, y: from.y, z: from.z },
+      { x: dx / dist, y: dy / dist, z: dz / dist },
+    );
+    const hit = world.castRay(ray, dist, true, undefined, SIGHT_QUERY_GROUPS);
+    return hit !== null && hit.timeOfImpact < dist - 0.05;
   }
 
   /** `from` から `to` への視線が地形・静的物に遮られていないか。 */
@@ -467,6 +536,11 @@ export class Game {
       events: { ...this.eventCounts },
       markers: { ...this.markerCounts },
       enemies: this.enemies.debugInfo,
+      combat: {
+        hits: this.hitCount,
+        playerHp: this.playerTarget.health.current,
+        lastHitTarget: this.hitLog.at(-1)?.targetId ?? null,
+      },
     };
   }
 }
@@ -498,4 +572,10 @@ export interface GameDebugState {
   readonly markers: Readonly<Record<MarkerType, number>>;
   /** 敵の状態（気付きゲージ・見失いなど）。 */
   readonly enemies: readonly EnemyDebugInfo[];
+  /** 判定の状態（命中の累計・プレイヤー HP・直近の被弾側）。 */
+  readonly combat: {
+    readonly hits: number;
+    readonly playerHp: number;
+    readonly lastHitTarget: string | null;
+  };
 }

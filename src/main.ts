@@ -46,6 +46,8 @@ interface DebugState {
     view(yawOffset: number, distance?: number, pitchDeg?: number): void;
     /** プレイヤーのアニメーションレイヤーを時刻で固定表示する（撮影用）。 */
     pose(layer: PlayerAnimLayer | null, time?: number): void;
+    /** ?debug 用の仮の攻撃（軽攻撃 1 の判定）を 1 回出す。判定の動作確認・撮影用。 */
+    swing(): void;
     /** カメラを任意の視点へ固定する（俯瞰撮影用）。`null` でゲームのカメラへ戻す。 */
     freeCam(position: [number, number, number] | null, target?: [number, number, number]): void;
   };
@@ -63,7 +65,9 @@ interface DebugState {
 /** キャラクター確認用の URL 指定（`?clip=` / `?view=` / `?corpse=` / `?props=` など）があるか。あれば従来どおり騎士を 1 体置いて見せる。 */
 function isShowcaseRequested(search: string): boolean {
   const params = new URLSearchParams(search);
-  return ['clip', 'view', 'corpse', 'props', 'equip', 'undead', 'light'].some((k) => params.has(k));
+  return ['clip', 'view', 'player', 'corpse', 'props', 'equip', 'undead', 'light'].some((k) =>
+    params.has(k),
+  );
 }
 
 declare global {
@@ -228,6 +232,9 @@ async function bootstrap(): Promise<void> {
           view.setFreeCamera(
             position && { position: new Vector3(...position), target: new Vector3(...target) },
           );
+        },
+        swing: () => {
+          game.debugSwing.start();
         },
         pose: (layer, time = 0) => {
           playerView?.setDebugPose(layer ? { layer, time } : null);
