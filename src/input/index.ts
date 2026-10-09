@@ -52,7 +52,7 @@ export interface InputDebugState {
 export class InputSystem implements InputReader {
   private readonly collector = new InputCollector();
   private readonly buffer = new InputBuffer(INPUT_BUFFER_SECONDS);
-  private readonly dodge = new DodgeButton(DODGE_HOLD_SECONDS);
+  private readonly dodge = new DodgeButton(DODGE_HOLD_SECONDS * 1000);
   private readonly keyboardMouse: KeyboardMouseInput;
   private readonly gamepad: GamepadInput;
   private readonly touch: TouchControls;
@@ -138,7 +138,7 @@ export class InputSystem implements InputReader {
     const raw = this.collector.drain();
 
     const dodgeRaw = raw.buttons.dodge;
-    const rolled = this.dodge.update(dt, dodgeRaw.held, dodgeRaw.pressed, dodgeRaw.released);
+    const rolled = this.dodge.update(performance.now(), dodgeRaw);
 
     const buttons = {} as Record<Action, ButtonState>;
     for (const action of ACTIONS) {

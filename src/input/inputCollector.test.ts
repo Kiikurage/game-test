@@ -6,12 +6,12 @@ describe('InputCollector', () => {
     const c = new InputCollector();
     c.setButton('keyboard', 'lightAttack', true);
     const f1 = c.drain();
-    expect(f1.buttons.lightAttack).toEqual({ pressed: true, held: true, released: false });
+    expect(f1.buttons.lightAttack).toMatchObject({ pressed: true, held: true, released: false });
     const f2 = c.drain();
-    expect(f2.buttons.lightAttack).toEqual({ pressed: false, held: true, released: false });
+    expect(f2.buttons.lightAttack).toMatchObject({ pressed: false, held: true, released: false });
     c.setButton('keyboard', 'lightAttack', false);
     const f3 = c.drain();
-    expect(f3.buttons.lightAttack).toEqual({ pressed: false, held: false, released: true });
+    expect(f3.buttons.lightAttack).toMatchObject({ pressed: false, held: false, released: true });
   });
 
   it('does not lose a press and release that happen between two steps', () => {
@@ -19,7 +19,17 @@ describe('InputCollector', () => {
     c.setButton('touch', 'heavyAttack', true);
     c.setButton('touch', 'heavyAttack', false);
     const f = c.drain();
-    expect(f.buttons.heavyAttack).toEqual({ pressed: true, held: false, released: true });
+    expect(f.buttons.heavyAttack).toMatchObject({ pressed: true, held: false, released: true });
+  });
+
+  it('records real event times of the press and release', () => {
+    let t = 1000;
+    const c = new InputCollector(() => t);
+    c.setButton('touch', 'dodge', true);
+    t = 1080;
+    c.setButton('touch', 'dodge', false);
+    const f = c.drain();
+    expect(f.buttons.dodge).toMatchObject({ pressedAt: 1000, releasedAt: 1080 });
   });
 
   it('ORs sources: stays held until every source releases', () => {
@@ -29,7 +39,7 @@ describe('InputCollector', () => {
     c.drain();
     c.setButton('keyboard', 'guard', false);
     const f = c.drain();
-    expect(f.buttons.guard).toEqual({ pressed: false, held: true, released: false });
+    expect(f.buttons.guard).toMatchObject({ pressed: false, held: true, released: false });
     c.setButton('gamepad', 'guard', false);
     expect(c.drain().buttons.guard.released).toBe(true);
   });

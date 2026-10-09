@@ -183,9 +183,19 @@ test.describe('touch (mobile landscape)', () => {
 
     // 回避ボタン: 短押し = 回避, 長押し = ダッシュ
     const dodge = await center(page, 'dodge');
-    await dispatch(cdp, 'touchStart', [{ id: 3, ...dodge }]);
-    await expect.poll(async () => (await input(page))?.held).toContain('dodge');
-    await dispatch(cdp, 'touchEnd', []);
+    // 短押しは、CDP の往復が遅いと実時間で長押しになってしまうため、evaluate 内で 80ms の短押しを再現する
+    await page.evaluate(async () => {
+      const el = document.querySelector('.touch-btn[data-action="dodge"]');
+      if (!el) throw new Error('dodge button not found');
+      const fire = (type: string): void => {
+        el.dispatchEvent(
+          new PointerEvent(type, { pointerId: 8, pointerType: 'touch', bubbles: true }),
+        );
+      };
+      fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 80));
+      fire('pointerup');
+    });
     await expect.poll(async () => (await input(page))?.pressCounts.dodge).toBe(1);
     await dispatch(cdp, 'touchStart', [{ id: 4, ...dodge }]);
     await expect.poll(async () => (await input(page))?.sprint).toBe(true);

@@ -7,6 +7,9 @@ export interface CollectedButton {
   pressed: boolean;
   held: boolean;
   released: boolean;
+  /** 区間内で最後に押された/離された実時刻[ms]（短押し/長押しの判定用。エッジが無ければ 0）。 */
+  pressedAt: number;
+  releasedAt: number;
 }
 
 export interface CollectedFrame {
@@ -25,9 +28,14 @@ export interface CollectedFrame {
  * DOM には依存しない。
  */
 export class InputCollector {
+  /** @param now 実時刻[ms]。ボタンの押下時間を実時間で測るために使う（テストで差し替え可能）。 */
+  constructor(private readonly now: () => number = () => performance.now()) {}
+
   private readonly held = new Map<Action, Set<InputSource>>();
   private readonly pressedLatch = new Set<Action>();
   private readonly releasedLatch = new Set<Action>();
+  private readonly pressedAt = new Map<Action, number>();
+  private readonly releasedAt = new Map<Action, number>();
   private readonly moves = new Map<InputSource, Vec2>();
   private lookX = 0;
   private lookY = 0;
@@ -48,8 +56,14 @@ export class InputCollector {
     if (down) set.add(source);
     else set.delete(source);
     const nowHeld = set.size > 0;
-    if (!wasHeld && nowHeld) this.pressedLatch.add(action);
-    if (wasHeld && !nowHeld) this.releasedLatch.add(action);
+    if (!wasHeld && nowHeld) {
+      this.pressedLatch.add(action);
+      this.pressedAt.set(action, this.now());
+    }
+    if (wasHeld && !nowHeld) {
+      this.releasedLatch.add(action);
+      this.releasedAt.set(action, this.now());
+    }
   }
 
   setMove(source: InputSource, x: number, y: number): void {
@@ -88,6 +102,8 @@ export class InputCollector {
         // 押下してそのステップ中に離した場合も pressed は立つ
         pressed: this.pressedLatch.has(action),
         released: this.releasedLatch.has(action),
+        pressedAt: this.pressedAt.get(action) ?? 0,
+        releasedAt: this.releasedAt.get(action) ?? 0,
       };
     }
     const frame: CollectedFrame = {
@@ -98,6 +114,8 @@ export class InputCollector {
     };
     this.pressedLatch.clear();
     this.releasedLatch.clear();
+    this.pressedAt.clear();
+    this.releasedAt.clear();
     this.lookX = 0;
     this.lookY = 0;
     this.switchDir = 0;

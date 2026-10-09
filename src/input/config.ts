@@ -11,7 +11,7 @@ export const BUFFERED_ACTIONS = [
   'interact',
 ] as const;
 
-/** 回避ボタンをこの時間以上押し続けるとダッシュ扱い、それ未満で離すと回避（秒）。 */
+/** 回避ボタンをこの時間（実時間）以上押し続けるとダッシュ扱い、それ未満で離すと回避（秒）。 */
 export const DODGE_HOLD_SECONDS = 0.25;
 
 /** カメラ感度。 */
