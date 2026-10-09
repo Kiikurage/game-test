@@ -241,7 +241,10 @@ async function bootstrap(): Promise<void> {
           paused = p;
         },
         advance: (steps) => {
-          for (let i = 0; i < steps; i++) game.update(1 / 60);
+          for (let i = 0; i < steps; i++) {
+            input.step(1 / 60);
+            game.update(1 / 60);
+          }
         },
         view: (yawOffset, distance, pitchDeg) => {
           if (distance !== undefined) tuning.camera.distance = distance;

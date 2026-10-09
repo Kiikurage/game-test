@@ -216,14 +216,16 @@ export class CharacterAnimator {
     const spec = this.config.states?.[s.state];
     const entry = spec ? undefined : this.entryFor(s);
     if (entry) {
-      const layer = this.ensureStateLayer(s.state, s.actionId ?? s.state);
+      // 1 つの状態で複数の動作 ID を出し分ける敵（Attack 状態の A1 / A2 / A3）は、動作 ID ごとにレイヤを持つ
+      const key = s.actionId && s.actionId !== s.state ? `${s.state}:${s.actionId}` : s.state;
+      const layer = this.ensureStateLayer(s.state, s.actionId ?? s.state, key);
       if (!layer) return null;
       // 振り終わりのあとは戻りクリップ（`_Rec`）を、残りのフレームに合わせて再生する
       const rec = entry.tail;
       if (rec) {
         const swingEnd = swingEndElapsed(entry);
         if (elapsed >= swingEnd) {
-          const tail = this.ensureRecoveryLayer(s.state, rec.clip as ClipName);
+          const tail = this.ensureRecoveryLayer(key, rec.clip as ClipName, s.state);
           const k = Math.min(1, (elapsed - swingEnd) / Math.max(1, totalFrames(entry) - swingEnd));
           const start = rec.startFrame / entry.clipFps;
           const end = rec.endFrame / entry.clipFps;
@@ -347,24 +349,24 @@ export class CharacterAnimator {
    * 状態に対応するレイヤ（なければ作る）。レイヤ ID は状態 ID。
    * クリップ指定（`states`）→ マーカー表（動作 ID）の順に引く。どちらもなければ null。
    */
-  private ensureStateLayer(state: string, actionId: string): string | null {
-    if (this.layers.has(state)) return state;
+  private ensureStateLayer(state: string, actionId: string, layerId = state): string | null {
+    if (this.layers.has(layerId)) return layerId;
     const spec = this.config.states?.[state];
     const clipName =
       spec?.clip ?? (this.config.actionEntry(actionId)?.clip as ClipName | undefined);
     if (!clipName) return null;
     const fades =
       this.config.actionFades?.[state] ?? this.config.fade?.action ?? DEFAULT_ACTION_FADE;
-    this.addLayer(state, clipName, {
+    this.addLayer(layerId, clipName, {
       fadeIn: spec?.fadeIn ?? fades.fadeIn,
       fadeOut: spec?.fadeOut ?? fades.fadeOut,
     });
-    return state;
+    return layerId;
   }
 
   /** 戻りクリップ用のレイヤ（状態 ID + `:rec`）。入りは速く、移動系への戻りは通常のフェード。 */
-  private ensureRecoveryLayer(state: string, clip: ClipName): string {
-    const id = `${state}:rec`;
+  private ensureRecoveryLayer(key: string, clip: ClipName, state = key): string {
+    const id = `${key}:rec`;
     if (!this.layers.has(id)) {
       const fades =
         this.config.actionFades?.[state] ?? this.config.fade?.action ?? DEFAULT_ACTION_FADE;

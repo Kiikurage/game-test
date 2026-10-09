@@ -295,6 +295,19 @@ export class Player {
     return reaction;
   }
 
+  /** HP が 0 になった。以降は入力を受け付けず、リスポーン（`teleport`）まで動かない。 */
+  die(): void {
+    if (this.state === 'dead') return;
+    this.fsm.transition('dead');
+    this.markers.begin(undefined);
+    this.dashing = false;
+    this.dashLatch = false;
+  }
+
+  get dead(): boolean {
+    return this.state === 'dead';
+  }
+
   private enterReaction(kind: 'flinch' | 'knockdown', frames: number): void {
     if (this.state === kind) this.fsm.restart();
     else this.fsm.transition(kind);
@@ -322,6 +335,7 @@ export class Player {
   /** 無敵フレーム中か（被ダメージ判定を持たない。2.3 節）。窓はイベントマーカー（`invulnStart` / `invulnEnd`）が決める。 */
   get invulnerable(): boolean {
     return (
+      this.state === 'dead' ||
       this.markers.invulnerable ||
       this.reactor.invulnerable ||
       (this.state === 'knockdown' && knockdownInvulnerable(this.stateFrame))
@@ -455,6 +469,12 @@ export class Player {
       case 'flinch':
       case 'knockdown':
         return this.updateReaction();
+      case 'dead':
+        // 倒れたまま動かない
+        this.velocity.x = 0;
+        this.velocity.y = 0;
+        this.turnRate = 0;
+        return null;
     }
   }
 
@@ -783,7 +803,7 @@ export class Player {
       this.yaw = turnToward(this.yaw, this.dodgeDirYaw, this.turnRate, this.turnResponse, dt);
       return;
     }
-    if (this.state === 'backstep' || isReactionState(this.state)) return;
+    if (this.state === 'backstep' || this.state === 'dead' || isReactionState(this.state)) return;
     if (isLightAttackState(this.state)) {
       this.applyAttackFacing(frame, dt);
       return;
