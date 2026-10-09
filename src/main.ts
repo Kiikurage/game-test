@@ -1,6 +1,7 @@
 import './style.css';
 import { MainLoop } from './core/mainLoop';
 import { checkWebGPUSupport } from './core/webgpuSupport';
+import { createBrowserAudioEngine, installAudioUnlock } from './audio';
 import { Game } from './game/game';
 import { createRenderer } from './render/renderer';
 import { GameView } from './render/gameView';
@@ -14,6 +15,8 @@ interface DebugState {
   readonly steps: number;
   /** アセットパイプライン確認用のキャラクター表示（読み込み失敗時は undefined）。 */
   readonly showcase?: ShowcaseState;
+  /** オーディオエンジンの状態（AudioContext 非対応なら undefined）。 */
+  readonly audio?: { readonly state: string };
 }
 
 declare global {
@@ -49,6 +52,11 @@ async function bootstrap(): Promise<void> {
 
     mountOrientationHint();
 
+    // AudioContext は生成直後 suspended。最初のユーザー操作で resume する（自動再生制限）。
+    // 「タップして始める」UI ができたら、そのハンドラから audio.resume() を呼ぶ。
+    const audio = createBrowserAudioEngine();
+    if (audio) installAudioUnlock(audio, window);
+
     const loop = new MainLoop({
       update: (dt) => {
         game.update(dt);
@@ -67,6 +75,9 @@ async function bootstrap(): Promise<void> {
       },
       get steps() {
         return loop.stepCount;
+      },
+      get audio() {
+        return audio && { state: audio.state };
       },
       get showcase() {
         return showcase?.state;

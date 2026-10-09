@@ -140,10 +140,11 @@ src/
   core/          純粋なロジック（DOM/three 非依存）: 固定ステップ、メインループ、WebGPU 判定、補間用 Transform
   game/          シミュレーション（Rapier 物理含む）。描画・DOM に依存しない
   render/        three/webgpu による描画。game の状態を読み取って描くだけ
+  audio/         Web Audio のバス・音量・ダッキング・resume（DOM 非依存の純粋ロジック + AudioContext ラッパー）
   input/         入力デバイス（未実装）。game には入力スナップショットだけ渡す
   ui/            DOM オーバーレイ（非対応画面・横画面ヒント・今後の HUD）
 ```
 
-- 依存方向: `main` → `render` / `game` / `input` / `ui` → `core`。`game` は `render` / `input` / `ui` を import しない。
+- 依存方向: `main` → `render` / `game` / `input` / `ui` / `audio` → `core`。`game` は `render` / `input` / `ui` / `audio` を import しない（game は音のイベントを出し、main が audio へ繋ぐ）。
 - シミュレーションは 60Hz 固定ステップ（`Game.update(dt)`）、描画はフレームごとに `alpha` で補間（`InterpolatedTransform`）。
   描画対象の位置・回転は `InterpolatedTransform` として game 側に持たせ、render 側は `sample(alpha, ...)` で読む。
