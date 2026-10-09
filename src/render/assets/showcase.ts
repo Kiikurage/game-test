@@ -1,4 +1,4 @@
-import { Timer, type Camera, type Mesh, type Scene } from 'three/webgpu';
+import { Timer, type Camera, type Mesh, type Object3D, type Scene } from 'three/webgpu';
 import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
@@ -30,6 +30,11 @@ export class CharacterShowcase {
     readonly triangles: number,
   ) {}
 
+  /** シーンに置かれたキャラクターのルート（影の追従対象などに使う）。 */
+  get root(): Object3D {
+    return this.character.root;
+  }
+
   static async create(
     scene: Scene,
     camera: Camera,
@@ -43,8 +48,15 @@ export class CharacterShowcase {
 
     const assets = await CharacterAssets.load(['knight']);
     const character = assets.createCharacter('knight');
-    character.root.position.set(1.4, 0, 1.2);
-    character.root.rotation.y = Math.atan2(4.5 - 1.4, 6 - 1.2); // カメラの方を向く
+    character.root.position.set(0.8, 0, -0.2);
+    character.root.rotation.y = Math.atan2(4.5 - 0.8, 6 + 0.2); // カメラの方を向く
+    // 描画基盤（#7）の影の中に立たせる
+    character.root.traverse((obj) => {
+      if ((obj as { isMesh?: boolean }).isMesh) {
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+      }
+    });
     scene.add(character.root);
     applyView(character, camera, params.get('view'), Number(params.get('dist')));
 
