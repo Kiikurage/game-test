@@ -47,4 +47,4 @@ bgm → duck → lowpass ┘
 ## フォーマット互換（素材パイプライン #31 向けメモ）
 
 - Android Chrome: Opus（`.ogg` / `.webm`）可。
-- iOS Safari: 18.4 以降は Ogg Opus の `decodeAudioData` に対応。それ以前は `.webm` Opus も不可で、`.m4a`（AAC）または CAF 内 Opus が必要。サポート端末の下限が決まるまで、パイプラインは Opus を主とし、AAC `.m4a` のフォールバック出力を持てる設計にする（詳細は #31 の `docs/audio-assets.md`）。
+- iOS Safari: Ogg Opus の `decodeAudioData` 対応は版により不確か（古い版は Ogg コンテナ非対応）。`.m4a`（AAC）は全版で可。実機確認は人間に依頼する。パイプラインは Opus を主とし、`--m4a` で AAC フォールバックを出せる（詳細は #31 の `docs/audio-assets.md`）。
