@@ -3,11 +3,14 @@ import {
   MemoryStorage,
   PersistentStore,
   SAVE_KEY,
+  SAVE_VERSION,
   SETTINGS_KEY,
   SaveStore,
   SettingsStore,
   createDefaultSave,
   createDefaultSettings,
+  MAX_ITEM_COUNT,
+  type SaveData,
   getLocalStorage,
   sanitizeSettings,
   type KeyValueStorage,
@@ -62,7 +65,9 @@ describe('SaveStore', () => {
     expect(b.get()).toEqual({
       bonfires: ['b1'],
       shortcuts: ['g1'],
-      items: ['flask-1'],
+      items: { 'flask-1': 1 },
+      flags: [],
+      equippedWeapon: 'sword',
       bosses: ['boss'],
     });
   });
@@ -72,7 +77,8 @@ describe('SaveStore', () => {
     new SaveStore(storage).igniteBonfire('b1');
     const parsed = JSON.parse(storage.getItem('gametest.save.v1') ?? 'null') as { version: number };
     expect(SAVE_KEY).toBe('gametest.save.v1');
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(SAVE_VERSION);
+    expect(SAVE_VERSION).toBe(2);
   });
 
   it('ignores duplicates without writing or notifying', () => {
@@ -176,7 +182,211 @@ describe('SaveStore', () => {
     );
     const s = new SaveStore(storage);
     expect(s.loadStatus).toBe('loaded');
-    expect(s.get()).toEqual({ bonfires: ['a', 'b'], shortcuts: [], items: [], bosses: ['boss'] });
+    expect(s.get()).toEqual({
+      ...createDefaultSave(),
+      bonfires: ['a', 'b'],
+      bosses: ['boss'],
+    });
+  });
+
+  describe('items / flags / equipped weapon (v2)', () => {
+    it('adds, sets and reads item counts', () => {
+      const s = new SaveStore(new MemoryStorage());
+      expect(s.getCount('oil_jar')).toBe(0);
+      s.addItem('oil_jar', 3);
+      expect(s.getCount('oil_jar')).toBe(3);
+      s.setCount('oil_jar', 1);
+      expect(s.getCount('oil_jar')).toBe(1);
+      s.setCount('oil_jar', 3);
+      s.addItem('oil_jar');
+      expect(s.getCount('oil_jar')).toBe(4);
+      s.setCount('oil_jar', 0);
+      expect(s.getCount('oil_jar')).toBe(0);
+      expect(s.get().items).toEqual({});
+    });
+
+    it('collectItem is idempotent and does not overwrite counts', () => {
+      const s = new SaveStore(new MemoryStorage());
+      s.addItem('oil_jar', 3);
+      s.collectItem('oil_jar');
+      expect(s.getCount('oil_jar')).toBe(3);
+      s.collectItem('talisman_ash');
+      s.collectItem('talisman_ash');
+      expect(s.getCount('talisman_ash')).toBe(1);
+    });
+
+    it('ignores invalid counts and no-op writes', () => {
+      const storage = new MemoryStorage();
+      const s = new SaveStore(storage);
+      s.addItem('a', 2);
+      const setItem = vi.spyOn(storage, 'setItem');
+      s.setCount('a', 2);
+      s.addItem('a', 0);
+      s.addItem('a', -1);
+      s.addItem('a', Number.NaN);
+      s.setCount('a', Number.NaN);
+      s.setCount('', 1);
+      expect(setItem).not.toHaveBeenCalled();
+      expect(s.getCount('a')).toBe(2);
+      s.setCount('a', -5);
+      expect(s.getCount('a')).toBe(0);
+      s.setCount('b', 1e9);
+      expect(s.getCount('b')).toBe(MAX_ITEM_COUNT);
+    });
+
+    it('does not mistake prototype keys for items', () => {
+      const s = new SaveStore(new MemoryStorage());
+      expect(s.getCount('toString')).toBe(0);
+      expect(s.getCount('__proto__')).toBe(0);
+    });
+
+    it('sets flags once and persists them', () => {
+      const storage = new MemoryStorage();
+      const s = new SaveStore(storage);
+      expect(s.hasFlag('pray.gate')).toBe(false);
+      s.setFlag('world.wallG1Broken');
+      s.setFlag('read.grave_b2');
+      const setItem = vi.spyOn(storage, 'setItem');
+      s.setFlag('read.grave_b2');
+      s.setFlag('');
+      expect(setItem).not.toHaveBeenCalled();
+      const b = new SaveStore(storage);
+      expect(b.hasFlag('world.wallG1Broken')).toBe(true);
+      expect(b.hasFlag('read.grave_b2')).toBe(true);
+      expect(b.get().flags).toEqual(['read.grave_b2', 'world.wallG1Broken']);
+    });
+
+    it('persists the equipped weapon', () => {
+      const storage = new MemoryStorage();
+      const s = new SaveStore(storage);
+      expect(s.getEquippedWeapon()).toBe('sword');
+      s.setEquippedWeapon('sword_gravekeeper');
+      expect(new SaveStore(storage).getEquippedWeapon()).toBe('sword_gravekeeper');
+    });
+
+    it('saves immediately on pickup / opening (each write hits storage)', () => {
+      const storage = new MemoryStorage();
+      const s = new SaveStore(storage);
+      const setItem = vi.spyOn(storage, 'setItem');
+      s.collectItem('talisman_ash');
+      expect(setItem).toHaveBeenCalledTimes(1);
+      s.addItem('oil_jar', 3);
+      expect(setItem).toHaveBeenCalledTimes(2);
+      s.setFlag('world.grateDOpen');
+      expect(setItem).toHaveBeenCalledTimes(3);
+      s.setEquippedWeapon('sword_gravekeeper');
+      expect(setItem).toHaveBeenCalledTimes(4);
+      const stored = JSON.parse(storage.getItem(SAVE_KEY) ?? '') as { data: SaveData };
+      expect(stored.data.items).toEqual({ talisman_ash: 1, oil_jar: 3 });
+      expect(stored.data.flags).toEqual(['world.grateDOpen']);
+    });
+
+    it('notifies subscribers and keeps working with throwing storage', () => {
+      const s = new SaveStore(new ThrowingStorage());
+      const spy = vi.fn();
+      s.subscribe(spy);
+      expect(() => {
+        s.addItem('oil_jar', 3);
+        s.setFlag('pray.gate');
+        s.setEquippedWeapon('sword_gravekeeper');
+      }).not.toThrow();
+      expect(spy).toHaveBeenCalledTimes(3);
+      expect(s.getCount('oil_jar')).toBe(3);
+      expect(s.hasFlag('pray.gate')).toBe(true);
+    });
+
+    it.each([
+      ['string', 'x'],
+      ['number', 5],
+      ['null', null],
+      ['negative / NaN-ish / fractional values', { a: -1, b: 'x', c: 2.7, d: 0, e: null, f: 1 }],
+    ])('falls back for invalid items: %s', (_name, items) => {
+      const storage = new MemoryStorage();
+      storage.setItem(SAVE_KEY, JSON.stringify({ version: 2, data: { items } }));
+      const s = new SaveStore(storage);
+      expect(s.loadStatus).toBe('loaded');
+      expect(s.get().items).toEqual(
+        typeof items === 'object' && items !== null ? { c: 2, f: 1 } : {},
+      );
+    });
+
+    it('falls back for invalid flags and weapon', () => {
+      const storage = new MemoryStorage();
+      storage.setItem(
+        SAVE_KEY,
+        JSON.stringify({
+          version: 2,
+          data: { flags: ['b', 'a', 'a', 1, '', null], equippedWeapon: 'axe' },
+        }),
+      );
+      const s = new SaveStore(storage);
+      expect(s.get().flags).toEqual(['a', 'b']);
+      expect(s.get().equippedWeapon).toBe('sword');
+      storage.setItem(
+        SAVE_KEY,
+        JSON.stringify({ version: 2, data: { flags: 'x', equippedWeapon: 3 } }),
+      );
+      expect(new SaveStore(storage).get().flags).toEqual([]);
+      expect(new SaveStore(storage).get().equippedWeapon).toBe('sword');
+    });
+  });
+
+  describe('migration from v1', () => {
+    const v1 = {
+      bonfires: ['b2', 'b1'],
+      shortcuts: ['g1'],
+      items: ['flask-1', 'flask-1', 'key', 7],
+      bosses: ['boss'],
+    };
+
+    it('converts the v1 item list to counts and fills new fields', () => {
+      const storage = new MemoryStorage();
+      storage.setItem(SAVE_KEY, JSON.stringify({ version: 1, data: v1 }));
+      const s = new SaveStore(storage);
+      expect(s.loadStatus).toBe('loaded');
+      expect(s.hasSave()).toBe(true);
+      expect(s.get()).toEqual({
+        bonfires: ['b1', 'b2'],
+        shortcuts: ['g1'],
+        items: { 'flask-1': 1, key: 1 },
+        flags: [],
+        equippedWeapon: 'sword',
+        bosses: ['boss'],
+      });
+    });
+
+    it('upgrades the stored envelope on the next write and keeps old data', () => {
+      const storage = new MemoryStorage();
+      storage.setItem(SAVE_KEY, JSON.stringify({ version: 1, data: v1 }));
+      const s = new SaveStore(storage);
+      s.setFlag('pray.gate');
+      const stored = JSON.parse(storage.getItem(SAVE_KEY) ?? '') as {
+        version: number;
+        data: SaveData;
+      };
+      expect(stored.version).toBe(2);
+      expect(stored.data.bosses).toEqual(['boss']);
+      expect(stored.data.items).toEqual({ 'flask-1': 1, key: 1 });
+      expect(new SaveStore(storage).hasFlag('pray.gate')).toBe(true);
+    });
+
+    it('migrates a v1 save with missing or invalid items', () => {
+      for (const data of [{ bonfires: ['b1'] }, { bonfires: ['b1'], items: 'nope' }, {}]) {
+        const storage = new MemoryStorage();
+        storage.setItem(SAVE_KEY, JSON.stringify({ version: 1, data }));
+        const s = new SaveStore(storage);
+        expect(s.loadStatus).toBe('loaded');
+        expect(s.get().items).toEqual({});
+      }
+    });
+
+    it('treats non-object v1 data as defaults but loaded', () => {
+      const storage = new MemoryStorage();
+      storage.setItem(SAVE_KEY, JSON.stringify({ version: 1, data: [1, 2] }));
+      const s = new SaveStore(storage);
+      expect(s.loadStatus).toBe('loaded');
+      expect(s.get()).toEqual(createDefaultSave());
+    });
   });
 
   it('treats a non-object data payload as defaults but still loaded', () => {
