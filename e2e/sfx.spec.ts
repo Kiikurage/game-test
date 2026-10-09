@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(webgpuCompatInit);
 });
 
-test('loads the dummy SFX from the manifest and accepts play requests without errors', async ({
+test('loads the title-group SFX from the manifest and accepts play requests without errors', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -17,10 +17,16 @@ test('loads the dummy SFX from the manifest and accepts play requests without er
   await page.goto('./?quality=low&scale=0.25');
   await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
 
-  // title グループ（UI・環境音・BGM）のプリロードでダミー 2 件がデコードされる
+  // title グループ（UI・環境音・BGM）のプリロードで、マニフェストのそれらの素材がすべてデコードされる
+  const titleCount = await page.evaluate(async () => {
+    const res = await fetch(new URL('assets/audio/manifest.json', document.baseURI));
+    const manifest = (await res.json()) as { sounds: { kind: string }[] };
+    return manifest.sounds.filter((s) => ['bgm', 'ui', 'ambient'].includes(s.kind)).length;
+  });
+  expect(titleCount).toBeGreaterThan(0);
   await expect
     .poll(() => page.evaluate(() => window.__game?.audio?.sfx.loaded ?? 0), { timeout: 30_000 })
-    .toBe(2);
+    .toBe(titleCount);
 
   // 最初の操作で resume してから再生要求を出す（未 resume の要求は見送られる仕様）
   await page.mouse.click(200, 200);
@@ -31,7 +37,7 @@ test('loads the dummy SFX from the manifest and accepts play requests without er
   const stats = await page.evaluate(() => {
     const audio = window.__game?.audio;
     if (!audio) throw new Error('audio unavailable');
-    for (let i = 0; i < 40; i++) audio.emitSound('ui.dummy-click'); // 上限超過でも例外なし
+    for (let i = 0; i < 40; i++) audio.emitSound('ui.click'); // 上限超過でも例外なし
     audio.emitSound('sfx.no-such-sound'); // 未知の cue は無視
     // `audio` は取得時点のスナップショットなので、統計は取り直す
     return window.__game?.audio?.sfx.stats as { played: number; unknown: number };
