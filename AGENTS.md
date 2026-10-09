@@ -137,7 +137,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 ```
 src/
   main.ts        起動・各層の組み立て（ここだけが全層を知る）
-  core/          純粋なロジック（DOM/three 非依存）: 固定ステップ、メインループ、WebGPU 判定、補間用 Transform
+  core/          純粋なロジック（DOM/three 非依存）: 固定ステップ、メインループ、WebGPU 判定、補間用 Transform、永続化（`core/persistence`: セーブ・設定。ストレージは `KeyValueStorage` を注入）
   game/          シミュレーション（Rapier 物理含む）。描画・DOM に依存しない
   render/        three/webgpu による描画。game の状態を読み取って描くだけ
   input/         入力デバイス（未実装）。game には入力スナップショットだけ渡す
