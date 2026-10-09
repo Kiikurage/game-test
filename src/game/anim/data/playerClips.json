@@ -7,11 +7,39 @@
       "clipFps": 30,
       "clipRange": { "startFrame": 0, "endFrame": 13 },
       "clipHitFrame": 8,
+      "tail": { "clip": "Sword_Regular_A_Rec", "startFrame": 0, "endFrame": 29 },
       "spec": { "startup": 12, "active": 4, "recovery": 20 },
       "markers": [
         { "type": "hitStart", "frame": 13 },
         { "type": "hitEnd", "frame": 16 },
         { "type": "cancelOpen", "frame": 20 }
+      ]
+    },
+    {
+      "id": "player.light2",
+      "clip": "Sword_Regular_B",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 16 },
+      "clipHitFrame": 8,
+      "tail": { "clip": "Sword_Regular_B_Rec", "startFrame": 0, "endFrame": 31 },
+      "spec": { "startup": 10, "active": 4, "recovery": 22 },
+      "markers": [
+        { "type": "hitStart", "frame": 11 },
+        { "type": "hitEnd", "frame": 14 },
+        { "type": "cancelOpen", "frame": 18 }
+      ]
+    },
+    {
+      "id": "player.light3",
+      "clip": "Sword_Regular_C",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 60 },
+      "clipHitFrame": 20,
+      "spec": { "startup": 16, "active": 6, "recovery": 30 },
+      "markers": [
+        { "type": "hitStart", "frame": 17 },
+        { "type": "hitEnd", "frame": 22 },
+        { "type": "cancelOpen", "frame": 26 }
       ]
     },
     {

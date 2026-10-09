@@ -40,6 +40,14 @@ describe('実クリップとの整合（animations.glb を実測）', () => {
     }
   });
 
+  it('戻りクリップ（tail）の再生範囲は、実クリップの長さに収まる', () => {
+    const withTail = playerClipEvents.entries.filter((e) => e.tail !== undefined);
+    expect(withTail.length).toBeGreaterThan(0);
+    for (const e of withTail) {
+      expect(e.tail?.endFrame, e.id).toBeLessThanOrEqual(framesOf(e.tail?.clip ?? ''));
+    }
+  });
+
   it('攻撃の clipHitFrame は、手（剣）の速さが最大になる実測フレームと一致する（±1F）', () => {
     const attacks = playerClipEvents.entries.filter((e) => e.clipHitFrame !== undefined);
     expect(attacks.length).toBeGreaterThan(0);

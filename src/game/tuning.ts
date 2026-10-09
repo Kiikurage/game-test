@@ -32,6 +32,9 @@ export type Tuning = {
     lockOnTurnResponse: number;
     /** ロール / バックステップ開始時の向きの合わせ込み（度/秒）。 */
     rollTurnDegPerSecond: number;
+    /** 攻撃の発生中（当たり窓が開くまで）の旋回（度/秒）と追従の強さ。以降は向き固定。 */
+    attackTurnDegPerSecond: number;
+    attackTurnResponse: number;
     gravity: number;
     /** 接地が切れてから落下状態になるまでの猶予フレーム。 */
     coyoteFrames: number;
@@ -110,6 +113,8 @@ function createTuning(): Tuning {
       lockOnTurnDegPerSecond: 1080,
       lockOnTurnResponse: 18,
       rollTurnDegPerSecond: 1800,
+      attackTurnDegPerSecond: 540,
+      attackTurnResponse: 30,
       gravity: 22,
       coyoteFrames: 4,
       landMinHeight: 1.2,

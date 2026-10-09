@@ -43,6 +43,8 @@ export class GameView {
   private readonly postProcess: PostProcess;
   private readonly tmpPosition = new Vector3();
   private readonly tmpQuaternion = new Quaternion();
+  private readonly hitPosition = new Vector3();
+  private readonly hitNormal = new Vector3();
   private readonly telegraphDemo: TelegraphDemo | null = null;
   private readonly particleDemo: ParticleDemo | null = null;
   private lastRenderMs = 0;
@@ -78,6 +80,14 @@ export class GameView {
     if (new URLSearchParams(window.location.search).get('pfx') === '0') {
       this.particles.root.visible = false;
     }
+    // プレイヤーの攻撃が命中したら火花・塵・飛沫（4.1 節）。飛び散る向きは命中点から攻撃者（プレイヤー）側。
+    game.events.on('hit', (e) => {
+      if (e.source !== 'player' || !e.position || e.kind === 'guard') return;
+      const feet = game.player.feet;
+      this.hitPosition.set(e.position.x, e.position.y, e.position.z);
+      this.hitNormal.set(feet.x - e.position.x, 0.35, feet.z - e.position.z).normalize();
+      this.particles.hit(this.hitPosition, this.hitNormal, e.kind === 'heavy' ? 1.4 : 1);
+    });
     if (isParticleDemoEnabled(window.location.search)) {
       this.particleDemo = new ParticleDemo(this.particles, this.scene, this.camera);
     }
