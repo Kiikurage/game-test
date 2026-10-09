@@ -32,7 +32,8 @@ const viewports = [
 
 await build({ logLevel: 'warn' });
 const server = await preview({ preview: { host: 'localhost', port: 4174, strictPort: true } });
-const url = `http://localhost:4174/game-test/`;
+// SHOT_QUERY で URL クエリを指定できる（例: SHOT_QUERY='?quality=low&debug'）
+const url = `http://localhost:4174/game-test/${process.env.SHOT_QUERY ?? ''}`;
 const browser = await chromium.launch(launchOptions());
 
 try {
