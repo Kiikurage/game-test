@@ -601,55 +601,6 @@
       "kind": "se",
       "priority": 72,
       "license": "synth-game-test"
-    },
-    {
-      "id": "bgm.title",
-      "source": "bgm/bgm.title.wav",
-      "kind": "bgm",
-      "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 61.0,
-      "priority": 40,
-      "bitrateKbps": 80,
-      "license": "synth-game-test"
-    },
-    {
-      "id": "bgm.boss",
-      "source": "bgm/bgm.boss.wav",
-      "kind": "bgm",
-      "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 91.0,
-      "priority": 45,
-      "bitrateKbps": 80,
-      "license": "synth-game-test"
-    },
-    {
-      "id": "bgm.boss-layer",
-      "source": "bgm/bgm.boss-layer.wav",
-      "kind": "bgm",
-      "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 91.0,
-      "priority": 46,
-      "bitrateKbps": 80,
-      "license": "synth-game-test"
-    },
-    {
-      "id": "bgm.victory",
-      "source": "bgm/bgm.victory.wav",
-      "kind": "bgm",
-      "priority": 50,
-      "bitrateKbps": 80,
-      "license": "synth-game-test"
-    },
-    {
-      "id": "bgm.ending",
-      "source": "bgm/bgm.ending.wav",
-      "kind": "bgm",
-      "priority": 40,
-      "bitrateKbps": 80,
-      "license": "synth-game-test"
     }
   ]
 }

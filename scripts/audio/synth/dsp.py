@@ -355,15 +355,14 @@ def slow_noise(n, rng, hz, floor=0.0):
 
 
 def seam_score(x, width=0.05):
-    """ループ継ぎ目（末尾 → 先頭を 2 回つないだ前後 width 秒）の最大の隣接サンプル差を、
-    継ぎ目を除いた曲中の最大の隣接サンプル差で割った値。1 以下なら継ぎ目は曲中のどの打撃の立ち上がりよりも穏やか。"""
+    """ループを 2 回つないだときの継ぎ目での隣接サンプル差が、通常の RMS の何倍か。小さいほど継ぎ目なし。"""
     xx = _mono(x)
     n = len(xx)
     w = int(width * SR)
     tiled = np.concatenate([xx, xx])
-    seam = np.abs(np.diff(tiled[n - w : n + w])).max()
-    ref = np.abs(np.diff(xx[w : n - w])).max() + 1e-9
-    return float(seam / ref)
+    d = np.abs(np.diff(tiled[n - w : n + w]))
+    rms = np.sqrt(np.mean(np.diff(xx) ** 2)) + 1e-9
+    return float(d.max() / rms)
 
 
 def write_wav(path, x):
