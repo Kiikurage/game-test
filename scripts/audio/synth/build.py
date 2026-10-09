@@ -86,7 +86,7 @@ def qc(s, x):
             problems.append(f"端が 0 でない({e:.3f})")
     if s.loop is not None:
         ss = seam_score(x)
-        if ss > 6:
+        if ss > 1.3:
             problems.append(f"ループの継ぎ目が目立つ(seam {ss:.1f})")
     cs = click_score(x)
     if cs > 14 and not s.clicks_ok:
