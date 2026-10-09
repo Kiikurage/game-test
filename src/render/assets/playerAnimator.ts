@@ -19,6 +19,9 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     fall: { clip: 'Jump_Loop', loop: true, delayFrames: 8, fadeIn: 0.12, fadeOut: 0.08 },
     // 着地硬直（10F / 22F）に、着地クリップの衝撃〜立ち上がりを合わせる
     land: { clip: 'Jump_Land', range: [0, 1.0], fadeIn: 0.04, fadeOut: 0.12, fallbackFrames: 10 },
+    // 被弾（#50）: 仰け反り 24F に Hit_Chest（0.33s）、転倒 48F に Hit_Knockback（0.83s）を引き伸ばして合わせる
+    flinch: { clip: 'Hit_Chest', fadeIn: 0.03, fadeOut: 0.1, fallbackFrames: 24 },
+    knockdown: { clip: 'Hit_Knockback', fadeIn: 0.03, fadeOut: 0.12, fallbackFrames: 48 },
   },
   // 回避は切れ味重視: 入りは素早く、戻りはやや長く
   actionFades: {
@@ -26,7 +29,17 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     backstep: { fadeIn: 0.04, fadeOut: 0.1 },
   },
   combatIdle: 'Sword_Idle',
-  preload: ['roll', 'backstep', 'fall', 'land', 'light1', 'light2', 'light3'],
+  preload: [
+    'roll',
+    'backstep',
+    'fall',
+    'land',
+    'flinch',
+    'knockdown',
+    'light1',
+    'light2',
+    'light3',
+  ],
 };
 
 /** 描画のデバッグ用に固定表示できるレイヤ（状態 ID または `idle` / `walk` / `jog` / `sprint`）。 */

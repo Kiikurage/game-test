@@ -5,3 +5,6 @@ export * from './uprightTarget';
 export * from './weaponPose';
 export * from './debugSwing';
 export * from './playerAttack';
+export * from './hitStop';
+export * from './poise';
+export * from './hitReactor';

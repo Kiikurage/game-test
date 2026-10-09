@@ -308,6 +308,9 @@ test('a swing hits the dummy in front exactly once (hit resolution, ?debug wiref
   const after = await sim(page);
   expect(after.combat.hits).toBe(1);
   expect(after.combat.lastHitTarget).toBe('dummy-a');
+  // 命中でヒットストップ（軽攻撃 4F）が 1 回かかっている
+  expect(after.combat.hitStops).toBe(1);
+  expect(after.combat.lastHitStopFrames).toBe(4);
   expect(errors).toEqual([]);
 });
 

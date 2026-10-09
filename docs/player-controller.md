@@ -160,4 +160,4 @@ lightAttackCapsule(id, feet, yaw, p, out)   // 各段の武器カプセルの軌
 - **旋回**: 発生の間（当たり窓が開くまで）だけ、ロックオン対象 / 入力方向へ 540°/s（`tuning.player.attackTurnDegPerSecond`）で向く。持続・硬直中は向き固定。
 - **判定**: ゲーム側の手続き的な武器カプセル（半径 0.25m・長さ 1.1m）を、持続中の毎ステップ「前フレーム → 現在」でスイープ。向きと高さは実クリップの剣の動きに合わせた（軽 1: 右下から左上へ斬り上げながら水平 110°、軽 2: 左から右へ肩の高さで水平 90°、軽 3: 剣先 1.2m → 2.2m の突き・弧 40°。UAL2 の `Sword_Regular_B` は縦斬りではなく水平斬りだったため、仕様の「斬り下ろし」とは見た目が異なる）。ダメージ 40 / 42 / 52、強靭度削り 20 / 20 / 35。1 スイング 1 ヒット。命中は `game.combat.onHit` / `events.emit('hit')` で通知される（ヒットストップ・被弾リアクションはそこへ繋ぐ。`player.hitStop(frames)` で攻撃側を凍結できる）。
 - **アニメーション**: `Sword_Regular_A/B/C` を `clipHitFrame`（実測 8 / 8 / 20）で発生に合わせて再生し、振り終わり以降は `tail`（`Sword_Regular_A_Rec` / `_B_Rec`）を残りのフレームに合わせて再生する（軽 3 は C の全長が全体 52F にほぼ一致するので tail なし）。
-- **ヒット火花**: `GameView` が `hit` イベント（source: player）で `particles.hit` を出す。
+- **ヒットストップ・火花・被弾リアクション**: 命中（`HitEvent.attackId` が `light1〜3`）は #49 / #50 が購読する（`hitStop` イベント → `GameView` が火花）。
