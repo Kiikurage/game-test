@@ -35,7 +35,7 @@ import {
   isReactionState,
   type PlayerStateId,
 } from './playerStates';
-import { Stamina } from './stamina';
+import { Stamina, type StaminaContext } from './stamina';
 
 export { PLAYER_STATE_GRAPH, isDodgeState, isReactionState, type PlayerStateId };
 
@@ -176,6 +176,10 @@ export class Player {
     const { rapier, world } = physics;
     this.position.copy(spawn);
     this.yaw = yaw;
+    // スタミナが 0 に達した瞬間（動作開始の消費・ダッシュの継続消費・ガード被弾のどれでも）を通知する
+    this.stamina.onEmpty(() => {
+      this.events.push({ type: 'staminaEmpty' });
+    });
     this.lastGroundY = spawn.y;
     this.visualY = spawn.y;
 
@@ -371,7 +375,7 @@ export class Player {
     this.stampFootstepGait();
 
     this.applyFacing(frame, dt);
-    this.stamina.update(dt, this.regenMode());
+    this.stamina.update(dt, this.staminaContext());
     this.moveBody(dt);
     this.advanceGait(dt);
     this.syncTransform(dt);
@@ -438,10 +442,11 @@ export class Player {
   }
 
   private tryDodge(frame: PlayerFrame): PlayerStateId | null {
-    if (!this.stamina.canStartAction) return null;
     if (!frame.input.hasBuffered('dodge')) return null;
+    const next = this.moveMagnitude > 0.001 ? 'roll' : 'backstep';
+    if (!this.stamina.canStart(PLAYER_ACTIONS[next].staminaCost)) return null;
     frame.input.consumeBuffered('dodge');
-    return this.moveMagnitude > 0.001 ? 'roll' : 'backstep';
+    return next;
   }
 
   /**
@@ -504,7 +509,6 @@ export class Player {
       if (this.stamina.drain(STAMINA.dashCostPerSecond, dt)) {
         this.dashLocked = true;
         this.dashLatch = false;
-        this.events.push({ type: 'staminaEmpty' });
       }
     }
     if (mode === 'ground') {
@@ -645,16 +649,13 @@ export class Player {
     }
   }
 
-  private regenMode(): 'normal' | 'none' {
-    // 走り・ダッシュ中は回復しない（歩き以下は回復する）
-    if (this.dashing) return 'none';
-    if (
-      this.state === 'move' &&
-      Math.hypot(this.velocity.x, this.velocity.y) > tuning.player.walk + 0.3
-    ) {
-      return 'none';
-    }
-    return 'normal';
+  /** スタミナ回復に影響する行動。走り・ダッシュ中は回復しない（歩き以下は回復する）。 */
+  private staminaContext(): StaminaContext {
+    const sprinting =
+      this.dashing ||
+      (this.state === 'move' &&
+        Math.hypot(this.velocity.x, this.velocity.y) > tuning.player.walk + 0.3);
+    return { sprinting };
   }
 
   private moveBody(dt: number): void {
