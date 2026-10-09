@@ -1,3 +1,4 @@
+export * from './camera';
 export * from './combat';
 export * from './enemyAttack';
 export * from './frameWindow';
