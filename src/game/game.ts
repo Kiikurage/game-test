@@ -10,18 +10,22 @@ import { DummyTarget, type LockOnTarget } from './lockOn/targets';
 import { ENEMY_STATS, LAND_NOISE_MIN_HEIGHT, type NoiseKind } from './data';
 import { RapierEnemyBody } from './enemy/enemyBody';
 import { EnemyManager } from './enemy/enemyManager';
-import type { EnemyDebugInfo } from './enemy/enemy';
+import type { Enemy, EnemyDebugInfo } from './enemy/enemy';
 import { directNavigator, type Navigator } from './enemy/navigation';
 import { motionNoise, playerMotion } from './enemy/perception';
 import { createPhysics, type Physics } from './physics';
 import { Player } from './player/player';
 import {
   DebugSwing,
+  HOLLOW_SOLDIER_REACTOR,
+  SHIELDBEARER_REACTOR,
+  HitReactor,
   HitResolver,
   PLAYER_HEARTBOXES,
   UprightTarget,
   uprightHeartbox,
   type HitEvent,
+  type HitReaction,
 } from './combat';
 import { PLAYER_STATS } from './data';
 import { tuning } from './tuning';
@@ -138,6 +142,11 @@ export class Game {
   readonly playerTarget = new UprightTarget('player', 'player', PLAYER_STATS.hp, PLAYER_HEARTBOXES);
   /** ?debug 用の仮の攻撃（判定と可視化の動作確認。実際の攻撃動作は #46）。 */
   readonly debugSwing = new DebugSwing(this.combat);
+  /**
+   * プレイヤー以外の被弾側の強靭度・押し戻し（`HitReactor`）。テストシーンのダミーは亡者兵相当（強靭度 50）。
+   * 敵（#42 以降）は自分の `HitReactor` を作って `addReactor` し、命中時の反応を自分の状態機械へ反映する。
+   */
+  readonly reactors = new Map<string, HitReactor>();
   /** 命中イベントの累計（デバッグ・E2E 用）と直近のイベント。 */
   readonly hitLog: HitEvent[] = [];
   hitCount = 0;
@@ -153,6 +162,12 @@ export class Game {
   /** 直近ステップのロックオンイベント（デバッグ・E2E 用）。 */
   lastLockOnEvent: LockOnEvent = 'none';
 
+  /** 強靭度崩し中の 1.5 倍を反映する対象（`reactors` と同じ ID）。 */
+  private readonly reactiveTargets = new Map<string, UprightTarget>();
+  private readonly dummyReactorIds = new Set<string>();
+  /** 敵 AI 本体とその被弾側（ハートボックス）の対応（id → 敵）。被弾リアクションを敵の状態へ反映するのに使う。 */
+  private readonly enemyHearts = new Map<string, { enemy: Enemy; heart: UprightTarget }>();
+  private readonly slideScratch = { x: 0, z: 0 };
   private input: InputReader;
   private pendingLockEvent: LockOnEvent | null = null;
   private readonly cameraCollision: CameraCollision;
@@ -160,6 +175,7 @@ export class Game {
   private readonly spawnYaw: number;
   private readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
+  private readonly boxColliders = new Map<string, RAPIER.Collider>();
 
   private constructor(
     private readonly physics: Physics,
@@ -189,12 +205,14 @@ export class Game {
       const q = TMP_QUAT.setFromAxisAngle(EULER_Y, ((b.yawDeg ?? 0) * Math.PI) / 180);
       const qx = new Quaternion().setFromAxisAngle(EULER_X, ((b.pitchDeg ?? 0) * Math.PI) / 180);
       q.multiply(qx);
-      world.createCollider(
+      const collider = world.createCollider(
         rapier.ColliderDesc.cuboid(b.hx, b.hy, b.hz)
           .setTranslation(b.x, b.y, b.z)
           .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
           .setCollisionGroups(WORLD_GROUPS),
       );
+      if (b.enabled === false) collider.setEnabled(false);
+      this.boxColliders.set(b.id, collider);
     }
     const heightAt = options.terrainHeight ?? (() => 0);
     this.heightAt = heightAt;
@@ -208,6 +226,9 @@ export class Game {
       ]);
       heart.place(d.x, y, d.z, 0);
       this.combat.addTarget(heart);
+      this.reactors.set(d.id, new HitReactor(HOLLOW_SOLDIER_REACTOR));
+      this.reactiveTargets.set(d.id, heart);
+      this.dummyReactorIds.add(d.id);
       world.createCollider(
         rapier.ColliderDesc.cylinder(d.height / 2, d.radius)
           .setTranslation(d.x, y + d.height / 2, d.z)
@@ -230,6 +251,8 @@ export class Game {
       this.hitCount++;
       this.hitLog.push(e);
       if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
+      const reaction = this.applyReaction(e);
+      if (reaction) this.reactEnemy(e.targetId, reaction, e);
       this.events.emit('hit', {
         kind: e.kind,
         source: e.attackerId === 'player' ? 'player' : 'enemy',
@@ -254,12 +277,52 @@ export class Game {
       },
     });
     for (const spawnPoint of options.enemies ?? []) {
-      this.lockOnTargets.push(this.enemies.spawn(spawnPoint));
+      this.registerEnemy(this.enemies.spawn(spawnPoint));
     }
     // 戦闘音（命中・ガード）は敵に聞こえる
     this.events.on('hit', (e) => {
       if (e.position) this.enemies.noises.emit(e.position, 'combat');
     });
+  }
+
+  /** 敵をロックオン対象・被弾側（ハートボックスと強靭度）として登録する。 */
+  private registerEnemy(enemy: Enemy): void {
+    this.lockOnTargets.push(enemy);
+    const stats = ENEMY_STATS[enemy.type];
+    const heart = new UprightTarget(enemy.id, 'enemy', enemy.maxHp, [
+      uprightHeartbox(stats.radius, stats.height),
+    ]);
+    heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
+    this.combat.addTarget(heart);
+    const profile = enemy.type === 'undead_shield' ? SHIELDBEARER_REACTOR : HOLLOW_SOLDIER_REACTOR;
+    this.addReactor(enemy.id, new HitReactor(profile), heart);
+    this.enemyHearts.set(enemy.id, { enemy, heart });
+  }
+
+  /** 命中の結果を敵 AI へ反映する: HP、気付き（被弾で Alert）、崩しの行動不能、死亡。 */
+  private reactEnemy(id: string, reaction: HitReaction, e: HitEvent): void {
+    const entry = this.enemyHearts.get(id);
+    if (!entry) return;
+    const { enemy, heart } = entry;
+    enemy.hp = heart.health.current;
+    if (heart.health.dead) {
+      enemy.kill();
+      this.combat.removeTarget(id);
+      this.removeReactor(id);
+      this.enemyHearts.delete(id);
+      return;
+    }
+    enemy.provoke(e.attackerPosition.x, e.attackerPosition.z);
+    if (reaction.blocksAction) enemy.stagger(reaction.frames);
+  }
+
+  /** 敵のハートボックスを現在位置へ追従させ、押し戻しの変位を敵の体へ足す。 */
+  private syncEnemyHearts(): void {
+    for (const { enemy, heart } of this.enemyHearts.values()) {
+      if (!enemy.alive) continue;
+      heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
+      enemy.hp = heart.health.current;
+    }
   }
 
   static async create(options: GameOptions = {}): Promise<Game> {
@@ -276,6 +339,14 @@ export class Game {
     const target = this.lockOnTargets.find((t) => t.id === id);
     if (!target) return false;
     this.pendingLockEvent = this.lockOn.lock(target);
+    return true;
+  }
+
+  /** 静的な箱（門など。id は `BoxSpec.id`）の衝突を有効 / 無効にする。該当する id がなければ false。 */
+  setBoxEnabled(id: string, enabled: boolean): boolean {
+    const collider = this.boxColliders.get(id);
+    if (!collider) return false;
+    collider.setEnabled(enabled);
     return true;
   }
 
@@ -345,6 +416,7 @@ export class Game {
     this.updateEnemies(dt);
     for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
     this.syncPlayerTarget();
+    this.stepReactors();
     this.debugSwing.update(player.feet, player.yaw);
     this.combat.step();
     this.physics.step(dt);
@@ -362,6 +434,7 @@ export class Game {
     const kind = motionNoise(motion);
     if (kind) this.enemies.noises.emit(player.feet, kind, { duration: dt });
     this.enemies.update(dt, { position: player.feet, motion });
+    this.syncEnemyHearts();
     this.publishEnemyFootsteps();
   }
 
@@ -384,6 +457,61 @@ export class Game {
   /** 音を発生させる（敵に聞こえる）。鐘・壁の崩壊・回復瓶など、game 内外の音源から呼ぶ。 */
   emitNoise(position: { x: number; y: number; z: number }, kind: NoiseKind): void {
     this.enemies.noises.emit(position, kind);
+  }
+
+  /**
+   * 敵などの被弾側を登録する。`reactor` は命中時の強靭度・押し戻しの計算に使い、毎ステップ `step` する。
+   * `target` は崩し中の被ダメージ 1.5 倍を反映する `UprightTarget`（`HitResolver` に登録済みのもの）。
+   */
+  addReactor(id: string, reactor: HitReactor, target?: UprightTarget): void {
+    this.reactors.set(id, reactor);
+    if (target) this.reactiveTargets.set(id, target);
+  }
+
+  removeReactor(id: string): void {
+    this.reactors.delete(id);
+    this.reactiveTargets.delete(id);
+    this.dummyReactorIds.delete(id);
+  }
+
+  /**
+   * 登録済みの反応体を 1 ステップ進める（強靭度の回復・崩しの残り・被弾後無敵）。ダミーは押し戻しを受けないので
+   * 変位を捨てる（敵は自分で `reactor.consumeSlide` を呼んで移動に足す）。
+   */
+  private stepReactors(): void {
+    for (const [id, reactor] of this.reactors) {
+      reactor.step();
+      if (this.dummyReactorIds.has(id)) reactor.consumeSlide(this.slideScratch);
+      const enemyEntry = this.enemyHearts.get(id);
+      if (enemyEntry) {
+        reactor.consumeSlide(this.slideScratch);
+        if (this.slideScratch.x !== 0 || this.slideScratch.z !== 0) {
+          enemyEntry.enemy.body.moveBy(this.slideScratch.x, this.slideScratch.z);
+        }
+      }
+      const target = this.reactiveTargets.get(id);
+      if (target) target.staggered = reactor.staggered;
+    }
+  }
+
+  /** 命中を被弾側の強靭度・押し戻し・仰け反りへ反映し、`hitReaction` を発行する。 */
+  private applyReaction(e: HitEvent): HitReaction | undefined {
+    const id = e.targetId;
+    // 押し戻しの向き: 攻撃側の原点 → 命中位置
+    const dx = e.position.x - e.attackerPosition.x;
+    const dz = e.position.z - e.attackerPosition.z;
+    let reaction: HitReaction;
+    if (id === 'player') {
+      reaction = this.player.receiveHit(e, dx, dz);
+    } else {
+      const reactor = this.reactors.get(id);
+      if (!reactor) return undefined;
+      reaction = reactor.react(e, dx, dz);
+      const target = this.reactiveTargets.get(id);
+      if (target) target.staggered = reactor.staggered;
+    }
+    this.events.emit('hitReaction', { targetId: id, ...reaction });
+    return reaction;
   }
 
   /** アニメーションのイベントマーカーをイベントバスへ流す。足音は音のイベント（`footstep`）にも変換する。 */

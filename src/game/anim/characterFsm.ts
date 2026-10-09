@@ -117,6 +117,11 @@ export class CharacterFsm<S extends string> {
     this.frame = options.frame ?? 0;
   }
 
+  /** 現在の状態を最初からやり直す（状態フレームを 0 へ戻す。仰け反り中の再被弾など、同じ状態への再突入用）。 */
+  restart(): void {
+    this.frame = 0;
+  }
+
   /** 遷移できれば遷移して true、できなければ何もせず false。 */
   tryTransition(to: S, options: TransitionOptions = {}): boolean {
     if (to !== this.current && !this.canTransition(to)) return false;

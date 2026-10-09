@@ -83,7 +83,8 @@ export type BlockStyle =
   | 'mausoleum'
   | 'stairs'
   | 'bonfire'
-  | 'stone';
+  | 'stone'
+  | 'sarcophagus';
 
 /** 立方体の静的物。底面は地形に埋め込み、上面は `baseY + height`。 */
 export interface BlockProp {
@@ -114,11 +115,13 @@ export interface StairsProp {
   readonly width: number;
 }
 
-/** 立っている円柱（枯れ木の幹・柱）。 */
+export type CylinderStyle = 'tree' | 'column' | 'fountain' | 'pedestal';
+
+/** 立っている円柱（枯れ木の幹・柱・噴水・台座）。 */
 export interface CylinderProp {
   readonly kind: 'cylinder';
   readonly id: string;
-  readonly style: 'tree' | 'column';
+  readonly style: CylinderStyle;
   readonly x: number;
   readonly z: number;
   readonly radius: number;
@@ -156,9 +159,26 @@ export type InteractableKind = 'bonfire' | 'tablet' | 'lever' | 'gate';
 export interface InteractableSpawn {
   readonly id: string;
   readonly kind: InteractableKind;
-  readonly area: AreaId;
+  /** 属するエリア。エリア外の通路上（鉄門 G1・レバー）は null。 */
+  readonly area: AreaId | null;
   readonly x: number;
   readonly z: number;
+}
+
+/** 門（鉄門 G1・霧の門）。開閉の演出・操作は別チケット。ここでは位置と、塞ぐコライダのオン/オフ口だけを持つ。 */
+export interface GateDef {
+  readonly id: string;
+  readonly kind: 'iron' | 'fog';
+  readonly x: number;
+  readonly z: number;
+  /** 門の向き（通り抜ける方向 = 前方 (sin yaw, cos yaw)）。幅は前方に直角。 */
+  readonly yawDeg: number;
+  readonly width: number;
+  readonly height: number;
+  /** 開始時に通行を塞ぐか（コライダが有効か）。鉄門は塞ぐ、霧の門は開けておく。 */
+  readonly blocking: boolean;
+  /** 開けるレバー（`interactables` の id）。 */
+  readonly leverId?: string;
 }
 
 export interface LevelData {
@@ -174,6 +194,10 @@ export interface LevelData {
   readonly terrain: TerrainParams;
   readonly areas: readonly AreaDef[];
   readonly route: readonly RoutePoint[];
+  /** メインルートから分かれる道（ショートカットなど）。メインルートと同じ規則で地形をならす。 */
+  readonly extraRoutes?: readonly (readonly RoutePoint[])[];
+  /** 門。コライダは `Level.gates[].box`（`Game.setBoxEnabled(id, bool)` で開閉）。 */
+  readonly gates: readonly GateDef[];
   /** 篝火（リスポーン点）。 */
   readonly bonfire: { readonly x: number; readonly z: number };
   /** プレイヤーの開始位置と向き。 */
@@ -203,13 +227,21 @@ export interface PlacedBox extends BoxSpec {
 
 export interface PlacedCylinder {
   readonly id: string;
-  readonly style: 'tree' | 'column';
+  readonly style: CylinderStyle;
   readonly x: number;
   /** 底面の高さ。 */
   readonly y: number;
   readonly z: number;
   readonly radius: number;
   readonly height: number;
+}
+
+/** 配置済みの門。`box` は塞ぐコライダ（`id` = 門の id。`enabled` が開始時の状態）。 */
+export interface PlacedGate {
+  readonly def: GateDef;
+  /** 門の足元の高さ。 */
+  readonly y: number;
+  readonly box: BoxSpec;
 }
 
 export interface Level {
@@ -225,6 +257,8 @@ export interface Level {
   readonly cylinders: readonly PlacedCylinder[];
   /** プレイ範囲の外周の透明壁（描画しない）。 */
   readonly boundaryBoxes: readonly BoxSpec[];
+  /** 門（鉄門・霧の門）。コライダは `levelGameOptions().boxes` に含まれる。 */
+  readonly gates: readonly PlacedGate[];
 }
 
 // ---------------------------------------------------------------------------
@@ -319,7 +353,10 @@ export function createTerrainFunctions(data: LevelData): {
   pathWeight: (x: number, z: number) => number;
 } {
   const { terrain: p, bounds } = data;
-  const segments = createRouteSegments(data.route);
+  const segments = [
+    ...createRouteSegments(data.route),
+    ...(data.extraRoutes ?? []).flatMap((r) => createRouteSegments(r)),
+  ];
   const floors = data.areas.filter((a) => a.floor);
 
   /** 道: 各線分の重み付き平均（継ぎ目で段差ができない）。 */
@@ -532,6 +569,30 @@ function createBoundaryBoxes(data: LevelData): BoxSpec[] {
   ];
 }
 
+function placeGates(
+  gates: readonly GateDef[],
+  heightAt: (x: number, z: number) => number,
+): PlacedGate[] {
+  return gates.map((def) => {
+    const y = heightAt(def.x, def.z);
+    return {
+      def,
+      y,
+      box: {
+        id: def.id,
+        x: def.x,
+        y: y + def.height / 2,
+        z: def.z,
+        hx: def.width / 2,
+        hy: def.height / 2 + EMBED / 2,
+        hz: 0.3,
+        yawDeg: def.yawDeg,
+        enabled: def.blocking,
+      },
+    };
+  });
+}
+
 /** データからレベルを組み立てる。 */
 export function createLevel(data: LevelData): Level {
   const { heightAt, pathWeight } = createTerrainFunctions(data);
@@ -550,6 +611,7 @@ export function createLevel(data: LevelData): Level {
     boxes,
     cylinders,
     boundaryBoxes: createBoundaryBoxes(data),
+    gates: placeGates(data.gates, heightAt),
   };
 }
 
@@ -607,8 +669,26 @@ export function validateLevel(data: LevelData): string[] {
   };
   for (const e of data.enemies) checkIn(e.id, e.area, e.x, e.z);
   for (const i of data.items) checkIn(i.id, i.area, i.x, i.z);
-  for (const i of data.interactables) checkIn(i.id, i.area, i.x, i.z);
+  for (const i of data.interactables) {
+    if (i.area) checkIn(i.id, i.area, i.x, i.z);
+    else checkId(i.id);
+  }
+  const interactableIds = new Set(data.interactables.map((i) => i.id));
+  const gateIds = new Set<string>();
+  for (const g of data.gates) {
+    if (gateIds.has(g.id)) problems.push(`duplicate gate id ${g.id}`);
+    gateIds.add(g.id);
+    if (!inBounds(g.x, g.z)) problems.push(`gate ${g.id} is outside the bounds`);
+    if (g.leverId && !interactableIds.has(g.leverId)) {
+      problems.push(`gate ${g.id}: unknown lever ${g.leverId}`);
+    }
+  }
   for (const e of data.enemies) if (e.area === 'A') problems.push(`${e.id}: area A has no enemies`);
+
+  // 門のインタラクト対象（kind: 'gate'）は同じ id の門を持つ
+  for (const i of data.interactables) {
+    if (i.kind === 'gate' && !gateIds.has(i.id)) problems.push(`${i.id}: no gate definition`);
+  }
 
   const spawn = data.playerSpawn;
   const a = areaById.get('A');
@@ -644,7 +724,7 @@ export function levelGameOptions(
   return {
     terrain: { vertices: level.terrain.vertices, indices: level.terrain.indices },
     terrainHeight: level.heightAt,
-    boxes: [...level.boxes, ...level.boundaryBoxes],
+    boxes: [...level.boxes, ...level.boundaryBoxes, ...level.gates.map((g) => g.box)],
     dummies: [],
     spawn: level.data.playerSpawn,
     enemies: level.data.enemies,

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ENEMY_AI } from '../data';
+import { capsule, capsuleShape, vec3 } from '../combat';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
 import { ASHEN_FOUNDATION } from '../world/ashenFoundation';
@@ -81,6 +82,38 @@ describe('enemy AI in the game (Rapier)', () => {
     until(() => enemy.state === 'idle');
     expect(enemy.homeDistance).toBeLessThan(0.5);
     expect(enemy.hp).toBeGreaterThan(30);
+  });
+
+  it('receives hit reactions: poise break staggers, provokes, and death kills the enemy', async () => {
+    const { game, enemy, run } = await setup();
+    game.teleportPlayer(0, 8, Math.PI);
+    const heart = game.combat.allTargets.get(enemy.id);
+    const box = heart?.heartboxes[0];
+    if (!heart || !box) throw new Error('enemy heartbox not registered');
+    const hit = (damage: number, poiseDamage: number) => {
+      const attack = game.combat.startAttack('player', 'player', { id: 'x', damage, poiseDamage });
+      const shape = capsuleShape(
+        capsule(
+          vec3(box.a.x - 0.2, box.a.y, box.a.z + 0.3),
+          vec3(box.a.x + 0.2, box.a.y, box.a.z + 0.3),
+          0.1,
+        ),
+        vec3(box.a.x, 1, box.a.z + 2),
+      );
+      const events = game.combat.resolve(attack, shape);
+      game.combat.endAttack(attack);
+      return events;
+    };
+    expect(hit(10, 60)).toHaveLength(1); // 強靭度 50 を超える削り: 崩し
+    run(1);
+    expect(enemy.hp).toBe(enemy.maxHp - 10);
+    expect(enemy.state).toBe('staggered');
+    run(60);
+    expect(enemy.state).not.toBe('staggered');
+    expect(hit(500, 0)).toHaveLength(1);
+    run(1);
+    expect(enemy.state).toBe('dead');
+    expect(game.combat.allTargets.has(enemy.id)).toBe(false);
   });
 
   it('cannot see a standing player behind a wall', async () => {
