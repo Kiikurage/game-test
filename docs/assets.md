@@ -371,3 +371,21 @@ look.setEmber(1);                                                    // ボス�
 - 予算（実測、manifest の `player`）: 12 アイテム合計 2,748 tris（Helm 498 / Cuirass 476 / Tabard 48 / Pauldron_L 476 / Pauldron_R 476 / Vambrace_L 156 / Vambrace_R 156 / Greave_L 132 / Greave_R 132 / Cape_1 134 / Cape_2 32 / Cape_3 32）/ 約 71KB / テクスチャメモリ 0。騎士 21,252 + 剣・盾 950 + 装備 2,748 = **24,950 tris**（1 体 25,000 tris 以下の予算内）。`playerKit.test.ts` が検証している。
 - 確認用: `?player=1`（`&view=front|back|left|right|close&dist=3.2`、`&clip=Jog_Fwd_Loop|Sprint_Loop|Sword_Idle…`、`&speed=<m/s>` で外套のなびき、`&light=front|back|side|shade` で光の向き）。撮影は `SHOT_QUERY='?player=1&view=back&dist=3.2' npm run shot`。
 
+
+### 7.9 遺体ポーズ 4 種（Issue #109）
+
+環境ストーリーテリングの遺体（仕様書 14.7 節）。UBC の騎士（レンジャー衣装）を流用し、**新規アセット・新規クリップなし**（コードでポーズを作る）。亡者ではない人の遺体なので亡者マテリアルは使わず、肌を青白く・衣装を暗い色に寄せる。
+
+| ポーズ | 原点（`CorpsePlacement.position` の意味） | 内容 |
+| --- | --- | --- |
+| `sitting` | 座面の中心（岩棚・噴水の縁の上面） | 腰かけたまま事切れ、上体が崩れ頭が垂れ、手は膝の上。脚は座面の外へ垂れる |
+| `prone` | 体の中心の地面 | うつ伏せで頭が +Z 向き（這った方向）。片腕を前へ伸ばし顔は横向き。`yawAwayFrom(遺体, 門)` で「門とは逆向き」にする |
+| `praying` | 額が触れる祭壇の面（地面の高さ） | ひざまずき上体を倒し、腕を前へ伸ばして祭壇に額と手を付ける（遺体は -Z 側、祭壇は +Z 側） |
+| `leaning` | 背が触れる壁（石棺の側面）の地面 | 脚を前へ投げ出して壁にもたれ、頭は肩へ傾く（瀕死の騎士） |
+
+- ポーズ定義は `src/render/corpses/corpsePoses.ts`: T ポーズに**キャラクター空間の軸まわりのボーン回転**（`BoneTurn`、親から順に適用）を加える。例: `thigh` の X 負 = 股関節を前へ、`calf` の X 正 = 膝を曲げる。`lay` で全身を寝かせる（うつ伏せ）。
+- バリアント 4 種（`traveler` / `pilgrim` / `warrior` / `broad`、`corpseVariants.ts`）: 体型（幅・高さ）、フード・肩当て・ベルトの有無、衣装色、簡易装備（`equipment.glb` の胸当て・肩当て・錆びた剣）が異なる。
+- **静止ポーズの焼き込み**（`corpseFactory.ts` / `bake.ts`）: ポーズ × バリアントごとに 1 回だけ、`SkinnedMesh` の頂点をポーズ後の位置・法線に焼き込み、同じマテリアルのパーツを 1 つの静的な `Mesh` にまとめる（肌・衣装・顔 = 3 メッシュ + 装備）。スケルトン・ミキサーは捨てるのでスキニング更新も毎フレームの行列更新も無く（`matrixAutoUpdate = false`）、視錐台カリングも効く。同じ種の遺体はジオメトリ・マテリアルを共有する。
+- **簡略化**: 焼き込み後に meshoptimizer のシンプリファイア（法線・UV を属性として重みづけ）で三角形を 50% に減らす（遺体は暗く遠目に見えるため。1 体 約 20,000 → 約 10,000 tris）。`meshoptimizer/simplifier` は使うとき（`CorpseFactory.create`）だけ動的 import する。
+- 配置データ（`src/core/corpses.ts`、純粋ロジック）: `corpsePlacement({ pose, x, z, y?, yaw?, variant? }, index)` / `corpsePlacements(specs)`（バリアント省略時は index から決定的に選び、隣り合う遺体が同じ見た目にならない）/ `yawToward` / `yawAwayFrom`。`CorpseFactory.create(placement)` が静的な `Group` を返す。
+- 確認用: `?corpse=all`（4 ポーズ横並び）、`?corpse=sitting|prone|praying|leaning&variant=…&view=front|side|back|top`、`?corpse=crowd&n=12`（負荷確認）、`&simplify=<比率>`。背景のフィールドを隠し、補助光・地面・基準面（座面・祭壇・石棺）の台を足すプレビュー専用表示（`window.__corpsePreview` に三角形数などを出す）。
