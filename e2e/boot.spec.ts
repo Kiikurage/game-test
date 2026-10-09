@@ -72,7 +72,12 @@ test('creates an AudioContext that stays suspended until the first user gesture'
         return `throw: ${String(e)}`;
       }
     });
-  await expect.poll(readAudioState, { message: `console: ${logs.join(' | ')}` }).toBe('suspended');
+  let state = await readAudioState();
+  for (let i = 0; i < 50 && state !== 'suspended'; i++) {
+    await page.waitForTimeout(200);
+    state = await readAudioState();
+  }
+  expect(state, `console: ${logs.join(' | ')}`).toBe('suspended');
   await page.waitForTimeout(500);
   expect(await readAudioState()).toBe('suspended');
 
