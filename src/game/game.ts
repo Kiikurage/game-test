@@ -16,7 +16,13 @@ import {
   TARGET_GROUPS,
   WORLD_GROUPS,
 } from './world/groups';
-import { DUMMIES, PLAYER_SPAWN, PLAYGROUND_BOXES } from './world/playground';
+import {
+  DUMMIES,
+  PLAYER_SPAWN,
+  PLAYGROUND_BOXES,
+  type BoxSpec,
+  type DummySpec,
+} from './world/playground';
 
 /** 何も入力しない InputReader（入力システムなしで Game を作るテスト・起動時用）。 */
 export const NULL_INPUT: InputReader = (() => {
@@ -58,6 +64,12 @@ export interface GameOptions {
   readonly terrain?: TerrainCollisionMesh;
   /** 地形の高さ関数（ダミーの接地位置に使う）。省略時は 0。 */
   readonly terrainHeight?: (x: number, z: number) => number;
+  /** 静的な箱（壁・段差など）。省略時はテストシーンの足場。レベルデータ（`world/level.ts`）はここへ渡す。 */
+  readonly boxes?: readonly BoxSpec[];
+  /** ロックオン用のダミー。省略時はテストシーンのダミー（レベルでは空配列を渡す）。 */
+  readonly dummies?: readonly DummySpec[];
+  /** プレイヤーの開始位置と向き（ヨー）。省略時はテストシーンの広場。 */
+  readonly spawn?: { readonly x: number; readonly z: number; readonly yaw: number };
 }
 
 /** 静的な円柱（柱・岩など）の衝突。`y` は底面の高さ。 */
@@ -109,6 +121,8 @@ export class Game {
   private pendingLockEvent: LockOnEvent | null = null;
   private readonly cameraCollision: CameraCollision;
   private readonly spawnPosition = new Vector3();
+  private readonly spawnYaw: number;
+  private readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
 
   private constructor(
@@ -135,7 +149,7 @@ export class Game {
     }
 
     // テストシーンの足場とダミー
-    for (const b of PLAYGROUND_BOXES) {
+    for (const b of options.boxes ?? PLAYGROUND_BOXES) {
       const q = TMP_QUAT.setFromAxisAngle(EULER_Y, ((b.yawDeg ?? 0) * Math.PI) / 180);
       const qx = new Quaternion().setFromAxisAngle(EULER_X, ((b.pitchDeg ?? 0) * Math.PI) / 180);
       q.multiply(qx);
@@ -147,7 +161,8 @@ export class Game {
       );
     }
     const heightAt = options.terrainHeight ?? (() => 0);
-    for (const d of DUMMIES) {
+    this.heightAt = heightAt;
+    for (const d of options.dummies ?? DUMMIES) {
       const y = heightAt(d.x, d.z);
       const target = new DummyTarget(d.id, d.x, y, d.z, d.height, d.radius);
       this.dummies.push(target);
@@ -159,14 +174,15 @@ export class Game {
       );
     }
 
-    const spawnY = heightAt(PLAYER_SPAWN.x, PLAYER_SPAWN.z);
-    this.spawnPosition.set(PLAYER_SPAWN.x, spawnY + 0.02, PLAYER_SPAWN.z);
+    const spawn = options.spawn ?? PLAYER_SPAWN;
+    this.spawnYaw = spawn.yaw;
+    this.spawnPosition.set(spawn.x, heightAt(spawn.x, spawn.z) + 0.02, spawn.z);
 
     // 地形・足場を問い合わせパイプラインへ反映してからプレイヤーを置く
     physics.step(1 / 60);
-    this.player = new Player(physics, this.spawnPosition, PLAYER_SPAWN.yaw);
+    this.player = new Player(physics, this.spawnPosition, this.spawnYaw);
     this.cameraCollision = this.createCameraCollision(rapier);
-    this.camera.reset(this.player.feet, PLAYER_SPAWN.yaw);
+    this.camera.reset(this.player.feet, this.spawnYaw);
   }
 
   static async create(options: GameOptions = {}): Promise<Game> {
@@ -328,15 +344,15 @@ export class Game {
   }
 
   /** プレイヤーを任意の位置へ移す（デバッグ・E2E）。カメラはプレイヤーの背後へ即座に置く。 */
-  teleportPlayer(x: number, z: number, yaw: number, y = 0.02): void {
+  teleportPlayer(x: number, z: number, yaw: number, y = this.heightAt(x, z) + 0.02): void {
     this.player.teleport(new Vector3(x, y, z), yaw);
     this.camera.reset(this.player.feet, yaw);
   }
 
   /** プレイヤーを初期位置へ戻す（デバッグ・リスポーン）。 */
   respawn(): void {
-    this.player.teleport(this.spawnPosition, PLAYER_SPAWN.yaw);
-    this.camera.reset(this.player.feet, PLAYER_SPAWN.yaw);
+    this.player.teleport(this.spawnPosition, this.spawnYaw);
+    this.camera.reset(this.player.feet, this.spawnYaw);
     this.lockOn.release('external');
   }
 

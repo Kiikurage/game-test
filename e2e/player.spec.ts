@@ -5,14 +5,14 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(webgpuCompatInit);
 });
 
-/** ソフトウェア描画でもシミュレーションが回るよう、最小品質・低解像度で起動する。 */
+/** ソフトウェア描画でもシミュレーションが回るよう、最小品質・低解像度で起動する。足場・ダミーのあるテストシーン（?scene=test）で試す。 */
 async function boot(page: Page): Promise<void> {
   const errors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25');
+  await page.goto('./?scene=test&quality=low&scale=0.25');
   await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
