@@ -949,6 +949,7 @@ export function buildItemsDocument({
   boneWorldMatrices,
   colors = COLORS,
   metalKinds = new Set(['iron']),
+  metal: metalParams = { metallic: 0.4, roughness: 0.82 },
 }) {
   const doc = new Document();
   const buffer = doc.createBuffer();
@@ -957,8 +958,8 @@ export function buildItemsDocument({
   const metal = doc
     .createMaterial('RustyMetal')
     .setBaseColorFactor([1, 1, 1, 1])
-    .setMetallicFactor(0.4)
-    .setRoughnessFactor(0.82)
+    .setMetallicFactor(metalParams.metallic)
+    .setRoughnessFactor(metalParams.roughness)
     .setDoubleSided(true);
   const soft = doc
     .createMaterial('WornSoft')

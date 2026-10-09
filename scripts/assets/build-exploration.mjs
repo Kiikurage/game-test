@@ -15,6 +15,7 @@ import {
 import { dedup, meshopt, prune } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import { OUT_DIR, ROOT } from './config.mjs';
+import { totalBytesOf } from './manifestTotal.mjs';
 import { PLANTED_SWORD, buildExplorationDocument } from './exploration.mjs';
 
 await MeshoptEncoder.ready;
@@ -52,12 +53,7 @@ manifest.exploration = {
   items,
   plantedSword: PLANTED_SWORD,
 };
-manifest.totalBytes =
-  Object.values(manifest.characters).reduce((s, c) => s + c.bytes, 0) +
-  manifest.animations.bytes +
-  manifest.props.bytes +
-  (manifest.equipment?.bytes ?? 0) +
-  bytes;
+manifest.totalBytes = totalBytesOf(manifest);
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 console.log(`exploration.glb ${kb(bytes)} tris ${triangles} (${Object.keys(items).length} items)`);
 for (const [id, item] of Object.entries(items)) console.log(`  ${id}: ${item.triangles} tris`);

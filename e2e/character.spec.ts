@@ -51,3 +51,13 @@ test('shows the exploration props preview without errors (#108)', async ({ page 
   await page.waitForTimeout(500);
   expect(errors).toEqual([]);
 });
+
+test('equips the knight kit and sways the cape without errors (#103)', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('./?player=1&clip=Sprint_Loop&view=back&dist=3.2&quality=low&scale=0.25');
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await expect
+    .poll(() => page.evaluate(() => window.__game?.showcase?.time ?? 0), { timeout: 30_000 })
+    .toBeGreaterThan(0.2);
+  expect(errors).toEqual([]);
+});

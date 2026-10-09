@@ -226,6 +226,7 @@ Rogue / Mage も同系統。**KayKit はキャラクター間でリグとクリ�
 | アニメーション 34 クリップ | Universal Animation Library（`gaits.glb`、17 クリップ）と Universal Animation Library 2（`animations.glb`、17 クリップ）、いずれも Standard 版・ルートモーション無し | CC0 1.0 | 必要クリップのみ抽出、スケール/子ボーンの平行移動トラック削除、リサンプル、meshopt 圧縮 |
 | 剣・盾 | 自作（`scripts/assets/props.mjs` がコードで生成。素材由来のライセンスなし） | — | — |
 | 簡易装備メッシュ（亡者兵・盾持ち・ボス） | 自作（`scripts/assets/equipment.mjs`。7.7 節） | — | — |
+| プレイヤーの装備（兜・胸甲・陣羽織・肩当て・籠手・脛当て・外套） | 自作（`scripts/assets/player.mjs`。7.10 節） | — | — |
 | 探索用メッシュ（墓守の大剣・獣脂の壺・鐘・祈る像・石積み・突き立つ剣） | 自作（`scripts/assets/exploration.mjs`。7.8 節。外部素材・テクスチャなし） | — | — |
 
 - 元の 3 パックの `*-license.txt` はいずれも「CC0 1.0 Universal」であることを取得時に実物で確認し、`assets-src/LICENSES/` に控えを保存している（`npm run assets:fetch` が CC0 の文言を検証し、違えば停止する）。
@@ -349,3 +350,24 @@ look.setEmber(1);                                                    // ボス�
 - ランタイム: `ExplorationAssets.load()`（`src/render/assets/exploration.ts`）。`create(id)`（静的に置く。量子化のため `Group` で包んで返す）/ `setGreatswordMount(character, 'hand' | 'back' | 'none')` / `holdOilJar` / `releaseOilJar(character, scene)` / `createCairns(placements)` / `createPlantedSwords(placements)`。
 - 突き立つ剣 12 本の配置: `gateSwordPlacements({ gate, approachYaw })`（`src/core/plantedSwords.ts`、純粋ロジック）。11 本が門を中心にした半径 3.2m の半円（接近側 ±80°）に並び、刃の面が門を向く。残る 1 本は半円の端のさらに外（半径 +1.1m）に離れ、**逆さ**（柄頭が刺さり刃が上）で門に背を向ける。傾きは決定的な乱数で ±5°。
 - 確認用: `?props=all|swords|bell|statue|cairn`（騎士なしで並べる。背景のフィールドを隠し、プレビュー専用の補助光を足す）、`?props=sword-hand&clip=Sword_Idle&view=front&dist=3.2` / `?props=sword-back&view=back&dist=3.2`（大剣を手 / 背中）、`?props=jar&view=front&dist=2.2`（壺を持つ）。
+
+### 7.10 プレイヤー（旅の騎士）の見た目（Issue #103）
+
+#10 のプレイヤー（UBC のレンジャー衣装 + 頭部）は「レンジャー」寄りだったので、**自作の騎士装備**（`scripts/assets/player.mjs` がコードで生成。素材由来のライセンスなし、テクスチャなし）を重ねて「旅の騎士」にする。装備メッシュ（7.7 節）・探索用メッシュ（7.8 節）と同じ作り方（頂点カラー、`buildItemsDocument`、予算検証テスト）。敵の「錆びた装備」と対になる**手入れされた鋼 + 深紅の布**の色設計で、三人称の**後ろ姿のシルエット**（兜の羽根飾り・張り出した肩当て・長い外套）を重視している。
+
+| ID | 取り付けボーン | 内容 |
+| --- | --- | --- |
+| `Knight_Helm` | `Head` | 嘴状のバイザー付きの全面兜（目の高さにスリット、通気孔、真鍮の飾り帯、深紅の羽根飾り、首当て）。顔の粗いテクスチャも隠れる |
+| `Knight_Cuirass` | `spine_03` | 胸甲（前後の稜線、ゴルジェット、腹の帯板）+ 革の帯・真鍮の留め金・腰の小袋 |
+| `Knight_Tabard` | `pelvis` | 腰から前後に垂れる深紅の陣羽織（脚の動きを妨げない短さ、中央に縦の帯、裾ほど汚れる） |
+| `Knight_Pauldron_L/R` | `upperarm_l/r` | 3 枚の板が重なる肩当て + 革のストラップ・真鍮鋲 |
+| `Knight_Vambrace_L/R` | `lowerarm_l/r` | 籠手と肘当て |
+| `Knight_Greave_L/R` | `calf_l/r` | 脛当てと膝当て |
+| `Knight_Cape_1〜3` | `spine_03` | 深紅の外套を 3 段に分けたもの。`extras.pivot` が各段の蝶番（アイテム空間） |
+
+- **外套の揺れ（軽量なボーン揺れ）**: 段ごとの蝶番を鎖状に吊り、`CapeSpring`（`src/render/player/capeSpring.ts`、three 非依存）のバネ・ダンパーで段ごとの前後・左右の角度を毎フレーム計算して回す（頂点シェーダ・追加マテリアルは使わない）。目標角は ① 前進速度（後ろへなびく）② 旋回角速度（外側へ振られる）③ 重力（上体が前傾・左右に傾いても真下へ垂れる。外套ルートの傾きを自動計測し、上の段ほど多く打ち消す）④ ごく弱い常時のそよ風と走行中のはためき。`CapeRig.update(dt, { forwardSpeed, turnRate })` を毎フレーム呼ぶだけ。
+- **マテリアルは標準のまま**（`MeshStandardMaterial`。補助光 #144 の `applyCharacterLight` は装備を取り付けた後にかければ装備にも掛かる）。金属は金属度 0.8・粗さ 0.55（地の鋼色を鏡面にして、誘電体の白い鏡面反射で白飛びさせない）。鋼の色は `steel`（青灰、エッジだけ擦れて明るく、下向きの面にごく薄い黒ずみ）、布は `crimson`、革は 7.7 節と共通。
+- ランタイム: `PlayerKitAssets.load()` → `equipKnight(character)`（`src/render/player/playerKit.ts`）。兜を被せるのでフード、肩当てを付けるので衣装の肩当てメッシュを隠し、衣装の布（`MI_Ranger`）の色を暗い青灰へ寄せる（`tintOutfit`。肌は触らない）。返り値の `PlayerKit` は `cape: CapeRig` と `remove()`（装備を外して衣装を戻す）を持つ。
+- 予算（実測、manifest の `player`）: 12 アイテム合計 2,748 tris（Helm 498 / Cuirass 476 / Tabard 48 / Pauldron_L 476 / Pauldron_R 476 / Vambrace_L 156 / Vambrace_R 156 / Greave_L 132 / Greave_R 132 / Cape_1 134 / Cape_2 32 / Cape_3 32）/ 約 71KB / テクスチャメモリ 0。騎士 21,252 + 剣・盾 950 + 装備 2,748 = **24,950 tris**（1 体 25,000 tris 以下の予算内）。`playerKit.test.ts` が検証している。
+- 確認用: `?player=1`（`&view=front|back|left|right|close&dist=3.2`、`&clip=Jog_Fwd_Loop|Sprint_Loop|Sword_Idle…`、`&speed=<m/s>` で外套のなびき、`&light=front|back|side|shade` で光の向き）。撮影は `SHOT_QUERY='?player=1&view=back&dist=3.2' npm run shot`。
+

@@ -243,7 +243,7 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 1449256,
+  "totalBytes": 1522872,
   "equipment": {
     "file": "equipment.glb",
     "bytes": 105500,
@@ -390,5 +390,92 @@
       "buriedTip": 0.2,
       "buriedPommel": 0.06
     }
+  },
+  "player": {
+    "file": "player.glb",
+    "bytes": 73616,
+    "triangles": 2748,
+    "textureMemoryBytes": 0,
+    "items": {
+      "Knight_Helm": {
+        "triangles": 498,
+        "bone": "Head"
+      },
+      "Knight_Cuirass": {
+        "triangles": 476,
+        "bone": "spine_03"
+      },
+      "Knight_Tabard": {
+        "triangles": 48,
+        "bone": "pelvis"
+      },
+      "Knight_Pauldron_L": {
+        "triangles": 476,
+        "bone": "upperarm_l"
+      },
+      "Knight_Pauldron_R": {
+        "triangles": 476,
+        "bone": "upperarm_r"
+      },
+      "Knight_Vambrace_L": {
+        "triangles": 156,
+        "bone": "lowerarm_l"
+      },
+      "Knight_Vambrace_R": {
+        "triangles": 156,
+        "bone": "lowerarm_r"
+      },
+      "Knight_Greave_L": {
+        "triangles": 132,
+        "bone": "calf_l"
+      },
+      "Knight_Greave_R": {
+        "triangles": 132,
+        "bone": "calf_r"
+      },
+      "Knight_Cape_1": {
+        "triangles": 134,
+        "bone": "spine_03"
+      },
+      "Knight_Cape_2": {
+        "triangles": 32,
+        "bone": "spine_03"
+      },
+      "Knight_Cape_3": {
+        "triangles": 32,
+        "bone": "spine_03"
+      }
+    },
+    "loadout": [
+      "Knight_Helm",
+      "Knight_Cuirass",
+      "Knight_Tabard",
+      "Knight_Pauldron_L",
+      "Knight_Pauldron_R",
+      "Knight_Vambrace_L",
+      "Knight_Vambrace_R",
+      "Knight_Greave_L",
+      "Knight_Greave_R",
+      "Knight_Cape_1",
+      "Knight_Cape_2",
+      "Knight_Cape_3"
+    ],
+    "capePivots": [
+      [
+        0,
+        1.5,
+        -0.19
+      ],
+      [
+        0,
+        1.18,
+        -0.21981481481481482
+      ],
+      [
+        0,
+        0.86,
+        -0.2751851851851852
+      ]
+    ]
   }
 }
