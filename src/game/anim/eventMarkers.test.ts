@@ -9,6 +9,7 @@ import {
   parseClipEventTable,
   playbackRate,
   simFrameToClipTime,
+  swingEndElapsed,
   totalFrames,
 } from './eventMarkers';
 import { getPlayerClipEvents, playerClipEvents } from './playerClips';
@@ -288,5 +289,46 @@ describe('サンプルデータ（軽攻撃 1）', () => {
 
   it('indexClipEvents: 未知の id は例外', () => {
     expect(() => indexClipEvents(playerClipEvents)('nope')).toThrow();
+  });
+});
+
+describe('戻りクリップ（tail）', () => {
+  const tail = { clip: 'Sword_Regular_A_Rec', startFrame: 0, endFrame: 29 };
+
+  it('読み込め、検証される', () => {
+    expect(first({ tail }).tail).toEqual(tail);
+    expect(first().tail).toBeUndefined();
+    expect(() => parse({ tail: { ...tail, endFrame: 0 } })).toThrow(AnimDataError);
+    expect(() => parse({ tail: { clip: '', startFrame: 0, endFrame: 3 } })).toThrow(AnimDataError);
+    expect(() => parse({ tail: 3 })).toThrow(AnimDataError);
+  });
+
+  it('swingEndElapsed: 範囲の終端に達する経過フレーム（全体を超えれば全体）', () => {
+    // 軽 1: クリップ 13F（0.433s）を playbackRate 4/3 で → 19.5 フレーム
+    expect(swingEndElapsed(getPlayerClipEvents('player.light1'))).toBeCloseTo(19.5, 6);
+    // 軽 2: 16F（0.533s）を playbackRate 1.6 で → 20 フレーム
+    expect(swingEndElapsed(getPlayerClipEvents('player.light2'))).toBeCloseTo(20, 6);
+    // 軽 3: 60F（2.0s）を playbackRate 2.5 で → 48 フレーム（全体 52 以内）
+    expect(swingEndElapsed(getPlayerClipEvents('player.light3'))).toBeCloseTo(48, 6);
+    expect(swingEndElapsed(first({ clipRange: { startFrame: 0, endFrame: 300 } }))).toBe(36);
+  });
+
+  it('軽攻撃 3 種は仕様書 2.3 節のフレームデータと一致する', () => {
+    const l1 = getPlayerClipEvents('player.light1');
+    const l2 = getPlayerClipEvents('player.light2');
+    const l3 = getPlayerClipEvents('player.light3');
+    expect([l1.spec, l2.spec, l3.spec]).toEqual([
+      { startup: 12, active: 4, recovery: 20 },
+      { startup: 10, active: 4, recovery: 22 },
+      { startup: 16, active: 6, recovery: 30 },
+    ]);
+    expect([totalFrames(l1), totalFrames(l2), totalFrames(l3)]).toEqual([36, 36, 52]);
+    // 振り抜き（クリップ内の当たりフレーム）は hitStart（発生 + 1）のフレームで来る
+    for (const e of [l1, l2, l3]) {
+      expect(simFrameToClipTime(e, e.spec.startup + 1)).toBeCloseTo(
+        (e.clipHitFrame ?? 0) / e.clipFps,
+        6,
+      );
+    }
   });
 });

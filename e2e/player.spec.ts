@@ -343,3 +343,51 @@ test('R drinks a flask: the drinking animation plays and HP is restored at F26',
   expect((await sim(page)).player.state).toBe('idle');
   expect((await sim(page)).combat.flask).toBe(2);
 });
+
+test('left clicks chain the 3-hit light combo and each swing hits the dummy once', async ({
+  page,
+}) => {
+  await boot(page);
+  // dummy-a (0, -6) の 1.5m 手前で北向き
+  await teleport(page, 0, -4.5, Math.PI);
+
+  // 最初のクリックは Pointer Lock の取得（攻撃にならない）
+  await page.mouse.move(640, 360);
+  await page.mouse.click(640, 360);
+  await expect
+    .poll(() => page.evaluate(() => document.pointerLockElement !== null), { timeout: 10_000 })
+    .toBe(true);
+  expect((await sim(page)).combat.hits).toBe(0);
+
+  const click = () => page.mouse.click(640, 360);
+  const waitFrame = (state: string, frame: number) =>
+    expect
+      .poll(
+        async () => {
+          const p = (await sim(page)).player;
+          return p.state === state && p.stateFrame >= frame;
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true);
+
+  // 軽 1（先行入力は 10F・窓は F20 から）。F12 以降に押せば F20 の窓で次段へ繋がる。
+  await click();
+  await expect.poll(async () => (await sim(page)).player.state).toBe('light1');
+  expect((await sim(page)).events.attackStart).toBe(1);
+  await waitFrame('light1', 12);
+  await click();
+  await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('light2');
+  await waitFrame('light2', 12);
+  await click();
+  await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('light3');
+
+  // 3 段それぞれが 1 回ずつ命中し、終わると待機へ戻る
+  await expect.poll(async () => (await sim(page)).combat.hits, { timeout: 30_000 }).toBe(3);
+  await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('idle');
+  const after = await sim(page);
+  expect(after.combat.hits).toBe(3);
+  expect(after.combat.lastHitTarget).toBe('dummy-a');
+  expect(after.events.attackStart).toBe(3);
+  expect(after.player.stamina).toBeLessThan(100); // 3 段で 48 消費（回復待ち 45F のあと戻り始める）
+});

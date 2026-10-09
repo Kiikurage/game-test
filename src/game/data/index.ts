@@ -1,5 +1,6 @@
 export * from './camera';
 export * from './combat';
+export * from './enemyAi';
 export * from './enemyAttack';
 export * from './frameWindow';
 export * from './playerActions';

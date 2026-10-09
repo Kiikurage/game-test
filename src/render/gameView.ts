@@ -7,8 +7,10 @@ import { GroundTelegraphs } from './telegraph';
 import { TelegraphDemo, isTelegraphDemoEnabled } from './telegraph/demo';
 import { PlaygroundView } from './playground';
 import { LevelView } from './levelView';
+import type { EnvironmentAssets } from './assets/environment';
 import type { Level } from '../game/world/level';
 import type { PlayerView } from './playerView';
+import type { EnemyViews } from './enemyView';
 import { createTestScene, type ColliderCylinder } from './testScene';
 import { ParticleSystem } from './particles';
 import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
@@ -26,6 +28,8 @@ export class GameView {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(50, 1, 0.1, 500);
   readonly environment: Environment;
+  /** レベルを描いているときだけ（`?scene=test` では null）。 */
+  readonly levelView: LevelView | null = null;
   /** ボス技の地面予告（円・直線・影の円）。 */
   readonly telegraphs = new GroundTelegraphs();
   /** パーティクル（環境の灰・篝火・熾火・ヒット/撃破バースト）。 */
@@ -39,6 +43,7 @@ export class GameView {
 
   private savedFog: Scene['fogNode'] | undefined;
   private playerView: PlayerView | null = null;
+  private enemyViews: EnemyViews | null = null;
   private readonly playground: PlaygroundView;
   private readonly postProcess: PostProcess;
   private readonly tmpPosition = new Vector3();
@@ -61,7 +66,8 @@ export class GameView {
     this.environment = createEnvironment(this.scene, preset);
     if (level) {
       this.colliders = [];
-      this.scene.add(new LevelView(level).root);
+      this.levelView = new LevelView(level);
+      this.scene.add(this.levelView.root);
     } else {
       const testScene = createTestScene(preset);
       this.colliders = testScene.pillars;
@@ -103,6 +109,11 @@ export class GameView {
     this.resize();
   }
 
+  /** 環境メッシュ（A〜C の墓石・枯れ木・石壁など）と篝火のパーティクルを置く。読み込み後に 1 度呼ぶ。 */
+  attachEnvironment(assets: EnvironmentAssets): void {
+    this.levelView?.attachEnvironment(assets, this.particles);
+  }
+
   /** 任意の視点へカメラを固定する（俯瞰撮影・デバッグ用）。`null` でゲームのカメラへ戻す。 */
   setFreeCamera(view: { position: Vector3; target: Vector3 } | null): void {
     this.useGameCamera = view === null;
@@ -125,6 +136,11 @@ export class GameView {
     this.shadowFocusTarget = view.root;
   }
 
+  /** 敵の描画を登録する（毎フレーム補間・アニメーションを更新する）。 */
+  attachEnemies(views: EnemyViews): void {
+    this.enemyViews = views;
+  }
+
   /** コンテナサイズに合わせてレンダラとカメラのアスペクト比を更新する。 */
   resize(): void {
     const { width, height } = this.gameRenderer.resize();
@@ -137,6 +153,7 @@ export class GameView {
     this.gameRenderer.beginFrame(performance.now());
     if (this.useGameCamera) this.syncCamera(alpha);
     this.playerView?.update(alpha);
+    this.enemyViews?.update(alpha, this.camera);
     this.playground.update(this.camera);
     const focus = this.shadowFocusTarget?.position ?? this.game.player.feet;
     this.environment.followShadowFocus(focus);

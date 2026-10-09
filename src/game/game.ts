@@ -7,6 +7,12 @@ import type { InputReader, InputSnapshot } from '../core/input';
 import { ThirdPersonCamera, type CameraCollision } from './camera/thirdPersonCamera';
 import { LockOnController, type LockOnEvent } from './lockOn/lockOnController';
 import { DummyTarget, type LockOnTarget } from './lockOn/targets';
+import { ENEMY_STATS, LAND_NOISE_MIN_HEIGHT, type NoiseKind } from './data';
+import { RapierEnemyBody } from './enemy/enemyBody';
+import { EnemyManager } from './enemy/enemyManager';
+import type { Enemy, EnemyDebugInfo } from './enemy/enemy';
+import { directNavigator, type Navigator } from './enemy/navigation';
+import { motionNoise, playerMotion } from './enemy/perception';
 import { createPhysics, type Physics } from './physics';
 import { Player, type PlayerEvent } from './player/player';
 import {
@@ -14,8 +20,10 @@ import {
   decideHitStop,
   type Freezable,
   HOLLOW_SOLDIER_REACTOR,
+  SHIELDBEARER_REACTOR,
   HitReactor,
   HitResolver,
+  PlayerAttackDriver,
   PLAYER_HEARTBOXES,
   UprightTarget,
   uprightHeartbox,
@@ -31,6 +39,7 @@ import {
   TARGET_GROUPS,
   WORLD_GROUPS,
 } from './world/groups';
+import type { EnemySpawn } from './world/level';
 import {
   DUMMIES,
   PLAYER_SPAWN,
@@ -83,6 +92,10 @@ export interface GameOptions {
   readonly boxes?: readonly BoxSpec[];
   /** ロックオン用のダミー。省略時はテストシーンのダミー（レベルでは空配列を渡す）。 */
   readonly dummies?: readonly DummySpec[];
+  /** 敵の配置（レベルデータの `enemies`）。省略時は敵なし。 */
+  readonly enemies?: readonly EnemySpawn[];
+  /** 敵の経路問い合わせ。省略時は直線（ナビゲーションメッシュは #43 で差し替える）。 */
+  readonly enemyNavigator?: Navigator;
   /** プレイヤーの開始位置と向き（ヨー）。省略時はテストシーンの広場。 */
   readonly spawn?: { readonly x: number; readonly z: number; readonly yaw: number };
 }
@@ -117,6 +130,8 @@ export class Game {
   readonly events = new EventBus<GameEventMap>();
 
   readonly player: Player;
+  /** 雑魚敵（生成・AI・音の受け口）。敵は `lockOnTargets` にも登録される。 */
+  readonly enemies: EnemyManager;
   readonly camera = new ThirdPersonCamera();
   readonly lockOn = new LockOnController();
   /** ロックオン対象。敵（#40 以降）は `LockOnTarget` を実装してここへ追加する。 */
@@ -131,6 +146,8 @@ export class Game {
   readonly playerTarget = new UprightTarget('player', 'player', PLAYER_STATS.hp, PLAYER_HEARTBOXES);
   /** ?debug 用の仮の攻撃（判定と可視化の動作確認。実際の攻撃動作は #46）。 */
   readonly debugSwing = new DebugSwing(this.combat);
+  /** プレイヤーの攻撃動作（軽攻撃 3 段）と判定のつなぎ。 */
+  readonly attackDriver = new PlayerAttackDriver(this.combat);
   /**
    * プレイヤー以外の被弾側の強靭度・押し戻し（`HitReactor`）。テストシーンのダミーは亡者兵相当（強靭度 50）。
    * 敵（#42 以降）は自分の `HitReactor` を作って `addReactor` し、命中時の反応を自分の状態機械へ反映する。
@@ -156,6 +173,7 @@ export class Game {
     healStart: 0,
     healApply: 0,
     healEmpty: 0,
+    attackStart: 0,
     land: 0,
     staminaEmpty: 0,
   };
@@ -172,6 +190,8 @@ export class Game {
   /** 強靭度崩し中の 1.5 倍を反映する対象（`reactors` と同じ ID）。 */
   private readonly reactiveTargets = new Map<string, UprightTarget>();
   private readonly dummyReactorIds = new Set<string>();
+  /** 敵 AI 本体とその被弾側（ハートボックス）の対応（id → 敵）。被弾リアクションを敵の状態へ反映するのに使う。 */
+  private readonly enemyHearts = new Map<string, { enemy: Enemy; heart: UprightTarget }>();
   private readonly slideScratch = { x: 0, z: 0 };
   /** ヒットストップで凍結するもの（ID → 凍結口）。プレイヤー・登録済みの被弾リアクタは自動、敵は自分で `registerFreezable`。 */
   private readonly freezables = new Map<string, Freezable[]>();
@@ -265,7 +285,8 @@ export class Game {
       this.hitCount++;
       this.hitLog.push(e);
       if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
-      this.applyReaction(e);
+      const reaction = this.applyReaction(e);
+      if (reaction) this.reactEnemy(e.targetId, reaction, e);
       this.applyHitStop(e);
       this.events.emit('hit', {
         kind: e.kind,
@@ -273,6 +294,70 @@ export class Game {
         position: e.position,
       });
     });
+
+    // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
+    this.enemies = new EnemyManager({
+      lineOfSight: (from, to) => this.hasLineOfSight(from as Vector3, to as Vector3),
+      navigator: options.enemyNavigator ?? directNavigator,
+      createBody: (init) => {
+        const stats = ENEMY_STATS[init.type];
+        return new RapierEnemyBody(
+          physics,
+          init.x,
+          heightAt(init.x, init.z) + 0.02,
+          init.z,
+          stats.height,
+          stats.radius,
+        );
+      },
+    });
+    for (const spawnPoint of options.enemies ?? []) {
+      this.registerEnemy(this.enemies.spawn(spawnPoint));
+    }
+    // 戦闘音（命中・ガード）は敵に聞こえる
+    this.events.on('hit', (e) => {
+      if (e.position) this.enemies.noises.emit(e.position, 'combat');
+    });
+  }
+
+  /** 敵をロックオン対象・被弾側（ハートボックスと強靭度）として登録する。 */
+  private registerEnemy(enemy: Enemy): void {
+    this.lockOnTargets.push(enemy);
+    const stats = ENEMY_STATS[enemy.type];
+    const heart = new UprightTarget(enemy.id, 'enemy', enemy.maxHp, [
+      uprightHeartbox(stats.radius, stats.height),
+    ]);
+    heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
+    this.combat.addTarget(heart);
+    const profile = enemy.type === 'undead_shield' ? SHIELDBEARER_REACTOR : HOLLOW_SOLDIER_REACTOR;
+    this.addReactor(enemy.id, new HitReactor(profile), heart);
+    this.enemyHearts.set(enemy.id, { enemy, heart });
+  }
+
+  /** 命中の結果を敵 AI へ反映する: HP、気付き（被弾で Alert）、崩しの行動不能、死亡。 */
+  private reactEnemy(id: string, reaction: HitReaction, e: HitEvent): void {
+    const entry = this.enemyHearts.get(id);
+    if (!entry) return;
+    const { enemy, heart } = entry;
+    enemy.hp = heart.health.current;
+    if (heart.health.dead) {
+      enemy.kill();
+      this.combat.removeTarget(id);
+      this.removeReactor(id);
+      this.enemyHearts.delete(id);
+      return;
+    }
+    enemy.provoke(e.attackerPosition.x, e.attackerPosition.z);
+    if (reaction.blocksAction) enemy.stagger(reaction.frames);
+  }
+
+  /** 敵のハートボックスを現在位置へ追従させ、押し戻しの変位を敵の体へ足す。 */
+  private syncEnemyHearts(): void {
+    for (const { enemy, heart } of this.enemyHearts.values()) {
+      if (!enemy.alive) continue;
+      heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
+      enemy.hp = heart.health.current;
+    }
   }
 
   static async create(options: GameOptions = {}): Promise<Game> {
@@ -361,15 +446,56 @@ export class Game {
     for (const e of player.events) {
       this.eventCounts[e.type]++;
       this.publishPlayerEvent(e);
+      if (e.type === 'land' && e.fallHeight >= LAND_NOISE_MIN_HEIGHT) {
+        this.enemies.noises.emit(player.feet, 'land');
+      }
     }
+    this.updateEnemies(dt);
     for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
     this.syncPlayerTarget();
     this.stepReactors();
+    this.attackDriver.update(player);
     // 攻撃側（プレイヤー）が凍結中は、仮の攻撃のフレームも進めない
     if (!player.fsm.isFrozenStep) this.debugSwing.update(player.feet, player.yaw);
     this.combat.step();
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
+  }
+
+  /**
+   * 敵を 1 ステップ進める。プレイヤーの足音（歩き・走り・ダッシュ/ロール）をこのステップ分の音として出し、
+   * 敵はそれと視覚から気付く。
+   */
+  private updateEnemies(dt: number): void {
+    if (this.enemies.enemies.length === 0) return;
+    const { player } = this;
+    const motion = playerMotion(player.state, player.speed);
+    const kind = motionNoise(motion);
+    if (kind) this.enemies.noises.emit(player.feet, kind, { duration: dt });
+    this.enemies.update(dt, { position: player.feet, motion });
+    this.syncEnemyHearts();
+    this.publishEnemyFootsteps();
+  }
+
+  /** 敵の足音（位置つき）をイベントバスへ流す。 */
+  private publishEnemyFootsteps(): void {
+    for (const enemy of this.enemies.enemies) {
+      for (const m of enemy.markerEvents) {
+        if (m.type !== 'footstep') continue;
+        const f = enemy.position;
+        this.events.emit('footstep', {
+          surface: this.footstepSurface(f.x, f.z),
+          gait: m.gait ?? 'run',
+          source: 'enemy',
+          position: { x: f.x, y: f.y, z: f.z },
+        });
+      }
+    }
+  }
+
+  /** 音を発生させる（敵に聞こえる）。鐘・壁の崩壊・回復瓶など、game 内外の音源から呼ぶ。 */
+  emitNoise(position: { x: number; y: number; z: number }, kind: NoiseKind): void {
+    this.enemies.noises.emit(position, kind);
   }
 
   /**
@@ -399,13 +525,20 @@ export class Game {
       if (reactor.consumeFreeze()) continue;
       reactor.step();
       if (this.dummyReactorIds.has(id)) reactor.consumeSlide(this.slideScratch);
+      const enemyEntry = this.enemyHearts.get(id);
+      if (enemyEntry) {
+        reactor.consumeSlide(this.slideScratch);
+        if (this.slideScratch.x !== 0 || this.slideScratch.z !== 0) {
+          enemyEntry.enemy.body.moveBy(this.slideScratch.x, this.slideScratch.z);
+        }
+      }
       const target = this.reactiveTargets.get(id);
       if (target) target.staggered = reactor.staggered;
     }
   }
 
   /** 命中を被弾側の強靭度・押し戻し・仰け反りへ反映し、`hitReaction` を発行する。 */
-  private applyReaction(e: HitEvent): void {
+  private applyReaction(e: HitEvent): HitReaction | undefined {
     const id = e.targetId;
     // 押し戻しの向き: 攻撃側の原点 → 命中位置
     const dx = e.position.x - e.attackerPosition.x;
@@ -415,12 +548,13 @@ export class Game {
       reaction = this.player.receiveHit(e, dx, dz);
     } else {
       const reactor = this.reactors.get(id);
-      if (!reactor) return;
+      if (!reactor) return undefined;
       reaction = reactor.react(e, dx, dz);
       const target = this.reactiveTargets.get(id);
       if (target) target.staggered = reactor.staggered;
     }
     this.events.emit('hitReaction', { targetId: id, ...reaction });
+    return reaction;
   }
 
   /** ヒットストップの凍結口を登録する（敵・ボス。`CharacterFsm` はそのまま渡せる）。 */
@@ -668,6 +802,7 @@ export class Game {
       },
       events: { ...this.eventCounts },
       markers: { ...this.markerCounts },
+      enemies: this.enemies.debugInfo,
       combat: {
         hits: this.hitCount,
         playerHp: this.playerTarget.health.current,
@@ -706,6 +841,7 @@ export interface GameDebugState {
     Record<
       | 'rollStart'
       | 'backstepStart'
+      | 'attackStart'
       | 'healStart'
       | 'healApply'
       | 'healEmpty'
@@ -716,6 +852,8 @@ export interface GameDebugState {
   >;
   /** イベントマーカーの種別ごとの発火回数。 */
   readonly markers: Readonly<Record<MarkerType, number>>;
+  /** 敵の状態（気付きゲージ・見失いなど）。 */
+  readonly enemies: readonly EnemyDebugInfo[];
   /** 判定の状態（命中の累計・プレイヤー HP・直近の被弾側）。 */
   readonly combat: {
     readonly hits: number;

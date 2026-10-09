@@ -139,6 +139,29 @@ game.combat.onHit((e: HitEvent) => …) // ヒットストップ・被弾リア�
 - **遮蔽**: `isBlocked`（Rapier のレイキャスト、地形・静的物のみ）で壁越しには当たらない。
 - **?debug**: `render/combatDebugView.ts` がハートボックス（プレイヤー緑・敵水色・無敵中は灰紫）とヒットボックス（赤、命中で黄）をワイヤ表示する。`window.__game.dev.swing()` で仮の横斬り（軽攻撃 1 の 12F + 4F）を出せる（実際の攻撃動作は #46）。
 
+## 軽攻撃 3 段コンボ（#46）
+
+仕様は vertical-slice.md の 2.3 節（フレームデータ・キャンセル窓）・2.4 節（先行入力）。数値は `PLAYER_ACTIONS.light1/2/3`、クリップとマーカーは `anim/data/playerClips.json`（`player.light1〜3`）。
+
+```ts
+player.state                 // 'light1' | 'light2' | 'light3' が攻撃中（kind: 'action'。isActionable は false）
+player.attack                // { id, serial, frame, hitActive } | null。判定側（PlayerAttackDriver）が読む
+player.events                // { type: 'attackStart', id } が各段の F1 のステップに出る
+game.attackDriver            // PlayerAttackDriver: 動作 ⇔ HitResolver のつなぎ（startAttack / prime / resolve / endAttack）
+lightAttackCapsule(id, feet, yaw, p, out)   // 各段の武器カプセルの軌道（p: 0 = 判定開始直前, 1 = 持続の最終フレーム）
+```
+
+- **F1 は入力と同じステップ**（地上・ロール F26 以降・バックステップ F18 以降）。スタミナは F1 で消費。0 のときは開始できない（入力は先行入力の期限で消える）。
+- **全体の長さ**: 軽 1 は F1–F36 が `light1`（当たり窓 F13–F16）、F37 で移動系へ戻る（軽 2: 36F / 軽 3: 52F）。
+- **コンボ窓**: 次段入力は「持続終了 + 4F 〜 全体 + 12F」（軽 1: F20–F48、軽 2: F18–F48）。窓が開いた最初のフレームで次段の F1 へ。動作が終わった後（F37–F48）の入力も次段になり、窓を過ぎると軽 1。軽 3 は軽攻撃に繋がらない（終了後は軽 1）。ロール・バックステップを挟むとコンボは途切れる。窓は `PLAYER_ACTIONS.<id>.cancels` が正で、`fsm.canCancelTo('lightAttack')` で判定する。
+- **先行入力**: 入力バッファ（#6）の `hasBuffered` / `consumeBuffered('lightAttack')`。バッファは最後の 1 入力のみ・10F 保持なので、窓の開始より 10F 前（F11）から押せる。
+- **キャンセル先**: ロール / バックステップ（軽 1: F18 / 軽 2: F16 / 軽 3: F24 から。先行入力あり）。強攻撃・ガードは各チケットで、状態グラフと `cancels` に窓を足して `updateAttack` で `canCancelTo` を見るだけで繋げられる。
+- **前進**: 発生 + 持続の間に、踏み込みの山形で 0.5 / 0.5 / 1.0 m（`attackLungeProfile`）。硬直中は止まる。壁・ダミーのコライダで止まる。
+- **旋回**: 発生の間（当たり窓が開くまで）だけ、ロックオン対象 / 入力方向へ 540°/s（`tuning.player.attackTurnDegPerSecond`）で向く。持続・硬直中は向き固定。
+- **判定**: ゲーム側の手続き的な武器カプセル（半径 0.25m・長さ 1.1m）を、持続中の毎ステップ「前フレーム → 現在」でスイープ。向きと高さは実クリップの剣の動きに合わせた（軽 1: 右下から左上へ斬り上げながら水平 110°、軽 2: 左から右へ肩の高さで水平 90°、軽 3: 剣先 1.2m → 2.2m の突き・弧 40°。UAL2 の `Sword_Regular_B` は縦斬りではなく水平斬りだったため、仕様の「斬り下ろし」とは見た目が異なる）。ダメージ 40 / 42 / 52、強靭度削り 20 / 20 / 35。1 スイング 1 ヒット。命中は `game.combat.onHit` / `events.emit('hit')` で通知される（ヒットストップ・被弾リアクションはそこへ繋ぐ。`player.hitStop(frames)` で攻撃側を凍結できる）。
+- **アニメーション**: `Sword_Regular_A/B/C` を `clipHitFrame`（実測 8 / 8 / 20）で発生に合わせて再生し、振り終わり以降は `tail`（`Sword_Regular_A_Rec` / `_B_Rec`）を残りのフレームに合わせて再生する（軽 3 は C の全長が全体 52F にほぼ一致するので tail なし）。
+- **ヒットストップ・火花・被弾リアクション**: 命中（`HitEvent.attackId` が `light1〜3`）は #49 / #50 が購読する（`hitStop` イベント → `GameView` が火花）。
+
 ## 回復瓶（#48）
 
 仕様は vertical-slice.md の 2.1（瓶の数）・2.3 節（回復）・2.4 節（先行入力 6F）。数値は `PLAYER_ACTIONS.heal` / `healEmpty`、クリップとマーカーは `player.heal`（`Consume` 全体を 54F に合わせる。`healApply` F26・`cancelOpen` F30）/ `player.healEmpty`（前半 14F を 20F に）。

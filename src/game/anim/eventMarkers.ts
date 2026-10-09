@@ -27,6 +27,13 @@ export interface AnimEventMarker {
   readonly frame: number;
 }
 
+/** 動作の終盤に続けて再生する戻りクリップ（`ClipEventEntry.tail`）。クリップ自身のフレームレートは `clipFps` と同じ。 */
+export interface ClipEventTail {
+  readonly clip: string;
+  readonly startFrame: number;
+  readonly endFrame: number;
+}
+
 export interface ClipEventEntry {
   /** 動作 ID（例: `player.light1`）。表内で一意。 */
   readonly id: string;
@@ -43,6 +50,12 @@ export interface ClipEventEntry {
   readonly clipHitFrame?: number;
   /** true で再生範囲を終端から先頭へ逆再生する（バックステップなど）。 */
   readonly reverse?: boolean;
+  /**
+   * 振り終わり（`clipRange` の終端）から全体フレームの終わりまでに続けて再生する「戻り」クリップ
+   * （例: `Sword_Regular_A_Rec`）。範囲全体を、残りのシミュレーションフレームに合わせて再生する。
+   * 省略すると `clipRange` の終端のポーズを保持する。
+   */
+  readonly tail?: ClipEventTail;
   /** 仕様上のフレームデータ（仕様書 2.3 節）。 */
   readonly spec: { readonly startup: number; readonly active: number; readonly recovery: number };
   /** フレーム昇順（同一フレームは記述順）。 */
@@ -83,6 +96,15 @@ export function playbackRate(entry: ClipEventEntry): number {
   }
   const clipHitSeconds = (entry.clipHitFrame - entry.clipRange.startFrame) / entry.clipFps;
   return clipHitSeconds / (entry.spec.startup / SIM_FPS);
+}
+
+/**
+ * `clipRange` の終端に達する経過フレーム数（0 起点。動作開始 = 0）。戻りクリップ（`tail`）はここから始まる。
+ * 範囲が全体フレームより短いときだけ意味を持つ（全体を超えるなら全体フレームを返す）。
+ */
+export function swingEndElapsed(entry: ClipEventEntry): number {
+  const rangeSeconds = (entry.clipRange.endFrame - entry.clipRange.startFrame) / entry.clipFps;
+  return Math.min(totalFrames(entry), (rangeSeconds / playbackRate(entry)) * SIM_FPS);
 }
 
 /**
@@ -245,6 +267,24 @@ function parseEntry(raw: unknown, path: string): ClipEventEntry {
   const recovery = asNumber(spec.recovery, `${path}.spec.recovery`, 0, true);
   const total = startup + active + recovery;
 
+  let tail: ClipEventTail | undefined;
+  if (o.tail !== undefined) {
+    const r = asObject(o.tail, `${path}.tail`);
+    const rStart = asNumber(r.startFrame, `${path}.tail.startFrame`, 0, true);
+    const rEnd = asNumber(r.endFrame, `${path}.tail.endFrame`, 0, true);
+    if (rEnd <= rStart) {
+      throw new AnimDataError(
+        `${path}.tail`,
+        `endFrame は startFrame より大きい必要があります（${rStart}–${rEnd}）`,
+      );
+    }
+    tail = {
+      clip: asString(r.clip, `${path}.tail.clip`),
+      startFrame: rStart,
+      endFrame: rEnd,
+    };
+  }
+
   const markers = parseMarkers(o.markers, `${path}.markers`, total);
 
   // 当たり窓は仕様のフレームデータ（発生・持続）と一致していること。
@@ -270,6 +310,7 @@ function parseEntry(raw: unknown, path: string): ClipEventEntry {
     clipRange: { startFrame, endFrame },
     ...(clipHitFrame !== undefined && { clipHitFrame }),
     ...(reverse && { reverse }),
+    ...(tail && { tail }),
     spec: { startup, active, recovery },
     markers,
   };

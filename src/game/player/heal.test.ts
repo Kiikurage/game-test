@@ -293,6 +293,39 @@ describe('heal flask', () => {
     });
   });
 
+  describe('攻撃へのキャンセル（F36）', () => {
+    it('F27 の攻撃入力（10F）は F36 まで届き、窓の最初のフレームで軽 1 へ', () => {
+      damage(100);
+      drink();
+      pressBefore('lightAttack', 27, 1);
+      run(1); // F27
+      run(8); // F35: まだ回復
+      expect(stateName()).toBe('heal');
+      run(1); // F36
+      expect(stateName()).toBe('light1');
+      expect(game.player.stateFrame).toBe(1);
+    });
+
+    it('F26 の攻撃入力は F36 には届かない', () => {
+      damage(100);
+      drink();
+      pressBefore('lightAttack', 26, 1);
+      run(1); // F26
+      run(10); // F36
+      expect(stateName()).toBe('heal');
+    });
+
+    it('F1–F25 は攻撃へキャンセルできない', () => {
+      damage(100);
+      drink();
+      for (let f = 2; f <= 25; f++) {
+        input.press('lightAttack');
+        run(1);
+        expect(stateName(), `F${f}`).toBe('heal');
+      }
+    });
+  });
+
   describe('先行入力 6F', () => {
     /** ロールを出して、ロールの F`frame` で回復ボタンを押し、F26 以降の状態を見る。 */
     function rollThenItem(frame: number): void {

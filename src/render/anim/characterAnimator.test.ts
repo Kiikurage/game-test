@@ -314,6 +314,27 @@ describe('CharacterAnimator（プレイヤー設定）', () => {
     expect(simFrameToClipTime(entry, 13)).toBeCloseTo(8 / 30, 5);
   });
 
+  it('軽攻撃: 振り終わりのあとは戻りクリップ（_Rec）を残りフレームに合わせて再生する', () => {
+    const { character, animator } = make();
+    // 軽 1 は 19.5 フレームで振り終わり、F37 の直前（全体 36）まで _Rec
+    tick(
+      animator,
+      40,
+      state({ state: 'light1', kind: 'action', actionId: 'light1', stateFrame: 12 }),
+      1,
+    );
+    expect(animator.dominantClip).toBe('Sword_Regular_A');
+    tick(
+      animator,
+      40,
+      state({ state: 'light1', kind: 'action', actionId: 'light1', stateFrame: 36 }),
+      1,
+    );
+    expect(animator.dominantClip).toBe('Sword_Regular_A_Rec');
+    // 最後のフレームで _Rec の終端（0.9667s）近くまで進んでいる
+    expect(bone(character, 'thigh_l').position.x).toBeGreaterThan(0.85);
+  });
+
   it('デバッグ用の固定ポーズ: 状態 ID と時刻を指定できる', () => {
     const { character, animator } = make();
     animator.debugPose = { layer: 'roll', time: 0.9 };

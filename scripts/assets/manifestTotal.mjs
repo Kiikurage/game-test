@@ -6,6 +6,7 @@ export function totalBytesOf(manifest) {
     manifest.props.bytes +
     (manifest.equipment?.bytes ?? 0) +
     (manifest.exploration?.bytes ?? 0) +
+    (manifest.environment?.bytes ?? 0) +
     (manifest.player?.bytes ?? 0)
   );
 }
