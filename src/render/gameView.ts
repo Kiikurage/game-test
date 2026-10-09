@@ -44,6 +44,7 @@ export class GameView {
   private readonly playground: PlaygroundView;
   private readonly postProcess: PostProcess;
   private readonly tmpPosition = new Vector3();
+  private readonly tmpNormal = new Vector3();
   private readonly tmpQuaternion = new Quaternion();
   private readonly telegraphDemo: TelegraphDemo | null = null;
   private readonly particleDemo: ParticleDemo | null = null;
@@ -87,6 +88,13 @@ export class GameView {
       this.combatDebug = new CombatDebugView(game.combat);
       this.scene.add(this.combatDebug.root);
     }
+    // 命中の火花・塵・黒い飛沫（ヒットストップと同じステップ。ガードは火花のみで足りるので弱める）
+    game.events.on('hitStop', (e) => {
+      this.tmpPosition.set(e.position.x, e.position.y, e.position.z);
+      this.tmpNormal.set(e.normal.x, e.normal.y, e.normal.z);
+      const power = e.kind === 'guard' ? 0.6 : e.frames >= 8 ? 1.4 : 1;
+      this.particles.hit(this.tmpPosition, this.tmpNormal, power);
+    });
     this.scene.add(this.telegraphs.root);
     if (isTelegraphDemoEnabled(window.location.search)) {
       this.telegraphDemo = new TelegraphDemo(this.telegraphs, this.camera);

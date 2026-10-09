@@ -19,7 +19,7 @@
    - `none`: 崩し中の追撃・死亡。
 3. 押し戻しは敵自身が `reactor.consumeSlide(out)` で受け取った水平変位（m）を移動に足す（`Game` はダミーの分だけ捨てる）。
 4. 敵の攻撃の発生〜持続中は `reactor.poise.grant(POISE.enemyAttackingBonus)`、終了時に `clearBonus()`。
-5. ヒットストップ中（#49）は `reactor.step()` / `consumeSlide` を止める（状態フレーム・窓と同じ扱い）。
+5. ヒットストップ中（#49）は強靭度の回復・崩しの残り・被弾後無敵・押し戻しも止まる。`game.addReactor` した `HitReactor` は `Freezable` として自動登録され、`Game` がそのステップの `step()` を飛ばす（敵が自分で `step` / `consumeSlide` を呼ぶ場合は、凍結中の更新を丸ごと飛ばすこと。`docs/hit-stop.md`）。
 
 ## プレイヤー
 

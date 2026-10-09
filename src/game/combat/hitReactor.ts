@@ -1,6 +1,7 @@
 import { KNOCKBACK, POISE, isHeavyHit } from '../data';
 import { tuning } from '../tuning';
 import type { HitEvent } from './hitResolver';
+import type { Freezable } from './hitStop';
 import { Poise } from './poise';
 
 /**
@@ -134,12 +135,13 @@ export class Slide {
   }
 }
 
-export class HitReactor {
+export class HitReactor implements Freezable {
   readonly poise: Poise;
   private readonly slide = new Slide();
   /** 直近の被弾（未ガード）からのステップ数。被弾後無敵の判定に使う。 */
   private sinceHit = Number.POSITIVE_INFINITY;
   private flinchLeft = 0;
+  private freezeLeft = 0;
   /** 直近の反応（デバッグ・描画用）。 */
   lastReaction: HitReaction = NO_REACTION;
 
@@ -168,6 +170,18 @@ export class HitReactor {
   /** 加算仰け反りの進み具合（0 = 開始 .. 1 = 終了）。アニメーションの重み付けに使う。 */
   get flinchProgress(): number {
     return this.flinchLeft > 0 ? 1 - this.flinchLeft / POISE.enemyFlinchFrames : 1;
+  }
+
+  /** ヒットストップ: `frames` ステップ、`step` と押し戻しを止める。重ね掛けは長い方。 */
+  freeze(frames: number): void {
+    this.freezeLeft = Math.max(this.freezeLeft, Math.floor(frames));
+  }
+
+  /** 1 ステップの先頭で呼ぶ。凍結中なら残りを 1 減らして true（そのステップの `step` を飛ばす）。 */
+  consumeFreeze(): boolean {
+    if (this.freezeLeft <= 0) return false;
+    this.freezeLeft--;
+    return true;
   }
 
   /** 1 ステップ進める（凍結中は呼ばない）。 */
@@ -202,6 +216,7 @@ export class HitReactor {
     this.slide.start(0, 0, 0, 0);
     this.sinceHit = Number.POSITIVE_INFINITY;
     this.flinchLeft = 0;
+    this.freezeLeft = 0;
     this.lastReaction = NO_REACTION;
   }
 
