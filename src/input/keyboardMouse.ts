@@ -38,6 +38,13 @@ export function keysToMove(down: ReadonlySet<string>): { x: number; y: number } 
   return { x, y };
 }
 
+/** 1 つの mousemove の移動量（px）がこれを超えたら異常値として扱う。 */
+export const MOUSE_SPIKE_PX = 300;
+
+export function isMouseSpike(movementX: number, movementY: number): boolean {
+  return Math.abs(movementX) > MOUSE_SPIKE_PX || Math.abs(movementY) > MOUSE_SPIKE_PX;
+}
+
 /**
  * キーボード / マウス入力。カメラは Pointer Lock 中のみ動かす（キャンバスのクリックでロック開始）。
  * ロックを取得したクリック自体は攻撃として扱わない。
@@ -165,6 +172,9 @@ export class KeyboardMouseInput {
 
   private readonly onMouseMove = (e: MouseEvent): void => {
     if (!this.pointerLocked) return;
+    // ロック取得直後に、直前のカーソル位置との差が 1 イベントでまとめて届くことがある（ビューポート半分ほどの巨大な値）。
+    // 実際の操作では 1 イベントでこれほど動かないので、カメラが一気に回らないよう捨てる。
+    if (isMouseSpike(e.movementX, e.movementY)) return;
     this.onActivity();
     const k = LOOK_SENSITIVITY.mouse;
     this.collector.addLook(e.movementX * k, (INVERT_LOOK_Y ? 1 : -1) * e.movementY * k);
