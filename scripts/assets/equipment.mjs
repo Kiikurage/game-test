@@ -21,19 +21,19 @@ import {
 
 // ---------------------------------------------------------------- 小道具
 
-const rotZ = (deg) => {
+export const rotZ = (deg) => {
   const [s, c] = [Math.sin((deg * Math.PI) / 180), Math.cos((deg * Math.PI) / 180)];
   return ([x, y, z]) => [x * c - y * s, x * s + y * c, z];
 };
 /** 変換を右から順に適用する（compose(a, b)(p) = b(a(p))）。 */
-const compose =
+export const compose =
   (...fns) =>
   (p) =>
     fns.reduce((q, f) => f(q), p);
-const move = (x, y, z) => (p) => [p[0] + x, p[1] + y, p[2] + z];
+export const move = (x, y, z) => (p) => [p[0] + x, p[1] + y, p[2] + z];
 
 /** X 軸ミラー（巻き順も反転する）。 */
-function mirrorX(g) {
+export function mirrorX(g) {
   const out = emptyGeo();
   for (let i = 0; i < g.positions.length; i += 3) {
     out.positions.push(-g.positions[i], g.positions[i + 1], g.positions[i + 2]);
@@ -47,14 +47,14 @@ function mirrorX(g) {
 
 const box = (...args) => rawBox(...args);
 
-const ellipse = (rx, rz, cx = 0, cz = 0, n = 14) =>
+export const ellipse = (rx, rz, cx = 0, cz = 0, n = 14) =>
   Array.from({ length: n }, (_, i) => {
     const a = (i / n) * Math.PI * 2;
     return [cx + Math.cos(a) * rx, cz + Math.sin(a) * rz];
   });
 
 /** 角度範囲つきの回転体（lathe の一部だけ）。a0, a1 はラジアン。 */
-function latheArc(strips, segments, a0, a1) {
+export function latheArc(strips, segments, a0, a1) {
   const g = emptyGeo();
   for (const strip of strips) {
     const normals = strip.map((_, i) => {
@@ -86,7 +86,7 @@ function latheArc(strips, segments, a0, a1) {
   return g;
 }
 
-function pushTri(g, a, b, c) {
+export function pushTri(g, a, b, c) {
   const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
   const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
   const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
@@ -103,7 +103,7 @@ function pushTri(g, a, b, c) {
  * XY 平面の星形多角形（反時計回り）を z0〜z1 に押し出す。表面は +Z 側。
  * 中心頂点 (cx, cy) は多角形の重心。凹んでいても星形なら破綻しない。
  */
-function extrude(points, z0, z1) {
+export function extrude(points, z0, z1) {
   const g = emptyGeo();
   const cx = points.reduce((s, p) => s + p[0], 0) / points.length;
   const cy = points.reduce((s, p) => s + p[1], 0) / points.length;
@@ -121,7 +121,7 @@ function extrude(points, z0, z1) {
 }
 
 /** 前面だけ中央に稜線を持つ押し出し（盾の表面用）。ridge は前面中心の z。 */
-function extrudeRidge(points, z0, z1, ridge) {
+export function extrudeRidge(points, z0, z1, ridge) {
   const g = emptyGeo();
   const cx = points.reduce((s, p) => s + p[0], 0) / points.length;
   const cy = points.reduce((s, p) => s + p[1], 0) / points.length;
@@ -139,13 +139,13 @@ function extrudeRidge(points, z0, z1, ridge) {
 
 // ---------------------------------------------------------------- 頂点カラー（錆・汚れ）
 
-function hash3(ix, iy, iz) {
+export function hash3(ix, iy, iz) {
   let h = Math.imul(ix, 374761393) ^ Math.imul(iy, 668265263) ^ Math.imul(iz, 2147483647);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
-const fade = (t) => t * t * (3 - 2 * t);
-function noise3(x, y, z) {
+export const fade = (t) => t * t * (3 - 2 * t);
+export function noise3(x, y, z) {
   const [ix, iy, iz] = [Math.floor(x), Math.floor(y), Math.floor(z)];
   const [fx, fy, fz] = [fade(x - ix), fade(y - iy), fade(z - iz)];
   const l = (a, b, t) => a + (b - a) * t;
@@ -156,16 +156,16 @@ function noise3(x, y, z) {
     fz,
   );
 }
-const fbm = (x, y, z) => noise3(x, y, z) * 0.6 + noise3(x * 2.3, y * 2.3, z * 2.3) * 0.4;
-const mix3 = (a, b, t) => [
+export const fbm = (x, y, z) => noise3(x, y, z) * 0.6 + noise3(x * 2.3, y * 2.3, z * 2.3) * 0.4;
+export const mix3 = (a, b, t) => [
   a[0] + (b[0] - a[0]) * t,
   a[1] + (b[1] - a[1]) * t,
   a[2] + (b[2] - a[2]) * t,
 ];
-const smooth = (e0, e1, x) => fade(Math.min(1, Math.max(0, (x - e0) / (e1 - e0))));
+export const smooth = (e0, e1, x) => fade(Math.min(1, Math.max(0, (x - e0) / (e1 - e0))));
 
 /** 素材ごとの色（リニア RGB）。p はパーツのワールド位置（キャラクター空間 or アイテム空間）。 */
-const COLORS = {
+export const COLORS = {
   // 錆びた鉄: 暗い鉄 → 赤茶の錆の斑、ところどころ擦れた地金
   iron(p, seed) {
     const [x, y, z] = [p[0] + seed, p[1] + seed * 0.7, p[2] - seed * 0.3];
@@ -801,7 +801,7 @@ export const LOADOUTS = {
 // ---------------------------------------------------------------- 行列ユーティリティ（ソケット計算）
 
 /** 列優先 4x4（gltf-transform の getWorldMatrix）から、剛体の逆変換を position + quaternion にする。 */
-function inverseRigid(m) {
+export function inverseRigid(m) {
   // R = 3x3（列 = 軸）、p = 平移。逆: R^T, -R^T p
   const R = [
     [m[0], m[4], m[8]],
@@ -817,7 +817,34 @@ function inverseRigid(m) {
   return { position, quaternion: matToQuat(Rt) };
 }
 
-function matToQuat(M) {
+/**
+ * キャラクター空間の配置（placement: アイテム → キャラクター空間の position + quaternion）を、
+ * ボーン（bind ワールド行列 m）のローカル姿勢に変換する。背中の大剣など、ボーンの bind 姿勢に対して
+ * 「キャラクターのこの位置にこの向きで置きたい」ときに使う。
+ */
+export function placementToSocket(m, placement) {
+  const Rb = [
+    [m[0], m[4], m[8]],
+    [m[1], m[5], m[9]],
+    [m[2], m[6], m[10]],
+  ];
+  const len = [0, 1, 2].map((c) => Math.hypot(Rb[0][c], Rb[1][c], Rb[2][c]));
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) Rb[r][c] /= len[c];
+  const Rbt = [0, 1, 2].map((r) => [0, 1, 2].map((c) => Rb[c][r]));
+  const [x, y, z, w] = placement.quaternion;
+  const Rp = [
+    [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+    [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+    [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+  ];
+  const mul = (A, B) =>
+    A.map((row) => [0, 1, 2].map((c) => row[0] * B[0][c] + row[1] * B[1][c] + row[2] * B[2][c]));
+  const d = [0, 1, 2].map((i) => placement.position[i] - m[12 + i]);
+  const position = Rbt.map((row) => row[0] * d[0] + row[1] * d[1] + row[2] * d[2]);
+  return { position, quaternion: matToQuat(mul(Rbt, Rp)) };
+}
+
+export function matToQuat(M) {
   const [m00, m01, m02] = M[0];
   const [m10, m11, m12] = M[1];
   const [m20, m21, m22] = M[2];
@@ -858,9 +885,25 @@ function matToQuat(M) {
  * @returns {{ document: Document, triangles: number, items: Record<string, { triangles: number, bone: string }> }}
  */
 export function buildEquipmentDocument(boneWorldMatrices) {
+  return buildItemsDocument({ defs: ITEMS, sceneName: 'Equipment', boneWorldMatrices });
+}
+
+/**
+ * アイテム定義（id → { build(), socket, extraSockets? }）から glTF を生成する。
+ * 探索用メッシュ（exploration.mjs）も同じ作り方（頂点カラー・金属/柔素材の 2 プリミティブ）で作るために共有する。
+ * kind が metalKinds に含まれるパーツは金属マテリアル、それ以外は柔らかい素材のマテリアルにまとめる。
+ * extraSockets（名前 → ソケット）は node.extras.sockets に入る（手 / 背中など複数の取り付け先を持つ物用）。
+ */
+export function buildItemsDocument({
+  defs,
+  sceneName,
+  boneWorldMatrices,
+  colors = COLORS,
+  metalKinds = new Set(['iron']),
+}) {
   const doc = new Document();
   const buffer = doc.createBuffer();
-  const scene = doc.createScene('Equipment');
+  const scene = doc.createScene(sceneName);
 
   const metal = doc
     .createMaterial('RustyMetal')
@@ -875,10 +918,20 @@ export function buildEquipmentDocument(boneWorldMatrices) {
     .setRoughnessFactor(0.92)
     .setDoubleSided(true);
 
+  const resolveSocket = (id, socket) => {
+    if (socket === undefined) return undefined;
+    const name = typeof socket === 'string' ? socket : socket.placement ? socket.bone : undefined;
+    if (name === undefined) return socket;
+    const m = boneWorldMatrices[name];
+    if (!m) throw new Error(`${id}: bone matrix not found: ${name}`);
+    if (typeof socket === 'string') return { bone: name, ...inverseRigid(m) };
+    return { bone: name, ...placementToSocket(m, socket.placement) };
+  };
+
   let triangles = 0;
   const items = {};
   let seed = 0;
-  for (const [id, def] of Object.entries(ITEMS)) {
+  for (const [id, def] of Object.entries(defs)) {
     seed += 3.7;
     const { parts } = def.build();
     const mesh = doc.createMesh(id);
@@ -887,14 +940,14 @@ export function buildEquipmentDocument(boneWorldMatrices) {
     const groups = { iron: emptyGeo(), soft: emptyGeo() };
     const colorsOf = { iron: [], soft: [] };
     for (const { geo, kind } of parts) {
-      const key = kind === 'iron' ? 'iron' : 'soft';
+      const key = metalKinds.has(kind) ? 'iron' : 'soft';
       const g = groups[key];
       const base = g.positions.length / 3;
       g.positions.push(...geo.positions);
       g.normals.push(...geo.normals);
       for (const i of geo.indices) g.indices.push(i + base);
       for (let i = 0; i < geo.positions.length; i += 3) {
-        const c = COLORS[kind](
+        const c = colors[kind](
           [geo.positions[i], geo.positions[i + 1], geo.positions[i + 2]],
           seed,
         );
@@ -904,55 +957,32 @@ export function buildEquipmentDocument(boneWorldMatrices) {
     for (const key of ['iron', 'soft']) {
       const g = groups[key];
       if (g.indices.length === 0) continue;
+      const accessor = (type, array) =>
+        doc.createAccessor().setType(type).setArray(array).setBuffer(buffer);
       const prim = doc
         .createPrimitive()
         .setMaterial(key === 'iron' ? metal : soft)
-        .setAttribute(
-          'POSITION',
-          doc
-            .createAccessor()
-            .setType('VEC3')
-            .setArray(new Float32Array(g.positions))
-            .setBuffer(buffer),
-        )
-        .setAttribute(
-          'NORMAL',
-          doc
-            .createAccessor()
-            .setType('VEC3')
-            .setArray(new Float32Array(g.normals))
-            .setBuffer(buffer),
-        )
-        .setAttribute(
-          'COLOR_0',
-          doc
-            .createAccessor()
-            .setType('VEC4')
-            .setArray(new Float32Array(colorsOf[key]))
-            .setBuffer(buffer),
-        )
-        .setIndices(
-          doc
-            .createAccessor()
-            .setType('SCALAR')
-            .setArray(new Uint32Array(g.indices))
-            .setBuffer(buffer),
-        );
+        .setAttribute('POSITION', accessor('VEC3', new Float32Array(g.positions)))
+        .setAttribute('NORMAL', accessor('VEC3', new Float32Array(g.normals)))
+        .setAttribute('COLOR_0', accessor('VEC4', new Float32Array(colorsOf[key])))
+        .setIndices(accessor('SCALAR', new Uint32Array(g.indices)));
       mesh.addPrimitive(prim);
       itemTris += g.indices.length / 3;
     }
     const node = doc.createNode(id).setMesh(mesh);
-    let socket;
-    if (typeof def.socket === 'string') {
-      const m = boneWorldMatrices[def.socket];
-      if (!m) throw new Error(`${id}: bone matrix not found: ${def.socket}`);
-      socket = { bone: def.socket, ...inverseRigid(m) };
-    } else {
-      socket = def.socket;
+    const socket = resolveSocket(id, def.socket);
+    const extras = socket
+      ? { bone: socket.bone, position: socket.position, quaternion: socket.quaternion }
+      : {};
+    if (def.extras) Object.assign(extras, def.extras);
+    if (def.extraSockets) {
+      extras.sockets = Object.fromEntries(
+        Object.entries(def.extraSockets).map(([name, s]) => [name, resolveSocket(id, s)]),
+      );
     }
-    node.setExtras({ bone: socket.bone, position: socket.position, quaternion: socket.quaternion });
+    node.setExtras(extras);
     scene.addChild(node);
-    items[id] = { triangles: itemTris, bone: socket.bone };
+    items[id] = { triangles: itemTris, bone: socket?.bone };
     triangles += itemTris;
   }
   return { document: doc, triangles, items };
