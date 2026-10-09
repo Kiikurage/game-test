@@ -6,10 +6,28 @@ import {
   Vector3,
   type AnimationAction,
   type AnimationClip,
-  type Group,
+  Group,
   type Object3D,
 } from 'three/webgpu';
 import { isLoopingClip, type ClipName } from './clips';
+
+/**
+ * 取り付け用のホルダー。glb の小物ノードは頂点量子化（KHR_mesh_quantization）のためノード自身に
+ * 平行移動・スケールを持つ。その TRS を上書きすると形が崩れるので、ソケットの姿勢はホルダーに持たせる。
+ */
+function holder(
+  name: string,
+  object: Object3D,
+  position: readonly [number, number, number],
+  quaternion: readonly [number, number, number, number],
+): Group {
+  const group = new Group();
+  group.name = name;
+  group.position.fromArray(position);
+  group.quaternion.fromArray(quaternion);
+  group.add(object);
+  return group;
+}
 
 export type PropName = 'sword' | 'shield';
 
@@ -110,10 +128,32 @@ export class Character {
     if (!bone) throw new Error(`bone not found: ${socket.bone}`);
     const existing = bone.getObjectByName(`attach:${prop}`);
     if (existing) bone.remove(existing);
-    object.name = `attach:${prop}`;
-    object.position.fromArray(socket.position);
-    object.quaternion.fromArray(socket.quaternion);
-    bone.add(object);
+    bone.add(holder(`attach:${prop}`, object, socket.position, socket.quaternion));
+  }
+
+  /**
+   * 任意の名前・ボーン・ローカル姿勢で物体を取り付ける（装備メッシュ用。同名が付いていれば置き換える）。
+   * position はボーンのローカル座標、quaternion は (x, y, z, w)。
+   */
+  attachAt(
+    name: string,
+    boneName: string,
+    object: Object3D,
+    position: readonly [number, number, number],
+    quaternion: readonly [number, number, number, number],
+  ): void {
+    const bone = this.root.getObjectByName(boneName);
+    if (!bone) throw new Error(`bone not found: ${boneName}`);
+    const existing = bone.getObjectByName(name);
+    if (existing) bone.remove(existing);
+    bone.add(holder(name, object, position, quaternion));
+  }
+
+  /** `attachAt` で付けた物体を外す。 */
+  detachAt(name: string, boneName: string): void {
+    const bone = this.root.getObjectByName(boneName);
+    const object = bone?.getObjectByName(name);
+    if (object) bone?.remove(object);
   }
 
   /** 小物を外す。 */

@@ -2,6 +2,7 @@ import { Timer, type Camera, type Mesh, type Object3D, type Scene } from 'three/
 import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
+import { EquipmentAssets, parseLoadoutName, type LoadoutName } from './equipment';
 
 /** E2E / デバッグ用に公開する状態。 */
 export interface ShowcaseState {
@@ -19,12 +20,14 @@ export interface ShowcaseState {
  *   `?clip=<クリップ名>`  再生するクリップ（既定 Idle_Loop）
  *   `&t=<秒>`             再生位置を固定する
  *   `&view=front|left|right|back|close` と `&dist=<m>`  キャラクターに寄ったカメラ位置（既定はゲームのカメラのまま）
+ *   `&equip=soldier|shieldbearer|boss|all`  簡易装備メッシュを装着（boss は 2.2 倍、all は 3 体を横並び。盾持ちが中央）
  */
 export class CharacterShowcase {
   private readonly timer = new Timer();
 
   private constructor(
     private readonly character: Character,
+    private readonly extras: readonly Character[],
     readonly clip: ClipName,
     private readonly frozen: boolean,
     readonly triangles: number,
@@ -47,9 +50,38 @@ export class CharacterShowcase {
     const frozenAt = t === null ? NaN : Number(t);
 
     const assets = await CharacterAssets.load(['knight']);
-    const character = assets.createCharacter('knight');
-    character.root.position.set(0.8, 0, -0.2);
-    character.root.rotation.y = Math.atan2(4.5 - 0.8, 6 + 0.2); // カメラの方を向く
+    // 装備プレビュー: all は盾持ちを中央に、亡者兵を左、ボスを右に並べる
+    const equipParam = params.get('equip');
+    const loadouts: LoadoutName[] =
+      equipParam === 'all'
+        ? ['shieldbearer', 'soldier', 'boss']
+        : [parseLoadoutName(equipParam)].filter((n) => n !== undefined);
+    const equipment = loadouts.length > 0 ? await EquipmentAssets.load() : undefined;
+    const facing = Math.atan2(4.5 - 0.8, 6 + 0.2); // カメラの方を向く
+    const lateral = { all_shieldbearer: 0, all_soldier: -1.7, all_boss: 2.6 };
+    const spawnEquipped = (loadout: LoadoutName | undefined): Character => {
+      const c = assets.createCharacter('knight', loadout ? { sword: false, shield: false } : {});
+      const offset = equipParam === 'all' && loadout ? lateral[`all_${loadout}`] : 0;
+      c.root.position.set(0.8 + Math.cos(facing) * offset, 0, -0.2 - Math.sin(facing) * offset);
+      c.root.rotation.y = facing;
+      if (loadout) {
+        equipment?.equipLoadout(c, loadout);
+        if (loadout === 'boss') c.root.scale.setScalar(2.2); // ボスは UBC を約 2.2 倍（仕様書 6.1 節）
+      }
+      return c;
+    };
+    const [primaryLoadout, ...otherLoadouts] = loadouts;
+    const character = spawnEquipped(primaryLoadout);
+    const extras = otherLoadouts.map((l) => spawnEquipped(l));
+    for (const c of extras) {
+      c.root.traverse((obj) => {
+        if ((obj as { isMesh?: boolean }).isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
+      scene.add(c.root);
+    }
     // 描画基盤（#7）の影の中に立たせる
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {
@@ -60,12 +92,14 @@ export class CharacterShowcase {
     scene.add(character.root);
     applyView(character, camera, params.get('view'), Number(params.get('dist')));
 
-    const action = character.play(clip, { fade: 0 });
     const frozen = Number.isFinite(frozenAt);
-    if (frozen) {
-      action.time = frozenAt;
-      action.paused = true;
-      character.mixer.update(0);
+    for (const c of [character, ...extras]) {
+      const action = c.play(clip, { fade: 0 });
+      if (frozen) {
+        action.time = frozenAt;
+        action.paused = true;
+        c.mixer.update(0);
+      }
     }
 
     let triangles = 0;
@@ -76,13 +110,16 @@ export class CharacterShowcase {
         triangles += (index ? index.count : (attributes['position']?.count ?? 0)) / 3;
       }
     });
-    return new CharacterShowcase(character, clip, frozen, triangles);
+    return new CharacterShowcase(character, extras, clip, frozen, triangles);
   }
 
   /** 毎フレーム呼ぶ。実時間でアニメーションを進める。 */
   update(): void {
     this.timer.update();
-    if (!this.frozen) this.character.update(this.timer.getDelta());
+    if (this.frozen) return;
+    const dt = this.timer.getDelta();
+    this.character.update(dt);
+    for (const c of this.extras) c.update(dt);
   }
 
   get state(): ShowcaseState {
