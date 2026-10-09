@@ -3,6 +3,13 @@ import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
 import { EquipmentAssets, parseLoadoutName, type LoadoutName } from './equipment';
+import { ExplorationAssets } from './exploration';
+import {
+  applyCharacterPreview,
+  isCharacterPreview,
+  parseExplorationPreview,
+  placeExplorationPreview,
+} from './explorationPreview';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
 import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
 
@@ -24,6 +31,7 @@ export interface ShowcaseState {
  *   `&view=front|left|right|back|close` と `&dist=<m>`  キャラクターに寄ったカメラ位置（既定はゲームのカメラのまま）
  *   `&undead=<gaunt|bloated|scorched|drowned|all>`  亡者マテリアルを適用（all は 4 バリアントを横並び）
  *   `&dissolve=<0..1>` ディゾルブ進行度、`&ember=<0..1>` 熾火の強さ（亡者のみ）
+ *   `&props=sword-hand|sword-back|jar|all|swords|bell|statue|cairn`  探索用メッシュ（#108。騎士に持たせる / 並べて置く。explorationPreview.ts）
  *   `&equip=soldier|shieldbearer|boss|all`  簡易装備メッシュを装着（boss は 2.2 倍、all は盾持ち・亡者兵・ボスを横並び。亡者マテリアルと併用可）
  */
 export class CharacterShowcase {
@@ -65,13 +73,18 @@ export class CharacterShowcase {
         ? ['shieldbearer', 'soldier', 'boss']
         : [parseLoadoutName(equipParam)].filter((n) => n !== undefined);
     const equipment = loadouts.length > 0 ? await EquipmentAssets.load() : undefined;
+    const preview = parseExplorationPreview(params.get('props'));
+    const exploration = preview ? await ExplorationAssets.load() : undefined;
     const lateral = { shieldbearer: 0, soldier: -1.7, boss: 2.6 };
     const dissolve = Number(params.get('dissolve') ?? 0);
     const ember = Number(params.get('ember') ?? 0);
     const facing = Math.atan2(4.5 - 0.8, 6 + 0.2); // カメラの方を向く
     const spawn = (index: number, count: number): Character => {
       const loadout = loadouts[index];
-      const c = assets.createCharacter('knight', loadout ? { sword: false, shield: false } : {});
+      const c = assets.createCharacter(
+        'knight',
+        loadout || isCharacterPreview(preview) ? { sword: false, shield: false } : {},
+      );
       // 横並びの間隔 1.6m（装備 all は種別ごとの位置）。向きに対して左右へ振る
       const offset =
         equipParam === 'all' && loadout ? lateral[loadout] : (index - (count - 1) / 2) * 1.6;
@@ -89,6 +102,9 @@ export class CharacterShowcase {
         equipment?.equipLoadout(c, loadout);
         if (loadout === 'boss') c.root.scale.setScalar(2.2); // ボスは UBC を約 2.2 倍（仕様書 6.1 節）
       }
+      if (exploration && preview && isCharacterPreview(preview)) {
+        applyCharacterPreview(exploration, c, preview);
+      }
       const id = undeadIds[index];
       if (id !== undefined) {
         const look: UndeadLook = applyUndeadLook(c.root, UNDEAD_VARIANTS[id]);
@@ -101,6 +117,14 @@ export class CharacterShowcase {
     const count = Math.max(1, undeadIds.length, loadouts.length);
     const spawned = Array.from({ length: count }, (_, i) => spawn(i, count));
     const [character, ...extras] = spawned as [Character, ...Character[]];
+    if (exploration && preview)
+      placeExplorationPreview(
+        scene,
+        camera,
+        exploration,
+        preview,
+        isCharacterPreview(preview) ? spawned.map((c) => c.root) : [],
+      );
     applyView(character, camera, params.get('view'), Number(params.get('dist')), 0.8, -0.2);
 
     const frozen = Number.isFinite(frozenAt);
