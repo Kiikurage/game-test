@@ -24,3 +24,8 @@ src/render/levelView.ts            Level から地形・静的物・篝火・マ
 - 壁や階段は `props` に足す（`block` / `stairs` / `cylinder`）。階段の 1 段は 0.35m 以下。D〜F は範囲と床の高さだけ定義済みで、内部は未作成。
 - 脇道（14 章）: 霊廟（屋根 2.2m）と裏手の石段 7 段は `side_roof` 用に置いてある。ほかは未作成。
 - `?scene=test` で従来のテストシーン。`window.__game.dev.freeCam([x,y,z], [tx,ty,tz])` で俯瞰撮影（`null` で戻す）。`dev.teleport` は地形の高さに合わせて置く。
+
+## 環境メッシュ（#34）
+
+A〜C と塔の見た目は `environment.glb`（`docs/assets.md` 7.11 節）。`LevelView.attachEnvironment(assets, particles)` が、置き換えたコライダのグレーボックスを消して環境メッシュ・枯れ草・篝火のパーティクルを出す（`main.ts` が読み込み後に呼ぶ）。コライダの寸法・位置は変えていない（石碑 `stele-a-stone` だけ篝火の方を向く `yawDeg` を追加）。ランタンの位置は `environmentLayout.ts` の `LANTERNS`。
+

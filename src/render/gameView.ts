@@ -7,6 +7,7 @@ import { GroundTelegraphs } from './telegraph';
 import { TelegraphDemo, isTelegraphDemoEnabled } from './telegraph/demo';
 import { PlaygroundView } from './playground';
 import { LevelView } from './levelView';
+import type { EnvironmentAssets } from './assets/environment';
 import type { Level } from '../game/world/level';
 import type { PlayerView } from './playerView';
 import { createTestScene, type ColliderCylinder } from './testScene';
@@ -26,6 +27,8 @@ export class GameView {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(50, 1, 0.1, 500);
   readonly environment: Environment;
+  /** レベルを描いているときだけ（`?scene=test` では null）。 */
+  readonly levelView: LevelView | null = null;
   /** ボス技の地面予告（円・直線・影の円）。 */
   readonly telegraphs = new GroundTelegraphs();
   /** パーティクル（環境の灰・篝火・熾火・ヒット/撃破バースト）。 */
@@ -60,7 +63,8 @@ export class GameView {
     this.environment = createEnvironment(this.scene, preset);
     if (level) {
       this.colliders = [];
-      this.scene.add(new LevelView(level).root);
+      this.levelView = new LevelView(level);
+      this.scene.add(this.levelView.root);
     } else {
       const testScene = createTestScene(preset);
       this.colliders = testScene.pillars;
@@ -93,6 +97,11 @@ export class GameView {
     this.postProcess = createPostProcess(gameRenderer.renderer, this.scene, this.camera, preset);
 
     this.resize();
+  }
+
+  /** 環境メッシュ（A〜C の墓石・枯れ木・石壁など）と篝火のパーティクルを置く。読み込み後に 1 度呼ぶ。 */
+  attachEnvironment(assets: EnvironmentAssets): void {
+    this.levelView?.attachEnvironment(assets, this.particles);
   }
 
   /** 任意の視点へカメラを固定する（俯瞰撮影・デバッグ用）。`null` でゲームのカメラへ戻す。 */

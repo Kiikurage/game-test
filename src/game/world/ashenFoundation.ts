@@ -106,6 +106,8 @@ const props: PropSpec[] = [
     hx: 0.55,
     hz: 0.18,
     height: 1.7,
+    // 篝火の方（南東）を向ける
+    yawDeg: 127,
   },
   tree('tree-a1', -6.4, -3.2),
   tree('tree-a2', 4.2, 6.6, 3.8),

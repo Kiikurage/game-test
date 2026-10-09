@@ -11,6 +11,8 @@ import {
   SphereGeometry,
   Uint32BufferAttribute,
   ConeGeometry,
+  InstancedMesh,
+  type Object3D,
 } from 'three/webgpu';
 import {
   type BlockStyle,
@@ -19,18 +21,31 @@ import {
   type PlacedCylinder,
   type SurfaceKind,
 } from '../game/world/level';
+import type { EnvironmentAssets } from './assets/environment';
+import { StaticBatcher } from './assets/environment';
+import { layoutEnvironment } from './environmentLayout';
+import { layoutClutter, layoutGrass, stoneAmount, valueNoise } from './levelSurface';
+import {
+  createEnvironmentMaterials,
+  createGrassMaterial,
+  createGroundMaterial,
+} from './levelMaterials';
+import type { Bonfire, ParticleSystem } from './particles';
 
 const DEG = Math.PI / 180;
 
-/** 地表の素材ごとの色（グレーボックス。雰囲気付けは #7）。 */
+/** 地表の素材ごとの色（リニア）。黄昏の墓地: 彩度を抑えた枯れ草・乾いた土・冷たい石。 */
 const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
-  grass: [0.3, 0.31, 0.19],
-  stone: [0.42, 0.4, 0.37],
-  wood: [0.4, 0.3, 0.2],
-  underground: [0.24, 0.23, 0.24],
+  grass: [0.15, 0.14, 0.078],
+  stone: [0.2, 0.19, 0.17],
+  wood: [0.2, 0.15, 0.1],
+  underground: [0.1, 0.1, 0.11],
 };
-const PATH_COLOR: readonly [number, number, number] = [0.4, 0.34, 0.25];
-const ROCK_COLOR: readonly [number, number, number] = [0.33, 0.31, 0.29];
+const PATH_COLOR: readonly [number, number, number] = [0.2, 0.155, 0.105];
+const ROCK_COLOR: readonly [number, number, number] = [0.17, 0.155, 0.14];
+const MOSS_COLOR: readonly [number, number, number] = [0.085, 0.115, 0.05];
+const MUD_COLOR: readonly [number, number, number] = [0.085, 0.065, 0.048];
+const ASH_COLOR: readonly [number, number, number] = [0.12, 0.115, 0.11];
 
 const BLOCK_COLOR: Record<BlockStyle, number> = {
   wall: 0x8a8378,
@@ -57,22 +72,35 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   const normals = geometry.getAttribute('normal');
   const count = vertices.length / 3;
   const colors = new Float32Array(count * 3);
+  const stone = new Float32Array(count);
+  const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
   for (let i = 0; i < count; i++) {
     const x = vertices[i * 3] ?? 0;
     const z = vertices[i * 3 + 2] ?? 0;
     const base = SURFACE_COLOR[level.surfaceAt(x, z)];
     const path = level.pathWeight(x, z);
-    // 低周波の色むら（頂点ごとの固定ノイズ）
-    const n =
-      0.88 + 0.24 * (0.5 + 0.5 * Math.sin(x * 0.37 + Math.cos(z * 0.23) * 2) * Math.cos(z * 0.41));
+    const stoneAmt = stoneAmount(level, x, z);
+    stone[i] = stoneAmt;
+    // 低周波の色むら + 苔・泥の斑
+    const broad = valueNoise(x * 0.09 + 4, z * 0.09 - 2);
+    const patch = valueNoise(x * 0.31 - 8, z * 0.31 + 3);
+    const n = 0.8 + 0.4 * (0.6 * broad + 0.4 * patch);
+    const mossAmt = Math.max(0, patch - 0.52) * 2.2 * (1 - path) * (1 - stoneAmt * 0.6);
+    const mudAmt = Math.max(0, 0.42 - broad) * 1.6 * (1 - stoneAmt);
     const steep = Math.min(1, Math.max(0, (0.9 - normals.getY(i)) / 0.2));
+    // 篝火の周りは灰で白っぽく、石畳は縁ほど土・草に侵される
+    const ashAmt = Math.max(0, 1 - Math.hypot(x, z) / 3.2) * 0.8;
     for (let c = 0; c < 3; c++) {
       let v = (base[c] ?? 0) * (1 - path) + (PATH_COLOR[c] ?? 0) * path;
+      v = mix(v, MOSS_COLOR[c] ?? 0, Math.min(0.7, mossAmt));
+      v = mix(v, MUD_COLOR[c] ?? 0, Math.min(0.6, mudAmt));
+      v = mix(v, ASH_COLOR[c] ?? 0, ashAmt);
       v = v * (1 - steep) + (ROCK_COLOR[c] ?? 0) * steep;
       colors[i * 3 + c] = v * n;
     }
   }
   geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('stone', new Float32BufferAttribute(stone, 1));
   return geometry;
 }
 
@@ -129,22 +157,110 @@ function cylinderObject(c: PlacedCylinder): Group {
  */
 export class LevelView {
   readonly root = new Group();
+  /** 環境メッシュへ置き換えるとき消すグレーボックス（コライダの id → 表示物）。 */
+  private readonly grayboxById = new Map<string, Object3D>();
+  private readonly grayboxBonfire: Object3D[] = [];
+  private towerLamp: Object3D | null = null;
+  private environmentRoot: Group | null = null;
+  private bonfireEmitter: Bonfire | null = null;
+  /** 環境メッシュの統計（置いた数・結合後の三角形数・ドローコール数）。 */
+  environmentStats: { placements: number; triangles: number; meshes: number } | null = null;
 
   constructor(readonly level: Level) {
-    const ground = new Mesh(
-      createLevelTerrainGeometry(level),
-      new MeshStandardNodeMaterial({ vertexColors: true, roughness: 1, metalness: 0 }),
-    );
+    const ground = new Mesh(createLevelTerrainGeometry(level), createGroundMaterial());
     ground.receiveShadow = true;
+    ground.name = 'ground';
     this.root.add(ground);
 
     const materials = new Map<number, MeshStandardNodeMaterial>();
-    for (const box of level.boxes) this.root.add(boxMesh(box, materials));
-    for (const cyl of level.cylinders) this.root.add(cylinderObject(cyl));
+    for (const box of level.boxes) {
+      const mesh = boxMesh(box, materials);
+      this.grayboxById.set(box.id, mesh);
+      this.root.add(mesh);
+    }
+    for (const cyl of level.cylinders) {
+      const object = cylinderObject(cyl);
+      this.grayboxById.set(cyl.id, object);
+      this.root.add(object);
+    }
 
     this.addBonfire();
     this.addTowerLight();
     this.addSpawnMarkers();
+  }
+
+  /**
+   * 環境メッシュ（墓石・枯れ木・柵・石壁・塔・篝火の土台・ランタンなど。エリア A〜C）と地面の枯れ草を置き、
+   * 置き換えたグレーボックスを消す。`particles` があれば篝火の炎・火の粉・灯りをパーティクルで出す。
+   */
+  attachEnvironment(assets: EnvironmentAssets, particles?: ParticleSystem): void {
+    if (this.environmentRoot) return;
+    const layout = layoutEnvironment(this.level);
+    const batcher = new StaticBatcher(assets);
+    for (const p of [...layout.placements, ...layoutClutter(this.level)]) {
+      batcher.add(p.id, p.matrix, p.bucket);
+    }
+    const env = batcher.build(createEnvironmentMaterials());
+    env.name = 'environment';
+
+    // 枯れ草（InstancedMesh。品種ごとに 1 ドローコール。影は落とさない）
+    const grass = layoutGrass(this.level);
+    const grassMaterial = createGrassMaterial();
+    let grassTris = 0;
+    for (const [id, matrices] of [
+      ['GrassTuftA', grass.a],
+      ['GrassTuftB', grass.b],
+      ['GrassTuftC', grass.c],
+    ] as const) {
+      if (matrices.length === 0) continue;
+      const part = assets.parts(id)[0];
+      if (!part) continue;
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', new Float32BufferAttribute(part.positions, 3));
+      geometry.setAttribute('normal', new Float32BufferAttribute(part.normals, 3));
+      geometry.setIndex(new Uint32BufferAttribute(part.indices, 1));
+      const mesh = new InstancedMesh(geometry, grassMaterial, matrices.length);
+      matrices.forEach((m, i) => {
+        mesh.setMatrixAt(i, m);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.castShadow = false;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.name = `grass:${id}`;
+      env.add(mesh);
+      grassTris += (part.indices.length / 3) * matrices.length;
+    }
+
+    this.root.add(env);
+    this.environmentRoot = env;
+    for (const id of layout.coveredIds) {
+      const object = this.grayboxById.get(id);
+      if (object) {
+        object.removeFromParent();
+        this.grayboxById.delete(id);
+      }
+    }
+    // 篝火: グレーボックスの炎・剣と、塔の仮のランプを消す（環境メッシュに含まれる）
+    for (const object of this.grayboxBonfire) object.removeFromParent();
+    this.grayboxBonfire.length = 0;
+    this.towerLamp?.removeFromParent();
+    this.towerLamp = null;
+
+    if (particles) {
+      const { x, z } = this.level.data.bonfire;
+      this.bonfireEmitter = particles.acquireBonfire(x, this.level.heightAt(x, z) + 0.25, z);
+    }
+    this.environmentStats = {
+      placements: batcher.stats.placements,
+      triangles: batcher.stats.triangles + grassTris,
+      meshes: env.children.length,
+    };
+  }
+
+  /** 篝火のパーティクル（点火 / 消火の操作用）。環境メッシュを置いたあとに取得できる。 */
+  get bonfire(): Bonfire | null {
+    return this.bonfireEmitter;
   }
 
   private addBonfire(): void {
@@ -156,12 +272,14 @@ export class LevelView {
     );
     flame.position.set(x, y + 0.5 + 0.65, z);
     this.root.add(flame);
+    this.grayboxBonfire.push(flame);
     const sword = new Mesh(
       new BoxGeometry(0.08, 1.4, 0.08),
       new MeshStandardNodeMaterial({ color: 0x6a645c, roughness: 0.8 }),
     );
     sword.position.set(x, y + 0.5 + 0.7, z);
     this.root.add(sword);
+    this.grayboxBonfire.push(sword);
   }
 
   /** 礼拝堂の塔のてっぺんの橙の灯り（開始地点から見えるランドマーク）。 */
@@ -175,6 +293,7 @@ export class LevelView {
     );
     lamp.position.set(tower.x, top + 0.9, tower.z);
     this.root.add(lamp);
+    this.towerLamp = lamp;
   }
 
   /** 敵・アイテムの配置の目印（グレーボックス用。実体は後続チケットで差し替える）。 */

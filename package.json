@@ -23,6 +23,7 @@
     "assets:build": "node scripts/assets/fetch.mjs && node scripts/assets/build.mjs",
     "assets:equipment": "node scripts/assets/build-equipment.mjs",
     "assets:exploration": "node scripts/assets/build-exploration.mjs",
+    "assets:environment": "node scripts/assets/build-environment.mjs",
     "assets:player": "node scripts/assets/build-player.mjs"
   },
   "dependencies": {
