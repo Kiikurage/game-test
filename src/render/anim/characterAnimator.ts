@@ -1,6 +1,12 @@
 import { Quaternion, Vector3, type AnimationClip, type Object3D } from 'three/webgpu';
 import type { StateKind } from '../../game/anim/characterFsm';
-import { simFrameToClipTime, SIM_FPS, type ClipEventEntry } from '../../game/anim/eventMarkers';
+import {
+  simFrameToClipTime,
+  swingEndElapsed,
+  totalFrames,
+  SIM_FPS,
+  type ClipEventEntry,
+} from '../../game/anim/eventMarkers';
 import {
   GAIT_PHASE_OFFSET,
   PLAYER_LOCOMOTION,
@@ -212,6 +218,18 @@ export class CharacterAnimator {
     if (entry) {
       const layer = this.ensureStateLayer(s.state, s.actionId ?? s.state);
       if (!layer) return null;
+      // 振り終わりのあとは戻りクリップ（`_Rec`）を、残りのフレームに合わせて再生する
+      const rec = entry.tail;
+      if (rec) {
+        const swingEnd = swingEndElapsed(entry);
+        if (elapsed >= swingEnd) {
+          const tail = this.ensureRecoveryLayer(s.state, rec.clip as ClipName);
+          const k = Math.min(1, (elapsed - swingEnd) / Math.max(1, totalFrames(entry) - swingEnd));
+          const start = rec.startFrame / entry.clipFps;
+          const end = rec.endFrame / entry.clipFps;
+          return { layer: tail, time: start + k * (end - start) };
+        }
+      }
       return { layer, time: simFrameToClipTime(entry, elapsed + 1) };
     }
     if (spec) {
@@ -342,6 +360,17 @@ export class CharacterAnimator {
       fadeOut: spec?.fadeOut ?? fades.fadeOut,
     });
     return state;
+  }
+
+  /** 戻りクリップ用のレイヤ（状態 ID + `:rec`）。入りは速く、移動系への戻りは通常のフェード。 */
+  private ensureRecoveryLayer(state: string, clip: ClipName): string {
+    const id = `${state}:rec`;
+    if (!this.layers.has(id)) {
+      const fades =
+        this.config.actionFades?.[state] ?? this.config.fade?.action ?? DEFAULT_ACTION_FADE;
+      this.addLayer(id, clip, { fadeIn: 0.04, fadeOut: fades.fadeOut });
+    }
+    return id;
   }
 
   private warnOnce(key: string, message: string): void {

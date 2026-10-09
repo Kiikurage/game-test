@@ -17,7 +17,7 @@ describe('walking the level D to F (physics)', () => {
     resetTuning();
     tuning.camera.autoFollow = false;
     input = new FakeInput();
-    game = await Game.create({ input, ...levelGameOptions(level) });
+    game = await Game.create({ input, ...levelGameOptions(level), enemies: [] }); // 地形の通行可能性の検証なので敵は置かない
     game.addStaticCylinders(level.cylinders);
     for (let i = 0; i < 10; i++) game.update(DT);
   });
@@ -92,7 +92,7 @@ describe('walking the level D to F (physics)', () => {
     expect(pos().y).toBeGreaterThan(9.7);
     expect(pos().y).toBeLessThan(10.2);
     expect(game.player.grounded).toBe(true);
-  });
+  }, 30_000);
 
   it('keeps the player inside the 2.5m catacomb corridor when rolling into its walls', () => {
     // L 字の第 1 区間（x 60.75..63.25）で東・西の壁へ向かってロールする

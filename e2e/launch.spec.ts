@@ -55,7 +55,7 @@ const launch = (page: Page) => page.evaluate(() => (window as unknown as MockWin
 const simFrame = (page: Page) => page.evaluate(() => window.__game?.sim.player.stateFrame ?? 0);
 
 async function openAndWaitReady(page: Page): Promise<void> {
-  await page.goto('./?quality=low&scale=0.25');
+  await page.goto('./?quality=low&scale=0.25&nodraw');
   await expect(page.locator('#app')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 }
 

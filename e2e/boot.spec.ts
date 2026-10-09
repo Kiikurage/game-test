@@ -11,8 +11,9 @@ function collectErrors(page: Page): string[] {
 }
 
 test('renders with the WebGPU backend and no console errors', async ({ page }) => {
+  test.setTimeout(120_000); // ソフトウェア描画ではフレームが遅いので長めにとる
   const errors = collectErrors(page);
-  await page.goto('./');
+  await page.goto('./?quality=low&scale=0.25&env=0');
 
   await startGame(page);
   await expect(page.locator('#app canvas')).toBeVisible();

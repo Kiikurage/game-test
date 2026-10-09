@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { isMouseSpike, MOUSE_SPIKE_PX } from './keyboardMouse';
+import { isLockSpike, LOCK_SETTLE_MS, MOUSE_SPIKE_PX } from './keyboardMouse';
 
-describe('isMouseSpike', () => {
-  it('accepts ordinary and fast mouse movement', () => {
-    expect(isMouseSpike(0, 0)).toBe(false);
-    expect(isMouseSpike(12, -8)).toBe(false);
-    expect(isMouseSpike(-MOUSE_SPIKE_PX, MOUSE_SPIKE_PX)).toBe(false);
+describe('isLockSpike', () => {
+  it('drops the half-viewport jump right after the lock is acquired', () => {
+    expect(isLockSpike(-640, -360, 0)).toBe(true);
+    expect(isLockSpike(0, MOUSE_SPIKE_PX + 1, LOCK_SETTLE_MS)).toBe(true);
   });
 
-  it('rejects the half-viewport jump reported on pointer lock', () => {
-    expect(isMouseSpike(-640, -360)).toBe(true);
-    expect(isMouseSpike(0, 301)).toBe(true);
+  it('keeps ordinary movement right after the lock', () => {
+    expect(isLockSpike(12, -8, 10)).toBe(false);
+    expect(isLockSpike(-MOUSE_SPIKE_PX, MOUSE_SPIKE_PX, 10)).toBe(false);
+  });
+
+  it('never drops fast flicks once the lock has settled', () => {
+    expect(isLockSpike(-640, -360, LOCK_SETTLE_MS + 1)).toBe(false);
+    expect(isLockSpike(2000, 0, 60_000)).toBe(false);
   });
 });

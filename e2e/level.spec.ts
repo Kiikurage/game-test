@@ -8,7 +8,8 @@ async function boot(page: Page): Promise<void> {
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw');
+  // 地形・壁の検証なので、敵（経路上に立つ）は置かない
+  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
   await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })

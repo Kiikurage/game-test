@@ -38,10 +38,17 @@ export function keysToMove(down: ReadonlySet<string>): { x: number; y: number } 
   return { x, y };
 }
 
-/** 1 つの mousemove の移動量（px）がこれを超えたら異常値として扱う。 */
+/** Pointer Lock 取得からこの時間（ms）以内は、巨大な移動量を異常値として捨てる。 */
+export const LOCK_SETTLE_MS = 500;
+/** ロック直後の 1 イベントの移動量（px）がこれを超えたら異常値。 */
 export const MOUSE_SPIKE_PX = 300;
 
-export function isMouseSpike(movementX: number, movementY: number): boolean {
+/**
+ * ロック取得直後に、直前のカーソル位置との差が 1 イベントでまとめて届くことがある（ビューポート半分ほどの巨大な値）。
+ * 取得直後の短い間だけ捨てる。通常のプレイ中の素早い振りは対象にしない。
+ */
+export function isLockSpike(movementX: number, movementY: number, msSinceLock: number): boolean {
+  if (msSinceLock > LOCK_SETTLE_MS) return false;
   return Math.abs(movementX) > MOUSE_SPIKE_PX || Math.abs(movementY) > MOUSE_SPIKE_PX;
 }
 
@@ -52,6 +59,8 @@ export function isMouseSpike(movementX: number, movementY: number): boolean {
 export class KeyboardMouseInput {
   private readonly keys = new Set<string>();
   private lastWheelMs = Number.NEGATIVE_INFINITY;
+  /** Pointer Lock を取得した時刻（performance.now()）。 */
+  private lockedAt = Number.NEGATIVE_INFINITY;
   private disposers: (() => void)[] = [];
 
   constructor(
@@ -79,7 +88,8 @@ export class KeyboardMouseInput {
       e.preventDefault();
     });
     this.listen(document, 'pointerlockchange', () => {
-      if (!this.pointerLocked) this.releaseMouseButtons();
+      if (this.pointerLocked) this.lockedAt = performance.now();
+      else this.releaseMouseButtons();
     });
   }
 
@@ -172,9 +182,7 @@ export class KeyboardMouseInput {
 
   private readonly onMouseMove = (e: MouseEvent): void => {
     if (!this.pointerLocked) return;
-    // ロック取得直後に、直前のカーソル位置との差が 1 イベントでまとめて届くことがある（ビューポート半分ほどの巨大な値）。
-    // 実際の操作では 1 イベントでこれほど動かないので、カメラが一気に回らないよう捨てる。
-    if (isMouseSpike(e.movementX, e.movementY)) return;
+    if (isLockSpike(e.movementX, e.movementY, performance.now() - this.lockedAt)) return;
     this.onActivity();
     const k = LOOK_SENSITIVITY.mouse;
     this.collector.addLook(e.movementX * k, (INVERT_LOOK_Y ? 1 : -1) * e.movementY * k);
