@@ -3,6 +3,13 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputReader, InputSnapshot } from '../../core/input';
 import { MOVEMENT, PLAYER_ACTIONS, PLAYER_STATS, STAMINA, type CancelWindow } from '../data';
+import {
+  HitReactor,
+  PLAYER_REACTOR,
+  knockdownInvulnerable,
+  type HitEvent,
+  type HitReaction,
+} from '../combat';
 import { CharacterFsm, type StateKind } from '../anim/characterFsm';
 import { GaitClock } from '../anim/locomotion';
 import { MarkerDispatcher, type AnimMarkerEvent } from '../anim/markerDispatcher';
@@ -22,10 +29,15 @@ import {
   yawOf,
   type Vec2Like,
 } from './movement';
-import { PLAYER_STATE_GRAPH, isDodgeState, type PlayerStateId } from './playerStates';
+import {
+  PLAYER_STATE_GRAPH,
+  isDodgeState,
+  isReactionState,
+  type PlayerStateId,
+} from './playerStates';
 import { Stamina } from './stamina';
 
-export { PLAYER_STATE_GRAPH, isDodgeState, type PlayerStateId };
+export { PLAYER_STATE_GRAPH, isDodgeState, isReactionState, type PlayerStateId };
 
 /** プレイヤーが 1 ステップに受け取るもの。 */
 export interface PlayerFrame {
@@ -113,6 +125,8 @@ export class Player {
   /** 足元の位置と向き（補間描画用）。 */
   readonly transform = new InterpolatedTransform();
   readonly stamina = new Stamina();
+  /** 強靭度・被弾後無敵・押し戻し（#50）。敵と共通の `HitReactor`。 */
+  readonly reactor = new HitReactor(PLAYER_REACTOR);
 
   /** 状態機械（遷移の検証・状態フレーム・キャンセル窓・ヒットストップ）。 */
   readonly fsm = new CharacterFsm<PlayerStateId>(PLAYER_STATE_GRAPH, 'idle', {
@@ -137,6 +151,10 @@ export class Player {
   private readonly actualVelocity: Vec2Like = { x: 0, y: 0 };
   private readonly worldMove: Vec2Like = { x: 0, y: 0 };
   private readonly tmpVelocity: Vec2Like = { x: 0, y: 0 };
+  /** このステップの被弾による押し戻し変位（m）。 */
+  private readonly slide = { x: 0, z: 0 };
+  /** 仰け反り・転倒の長さ（フレーム）。 */
+  private reactionFrames = 0;
   private visualY = 0;
   private lockedOn = false;
   private moveMagnitude = 0;
@@ -207,6 +225,31 @@ export class Player {
     this.fsm.freeze(frames);
   }
 
+  /**
+   * 自分宛ての命中（`HitEvent`）を受け取り、強靭度・押し戻し・仰け反り / 転倒・被弾後無敵を処理する（4.3 / 4.4 節）。
+   * `(awayX, awayZ)` は攻撃側から自分へ向かう水平方向。命中判定の直後（同じステップ内）に呼ぶ。
+   * 反応は即座に状態へ反映する（ヒットストップ中は反応の姿勢で凍結する）。
+   */
+  receiveHit(event: HitEvent, awayX: number, awayZ: number): HitReaction {
+    const reaction = this.reactor.react(event, awayX, awayZ);
+    if (reaction.kind === 'flinch' || reaction.kind === 'knockdown') {
+      // 転倒中の軽い追撃は転倒を中断しない（被弾後無敵の切れた F37 以降）
+      if (!(this.state === 'knockdown' && reaction.kind === 'flinch')) {
+        this.enterReaction(reaction.kind, reaction.frames);
+      }
+    }
+    return reaction;
+  }
+
+  private enterReaction(kind: 'flinch' | 'knockdown', frames: number): void {
+    if (this.state === kind) this.fsm.restart();
+    else this.fsm.transition(kind);
+    this.markers.begin(undefined);
+    this.reactionFrames = frames;
+    this.dashing = false;
+    this.dashLatch = false;
+  }
+
   /** 物理ボディ（カメラ衝突の問い合わせから除外するのに使う）。 */
   get rigidBody(): RAPIER.RigidBody {
     return this.body;
@@ -224,7 +267,11 @@ export class Player {
 
   /** 無敵フレーム中か（被ダメージ判定を持たない。2.3 節）。窓はイベントマーカー（`invulnStart` / `invulnEnd`）が決める。 */
   get invulnerable(): boolean {
-    return this.markers.invulnerable;
+    return (
+      this.markers.invulnerable ||
+      this.reactor.invulnerable ||
+      (this.state === 'knockdown' && knockdownInvulnerable(this.stateFrame))
+    );
   }
 
   /** アニメーション・デバッグ用の描画情報。 */
@@ -264,6 +311,9 @@ export class Player {
     this.airFrames = 0;
     this.lastGroundY = position.y;
     this.fsm.reset('idle');
+    this.reactor.reset();
+    this.slide.x = 0;
+    this.slide.z = 0;
     this.markers.begin(undefined);
     this.gait.reset();
     this.body.setTranslation({ x: position.x, y: position.y + CENTER_Y, z: position.z }, true);
@@ -286,6 +336,8 @@ export class Player {
       this.syncTransform();
       return;
     }
+    this.reactor.step();
+    this.reactor.consumeSlide(this.slide);
     const snap = frame.input.snapshot;
 
     cameraRelativeMove(snap.move, frame.cameraYaw, this.worldMove);
@@ -341,6 +393,9 @@ export class Player {
         return this.updateFall(dt, snap, frame);
       case 'land':
         return this.updateLand(dt, snap, frame);
+      case 'flinch':
+      case 'knockdown':
+        return this.updateReaction();
     }
   }
 
@@ -554,6 +609,18 @@ export class Player {
     return null;
   }
 
+  /** 仰け反り・転倒: 行動不能。押し戻しは `slide` が担う。終わったら移動・待機・落下へ。 */
+  private updateReaction(): PlayerStateId | null {
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    this.turnRate = 0;
+    if (this.stateFrame > this.reactionFrames) {
+      if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+      return this.moveMagnitude > 0 ? 'move' : 'idle';
+    }
+    return null;
+  }
+
   // ---- 向き・スタミナ・移動 ----
 
   private applyFacing(frame: PlayerFrame, dt: number): void {
@@ -561,7 +628,7 @@ export class Player {
       this.yaw = turnToward(this.yaw, this.dodgeDirYaw, this.turnRate, this.turnResponse, dt);
       return;
     }
-    if (this.state === 'backstep') return;
+    if (this.state === 'backstep' || isReactionState(this.state)) return;
 
     let target: number | null = null;
     let rate = this.turnRate;
@@ -603,9 +670,9 @@ export class Player {
     this.controller.computeColliderMovement(
       this.collider,
       {
-        x: this.velocity.x * dt,
+        x: this.velocity.x * dt + this.slide.x,
         y: this.verticalVelocity * dt,
-        z: this.velocity.y * dt,
+        z: this.velocity.y * dt + this.slide.z,
       },
       undefined,
       PLAYER_GROUPS,
@@ -656,7 +723,12 @@ export class Player {
 
   /** 回避確定と同様、後続の戦闘用に外部から行動不能にできる口。 */
   get isActionable(): boolean {
-    return this.state !== 'roll' && this.state !== 'backstep' && this.state !== 'land';
+    return (
+      this.state !== 'roll' &&
+      this.state !== 'backstep' &&
+      this.state !== 'land' &&
+      !isReactionState(this.state)
+    );
   }
 }
 

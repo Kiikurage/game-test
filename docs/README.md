@@ -11,3 +11,4 @@
 | [player-controller.md](player-controller.md) | プレイヤーコントローラ・三人称カメラ・ロックオンの構成と API 要約（#24 / #32 / #40 向け）、調整値、デバッグ用フック |
 | [audio-assets.md](audio-assets.md) | 音声素材パイプライン（Opus 変換・マニフェスト・容量予算）、素材の取得可否と方針、CC0 ライセンス記録表 |
 | [level.md](level.md) | レベルデータ形式・地形・静的コライダー・エリア A〜C グレーボックスの構成と、後続チケット向けの API 要約 |
+| [hit-reaction.md](hit-reaction.md) | 強靭度・被弾リアクション・ノックバック・被弾後無敵の構成と、敵・ボス向けの使い方（#50） |

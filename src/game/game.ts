@@ -11,11 +11,14 @@ import { createPhysics, type Physics } from './physics';
 import { Player } from './player/player';
 import {
   DebugSwing,
+  HOLLOW_SOLDIER_REACTOR,
+  HitReactor,
   HitResolver,
   PLAYER_HEARTBOXES,
   UprightTarget,
   uprightHeartbox,
   type HitEvent,
+  type HitReaction,
 } from './combat';
 import { PLAYER_STATS } from './data';
 import { tuning } from './tuning';
@@ -125,6 +128,11 @@ export class Game {
   readonly playerTarget = new UprightTarget('player', 'player', PLAYER_STATS.hp, PLAYER_HEARTBOXES);
   /** ?debug 用の仮の攻撃（判定と可視化の動作確認。実際の攻撃動作は #46）。 */
   readonly debugSwing = new DebugSwing(this.combat);
+  /**
+   * プレイヤー以外の被弾側の強靭度・押し戻し（`HitReactor`）。テストシーンのダミーは亡者兵相当（強靭度 50）。
+   * 敵（#42 以降）は自分の `HitReactor` を作って `addReactor` し、命中時の反応を自分の状態機械へ反映する。
+   */
+  readonly reactors = new Map<string, HitReactor>();
   /** 命中イベントの累計（デバッグ・E2E 用）と直近のイベント。 */
   readonly hitLog: HitEvent[] = [];
   hitCount = 0;
@@ -140,6 +148,10 @@ export class Game {
   /** 直近ステップのロックオンイベント（デバッグ・E2E 用）。 */
   lastLockOnEvent: LockOnEvent = 'none';
 
+  /** 強靭度崩し中の 1.5 倍を反映する対象（`reactors` と同じ ID）。 */
+  private readonly reactiveTargets = new Map<string, UprightTarget>();
+  private readonly dummyReactorIds = new Set<string>();
+  private readonly slideScratch = { x: 0, z: 0 };
   private input: InputReader;
   private pendingLockEvent: LockOnEvent | null = null;
   private readonly cameraCollision: CameraCollision;
@@ -195,6 +207,9 @@ export class Game {
       ]);
       heart.place(d.x, y, d.z, 0);
       this.combat.addTarget(heart);
+      this.reactors.set(d.id, new HitReactor(HOLLOW_SOLDIER_REACTOR));
+      this.reactiveTargets.set(d.id, heart);
+      this.dummyReactorIds.add(d.id);
       world.createCollider(
         rapier.ColliderDesc.cylinder(d.height / 2, d.radius)
           .setTranslation(d.x, y + d.height / 2, d.z)
@@ -217,6 +232,7 @@ export class Game {
       this.hitCount++;
       this.hitLog.push(e);
       if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
+      this.applyReaction(e);
       this.events.emit('hit', {
         kind: e.kind,
         source: e.attackerId === 'player' ? 'player' : 'enemy',
@@ -302,10 +318,58 @@ export class Game {
     for (const e of player.events) this.eventCounts[e.type]++;
     for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
     this.syncPlayerTarget();
+    this.stepReactors();
     this.debugSwing.update(player.feet, player.yaw);
     this.combat.step();
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
+  }
+
+  /**
+   * 敵などの被弾側を登録する。`reactor` は命中時の強靭度・押し戻しの計算に使い、毎ステップ `step` する。
+   * `target` は崩し中の被ダメージ 1.5 倍を反映する `UprightTarget`（`HitResolver` に登録済みのもの）。
+   */
+  addReactor(id: string, reactor: HitReactor, target?: UprightTarget): void {
+    this.reactors.set(id, reactor);
+    if (target) this.reactiveTargets.set(id, target);
+  }
+
+  removeReactor(id: string): void {
+    this.reactors.delete(id);
+    this.reactiveTargets.delete(id);
+    this.dummyReactorIds.delete(id);
+  }
+
+  /**
+   * 登録済みの反応体を 1 ステップ進める（強靭度の回復・崩しの残り・被弾後無敵）。ダミーは押し戻しを受けないので
+   * 変位を捨てる（敵は自分で `reactor.consumeSlide` を呼んで移動に足す）。
+   */
+  private stepReactors(): void {
+    for (const [id, reactor] of this.reactors) {
+      reactor.step();
+      if (this.dummyReactorIds.has(id)) reactor.consumeSlide(this.slideScratch);
+      const target = this.reactiveTargets.get(id);
+      if (target) target.staggered = reactor.staggered;
+    }
+  }
+
+  /** 命中を被弾側の強靭度・押し戻し・仰け反りへ反映し、`hitReaction` を発行する。 */
+  private applyReaction(e: HitEvent): void {
+    const id = e.targetId;
+    // 押し戻しの向き: 攻撃側の原点 → 命中位置
+    const dx = e.position.x - e.attackerPosition.x;
+    const dz = e.position.z - e.attackerPosition.z;
+    let reaction: HitReaction;
+    if (id === 'player') {
+      reaction = this.player.receiveHit(e, dx, dz);
+    } else {
+      const reactor = this.reactors.get(id);
+      if (!reactor) return;
+      reaction = reactor.react(e, dx, dz);
+      const target = this.reactiveTargets.get(id);
+      if (target) target.staggered = reactor.staggered;
+    }
+    this.events.emit('hitReaction', { targetId: id, ...reaction });
   }
 
   /** アニメーションのイベントマーカーをイベントバスへ流す。足音は音のイベント（`footstep`）にも変換する。 */
