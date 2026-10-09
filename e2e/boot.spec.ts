@@ -39,6 +39,8 @@ test('creates an AudioContext that stays suspended until the first user gesture'
   page,
 }) => {
   const errors = collectErrors(page);
+  const logs: string[] = [];
+  page.on('console', (msg) => logs.push(`${msg.type()}: ${msg.text()}`));
   // ヘッドレス Chromium は環境により自動再生制限が効いたり効かなかったりするため、
   // モバイル相当の制限（ユーザー操作の resume までは suspended）をシムで決定的に再現する。
   await page.addInitScript(() => {
@@ -61,12 +63,21 @@ test('creates an AudioContext that stays suspended until the first user gesture'
   await page.goto('./');
   await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
 
-  await expect.poll(() => page.evaluate(() => window.__game?.audio?.state)).toBe('suspended');
+  // 失敗時に原因が分かるよう、例外も文字列として返す
+  const readAudioState = (): Promise<string> =>
+    page.evaluate(() => {
+      try {
+        return String(window.__game?.audio?.state);
+      } catch (e) {
+        return `throw: ${String(e)}`;
+      }
+    });
+  await expect.poll(readAudioState, { message: `console: ${logs.join(' | ')}` }).toBe('suspended');
   await page.waitForTimeout(500);
-  expect(await page.evaluate(() => window.__game?.audio?.state)).toBe('suspended');
+  expect(await readAudioState()).toBe('suspended');
 
   await page.mouse.click(200, 200);
-  await expect.poll(() => page.evaluate(() => window.__game?.audio?.state)).toBe('running');
+  await expect.poll(readAudioState).toBe('running');
   expect(errors).toEqual([]);
 });
 
