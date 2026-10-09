@@ -2,6 +2,7 @@ import './style.css';
 import { MainLoop } from './core/mainLoop';
 import { checkWebGPUSupport } from './core/webgpuSupport';
 import { Game } from './game/game';
+import { InputSystem, type InputDebugState } from './input';
 import { createRenderer } from './render/renderer';
 import { GameView } from './render/gameView';
 import { readDeviceHints, selectQuality } from './render/quality';
@@ -14,6 +15,7 @@ interface DebugState {
   readonly backend: 'webgpu';
   readonly frames: number;
   readonly steps: number;
+  readonly input: InputDebugState;
   readonly quality: string;
   readonly resolutionScale: number;
   /** アセットパイプライン確認用のキャラクター表示（読み込み失敗時は undefined）。 */
@@ -55,6 +57,7 @@ async function bootstrap(): Promise<void> {
     }).observe(root);
 
     mountOrientationHint();
+    const input = new InputSystem(root);
     if (isDebugEnabled(location.search)) {
       mountDebugHud(gameRenderer.stats, {
         quality: quality.preset.level,
@@ -64,6 +67,7 @@ async function bootstrap(): Promise<void> {
 
     const loop = new MainLoop({
       update: (dt) => {
+        input.step(dt); // 入力スナップショットを確定（#8 でプレイヤーへ渡す）
         game.update(dt);
       },
       render: (alpha) => {
@@ -80,6 +84,9 @@ async function bootstrap(): Promise<void> {
       },
       get steps() {
         return loop.stepCount;
+      },
+      get input() {
+        return input.debugState;
       },
       quality: quality.preset.level,
       get resolutionScale() {
