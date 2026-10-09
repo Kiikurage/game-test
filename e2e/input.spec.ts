@@ -6,8 +6,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function boot(page: Page): Promise<void> {
-  await page.goto('./');
+  // ソフトウェア描画（SwiftShader）でも入力ステップが回るよう、描画を最小品質・低解像度にする
+  await page.goto('./?quality=low&scale=0.25');
   await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  // 初回のパイプラインコンパイルで最初のフレームが重いので、ループが安定して回り出すまで待つ
+  await expect
+    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
+    .toBeGreaterThan(30);
 }
 
 const input = (page: Page) => page.evaluate(() => window.__game?.input);
@@ -183,8 +188,8 @@ test.describe('touch (mobile landscape)', () => {
 
     // 回避ボタン: 短押し = 回避, 長押し = ダッシュ
     const dodge = await center(page, 'dodge');
-    // 短押しは、CDP の往復が遅いと実時間で長押しになってしまうため、evaluate 内で 80ms の短押しを再現する
-    await page.evaluate(async () => {
+    // 短押しは、CDP の往復が遅いと実時間で長押しになってしまうため、evaluate 内で同一タスクの押下→離上（実時間ほぼ 0ms）として再現する
+    await page.evaluate(() => {
       const el = document.querySelector('.touch-btn[data-action="dodge"]');
       if (!el) throw new Error('dodge button not found');
       const fire = (type: string): void => {
@@ -193,7 +198,6 @@ test.describe('touch (mobile landscape)', () => {
         );
       };
       fire('pointerdown');
-      await new Promise((r) => setTimeout(r, 80));
       fire('pointerup');
     });
     await expect.poll(async () => (await input(page))?.pressCounts.dodge).toBe(1);
