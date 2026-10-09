@@ -2,7 +2,7 @@ import { Quaternion, Timer, Vector3, type Mesh, type Scene } from 'three/webgpu'
 import type { Game } from '../game/game';
 import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
-import { PlayerAnimator } from './assets/playerAnimator';
+import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
 import type { ClipName } from './assets/clips';
 
 const Y_AXIS = new Vector3(0, 1, 0);
@@ -37,6 +37,11 @@ export class PlayerView {
     return this.character.root;
   }
 
+  /** 撮影・調整用: アニメーションのレイヤーを指定時刻で固定表示する（null で解除）。 */
+  setDebugPose(pose: { layer: PlayerAnimLayer; time: number } | null): void {
+    this.animator.debugPose = pose;
+  }
+
   get state(): PlayerViewState {
     return { clip: this.animator.dominantClip, triangles: this.triangles };
   }
@@ -67,6 +72,11 @@ export class PlayerView {
     const dt = Math.min(this.timer.getDelta(), 0.1);
     const player = this.game.player;
     player.transform.sample(alpha, this.position, this.orientation);
+    // カメラが壁際で本体に近づきすぎたら、背中で画面が埋まらないよう非表示にする（ヒステリシス付き）
+    const arm = this.game.camera.armLength;
+    if (this.character.root.visible ? arm < 0.9 : arm > 1.2) {
+      this.character.root.visible = !this.character.root.visible;
+    }
     this.animator.update(dt, player.animation);
     // ロックオン中の横移動は、体を移動方向へ向ける（上半身は背骨で対象へ戻す）
     this.offset.setFromAxisAngle(Y_AXIS, this.animator.bodyYawOffset);

@@ -76,6 +76,8 @@ export class ThirdPersonCamera {
   private shakeTotal = 1;
   private shakeAmplitude = 0;
   private shakeSeed = 1;
+  /** 壁際で腕が縮んだときの見下ろし補正（ラジアン、平滑化済み）。視点を上げてプレイヤーの背中で画面が埋まるのを避ける。 */
+  private collisionPitch = 0;
   private armTarget: number = tuning.camera.distance;
 
   /** 実際のカメラの向き（前方の単位ベクトル）。ロックオン対象の選択に使う。 */
@@ -86,9 +88,9 @@ export class ThirdPersonCamera {
   }
 
   /** プレイヤー背後へ即座に配置する（スポーン・テレポート）。 */
-  reset(playerPosition: Vector3, yaw: number): void {
+  reset(playerPosition: Vector3, yaw: number, pitchDeg: number = tuning.camera.pitchInitial): void {
     this.yaw = yaw;
-    this.pitch = tuning.camera.pitchInitial * DEG;
+    this.pitch = pitchDeg * DEG;
     this.pitchOffset = 0;
     this.resetFrames = 0;
     this.strafeFrames = 0;
@@ -140,8 +142,14 @@ export class ThirdPersonCamera {
     this.updatePivot(dt, input.playerPosition, collision);
 
     // アーム: 注視点から背後へ。壁手前へ即座に押し込み、解消後は指数的に戻す。
+    const squeeze = Math.max(0, 1 - this.armLength / Math.max(distance, 0.1));
+    const wantedBoost = Math.min(squeeze * 1.3, 1) * 30 * DEG;
+    this.collisionPitch += (wantedBoost - this.collisionPitch) * smoothFactor(dt, 0.15);
+    const placePitch = Math.min(cam.pitchMax * DEG, this.pitch + this.collisionPitch);
+    // 視線の向きはユーザーが決めた yaw/pitch のまま。位置だけを（壁際では）見下ろし側へ持ち上げる。
     this.forwardFromAngles(this.yaw, this.pitch, tmpForward);
-    tmpDir.copy(tmpForward).negate();
+    this.forwardFromAngles(this.yaw, placePitch, tmpDir);
+    tmpDir.negate();
     const hit = Math.max(
       0.3,
       collision.castSphere(this.pivot, tmpDir, distance, cam.collisionRadius),

@@ -52,6 +52,13 @@ export class LockOnController {
     return this.target !== null;
   }
 
+  /** 条件を無視して対象を直接ロックする（ボス戦の開始演出・デバッグ用）。 */
+  lock(target: LockOnTarget): LockOnEvent {
+    this.set(target);
+    this.lastReleaseReason = null;
+    return 'acquired';
+  }
+
   /** 外部要因（プレイヤー死亡など）で解除する。 */
   release(reason: LockOnReleaseReason = 'external'): LockOnEvent {
     if (!this.target) return 'none';

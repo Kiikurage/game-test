@@ -18,9 +18,10 @@ import type { ClipName } from './clips';
  * - ロール / バックステップ / 落下 / 着地: 1 回再生のクリップを状態のフレームに同期させる。
  */
 
-type Layer = 'idle' | 'walk' | 'jog' | 'sprint' | 'roll' | 'backstep' | 'fall' | 'land';
+export type PlayerAnimLayer =
+  'idle' | 'walk' | 'jog' | 'sprint' | 'roll' | 'backstep' | 'fall' | 'land';
 
-const LAYER_CLIP: Readonly<Record<Layer, ClipName>> = {
+const LAYER_CLIP: Readonly<Record<PlayerAnimLayer, ClipName>> = {
   idle: 'Idle_Loop',
   walk: 'Walk_Loop',
   jog: 'Jog_Fwd_Loop',
@@ -31,15 +32,23 @@ const LAYER_CLIP: Readonly<Record<Layer, ClipName>> = {
   land: 'Jump_Land',
 };
 
-/** クリップが「その場で」想定している移動速度（m/s）。ここから足滑りの少ない再生速度を求める。 */
-export const GAIT_NOMINAL_SPEED = { walk: 1.5, jog: 3.7, sprint: 6.0 } as const;
+/**
+ * 各ループで「左足が最も前に出る」位相（0..1）。クリップの時刻 = (共通位相 + この値) % 1 とすると、
+ * 歩き・走り・ダッシュの足の運びが揃い、ブレンド中に足が交差して見えない。
+ * （Walk / Jog / Sprint を 60 分割でサンプルして測定）
+ */
+export const GAIT_PHASE_OFFSET = { walk: 0, jog: 0.967, sprint: 0.875 } as const;
+
+/** クリップが「その場で」想定している移動速度（m/s。接地中の足の後退速度から測定）。足滑りの少ない再生速度を求める基準。 */
+export const GAIT_NOMINAL_SPEED = { walk: 1.2, jog: 4.6, sprint: 7.5 } as const;
 
 /** ロールのクリップを何倍速で再生し、どこまで使うか。調整値。 */
-export const ROLL_CLIP = { timeScale: 1.55, endTime: 1.0 } as const;
-export const BACKSTEP_CLIP = { timeScale: 1.6, endTime: 0.75 } as const;
+export const ROLL_CLIP = { timeScale: 2.625, endTime: 1.4 } as const;
+/** バックステップ: 前方への踏み込み（Sword_Dash）を逆再生して、後ろへ跳び退く動きにする。 */
+export const BACKSTEP_CLIP = { timeScale: 1.1, startTime: 0.4 } as const;
 
-const ONE_SHOT_LAYERS: readonly Layer[] = ['roll', 'backstep', 'fall', 'land'];
-const LOCOMOTION_LAYERS: readonly Layer[] = ['idle', 'walk', 'jog', 'sprint'];
+const ONE_SHOT_LAYERS: readonly PlayerAnimLayer[] = ['roll', 'backstep', 'fall', 'land'];
+const LOCOMOTION_LAYERS: readonly PlayerAnimLayer[] = ['idle', 'walk', 'jog', 'sprint'];
 
 const Y_AXIS = new Vector3(0, 1, 0);
 const SPINE_BONES = ['spine_01', 'spine_02', 'spine_03'] as const;
@@ -59,9 +68,9 @@ function smoothstep(e0: number, e1: number, x: number): number {
 }
 
 export class PlayerAnimator {
-  private readonly actions = new Map<Layer, AnimationAction>();
-  private readonly weights = new Map<Layer, number>();
-  private readonly durations = new Map<Layer, number>();
+  private readonly actions = new Map<PlayerAnimLayer, AnimationAction>();
+  private readonly weights = new Map<PlayerAnimLayer, number>();
+  private readonly durations = new Map<PlayerAnimLayer, number>();
   private gaitPhase = 0;
   private idlePhase = 0;
   private legYaw = 0;
@@ -70,6 +79,9 @@ export class PlayerAnimator {
   private readonly tmpParentQ = new Quaternion();
   private readonly tmpD = new Quaternion();
 
+  /** 指定すると、そのレイヤーを指定の時刻（秒）で固定表示する（撮影・調整用。通常は null）。 */
+  debugPose: { layer: PlayerAnimLayer; time: number } | null = null;
+
   /** 現在最もウェイトの大きいクリップ（デバッグ・E2E 用）。 */
   dominantClip: ClipName = 'Idle_Loop';
 
@@ -77,7 +89,7 @@ export class PlayerAnimator {
     private readonly character: Character,
     assets: CharacterAssets,
   ) {
-    for (const layer of Object.keys(LAYER_CLIP) as Layer[]) {
+    for (const layer of Object.keys(LAYER_CLIP) as PlayerAnimLayer[]) {
       const clip = assets.getClip(LAYER_CLIP[layer]);
       const action = character.mixer.clipAction(clip);
       action.setLoop(LoopRepeat, Infinity);
@@ -104,12 +116,13 @@ export class PlayerAnimator {
   update(dt: number, s: PlayerAnimationState): void {
     const targets = this.computeTargets(s);
     this.advanceTimes(dt, s, targets);
+    if (this.debugPose) this.applyDebugPose(this.debugPose, targets);
     this.applyWeights(dt, targets);
     this.character.mixer.update(0);
   }
 
-  private computeTargets(s: PlayerAnimationState): Record<Layer, number> {
-    const t: Record<Layer, number> = {
+  private computeTargets(s: PlayerAnimationState): Record<PlayerAnimLayer, number> {
+    const t: Record<PlayerAnimLayer, number> = {
       idle: 0,
       walk: 0,
       jog: 0,
@@ -158,7 +171,11 @@ export class PlayerAnimator {
     return t;
   }
 
-  private advanceTimes(dt: number, s: PlayerAnimationState, targets: Record<Layer, number>): void {
+  private advanceTimes(
+    dt: number,
+    s: PlayerAnimationState,
+    targets: Record<PlayerAnimLayer, number>,
+  ): void {
     // 立ち: ゆっくり進める
     const idleDur = this.durations.get('idle') ?? 1;
     this.idlePhase = (this.idlePhase + dt / idleDur) % 1;
@@ -181,13 +198,17 @@ export class PlayerAnimator {
       this.gaitPhase = (((this.gaitPhase + (reverse ? -cycles : cycles)) % 1) + 1) % 1;
     }
     for (const layer of ['walk', 'jog', 'sprint'] as const) {
-      this.setTime(layer, this.gaitPhase * (this.durations.get(layer) ?? 1));
+      const phase = (this.gaitPhase + GAIT_PHASE_OFFSET[layer]) % 1;
+      this.setTime(layer, phase * (this.durations.get(layer) ?? 1));
     }
 
     // 1 回再生系: 状態のフレームに同期（F1 = 経過 0 フレーム）
     const elapsed = Math.max(0, s.stateFrame - 1) / 60;
     this.setTime('roll', Math.min(ROLL_CLIP.endTime, elapsed * ROLL_CLIP.timeScale));
-    this.setTime('backstep', Math.min(BACKSTEP_CLIP.endTime, elapsed * BACKSTEP_CLIP.timeScale));
+    this.setTime(
+      'backstep',
+      Math.max(0, BACKSTEP_CLIP.startTime - elapsed * BACKSTEP_CLIP.timeScale),
+    );
     const fallDur = this.durations.get('fall') ?? 1;
     this.setTime('fall', (elapsed % fallDur) * 1);
     const landDur = (this.durations.get('land') ?? 1) - 0.05;
@@ -204,16 +225,28 @@ export class PlayerAnimator {
     this.legYaw += (wantedLegYaw - this.legYaw) * (1 - Math.exp(-dt * 14));
   }
 
-  private setTime(layer: Layer, time: number): void {
+  private applyDebugPose(
+    pose: { layer: PlayerAnimLayer; time: number },
+    targets: Record<PlayerAnimLayer, number>,
+  ): void {
+    for (const layer of Object.keys(LAYER_CLIP) as PlayerAnimLayer[]) {
+      targets[layer] = layer === pose.layer ? 1 : 0;
+      this.weights.set(layer, targets[layer]);
+    }
+    this.setTime(pose.layer, pose.time);
+    this.legYaw = 0;
+  }
+
+  private setTime(layer: PlayerAnimLayer, time: number): void {
     const action = this.actions.get(layer);
     if (action) action.time = time;
   }
 
-  private applyWeights(dt: number, targets: Record<Layer, number>): void {
+  private applyWeights(dt: number, targets: Record<PlayerAnimLayer, number>): void {
     let total = 0;
-    let best: Layer = 'idle';
+    let best: PlayerAnimLayer = 'idle';
     let bestW = -1;
-    for (const layer of Object.keys(LAYER_CLIP) as Layer[]) {
+    for (const layer of Object.keys(LAYER_CLIP) as PlayerAnimLayer[]) {
       const current = this.weights.get(layer) ?? 0;
       const target = targets[layer];
       // 1 回再生系は入るときも出るときも素早く（回避の切れ味）。移動系は速度の変化に合わせて滑らかに。
@@ -230,7 +263,7 @@ export class PlayerAnimator {
       total += next < 0.001 ? 0 : next;
     }
     // 合計が 1 になるよう正規化して適用
-    for (const layer of Object.keys(LAYER_CLIP) as Layer[]) {
+    for (const layer of Object.keys(LAYER_CLIP) as PlayerAnimLayer[]) {
       const w = (this.weights.get(layer) ?? 0) / (total || 1);
       this.actions.get(layer)?.setEffectiveWeight(w);
       if (w > bestW) {

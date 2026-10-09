@@ -1,4 +1,4 @@
-import { Quaternion, Vector3 } from 'three/webgpu';
+import { Euler, Quaternion, Vector3 } from 'three/webgpu';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { InputReader, InputSnapshot } from '../core/input';
 import { ThirdPersonCamera, type CameraCollision } from './camera/thirdPersonCamera';
@@ -64,6 +64,8 @@ export interface StaticCylinderSpec {
   readonly z: number;
   readonly radius: number;
   readonly height: number;
+  /** XYZ オイラー角（ラジアン）。指定すると倒れた柱として扱い、`y` は中心の高さになる。 */
+  readonly euler?: readonly [number, number, number];
 }
 
 const GROUND_FALLBACK_HALF = 100;
@@ -85,10 +87,13 @@ export class Game {
   readonly lockOnTargets: LockOnTarget[] = [];
   /** テストシーンのダミー（描画用に別持ち）。 */
   readonly dummies: DummyTarget[] = [];
+  /** プレイヤーイベント（ロール開始など）の累計回数（デバッグ・E2E 用）。 */
+  readonly eventCounts = { rollStart: 0, backstepStart: 0, land: 0, staminaEmpty: 0 };
   /** 直近ステップのロックオンイベント（デバッグ・E2E 用）。 */
   lastLockOnEvent: LockOnEvent = 'none';
 
   private input: InputReader;
+  private pendingLockEvent: LockOnEvent | null = null;
   private readonly cameraCollision: CameraCollision;
   private readonly spawnPosition = new Vector3();
   private readonly cameraForwardScratch = new Vector3();
@@ -160,15 +165,28 @@ export class Game {
     this.input = input;
   }
 
+  /** 指定した対象を直接ロックオンする（次のステップでカメラが追従する。デバッグ・演出用）。 */
+  lockOnTo(id: string): boolean {
+    const target = this.lockOnTargets.find((t) => t.id === id);
+    if (!target) return false;
+    this.pendingLockEvent = this.lockOn.lock(target);
+    return true;
+  }
+
   /** 静的な円柱の衝突（柱・大岩など）を追加する。 */
   addStaticCylinders(cylinders: readonly StaticCylinderSpec[]): void {
     const { rapier, world } = this.physics;
     for (const c of cylinders) {
-      world.createCollider(
-        rapier.ColliderDesc.cylinder(c.height / 2, c.radius)
-          .setTranslation(c.x, c.y + c.height / 2, c.z)
-          .setCollisionGroups(WORLD_GROUPS),
+      const desc = rapier.ColliderDesc.cylinder(c.height / 2, c.radius).setCollisionGroups(
+        WORLD_GROUPS,
       );
+      if (c.euler) {
+        const q = new Quaternion().setFromEuler(new Euler(c.euler[0], c.euler[1], c.euler[2]));
+        desc.setTranslation(c.x, c.y, c.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+      } else {
+        desc.setTranslation(c.x, c.y + c.height / 2, c.z);
+      }
+      world.createCollider(desc);
     }
   }
 
@@ -180,7 +198,7 @@ export class Game {
     // 1. ロックオン（カメラは前ステップの姿勢で判定する）
     this.cameraForwardScratch.copy(camera.forward);
     const switchDir = this.resolveSwitch(snap);
-    this.lastLockOnEvent = this.lockOn.update({
+    const lockEvent = this.lockOn.update({
       toggle: snap.buttons.lockOn.pressed,
       switchDir,
       targets: this.lockOnTargets,
@@ -188,6 +206,8 @@ export class Game {
       camera: { position: camera.position, forward: this.cameraForwardScratch },
       isVisible: (from, to) => this.hasLineOfSight(from, to),
     });
+    this.lastLockOnEvent = this.pendingLockEvent ?? lockEvent;
+    this.pendingLockEvent = null;
 
     // 2. カメラの向き（このステップの回転入力を、移動の基準方向に反映する）
     const cameraInput = () => ({
@@ -210,6 +230,7 @@ export class Game {
       cameraYaw: camera.yaw,
       lockTarget: this.lockOn.target,
     });
+    for (const e of player.events) this.eventCounts[e.type]++;
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
   }
@@ -271,6 +292,12 @@ export class Game {
     };
   }
 
+  /** プレイヤーを任意の位置へ移す（デバッグ・E2E）。カメラはプレイヤーの背後へ即座に置く。 */
+  teleportPlayer(x: number, z: number, yaw: number, y = 0.02): void {
+    this.player.teleport(new Vector3(x, y, z), yaw);
+    this.camera.reset(this.player.feet, yaw);
+  }
+
   /** プレイヤーを初期位置へ戻す（デバッグ・リスポーン）。 */
   respawn(): void {
     this.player.teleport(this.spawnPosition, PLAYER_SPAWN.yaw);
@@ -308,6 +335,7 @@ export class Game {
         targetId: this.lockOn.target?.id ?? null,
         lastEvent: this.lastLockOnEvent,
       },
+      events: { ...this.eventCounts },
     };
   }
 }
@@ -332,4 +360,7 @@ export interface GameDebugState {
     readonly pivot: { readonly x: number; readonly y: number; readonly z: number };
   };
   readonly lockOn: { readonly targetId: string | null; readonly lastEvent: string };
+  readonly events: Readonly<
+    Record<'rollStart' | 'backstepStart' | 'land' | 'staminaEmpty', number>
+  >;
 }

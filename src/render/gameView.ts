@@ -53,6 +53,11 @@ export class GameView {
     this.resize();
   }
 
+  /** テストシーンの足場・ダミーの表示切替（キャラクター確認用ショーケースでは隠す）。 */
+  setPlaygroundVisible(visible: boolean): void {
+    this.playground.root.visible = visible;
+  }
+
   /** プレイヤーの描画を登録する（毎フレーム補間・アニメーションを更新し、影の追従対象にする）。 */
   attachPlayer(view: PlayerView): void {
     this.playerView = view;

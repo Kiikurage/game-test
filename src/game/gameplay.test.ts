@@ -356,6 +356,15 @@ describe('gameplay (player controller + camera + lock-on)', () => {
       expect(second).not.toBe(first);
     });
 
+    it('locks onto the tall boss-sized dummy when facing it, and frames it from farther back', () => {
+      game.teleportPlayer(4, -10.8, Math.atan2(-4, 2));
+      run(10);
+      expect(game.lockOnTo('dummy-boss')).toBe(true);
+      run(120);
+      expect(game.lockOn.target?.id).toBe('dummy-boss');
+      expect(game.camera.armLength).toBeGreaterThan(5.5);
+    });
+
     it('lists all dummies as lock-on targets', () => {
       expect(game.lockOnTargets).toHaveLength(DUMMIES.length);
     });

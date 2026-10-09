@@ -3,11 +3,14 @@
 //   SHOT_QUERY    ページの URL クエリ（例: '?clip=Roll&t=0.5'）。'|' 区切りで複数指定すると連番で撮影する
 //   SHOT_ONLY     'pc' または 'mobile' で片方のビューポートだけ撮る
 //   SHOT_PORT     プレビューサーバのポート（既定 4174。並行実行時の衝突回避用）
+//   SHOT_SCRIPT   撮影前に実行するモジュールのパス。default export の async (page, { name, index }) で入力を注入できる
+//                 （例: キーボードで歩かせる・ロックオンさせる）。ページの待機後、スクリーンショットの直前に呼ぶ
 // ビルド → プレビュー配信 → ヘッドレス Chromium(WebGPU) で数秒動かして PNG を保存する。
 //   <出力パス>-mobile.png : 915x412 DPR3 (Xperia 1 V 相当の横画面)
 //   <出力パス>-pc.png     : 1280x720
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { build, preview } from 'vite';
 import { chromium } from '@playwright/test';
 import { launchOptions } from './chromium.mjs';
@@ -38,6 +41,9 @@ const viewports = [
 await build({ logLevel: 'warn' });
 const server = await preview({ preview: { host: 'localhost', port: shotPort, strictPort: true } });
 const queries = (process.env.SHOT_QUERY ?? '').split('|');
+const script = process.env.SHOT_SCRIPT
+  ? (await import(pathToFileURL(resolve(process.env.SHOT_SCRIPT)).href)).default
+  : null;
 const only = process.env.SHOT_ONLY;
 const browser = await chromium.launch(launchOptions());
 
@@ -60,6 +66,7 @@ try {
         },
       );
       await page.waitForTimeout(waitSeconds * 1000);
+      if (script) await script(page, { name, index });
       const state = await page.evaluate(() => document.getElementById('app')?.dataset.state);
       const file = queries.length > 1 ? `${base}-${index}-${name}.png` : `${base}-${name}.png`;
       await page.screenshot({ path: file });

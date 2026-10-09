@@ -233,13 +233,15 @@ function createRocks(rng: () => number, avoid: (x: number, z: number) => boolean
   return mergeToMesh(geoms, createRockMaterial());
 }
 
-/** 衝突用の円柱（柱・大岩）。`y` は底面の高さ。 */
+/** 衝突用の円柱（柱・倒れた柱）。`y` は底面の高さ。`euler` を指定した場合（倒れた柱）は `y` が中心の高さ。 */
 export interface ColliderCylinder {
   readonly x: number;
   readonly y: number;
   readonly z: number;
   readonly radius: number;
   readonly height: number;
+  /** XYZ オイラー角（ラジアン）。 */
+  readonly euler?: readonly [number, number, number];
 }
 
 /** 欠けた柱・倒れた柱・アーチからなる遺跡。立っている柱は衝突用に `pillars` へ記録する。 */
@@ -284,6 +286,24 @@ function createRuins(rng: () => number, pillars: ColliderCylinder[]): Mesh {
   // 手前の側の独立した柱と倒れた柱
   pillar(9, 3, 5.5, false, 0.04);
   pillar(-10, 6, 6.5, true);
+  pillars.push(
+    {
+      x: 5.5,
+      y: terrainHeight(5.5, -3) + 0.65,
+      z: -3,
+      radius: 0.66,
+      height: 5.2,
+      euler: [0, 0.4, Math.PI / 2],
+    },
+    {
+      x: 8.2,
+      y: terrainHeight(8.2, -4.2) + 0.5,
+      z: -4.2,
+      radius: 0.6,
+      height: 2.2,
+      euler: [0, 1.2, Math.PI / 2 + 0.2],
+    },
+  );
   geoms.push(
     place(
       shaft,

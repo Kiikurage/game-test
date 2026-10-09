@@ -11,6 +11,7 @@ import { mountTuningPanel } from './ui/tuningPanel';
 import { resetTuning, tuning } from './game/tuning';
 import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { PlayerView, type PlayerViewState } from './render/playerView';
+import type { PlayerAnimLayer } from './render/assets/playerAnimator';
 import { createTerrainCollisionMesh } from './render/testScene';
 import { terrainHeight } from './render/terrain';
 import { mountOrientationHint, showUnsupportedScreen } from './ui/overlays';
@@ -27,6 +28,18 @@ interface DebugState {
   readonly showcase?: ShowcaseState;
   /** プレイヤー・カメラ・ロックオンの状態（E2E 用）。 */
   readonly sim: GameDebugState;
+  /** E2E 用の操作（テレポートなど）。 */
+  readonly dev: {
+    teleport(x: number, z: number, yaw: number): void;
+    /** シミュレーションの一時停止（撮影用）。 */
+    pause(paused: boolean): void;
+    /** 指定した対象を直接ロックオンする（撮影用）。 */
+    lock(id: string): boolean;
+    /** カメラをプレイヤーの向き + `yawOffset` の背後に置き直す（撮影用）。 */
+    view(yawOffset: number, distance?: number, pitchDeg?: number): void;
+    /** プレイヤーのアニメーションレイヤーを時刻で固定表示する（撮影用）。 */
+    pose(layer: PlayerAnimLayer | null, time?: number): void;
+  };
   /** プレイヤーの描画状態（読み込み失敗時は undefined）。 */
   readonly playerView?: PlayerViewState;
 }
@@ -70,6 +83,7 @@ async function bootstrap(): Promise<void> {
     if (isShowcaseRequested(location.search)) {
       // アセットパイプライン（#10）の確認用。カメラも自分で置く。
       view.useGameCamera = false;
+      view.setPlaygroundVisible(false);
       showcase = await CharacterShowcase.create(view.scene, view.camera).catch((e: unknown) => {
         console.error('character showcase failed to load', e);
         return undefined;
@@ -97,8 +111,10 @@ async function bootstrap(): Promise<void> {
       mountTuningPanel(tuning, resetTuning);
     }
 
+    let paused = false;
     const loop = new MainLoop({
       update: (dt) => {
+        if (paused) return;
         input.step(dt); // 入力スナップショットを確定してから game が読む
         game.update(dt);
       },
@@ -129,6 +145,22 @@ async function bootstrap(): Promise<void> {
       },
       get sim() {
         return game.debugState;
+      },
+      dev: {
+        teleport: (x, z, yaw) => {
+          game.teleportPlayer(x, z, yaw);
+        },
+        lock: (id) => game.lockOnTo(id),
+        pause: (p) => {
+          paused = p;
+        },
+        view: (yawOffset, distance, pitchDeg) => {
+          if (distance !== undefined) tuning.camera.distance = distance;
+          game.camera.reset(game.player.feet, game.player.yaw + yawOffset, pitchDeg);
+        },
+        pose: (layer, time = 0) => {
+          playerView?.setDebugPose(layer ? { layer, time } : null);
+        },
       },
       get playerView() {
         return playerView?.state;
