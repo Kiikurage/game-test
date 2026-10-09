@@ -5,6 +5,8 @@ import { Game } from './game/game';
 import { InputSystem, type InputDebugState } from './input';
 import { createRenderer } from './render/renderer';
 import { GameView } from './render/gameView';
+import { readDeviceHints, selectQuality } from './render/quality';
+import { isDebugEnabled, mountDebugHud } from './ui/debugHud';
 import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { mountOrientationHint, showUnsupportedScreen } from './ui/overlays';
 
@@ -14,6 +16,8 @@ interface DebugState {
   readonly frames: number;
   readonly steps: number;
   readonly input: InputDebugState;
+  readonly quality: string;
+  readonly resolutionScale: number;
   /** アセットパイプライン確認用のキャラクター表示（読み込み失敗時は undefined）。 */
   readonly showcase?: ShowcaseState;
 }
@@ -35,7 +39,8 @@ async function bootstrap(): Promise<void> {
   }
 
   try {
-    const gameRenderer = await createRenderer(root);
+    const quality = selectQuality(location.search, readDeviceHints());
+    const gameRenderer = await createRenderer(root, quality);
     const game = await Game.create();
     const view = new GameView(game, gameRenderer);
 
@@ -45,12 +50,20 @@ async function bootstrap(): Promise<void> {
       return undefined;
     });
 
+    if (showcase) view.shadowFocusTarget = showcase.root;
+
     new ResizeObserver(() => {
       view.resize();
     }).observe(root);
 
     mountOrientationHint();
     const input = new InputSystem(root);
+    if (isDebugEnabled(location.search)) {
+      mountDebugHud(gameRenderer.stats, {
+        quality: quality.preset.level,
+        targetFps: quality.targetFps,
+      });
+    }
 
     const loop = new MainLoop({
       update: (dt) => {
@@ -74,6 +87,10 @@ async function bootstrap(): Promise<void> {
       },
       get input() {
         return input.debugState;
+      },
+      quality: quality.preset.level,
+      get resolutionScale() {
+        return gameRenderer.stats.scale;
       },
       get showcase() {
         return showcase?.state;
