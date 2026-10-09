@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # 手動実行時は音声変換検査も走らせる
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,9 +15,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 変更ファイルから、重い音声変換検査を走らせる必要があるか判定する
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      audio: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.audio == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            audio:
+              - 'assets-src/audio/**'
+              - 'scripts/audio/**'
+              - 'docs/audio-assets.md'
+
+  # lint / 型検査 / ユニットテスト / ビルド / 音声の容量・マニフェスト整合検査（ffmpeg 不要）
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -29,25 +52,78 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Audio manifest and budget check (committed outputs)
+        run: npm run assets:audio:check
 
-      - name: Audio pipeline (Opus conversion smoke test and budget check)
+  # Opus 変換スモークテスト。音声関連ファイルに触れた PR / push のみ
+  audio:
+    needs: changes
+    if: needs.changes.outputs.audio == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ffmpeg
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Audio pipeline (Opus conversion smoke test and budget check)
+        run: |
           npm run assets:audio
           npm run assets:audio:check
 
+  e2e:
+    name: e2e (${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
       - name: Install Chromium for E2E
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
+      # キャッシュヒット時はブラウザ本体の取得を省き、OS 依存パッケージのみ入れる
+      - name: Install Chromium system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       - name: E2E (headless WebGPU via SwiftShader)
-        run: npm run e2e
+        run: npm run e2e -- --shard=${{ matrix.shard }}/2
 
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report
             test-results
