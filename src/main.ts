@@ -16,6 +16,7 @@ import { PlayerView, type PlayerViewState } from './render/playerView';
 import type { PlayerAnimLayer } from './render/assets/playerAnimator';
 import { createTerrainCollisionMesh } from './render/testScene';
 import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
+import { EnvironmentAssets } from './render/assets/environment';
 import { createLevel, levelGameOptions } from './game/world/level';
 import { terrainHeight } from './render/terrain';
 
@@ -119,6 +120,17 @@ export async function createGameApp(
     physicsTask.done();
     const view = new GameView(game, gameRenderer, level ?? undefined);
     game.addStaticCylinders(level ? level.cylinders : view.colliders);
+    // ?env=0: 環境メッシュを置かない（グレーボックスのまま。負荷比較用）
+    if (level && new URLSearchParams(location.search).get('env') !== '0') {
+      // 環境メッシュ（墓地・礼拝堂）。読み込みに失敗してもグレーボックスのまま遊べる
+      await EnvironmentAssets.load()
+        .then((assets) => {
+          view.attachEnvironment(assets);
+        })
+        .catch((e: unknown) => {
+          console.error('environment assets failed to load', e);
+        });
+    }
     sceneTask.done();
 
     let showcase: CharacterShowcase | undefined;

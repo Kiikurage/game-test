@@ -389,3 +389,21 @@ look.setEmber(1);                                                    // ボス�
 - **簡略化**: 焼き込み後に meshoptimizer のシンプリファイア（法線・UV を属性として重みづけ）で三角形を 50% に減らす（遺体は暗く遠目に見えるため。1 体 約 20,000 → 約 10,000 tris）。`meshoptimizer/simplifier` は使うとき（`CorpseFactory.create`）だけ動的 import する。
 - 配置データ（`src/core/corpses.ts`、純粋ロジック）: `corpsePlacement({ pose, x, z, y?, yaw?, variant? }, index)` / `corpsePlacements(specs)`（バリアント省略時は index から決定的に選び、隣り合う遺体が同じ見た目にならない）/ `yawToward` / `yawAwayFrom`。`CorpseFactory.create(placement)` が静的な `Group` を返す。
 - 確認用: `?corpse=all`（4 ポーズ横並び）、`?corpse=sitting|prone|praying|leaning&variant=…&view=front|side|back|top`、`?corpse=crowd&n=12`（負荷確認）、`&simplify=<比率>`。背景のフィールドを隠し、補助光・地面・基準面（座面・祭壇・石棺）の台を足すプレビュー専用表示（`window.__corpsePreview` に三角形数などを出す）。
+
+### 7.11 環境メッシュ: 墓地・礼拝堂（Issue #34）
+
+エリア A〜C（篝火の空き地・墓地の小径・崩れた礼拝堂）と礼拝堂の塔の見た目。**すべて自作**（`scripts/assets/environment.mjs` がコードで生成し、`npm run assets:environment` で `public/assets/environment.glb` を書き出す。素材由来のライセンスなし、テクスチャなし）。7.7〜7.8 節と同じ作り方（頂点カラーに苔・煤・錆を焼き込む）。
+
+| 種類 | アイテム |
+| --- | --- |
+| 墓地 | `GraveRound` / `GraveCross` / `GraveBroken`（墓石）、`GraveMound`（盛り土）、`DeadTreeA/B/C`（枯れ木）、`FenceSection` / `FenceBroken` / `FenceFallen`（鉄の杭柵）、`Stele`（石碑。刻印が淡く光る）、`Mausoleum`（霊廟）、`StoneScatter` / `RubblePile`（小石・瓦礫） |
+| 礼拝堂 | `WallFullA/B` / `WallFullWindow`（尖頭窓）/ `WallMid` / `WallLow` / `WallRubble`（2m 区画の石積み壁。上端が欠ける）、`Altar`、`PewA` / `PewBroken`、`ColumnTall` / `ColumnBroken`、`Tower`（塔。鐘楼の開口から橙のたいまつの灯りが漏れる） |
+| 篝火・灯り | `Bonfire`（灰・石の輪・薪・突き立つ剣。炎はパーティクル）、`LanternPost`（吊りランタン。発光） |
+| 地面 | `GrassTuftA/B/C`（枯れ草の房 5 tris） |
+
+- 実測（manifest の `environment`）: 31 アイテム合計 12,557 tris（アイテム単体）/ 約 390KB / テクスチャメモリ 0。
+- 配置: `src/render/environmentLayout.ts` がレベルのコライダ（箱・円柱）の寸法に合わせて拡縮・回転して置く（見た目と当たりが一致）。対象は x < 62 かつ z < 40（A〜C と塔）。D〜F は従来のグレーボックスのまま。
+- 描画: `StaticBatcher`（`src/render/assets/environment.ts`）が配置を **24m 格子 × マテリアル（soft / metal / glow）** ごとに 1 メッシュへ結合する（ドローコール削減）。枯れ草は `InstancedMesh`（品種ごと 1 ドローコール、影なし、風で揺れる）。地面は TSL マテリアル（`levelMaterials.ts`）で、土のむらと、石畳エリアの敷石（目地・欠け）をテクスチャなしで描く。
+- 計測（`?debug`、PC 1280x720、プレイヤー視点、ヘッドレス SwiftShader での描画コール / 三角形。影の描画を含む）: グレーボックス（`?env=0`）225 draws / 98k tris → 環境メッシュあり 約 140〜150 draws / 150〜160k tris。
+- 確認用: `?env=0` で環境メッシュを置かない（比較用）。
+

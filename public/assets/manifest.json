@@ -243,7 +243,7 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 1529668,
+  "totalBytes": 1929360,
   "equipment": {
     "file": "equipment.glb",
     "bytes": 109208,
@@ -477,5 +477,106 @@
         -0.2751851851851852
       ]
     ]
+  },
+  "environment": {
+    "file": "environment.glb",
+    "bytes": 399692,
+    "triangles": 12557,
+    "textureMemoryBytes": 0,
+    "items": {
+      "GraveRound": {
+        "triangles": 116
+      },
+      "GraveCross": {
+        "triangles": 84
+      },
+      "GraveBroken": {
+        "triangles": 104
+      },
+      "GraveMound": {
+        "triangles": 58
+      },
+      "DeadTreeA": {
+        "triangles": 947
+      },
+      "DeadTreeB": {
+        "triangles": 1194
+      },
+      "DeadTreeC": {
+        "triangles": 402
+      },
+      "FenceSection": {
+        "triangles": 216
+      },
+      "FenceBroken": {
+        "triangles": 184
+      },
+      "FenceFallen": {
+        "triangles": 184
+      },
+      "WallFullA": {
+        "triangles": 192
+      },
+      "WallFullB": {
+        "triangles": 204
+      },
+      "WallFullWindow": {
+        "triangles": 216
+      },
+      "WallMid": {
+        "triangles": 156
+      },
+      "WallLow": {
+        "triangles": 120
+      },
+      "WallRubble": {
+        "triangles": 570
+      },
+      "RubblePile": {
+        "triangles": 296
+      },
+      "StoneScatter": {
+        "triangles": 108
+      },
+      "Altar": {
+        "triangles": 248
+      },
+      "PewA": {
+        "triangles": 96
+      },
+      "PewBroken": {
+        "triangles": 108
+      },
+      "ColumnTall": {
+        "triangles": 264
+      },
+      "ColumnBroken": {
+        "triangles": 200
+      },
+      "Stele": {
+        "triangles": 216
+      },
+      "Bonfire": {
+        "triangles": 1152
+      },
+      "LanternPost": {
+        "triangles": 192
+      },
+      "Mausoleum": {
+        "triangles": 1140
+      },
+      "Tower": {
+        "triangles": 3575
+      },
+      "GrassTuftA": {
+        "triangles": 5
+      },
+      "GrassTuftB": {
+        "triangles": 5
+      },
+      "GrassTuftC": {
+        "triangles": 5
+      }
+    }
   }
 }
