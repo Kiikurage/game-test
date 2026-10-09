@@ -1,6 +1,7 @@
 import './style.css';
 import { MainLoop } from './core/mainLoop';
 import { checkWebGPUSupport } from './core/webgpuSupport';
+import { createBrowserAudioEngine, installAudioUnlock } from './audio';
 import { Game } from './game/game';
 import { InputSystem, type InputDebugState } from './input';
 import { createRenderer } from './render/renderer';
@@ -20,6 +21,8 @@ interface DebugState {
   readonly resolutionScale: number;
   /** アセットパイプライン確認用のキャラクター表示（読み込み失敗時は undefined）。 */
   readonly showcase?: ShowcaseState;
+  /** オーディオエンジンの状態（AudioContext 非対応なら undefined）。 */
+  readonly audio?: { readonly state: string };
 }
 
 declare global {
@@ -65,6 +68,11 @@ async function bootstrap(): Promise<void> {
       });
     }
 
+    // AudioContext は生成直後 suspended。最初のユーザー操作で resume する（自動再生制限）。
+    // 「タップして始める」UI ができたら、そのハンドラから audio.resume() を呼ぶ。
+    const audio = createBrowserAudioEngine();
+    if (audio) installAudioUnlock(audio, window);
+
     const loop = new MainLoop({
       update: (dt) => {
         input.step(dt); // 入力スナップショットを確定（#8 でプレイヤーへ渡す）
@@ -91,6 +99,9 @@ async function bootstrap(): Promise<void> {
       quality: quality.preset.level,
       get resolutionScale() {
         return gameRenderer.stats.scale;
+      },
+      get audio() {
+        return audio && { state: audio.state };
       },
       get showcase() {
         return showcase?.state;
