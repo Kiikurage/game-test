@@ -4,6 +4,8 @@ import { createEnvironment, type Environment } from './environment';
 import { createPostProcess, type PostProcess } from './postprocess';
 import type { GameRenderer } from './renderer';
 import { PlaygroundView } from './playground';
+import { LevelView } from './levelView';
+import type { Level } from '../game/world/level';
 import type { PlayerView } from './playerView';
 import { createTestScene, type ColliderCylinder } from './testScene';
 import { ParticleSystem } from './particles';
@@ -30,6 +32,7 @@ export class GameView {
   /** テストシーンの立っている柱の衝突用円柱（`game.addStaticCylinders` へ渡す）。 */
   readonly colliders: readonly ColliderCylinder[];
 
+  private savedFog: Scene['fogNode'] | undefined;
   private playerView: PlayerView | null = null;
   private readonly playground: PlaygroundView;
   private readonly postProcess: PostProcess;
@@ -41,14 +44,21 @@ export class GameView {
   constructor(
     private readonly game: Game,
     private readonly gameRenderer: GameRenderer,
+    /** 指定するとレベル（地形・静的物）を描く。省略時は従来のテストシーン（`?scene=test`）。 */
+    level?: Level,
   ) {
     const { preset } = gameRenderer.quality;
 
     this.environment = createEnvironment(this.scene, preset);
-    const testScene = createTestScene(preset);
-    this.colliders = testScene.pillars;
-    this.scene.add(testScene.root);
-    this.playground = new PlaygroundView(game);
+    if (level) {
+      this.colliders = [];
+      this.scene.add(new LevelView(level).root);
+    } else {
+      const testScene = createTestScene(preset);
+      this.colliders = testScene.pillars;
+      this.scene.add(testScene.root);
+    }
+    this.playground = new PlaygroundView(game, !level);
     this.scene.add(this.playground.root);
 
     this.camera.position.set(5.5, 2.4, 8.5);
@@ -67,6 +77,17 @@ export class GameView {
     this.postProcess = createPostProcess(gameRenderer.renderer, this.scene, this.camera, preset);
 
     this.resize();
+  }
+
+  /** 任意の視点へカメラを固定する（俯瞰撮影・デバッグ用）。`null` でゲームのカメラへ戻す。 */
+  setFreeCamera(view: { position: Vector3; target: Vector3 } | null): void {
+    this.useGameCamera = view === null;
+    // 俯瞰では霞が全体を覆うので外す（戻すときに復元する）
+    this.savedFog ??= this.scene.fogNode;
+    this.scene.fogNode = view ? null : this.savedFog;
+    if (!view) return;
+    this.camera.position.copy(view.position);
+    this.camera.lookAt(view.target);
   }
 
   /** テストシーンの足場・ダミーの表示切替（キャラクター確認用ショーケースでは隠す）。 */

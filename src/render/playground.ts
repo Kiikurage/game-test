@@ -67,9 +67,13 @@ export class PlaygroundView {
   private readonly marker: Mesh;
   private readonly tmp = new Vector3();
 
-  constructor(private readonly game: Game) {
+  /** `showProps` が false のときは足場を描かない（レベルでは使わず、ロックオンマーカーだけ使う）。 */
+  constructor(
+    private readonly game: Game,
+    showProps = true,
+  ) {
     const stone = new MeshStandardNodeMaterial({ color: 0x9a9082, roughness: 0.9, metalness: 0 });
-    for (const spec of PLAYGROUND_BOXES) this.root.add(boxMesh(spec, stone));
+    if (showProps) for (const spec of PLAYGROUND_BOXES) this.root.add(boxMesh(spec, stone));
 
     for (const dummy of game.dummies) {
       const mesh = createDummyMesh(dummy.height, dummy.radius);
