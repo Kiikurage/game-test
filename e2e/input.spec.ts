@@ -184,6 +184,7 @@ test.describe('touch (mobile landscape)', () => {
     // 回避ボタン: 短押し = 回避, 長押し = ダッシュ
     const dodge = await center(page, 'dodge');
     await dispatch(cdp, 'touchStart', [{ id: 3, ...dodge }]);
+    await expect.poll(async () => (await input(page))?.held).toContain('dodge');
     await dispatch(cdp, 'touchEnd', []);
     await expect.poll(async () => (await input(page))?.pressCounts.dodge).toBe(1);
     await dispatch(cdp, 'touchStart', [{ id: 4, ...dodge }]);
