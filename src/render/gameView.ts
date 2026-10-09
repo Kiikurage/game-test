@@ -12,6 +12,7 @@ import type { PlayerView } from './playerView';
 import { createTestScene, type ColliderCylinder } from './testScene';
 import { ParticleSystem } from './particles';
 import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
+import { CombatDebugView } from './combatDebugView';
 
 /**
  * Game の状態を three のシーンとして描画する。
@@ -45,6 +46,8 @@ export class GameView {
   private readonly telegraphDemo: TelegraphDemo | null = null;
   private readonly particleDemo: ParticleDemo | null = null;
   private lastRenderMs = 0;
+  /** ?debug のときだけ作る判定の可視化（ハートボックス・ヒットボックス）。 */
+  private readonly combatDebug: CombatDebugView | null = null;
 
   constructor(
     private readonly game: Game,
@@ -77,6 +80,10 @@ export class GameView {
     }
     if (isParticleDemoEnabled(window.location.search)) {
       this.particleDemo = new ParticleDemo(this.particles, this.scene, this.camera);
+    }
+    if (new URLSearchParams(window.location.search).has('debug')) {
+      this.combatDebug = new CombatDebugView(game.combat);
+      this.scene.add(this.combatDebug.root);
     }
     this.scene.add(this.telegraphs.root);
     if (isTelegraphDemoEnabled(window.location.search)) {
@@ -132,6 +139,7 @@ export class GameView {
     this.particles.update(dt, focus);
     this.telegraphDemo?.update(Math.min(dt, 0.1));
     this.telegraphs.update(dt);
+    this.combatDebug?.update();
     this.postProcess.render();
     this.gameRenderer.endFrame();
   }

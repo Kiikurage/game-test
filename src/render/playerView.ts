@@ -3,6 +3,7 @@ import type { Game } from '../game/game';
 import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
+import { PlayerKitAssets, type CapeRig } from './player/playerKit';
 import { applyCharacterLight } from './characterLight';
 
 const Y_AXIS = new Vector3(0, 1, 0);
@@ -30,7 +31,10 @@ export class PlayerView {
     private readonly character: Character,
     private readonly animator: PlayerAnimator,
     readonly triangles: number,
+    private readonly cape?: CapeRig,
   ) {}
+
+  private lastYaw = NaN;
 
   /** シーンに置かれたモデルのルート（影の追従対象などに使う）。 */
   get root(): Character['root'] {
@@ -49,6 +53,12 @@ export class PlayerView {
   static async create(scene: Scene, game: Game, assets?: CharacterAssets): Promise<PlayerView> {
     const loaded = assets ?? (await CharacterAssets.load(['knight']));
     const character = loaded.createCharacter('knight');
+    // 旅の騎士の装備（#103）。読み込みに失敗しても素の騎士で遊べるようにする
+    const kit = await PlayerKitAssets.load().catch((e: unknown) => {
+      console.error('player kit failed to load', e);
+      return undefined;
+    });
+    const cape = kit?.equipKnight(character).cape;
     // 逆光でも輪郭・武器が読めるよう補助光（リムライト・暗部の持ち上げ）を足す（#144）
     applyCharacterLight(character.root);
     let triangles = 0;
@@ -63,7 +73,7 @@ export class PlayerView {
     });
     scene.add(character.root);
     const animator = new PlayerAnimator(character, loaded);
-    const view = new PlayerView(game, character, animator, triangles);
+    const view = new PlayerView(game, character, animator, triangles, cape);
     view.update(1);
     return view;
   }
@@ -85,5 +95,15 @@ export class PlayerView {
     this.character.root.position.copy(this.position);
     this.character.root.quaternion.copy(this.orientation).multiply(this.offset);
     this.animator.applyTwist();
+    if (this.cape && dt > 0) {
+      const yaw = player.animation.yaw;
+      let delta = Number.isNaN(this.lastYaw) ? 0 : yaw - this.lastYaw;
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      this.lastYaw = yaw;
+      this.cape.update(dt, {
+        forwardSpeed: player.animation.localVelocity.z,
+        turnRate: delta / dt,
+      });
+    }
   }
 }
