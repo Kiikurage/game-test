@@ -46,7 +46,7 @@ player.feet           // 足元のワールド座標（Vector3）
 player.yaw            // 向き。前方 = (sin yaw, cos yaw)
 player.speed          // 指令された水平速度 m/s
 player.invulnerable   // ロール F4–F15 / バックステップ F1–F8（被ダメージ判定を持たない）
-player.stamina        // Stamina: consume(n) / drain(perSecond, dt) / canStartAction / current
+player.stamina        // Stamina: canStart(cost) / consume(n) / drain(perSecond, dt) / update(dt, { guarding, sprinting }) / onEmpty(fn) / current / max / ratio
 player.events         // そのステップの通知（rollStart / backstepStart / land / staminaEmpty）
 player.animation      // PlayerAnimationState（#32 が読む。state, stateFrame, speed(実移動速度), localVelocity, lockedOn, yaw）
 player.rigidBody      // 物理ボディ（カメラ衝突の除外用）
@@ -58,6 +58,16 @@ player.teleport(pos, yaw)
 - **ロール / バックステップ**: `PLAYER_ACTIONS.roll` / `.backstep` のフレームデータどおり（全体 32F / 22F、距離 3.2m / 2.0m、無敵 F4–F15 / F1–F8）。入力（回避確定 = `buttons.dodge.pressed`）と同じステップで F1 が始まる。先行入力は `InputReader.consumeBuffered('dodge')` で消費。スタミナ 0 では開始できない。移動入力があればロール、なければバックステップ。ロール F26 から移動へキャンセル可。終了時にボタンが押されていればダッシュへ。
 - **落下 / 着地**: 接地が 4F 切れたら `fall`。1.2m 以上落ちると `land`（10F、3m 以上で 22F、速度 35%）。
 - **地形**: 40° まで登れ、それ以上は滑る。0.35m までの段差は自動で乗り越える（Rapier のオートステップ。接地中に下向きの移動量を与えるとオートステップが働かないので、接地中の鉛直速度は 0 とし、吸着は snap-to-ground に任せている）。見た目の跳ね上がりは `transform` だけ平滑化している。
+
+### スタミナ（#41）
+
+`player/stamina.ts`。仕様書 2.1〜2.3 節。すべて 60Hz の固定ステップ（フレーム単位）。
+
+- `canStart(cost)`: `cost <= 0`（回復など）または残量 > 0 なら true。**消費後に 0 になる動作は開始できる**が、0 のときは新規に開始できない。`canStartAction` は `canStart()` と同じ。
+- `consume(n)`: 動作**開始時**の一括消費（0 でクランプ）。回復待ちが 45F（0 になれば 60F）で再スタート。ガード被弾（E2-6）は `HitEvent.guardStaminaCost` をこれで消費する。
+- `drain(perSecond, dt)`: 継続消費（ダッシュ毎秒 10）。0 に達したら true。ダッシュはスタミナ 0 で走りに戻り、ボタンを離すまで再開しない（`Player.dashLocked`）。
+- `update(dt, { guarding, sprinting })`: 毎ステップ 1 回。最後の消費から 45F 後に毎秒 40（0.667/F）、ガード中は毎秒 20、走り・ダッシュ中は回復しない（待ち時間は進む）。
+- `onEmpty(fn)`: 0 に達した瞬間（開始消費・継続消費・ガード被弾のどれでも）。`Player` は `events` に `staminaEmpty` を積む（HUD 点滅・SE・息切れ用）。
 
 ### アニメーション（#32）
 
