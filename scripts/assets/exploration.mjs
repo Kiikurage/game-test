@@ -548,8 +548,8 @@ export const EXPLORATION_ITEMS = {
 };
 
 // 'ironDark' は大剣の樋（暗い鉄）用の色
-COLORS_EXPLORATION.ironDark = (p, seed) => {
-  const c = COLORS.iron(p, seed);
+COLORS_EXPLORATION.ironDark = (p, seed, info) => {
+  const c = COLORS.iron(p, seed, info);
   return [c[0] * 0.35, c[1] * 0.35, c[2] * 0.35];
 };
 METAL_KINDS.add('ironDark');
