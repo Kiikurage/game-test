@@ -42,9 +42,9 @@ test('plays the requested clip and can freeze it at a given time', async ({ page
 test('shows the exploration props preview without errors (#108)', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('./?props=all&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   await page.goto('./?props=sword-back&view=back&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   await page.waitForTimeout(500);
   expect(errors).toEqual([]);
 });
