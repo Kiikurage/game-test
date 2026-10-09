@@ -1,7 +1,7 @@
 import './style.css';
 import { MainLoop } from './core/mainLoop';
 import { checkWebGPUSupport } from './core/webgpuSupport';
-import { createBrowserAudioEngine, installAudioUnlock } from './audio';
+import { createBrowserAudioEngine, createSfxSystem, installAudioUnlock } from './audio';
 import { Game } from './game/game';
 import { InputSystem, type InputDebugState } from './input';
 import { createRenderer } from './render/renderer';
@@ -22,7 +22,12 @@ interface DebugState {
   /** アセットパイプライン確認用のキャラクター表示（読み込み失敗時は undefined）。 */
   readonly showcase?: ShowcaseState;
   /** オーディオエンジンの状態（AudioContext 非対応なら undefined）。 */
-  readonly audio?: { readonly state: string };
+  readonly audio?: {
+    readonly state: string;
+    readonly sfx: { readonly loaded: number; readonly active: number; readonly stats: object };
+    /** E2E 用: game のイベントバス経由で SE を鳴らす。 */
+    readonly emitSound: (cue: string) => void;
+  };
 }
 
 declare global {
@@ -72,6 +77,13 @@ async function bootstrap(): Promise<void> {
     // 「タップして始める」UI ができたら、そのハンドラから audio.resume() を呼ぶ。
     const audio = createBrowserAudioEngine();
     if (audio) installAudioUnlock(audio, window);
+    const sfx =
+      audio &&
+      createSfxSystem(audio, game.events, {
+        baseUrl: import.meta.env.BASE_URL,
+        isMobile: readDeviceHints().isMobile,
+      });
+    void sfx?.preloadGroup('title'); // 暫定: タイトル画面ができたらそこで呼ぶ（field は敵・ボス SE 用）
 
     const loop = new MainLoop({
       update: (dt) => {
@@ -81,6 +93,7 @@ async function bootstrap(): Promise<void> {
       render: (alpha) => {
         showcase?.update();
         view.render(alpha);
+        sfx?.syncListener(view.camera);
       },
     });
     loop.start();
@@ -101,7 +114,20 @@ async function bootstrap(): Promise<void> {
         return gameRenderer.stats.scale;
       },
       get audio() {
-        return audio && { state: audio.state };
+        return (
+          audio &&
+          sfx && {
+            state: audio.state,
+            sfx: {
+              loaded: sfx.library.loadedCount,
+              active: sfx.player.activeVoices,
+              stats: { ...sfx.player.stats },
+            },
+            emitSound: (cue: string) => {
+              game.events.emit('sound', { cue });
+            },
+          }
+        );
       },
       get showcase() {
         return showcase?.state;

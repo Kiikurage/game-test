@@ -1,3 +1,4 @@
+import { EventBus, type GameEventMap } from '../core/gameEvents';
 import { InterpolatedTransform } from '../core/interpolated';
 import { createPhysics, type Physics } from './physics';
 
@@ -11,6 +12,9 @@ export const CUBE_HALF = 0.5;
  * 描画側は `cube` 等の InterpolatedTransform を読み取るだけにする。
  */
 export class Game {
+  /** game が発行するイベント（音など）。audio 層が購読する。game は Web Audio に依存しない。 */
+  readonly events = new EventBus<GameEventMap>();
+
   /** 最小シーン用の立方体（物理で落下して静止する）。 */
   readonly cube = new InterpolatedTransform();
 
