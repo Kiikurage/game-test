@@ -1,7 +1,7 @@
 import { AudioEngine } from './audioEngine';
 
 /** ブラウザの AudioContext から AudioEngine を作る。使えない環境では undefined。 */
-export function createBrowserAudioEngine(): AudioEngine | undefined {
+export function createBrowserAudioEngine(): AudioEngine<AudioContext> | undefined {
   try {
     const Ctor: typeof AudioContext | undefined =
       (globalThis as { AudioContext?: typeof AudioContext }).AudioContext ??

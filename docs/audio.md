@@ -48,3 +48,49 @@ bgm → duck → lowpass ┘
 
 - Android Chrome: Opus（`.ogg` / `.webm`）可。
 - iOS Safari: Ogg Opus の `decodeAudioData` 対応は版により不確か（古い版は Ogg コンテナ非対応）。`.m4a`（AAC）は全版で可。実機確認は人間に依頼する。パイプラインは Opus を主とし、`--m4a` で AAC フォールバックを出せる（詳細は #31 の `docs/audio-assets.md`）。
+
+## SE 再生層（Issue #35）
+
+`src/audio/` の `SoundLibrary`（ロード）+ `SfxPlayer`（再生）+ `sfxEvents`（game イベントの購読）。`createSfxSystem(engine, game.events, { baseUrl, isMobile })` が組み立てる（`main` から呼ぶ）。
+
+### game 層との境界
+
+`game` は音を鳴らさず `game.events`（`core/gameEvents.ts` の型付き `EventBus<GameEventMap>`）へ発行するだけ。audio 層が購読する。
+
+| イベント | ペイロード | cue（素材 ID またはグループ名） | 優先度 |
+| --- | --- | --- | --- |
+| `footstep` | `surface`（grass/stone/wood/crypt）, `gait`（walk/run/roll）, `source`, `position?` | `sfx.footstep-<surface>`（音量は gait で 0.55/0.85/0.7 倍） | マニフェスト（足音 30） |
+| `hit` | `kind`（light/heavy/guard/guardBreak）, `source`, `position?` | `sfx.hit-light` / `sfx.hit-heavy` / `sfx.guard` / `sfx.guard-break` | 発生源: player 90 > boss 70 > enemy 50 |
+| `sound` | `cue`, `source?`, `position?`, `volume?` | 指定した cue そのまま | `source` 指定時のみ上書き |
+
+- 追加の SE は `sound` で cue を直接渡せる。専用イベントを増やしたい場合は `GameEventMap` と `sfxEvents.toPlayRequest` に足す。
+- ヒット SE はヒットストップ開始と同じ tick で `hit` を発行する。`SfxPlayer.play` はデコード済みなら同期的に `start()` するので 0F 遅延で鳴る。
+- 位置（`position`）はプレイヤー以外の発生源だけ定位に使う（プレイヤー自身の音はカメラ近傍のため非定位）。
+
+### cue とバリエーション
+
+- cue は素材 ID、またはバリエーショングループ名。グループ名は ID 末尾の連番を除いたもの（`sfx.footstep-stone1`〜`4` → `sfx.footstep-stone`）。素材を足すだけでバリエーションが増える。
+- 直前と同じ素材は選ばない（ロード済みの中から選ぶ）。ワンショットはピッチ ±4%（`playbackRate`）、音量 ±1dB を毎回ランダム化。ループは揺らがせない。
+
+### 同時発音数
+
+PC 24 / モバイル 16（`maxVoicesFor(isMobile)`）。超過時は優先度が最も低い（同値なら最古の）ボイスを新しい要求以下の優先度のときだけ止めて譲る。それより低優先の要求は破棄。優先度は素材の `priority`（`audio.json`）、または `PlayRequest.priority` で上書き。
+
+### 空間化
+
+位置つき要求は `PannerNode`（`equalpower`、`inverse`、ref 1m、max 30m、rolloff 1.2）経由でバスへ。リスナーは毎フレーム `sfx.syncListener(camera)`（カメラの `matrixWorld`）で追従。`distanceGain()` は Web Audio の inverse モデルと同じ式（テスト用の参照実装）。
+
+### ロード
+
+- `loadManifest` が `manifest.json` を取得。素材は `preload` でロード（グループ: `title` = BGM・UI・環境音、`field` = `sfx.enemy*` / `sfx.boss*` の SE）。デコード済みバッファはキャッシュし、同時要求は 1 回に集約。失敗した素材は警告を 1 回出して以後無視（再試行しない）。
+- 未ロードの素材への `play` は取りこぼして裏でロードを始める（次回から鳴る）。`AudioContext` が `running` でないときのワンショットは破棄（再開時にまとめて鳴らないように）。ループは要求を保持し、ロード完了後に開始する。
+- 形式: `canPlayType('audio/ogg; codecs=opus')` が空文字なら `fallbackFile`（m4a）を使う。判定が外れて Opus のデコードが失敗した場合も m4a で再試行する。
+
+### ループ（環境音）
+
+`startLoop(cue, { fadeInSeconds, position?, volume? })` → `{ stop(fadeSeconds) }`、`stopLoop(cue, fade)`。同じ cue は 1 本だけ。
+
+### 後続チケット向け
+
+- BGM（レイヤー・クロスフェード）は別チケット。`SfxPlayer` はワンショットと単純ループのみ。
+- `PlayRequest` / ループは現状バスをマニフェストの `bus` で決める。
