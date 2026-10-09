@@ -16,7 +16,8 @@ function collectErrors(page: Page): string[] {
 
 test('loads the character assets and plays the idle animation', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('./');
+  // `?clip=` を付けるとキャラクター確認用のショーケース表示になる（付けなければ操作可能なプレイヤー）
+  await page.goto('./?clip=Idle_Loop');
   await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
 
   const initial = await page.evaluate(() => window.__game?.showcase);
@@ -39,5 +40,20 @@ test('plays the requested clip and can freeze it at a given time', async ({ page
   const state = await page.evaluate(() => window.__game?.showcase);
   expect(state?.clip).toBe('Roll');
   expect(state?.time).toBeCloseTo(0.5, 5);
+  expect(errors).toEqual([]);
+});
+
+test('places a dozen frozen corpses without errors (#109)', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('./?corpse=crowd&n=12&quality=low&scale=0.25');
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  const state = await page.evaluate(
+    () =>
+      (window as unknown as { __corpsePreview?: { count: number; triangles: number } })
+        .__corpsePreview,
+  );
+  expect(state?.count).toBe(12);
+  expect(state?.triangles).toBeGreaterThan(50_000);
+  await page.waitForTimeout(500);
   expect(errors).toEqual([]);
 });

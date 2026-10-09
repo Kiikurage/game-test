@@ -15,6 +15,7 @@ import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
 import { EquipmentAssets, parseLoadoutName, type LoadoutName } from './equipment';
+import { placeCorpsePreview } from '../corpses/corpsePreview';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
 import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
 
@@ -36,6 +37,7 @@ export interface ShowcaseState {
  *   `&view=front|left|right|back|close` と `&dist=<m>`  キャラクターに寄ったカメラ位置（既定はゲームのカメラのまま）
  *   `&undead=<gaunt|bloated|scorched|drowned|all>`  亡者マテリアルを適用（all は 4 バリアントを横並び）
  *   `&dissolve=<0..1>` ディゾルブ進行度、`&ember=<0..1>` 熾火の強さ（亡者のみ）
+ *   `&corpse=sitting|prone|praying|leaning|all|crowd`  遺体ポーズのプレビュー（#109。corpsePreview.ts）
  *   `&light=front|back|side|shade`  太陽に対するカメラ位置（順光 / 逆光 / 横 / 影の中: 太陽との間に遮蔽物を置き、横から撮る）。
  *   `&telegraph=<0..1>`  武器のリムライトの強調（攻撃予備動作の演出フック確認用）
  *   `&rim=0`  キャラクターの補助光（リムライト等）を切る（改善前後の比較用）
@@ -127,7 +129,9 @@ export class CharacterShowcase {
     const count = Math.max(1, undeadIds.length, loadouts.length);
     const spawned = Array.from({ length: count }, (_, i) => spawn(i, count));
     const [character, ...extras] = spawned as [Character, ...Character[]];
-    if (lightAzimuth !== undefined) {
+    if (params.has('corpse')) {
+      await placeCorpsePreview(scene, camera, assets, params);
+    } else if (lightAzimuth !== undefined) {
       applyLightView(camera, lightAzimuth, Number(params.get('dist')), spawned.length);
       if (lightMode === 'shade') addShadeOccluder(scene);
     } else {

@@ -1,0 +1,593 @@
+import { Quaternion, Vector3 } from 'three/webgpu';
+import type RAPIER from '@dimforge/rapier3d-compat';
+import { InterpolatedTransform } from '../../core/interpolated';
+import type { InputReader, InputSnapshot } from '../../core/input';
+import { MOVEMENT, PLAYER_ACTIONS, PLAYER_STATS, STAMINA, inWindow } from '../data';
+import type { LockOnTarget } from '../lockOn/targets';
+import type { Physics } from '../physics';
+import { tuning } from '../tuning';
+import { PLAYER_GROUPS } from '../world/groups';
+import {
+  approachVelocity,
+  cameraRelativeMove,
+  dashProfile,
+  lockOnTargetVelocity,
+  speedForMagnitude,
+  turnToward,
+  wrapAngle,
+  yawOf,
+  type Vec2Like,
+} from './movement';
+import { Stamina } from './stamina';
+
+/**
+ * プレイヤーの行動状態。後続の攻撃・ガード・被弾・回復（#40 など）は、ここへ状態を足して
+ * `Player.updateState` の分岐とキャンセル窓（`PLAYER_ACTIONS.*.cancels`）を使って遷移を書く。
+ * アニメーション（#32）は `Player.animation` を読む。
+ */
+export type PlayerStateId = 'idle' | 'move' | 'dash' | 'roll' | 'backstep' | 'fall' | 'land';
+
+/** ロール・バックステップ中のように、入力による通常移動を受け付けない状態。 */
+export function isDodgeState(state: PlayerStateId): boolean {
+  return state === 'roll' || state === 'backstep';
+}
+
+/** プレイヤーが 1 ステップに受け取るもの。 */
+export interface PlayerFrame {
+  readonly input: InputReader;
+  /** カメラのヨー（移動入力の基準方向）。 */
+  readonly cameraYaw: number;
+  /** ロックオン中の対象（なければ null）。 */
+  readonly lockTarget: LockOnTarget | null;
+}
+
+/** 状態遷移などの通知（SE・エフェクト・ログ用）。1 ステップごとにクリアされる。 */
+export type PlayerEvent =
+  | { readonly type: 'rollStart' }
+  | { readonly type: 'backstepStart' }
+  | { readonly type: 'land'; readonly fallHeight: number }
+  | { readonly type: 'staminaEmpty' };
+
+/** アニメーション側（#32）が読む、状態に依存しない描画用の情報。 */
+export interface PlayerAnimationState {
+  readonly state: PlayerStateId;
+  /** 現在の状態に入ってからのフレーム数（F1 起点）。 */
+  readonly stateFrame: number;
+  /** 水平速度の大きさ（m/s）。 */
+  readonly speed: number;
+  /** 水平速度を向きの座標系で表したもの。x: 右が正, z: 前が正（m/s）。 */
+  readonly localVelocity: { readonly x: number; readonly z: number };
+  readonly lockedOn: boolean;
+  /** 向き（ヨー）。 */
+  readonly yaw: number;
+}
+
+const CAPSULE_RADIUS = PLAYER_STATS.hurtCapsule.radius;
+const CAPSULE_HEIGHT = PLAYER_STATS.hurtCapsule.height;
+/** カプセル中心の足元からの高さ。 */
+const CENTER_Y = CAPSULE_HEIGHT / 2;
+const DEG = Math.PI / 180;
+/** 登れる最大傾斜（rad）。これ以上の斜面は滑る（仕様書 2.2 節）。 */
+const MAX_SLOPE_RAD = MOVEMENT.maxSlopeDeg * DEG;
+const Y_AXIS = new Vector3(0, 1, 0);
+
+const ROLL_PROFILE = dashProfile(
+  PLAYER_ACTIONS.roll.moveDistance,
+  PLAYER_ACTIONS.roll.startup + PLAYER_ACTIONS.roll.recovery,
+  { ramp: 3, hold: 15, end: 28 },
+);
+const BACKSTEP_PROFILE = dashProfile(
+  PLAYER_ACTIONS.backstep.moveDistance,
+  PLAYER_ACTIONS.backstep.startup + PLAYER_ACTIONS.backstep.recovery,
+  { ramp: 2, hold: 8, end: 20 },
+);
+const ROLL_FRAMES = ROLL_PROFILE.length;
+const BACKSTEP_FRAMES = BACKSTEP_PROFILE.length;
+
+function cancelStart(
+  cancels: readonly { to: string; start: number }[],
+  to: string,
+  fallback: number,
+): number {
+  return cancels.find((c) => c.to === to)?.start ?? fallback;
+}
+const ROLL_MOVE_CANCEL = cancelStart(PLAYER_ACTIONS.roll.cancels, 'move', 26);
+
+/**
+ * プレイヤー: Rapier のキャラクターコントローラ（カプセル・kinematic）で動く本体。
+ * 位置・向き・状態は game 層が持ち、render 層は `transform`（補間用）と `animation` を読んで描くだけ。
+ *
+ * 座標: `position` は足元。向き `yaw` は前方 = (sin yaw, cos yaw)。
+ */
+export class Player {
+  /** 足元の位置と向き（補間描画用）。 */
+  readonly transform = new InterpolatedTransform();
+  readonly stamina = new Stamina();
+
+  state: PlayerStateId = 'idle';
+  /** 現在の状態に入ってからのフレーム数（F1 起点）。 */
+  stateFrame = 0;
+  yaw = 0;
+  grounded = true;
+  /** 水平速度（x, z）。 */
+  readonly velocity: Vec2Like = { x: 0, y: 0 };
+  verticalVelocity = 0;
+  readonly events: PlayerEvent[] = [];
+
+  private readonly body: RAPIER.RigidBody;
+  private readonly collider: RAPIER.Collider;
+  private readonly controller: RAPIER.KinematicCharacterController;
+  private readonly position = new Vector3();
+  /** 実際の水平移動速度（壁で止められた分を反映して平滑化）。 */
+  private readonly actualVelocity: Vec2Like = { x: 0, y: 0 };
+  private readonly worldMove: Vec2Like = { x: 0, y: 0 };
+  private readonly tmpVelocity: Vec2Like = { x: 0, y: 0 };
+  private visualY = 0;
+  private lockedOn = false;
+  private moveMagnitude = 0;
+  private toTargetYaw = 0;
+  private dodgeDirYaw = 0;
+  private airFrames = 0;
+  private lastGroundY = 0;
+  private fallStartY = 0;
+  private landFrames = 0;
+  /** ロール終了時にボタンが押されていたら、押している間ダッシュを続ける。 */
+  private dashLatch = false;
+  /** スタミナ切れでダッシュが止まったら、ボタンを離すまで再開しない。 */
+  private dashLocked = false;
+  private dashing = false;
+  private turnRate = 0;
+  private turnResponse = 0;
+
+  constructor(physics: Physics, spawn: Vector3, yaw: number) {
+    const { rapier, world } = physics;
+    this.position.copy(spawn);
+    this.yaw = yaw;
+    this.lastGroundY = spawn.y;
+    this.visualY = spawn.y;
+
+    this.body = world.createRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(
+        spawn.x,
+        spawn.y + CENTER_Y,
+        spawn.z,
+      ),
+    );
+    this.collider = world.createCollider(
+      rapier.ColliderDesc.capsule(
+        CAPSULE_HEIGHT / 2 - CAPSULE_RADIUS,
+        CAPSULE_RADIUS,
+      ).setCollisionGroups(PLAYER_GROUPS),
+      this.body,
+    );
+
+    const c = world.createCharacterController(tuning.player.controllerOffset);
+    c.setUp({ x: 0, y: 1, z: 0 });
+    c.enableAutostep(MOVEMENT.stepHeight, tuning.player.autostepMinWidth, false);
+    c.enableSnapToGround(tuning.player.snapToGround);
+    c.setMaxSlopeClimbAngle(MAX_SLOPE_RAD);
+    c.setMinSlopeSlideAngle(MAX_SLOPE_RAD);
+    c.setSlideEnabled(true);
+    c.setApplyImpulsesToDynamicBodies(false);
+    this.controller = c;
+
+    this.syncTransform();
+    this.transform.snap();
+  }
+
+  /** 物理ボディ（カメラ衝突の問い合わせから除外するのに使う）。 */
+  get rigidBody(): RAPIER.RigidBody {
+    return this.body;
+  }
+
+  /** 指令された水平速度の大きさ（m/s）。壁で止められていても入力どおりの値。 */
+  get speed(): number {
+    return Math.hypot(this.velocity.x, this.velocity.y);
+  }
+
+  /** 足元の位置（読み取り専用として扱う）。 */
+  get feet(): Vector3 {
+    return this.position;
+  }
+
+  /** ロールの無敵フレーム中か（被ダメージ判定を持たない。2.3 節）。後続の被弾判定が参照する。 */
+  get invulnerable(): boolean {
+    if (this.state === 'roll') {
+      return inWindow(this.stateFrame, PLAYER_ACTIONS.roll.invuln);
+    }
+    if (this.state === 'backstep') {
+      return inWindow(this.stateFrame, PLAYER_ACTIONS.backstep.invuln);
+    }
+    return false;
+  }
+
+  /** アニメーション・デバッグ用の描画情報。 */
+  get animation(): PlayerAnimationState {
+    const v = this.actualVelocity;
+    const speed = Math.hypot(v.x, v.y);
+    const sin = Math.sin(this.yaw);
+    const cos = Math.cos(this.yaw);
+    return {
+      state: this.state,
+      stateFrame: this.stateFrame,
+      speed,
+      localVelocity: {
+        x: -cos * v.x + sin * v.y,
+        z: sin * v.x + cos * v.y,
+      },
+      lockedOn: this.lockedOn,
+      yaw: this.yaw,
+    };
+  }
+
+  /** スポーン・リスポーン・テレポート。補間もスナップする。 */
+  teleport(position: Vector3, yaw: number): void {
+    this.position.copy(position);
+    this.yaw = yaw;
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    this.actualVelocity.x = 0;
+    this.actualVelocity.y = 0;
+    this.verticalVelocity = 0;
+    this.airFrames = 0;
+    this.lastGroundY = position.y;
+    this.state = 'idle';
+    this.stateFrame = 0;
+    this.body.setTranslation({ x: position.x, y: position.y + CENTER_Y, z: position.z }, true);
+    this.body.setNextKinematicTranslation({
+      x: position.x,
+      y: position.y + CENTER_Y,
+      z: position.z,
+    });
+    this.syncTransform();
+    this.transform.snap();
+  }
+
+  /** 1 固定ステップ進める。物理ステップ（`physics.step`）の前に呼ぶ。 */
+  update(dt: number, frame: PlayerFrame): void {
+    this.transform.beginStep();
+    this.events.length = 0;
+    const snap = frame.input.snapshot;
+
+    cameraRelativeMove(snap.move, frame.cameraYaw, this.worldMove);
+    this.moveMagnitude = Math.min(1, Math.hypot(snap.move.x, snap.move.y));
+    this.lockedOn = frame.lockTarget !== null;
+    if (frame.lockTarget) {
+      this.toTargetYaw = yawOf(
+        frame.lockTarget.position.x - this.position.x,
+        frame.lockTarget.position.z - this.position.z,
+      );
+    }
+    this.turnRate = tuning.player.turnDegPerSecond * DEG;
+    this.turnResponse = tuning.player.turnResponse;
+    this.dashing = false;
+
+    // ダッシュのラッチ解除
+    if (!snap.sprint && !snap.buttons.dodge.held) {
+      this.dashLatch = false;
+      this.dashLocked = false;
+    }
+
+    // 状態更新。遷移した場合は新しい状態の F1 を同じステップ内で実行する（入力から動き出しまで 0 フレーム）。
+    for (let i = 0; i < 3; i++) {
+      this.stateFrame++;
+      const next = this.updateState(dt, snap, frame);
+      if (next === null) break;
+      this.enterState(next);
+    }
+
+    this.applyFacing(frame, dt);
+    this.stamina.update(dt, this.regenMode());
+    this.moveBody(dt);
+    this.syncTransform(dt);
+  }
+
+  // ---- 状態 ----
+
+  private updateState(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
+    switch (this.state) {
+      case 'idle':
+      case 'move':
+      case 'dash':
+        return this.updateGround(dt, snap, frame);
+      case 'roll':
+        return this.updateRoll(snap);
+      case 'backstep':
+        return this.updateBackstep();
+      case 'fall':
+        return this.updateFall(dt, snap, frame);
+      case 'land':
+        return this.updateLand(dt, snap, frame);
+    }
+  }
+
+  private enterState(next: PlayerStateId): void {
+    this.state = next;
+    this.stateFrame = 0;
+    switch (next) {
+      case 'roll': {
+        this.stamina.consume(PLAYER_ACTIONS.roll.staminaCost);
+        // 入力方向（カメラ基準）へ。向きは以降の更新で素早く合わせる。
+        this.dodgeDirYaw = yawOf(this.worldMove.x, this.worldMove.y);
+        this.events.push({ type: 'rollStart' });
+        break;
+      }
+      case 'backstep':
+        this.stamina.consume(PLAYER_ACTIONS.backstep.staminaCost);
+        this.dodgeDirYaw = wrapAngle(this.yaw + Math.PI);
+        this.events.push({ type: 'backstepStart' });
+        break;
+      case 'fall':
+        this.fallStartY = this.lastGroundY;
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** idle / move / dash 共通。 */
+  private updateGround(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+
+    // 回避（先行入力を含む）。ボタンを離した瞬間に確定した入力が対象。スタミナ 0 では開始できない。
+    const dodge = this.tryDodge(frame);
+    if (dodge) return dodge;
+
+    this.computeLocomotion(dt, snap, frame, 1);
+    return null;
+  }
+
+  private tryDodge(frame: PlayerFrame): PlayerStateId | null {
+    if (!this.stamina.canStartAction) return null;
+    if (!frame.input.hasBuffered('dodge')) return null;
+    frame.input.consumeBuffered('dodge');
+    return this.moveMagnitude > 0.001 ? 'roll' : 'backstep';
+  }
+
+  /**
+   * 通常移動（走り・歩き・ダッシュ・ロックオンのストレイフ）の目標速度を決めて速度へ反映する。
+   * `speedFactor` は着地硬直などの減速係数。
+   */
+  private computeLocomotion(
+    dt: number,
+    snap: InputSnapshot,
+    frame: PlayerFrame,
+    speedFactor: number,
+    mode: 'ground' | 'air' | 'land' = 'ground',
+  ): void {
+    const airborne = mode === 'air';
+    const p = tuning.player;
+    const m = this.moveMagnitude;
+    const wantsDash =
+      (snap.sprint || this.dashLatch) &&
+      m > 0.1 &&
+      !this.dashLocked &&
+      this.stamina.canStartAction &&
+      !airborne &&
+      speedFactor >= 1;
+
+    let tx = 0;
+    let tz = 0;
+    if (m > 0) {
+      if (frame.lockTarget) {
+        const dashSpeed = p.lockOnDash;
+        const scale = wantsDash ? 1 : speedForMagnitude(m, p) / p.run;
+        lockOnTargetVelocity(
+          this.worldMove,
+          this.toTargetYaw,
+          wantsDash
+            ? { side: dashSpeed, back: dashSpeed }
+            : { side: p.lockOnSide, back: p.lockOnBack },
+          scale,
+          this.tmpVelocity,
+        );
+        tx = this.tmpVelocity.x;
+        tz = this.tmpVelocity.y;
+      } else {
+        const speed = wantsDash ? p.dash * Math.min(1, m / p.runMinInput) : speedForMagnitude(m, p);
+        tx = (this.worldMove.x / m) * speed;
+        tz = (this.worldMove.y / m) * speed;
+      }
+    }
+    tx *= speedFactor;
+    tz *= speedFactor;
+
+    const topSpeed = p.run;
+    const accel = airborne ? p.airAccel : topSpeed / (p.accelFrames / 60);
+    const decel = airborne ? p.airAccel * 0.5 : topSpeed / (p.stopFrames / 60);
+    this.tmpVelocity.x = tx;
+    this.tmpVelocity.y = tz;
+    approachVelocity(this.velocity, this.tmpVelocity, accel, decel, dt);
+
+    if (wantsDash) {
+      this.dashing = true;
+      if (this.stamina.drain(STAMINA.dashCostPerSecond, dt)) {
+        this.dashLocked = true;
+        this.dashLatch = false;
+        this.events.push({ type: 'staminaEmpty' });
+      }
+    }
+    if (mode === 'ground') {
+      this.setLocomotionLabel(m <= 0 ? 'idle' : this.dashing ? 'dash' : 'move');
+    }
+  }
+
+  private setLocomotionLabel(label: 'idle' | 'move' | 'dash'): void {
+    if (this.state === label) return;
+    this.state = label;
+    this.stateFrame = 1;
+  }
+
+  private updateRoll(snap: InputSnapshot): PlayerStateId | null {
+    const f = this.stateFrame;
+    // 向きは入力方向へ素早く合わせる（ロックオン中も、終了後に対象方向へ戻す）
+    this.turnRate = tuning.player.rollTurnDegPerSecond * DEG;
+    this.turnResponse = 40;
+
+    const dist = ROLL_PROFILE[f - 1] ?? 0;
+    this.velocity.x = Math.sin(this.dodgeDirYaw) * dist * 60;
+    this.velocity.y = Math.cos(this.dodgeDirYaw) * dist * 60;
+
+    // F26 から移動へキャンセル可（移動入力があるとき）。入力がなければ F32 まで硬直。
+    if (f >= ROLL_FRAMES || (f >= ROLL_MOVE_CANCEL && this.moveMagnitude > 0.001)) {
+      return this.afterDodgeState(snap);
+    }
+    return null;
+  }
+
+  private updateBackstep(): PlayerStateId | null {
+    const f = this.stateFrame;
+    const dist = BACKSTEP_PROFILE[f - 1] ?? 0;
+    this.velocity.x = Math.sin(this.dodgeDirYaw) * dist * 60;
+    this.velocity.y = Math.cos(this.dodgeDirYaw) * dist * 60;
+    // 向きは変えない（ロックオン中は対象を向いたまま）
+    this.turnRate = 0;
+    if (f >= BACKSTEP_FRAMES) return this.moveMagnitude > 0 ? 'move' : 'idle';
+    return null;
+  }
+
+  /** ロール終了・キャンセル時の遷移先。ボタンが押されていればダッシュへ（2.3 節）。 */
+  private afterDodgeState(snap: InputSnapshot): PlayerStateId {
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (snap.buttons.dodge.held && this.moveMagnitude > 0.1) this.dashLatch = true;
+    return this.moveMagnitude > 0 ? (this.dashLatch ? 'dash' : 'move') : 'idle';
+  }
+
+  private updateFall(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
+    if (this.grounded) {
+      const height = this.fallStartY - this.position.y;
+      const p = tuning.player;
+      if (height >= p.landMinHeight) {
+        this.landFrames = height >= p.hardLandHeight ? p.hardLandFrames : p.landFrames;
+        this.events.push({ type: 'land', fallHeight: height });
+        return 'land';
+      }
+      this.events.push({ type: 'land', fallHeight: height });
+      return this.moveMagnitude > 0 ? 'move' : 'idle';
+    }
+    this.computeLocomotion(dt, snap, frame, 1, 'air');
+    return null;
+  }
+
+  private updateLand(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    // 着地の途中からロールで抜けられる
+    if (this.stateFrame >= 4) {
+      const dodge = this.tryDodge(frame);
+      if (dodge) return dodge;
+    }
+    if (this.stateFrame > this.landFrames) return this.moveMagnitude > 0 ? 'move' : 'idle';
+    this.computeLocomotion(dt, snap, frame, tuning.player.landSpeedFactor, 'land');
+    return null;
+  }
+
+  // ---- 向き・スタミナ・移動 ----
+
+  private applyFacing(frame: PlayerFrame, dt: number): void {
+    if (this.state === 'roll') {
+      this.yaw = turnToward(this.yaw, this.dodgeDirYaw, this.turnRate, this.turnResponse, dt);
+      return;
+    }
+    if (this.state === 'backstep') return;
+
+    let target: number | null = null;
+    let rate = this.turnRate;
+    let response = this.turnResponse;
+    if (frame.lockTarget) {
+      target = this.toTargetYaw;
+      rate = tuning.player.lockOnTurnDegPerSecond * DEG;
+      response = tuning.player.lockOnTurnResponse;
+    } else if (this.moveMagnitude > 0.001 && this.state !== 'land') {
+      target = yawOf(this.worldMove.x, this.worldMove.y);
+    }
+    if (target !== null) {
+      this.yaw = turnToward(this.yaw, target, rate, response, dt);
+    }
+  }
+
+  private regenMode(): 'normal' | 'none' {
+    // 走り・ダッシュ中は回復しない（歩き以下は回復する）
+    if (this.dashing) return 'none';
+    if (
+      this.state === 'move' &&
+      Math.hypot(this.velocity.x, this.velocity.y) > tuning.player.walk + 0.3
+    ) {
+      return 'none';
+    }
+    return 'normal';
+  }
+
+  private moveBody(dt: number): void {
+    const p = tuning.player;
+    if (this.grounded) {
+      // 接地中は下向きの移動量を与えない（与えるとオートステップが働かない）。地面への吸着は snapToGround が担う。
+      this.verticalVelocity = 0;
+    } else {
+      this.verticalVelocity = Math.max(-45, this.verticalVelocity - p.gravity * dt);
+    }
+
+    this.controller.setOffset(p.controllerOffset);
+    this.controller.computeColliderMovement(
+      this.collider,
+      {
+        x: this.velocity.x * dt,
+        y: this.verticalVelocity * dt,
+        z: this.velocity.y * dt,
+      },
+      undefined,
+      PLAYER_GROUPS,
+    );
+    const move = this.controller.computedMovement();
+    this.position.x += move.x;
+    this.position.y += move.y;
+    this.position.z += move.z;
+
+    // 実際に動けた速度（壁に押し付けても走りアニメが空回りしないよう、描画側はこちらを読む）
+    if (dt > 0) {
+      const k = 1 - Math.exp(-dt / 0.04);
+      this.actualVelocity.x += (move.x / dt - this.actualVelocity.x) * k;
+      this.actualVelocity.y += (move.z / dt - this.actualVelocity.y) * k;
+    }
+
+    const wasGrounded = this.grounded;
+    this.grounded = this.controller.computedGrounded();
+    if (this.grounded) {
+      this.airFrames = 0;
+      this.lastGroundY = this.position.y;
+      if (!wasGrounded) this.verticalVelocity = 0;
+    } else {
+      this.airFrames++;
+    }
+
+    this.body.setNextKinematicTranslation({
+      x: this.position.x,
+      y: this.position.y + CENTER_Y,
+      z: this.position.z,
+    });
+  }
+
+  /**
+   * 描画用の Transform を更新する。段差を自動で乗り越えたときの足元の跳ね上がりは、
+   * 見た目だけ短い時定数でならす（物理の位置・カメラの注視点は実位置のまま）。
+   */
+  private syncTransform(dt = 0): void {
+    const dy = this.position.y - this.visualY;
+    if (dt > 0 && this.grounded && Math.abs(dy) < 0.6) {
+      this.visualY += dy * (1 - Math.exp(-dt / 0.05));
+    } else {
+      this.visualY = this.position.y;
+    }
+    this.transform.position.set(this.position.x, this.visualY, this.position.z);
+    this.transform.quaternion.copy(yawQuaternion(this.yaw));
+  }
+
+  /** 回避確定と同様、後続の戦闘用に外部から行動不能にできる口。 */
+  get isActionable(): boolean {
+    return this.state !== 'roll' && this.state !== 'backstep' && this.state !== 'land';
+  }
+}
+
+const tmpQuat = new Quaternion();
+function yawQuaternion(yaw: number): Quaternion {
+  return tmpQuat.setFromAxisAngle(Y_AXIS, yaw);
+}
