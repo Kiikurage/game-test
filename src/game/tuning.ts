@@ -1,4 +1,14 @@
-import { CAMERA, LOCK_ON, MOVEMENT } from './data';
+import {
+  BOSS_KILL_SLOWMO,
+  CAMERA,
+  HEAVY_CHARGED_SCREEN_SHAKE_DEG,
+  HEAVY_CHARGED_SCREEN_SHAKE_FRAMES,
+  HIT_FLASH,
+  HIT_STOP,
+  KILL_SLOWMO,
+  LOCK_ON,
+  MOVEMENT,
+} from './data';
 
 /**
  * プレイヤー・カメラ・ロックオンの調整値を一箇所に集約したもの。
@@ -48,6 +58,29 @@ export type Tuning = {
     controllerOffset: number;
     snapToGround: number;
     autostepMinWidth: number;
+  };
+  /** ヒットストップ・撃破スロー・付随演出（仕様書 4.1 節。手触りの肝なので `?debug` で調整できる）。 */
+  readonly hitStop: {
+    /** false で全部オフ（ヒットストップなしとの比較用）。 */
+    enabled: boolean;
+    /** 凍結フレーム数（60Hz）。 */
+    playerLight: number;
+    playerHeavy: number;
+    playerHeavyCharged: number;
+    enemyHitsPlayer: number;
+    bossHitsPlayer: number;
+    guardSuccess: number;
+    justGuard: number;
+    kill: number;
+    /** 撃破スロー（グローバルのタイムスケールと、その長さ = シミュレーションフレーム数）。 */
+    killSlowmoScale: number;
+    killSlowmoFrames: number;
+    bossKillSlowmoFrames: number;
+    /** フル溜め強攻撃の画面振動（度・フレーム）。 */
+    chargedShakeDeg: number;
+    chargedShakeFrames: number;
+    redFlashFrames: number;
+    whiteFlashFrames: number;
   };
   /** 被弾リアクション（`?debug` で調整）。押し戻しは距離（仕様書 4.4 節）を何ステップで滑らせるか。 */
   readonly reaction: {
@@ -127,6 +160,24 @@ function createTuning(): Tuning {
       controllerOffset: 0.02,
       snapToGround: 0.4,
       autostepMinWidth: 0.1,
+    },
+    hitStop: {
+      enabled: true,
+      playerLight: HIT_STOP.playerLight,
+      playerHeavy: HIT_STOP.playerHeavy,
+      playerHeavyCharged: HIT_STOP.playerHeavyCharged,
+      enemyHitsPlayer: HIT_STOP.enemyHitsPlayer,
+      bossHitsPlayer: HIT_STOP.bossHitsPlayer,
+      guardSuccess: HIT_STOP.guardSuccess,
+      justGuard: HIT_STOP.justGuard,
+      kill: HIT_STOP.kill,
+      killSlowmoScale: KILL_SLOWMO.timeScale,
+      killSlowmoFrames: KILL_SLOWMO.frames,
+      bossKillSlowmoFrames: BOSS_KILL_SLOWMO.frames,
+      chargedShakeDeg: HEAVY_CHARGED_SCREEN_SHAKE_DEG,
+      chargedShakeFrames: HEAVY_CHARGED_SCREEN_SHAKE_FRAMES,
+      redFlashFrames: HIT_FLASH.redFrames,
+      whiteFlashFrames: HIT_FLASH.whiteFrames,
     },
     reaction: {
       lightSlideFrames: 8,
