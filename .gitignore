@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 assets-src/quaternius/
 assets-src/.fetch-*/
+__pycache__/
+*.pyc

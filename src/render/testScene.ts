@@ -53,7 +53,7 @@ function createRng(seed: number): () => number {
 const TERRAIN_SIZE = 360;
 const TERRAIN_SEGMENTS = 200;
 
-function createTerrainGeometry(): BufferGeometry {
+export function createTerrainGeometry(): BufferGeometry {
   const geometry = new PlaneGeometry(
     TERRAIN_SIZE,
     TERRAIN_SIZE,
@@ -233,8 +233,19 @@ function createRocks(rng: () => number, avoid: (x: number, z: number) => boolean
   return mergeToMesh(geoms, createRockMaterial());
 }
 
-/** 欠けた柱・倒れた柱・アーチからなる遺跡。 */
-function createRuins(rng: () => number): Mesh {
+/** 衝突用の円柱（柱・倒れた柱）。`y` は底面の高さ。`euler` を指定した場合（倒れた柱）は `y` が中心の高さ。 */
+export interface ColliderCylinder {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly radius: number;
+  readonly height: number;
+  /** XYZ オイラー角（ラジアン）。 */
+  readonly euler?: readonly [number, number, number];
+}
+
+/** 欠けた柱・倒れた柱・アーチからなる遺跡。立っている柱は衝突用に `pillars` へ記録する。 */
+function createRuins(rng: () => number, pillars: ColliderCylinder[]): Mesh {
   const shaft = new CylinderGeometry(0.62, 0.7, 1, 14, 1);
   const cap = new BoxGeometry(1.7, 0.35, 1.7);
   const block = new BoxGeometry(1, 1, 1);
@@ -248,6 +259,7 @@ function createRuins(rng: () => number): Mesh {
     geoms.push(
       place(shaft, new Vector3(x, y + height / 2 - 0.2, z), rot, new Vector3(1, height + 0.4, 1)),
     );
+    pillars.push({ x, y, z, radius: 0.72, height: height + 0.4 });
     geoms.push(place(cap, new Vector3(x, y + 0.1, z), zero, one)); // 柱礎
     if (withCap) geoms.push(place(cap, new Vector3(x, y + height + 0.1, z), rot, one));
   };
@@ -274,6 +286,24 @@ function createRuins(rng: () => number): Mesh {
   // 手前の側の独立した柱と倒れた柱
   pillar(9, 3, 5.5, false, 0.04);
   pillar(-10, 6, 6.5, true);
+  pillars.push(
+    {
+      x: 5.5,
+      y: terrainHeight(5.5, -3) + 0.65,
+      z: -3,
+      radius: 0.66,
+      height: 5.2,
+      euler: [0, 0.4, Math.PI / 2],
+    },
+    {
+      x: 8.2,
+      y: terrainHeight(8.2, -4.2) + 0.5,
+      z: -4.2,
+      radius: 0.6,
+      height: 2.2,
+      euler: [0, 1.2, Math.PI / 2 + 0.2],
+    },
+  );
   geoms.push(
     place(
       shaft,
@@ -458,6 +488,22 @@ function smoothstepJs(e0: number, e1: number, x: number): number {
 
 export interface TestScene {
   readonly root: Group;
+  /** 立っている柱の衝突用円柱（物理側へ渡す）。 */
+  readonly pillars: readonly ColliderCylinder[];
+}
+
+/**
+ * 地形の衝突メッシュ（描画と同じ頂点・三角形）。物理（Game）へ渡して、見た目と当たりを一致させる。
+ */
+export function createTerrainCollisionMesh(): { vertices: Float32Array; indices: Uint32Array } {
+  const geometry = createTerrainGeometry();
+  const position = geometry.attributes.position;
+  const index = geometry.index;
+  if (!position || !index) throw new Error('terrain geometry is missing position/index');
+  const vertices = new Float32Array(position.array);
+  const indices = Uint32Array.from(index.array);
+  geometry.dispose();
+  return { vertices, indices };
 }
 
 /**
@@ -474,7 +520,8 @@ export function createTestScene(preset: QualityPreset): TestScene {
 
   const nearRuins = (x: number, z: number): boolean => Math.hypot(x, z) < 11;
   root.add(createRocks(rng, nearRuins));
-  root.add(createRuins(rng));
+  const pillars: ColliderCylinder[] = [];
+  root.add(createRuins(rng, pillars));
   root.add(createDeadTrees(rng));
 
   const grass = createGrass(preset.grassCount, rng);
@@ -484,5 +531,5 @@ export function createTestScene(preset: QualityPreset): TestScene {
   marker.position.set(-3.2, 0, -2.4);
   root.add(marker);
 
-  return { root };
+  return { root, pillars };
 }

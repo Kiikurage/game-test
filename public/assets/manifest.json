@@ -243,5 +243,119 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 1284028
+  "totalBytes": 1395580,
+  "equipment": {
+    "file": "equipment.glb",
+    "bytes": 111552,
+    "triangles": 4490,
+    "textureMemoryBytes": 0,
+    "items": {
+      "Sword_Rusty": {
+        "triangles": 252,
+        "bone": "hand_r"
+      },
+      "Axe_Rusty": {
+        "triangles": 116,
+        "bone": "hand_r"
+      },
+      "GreatAxe": {
+        "triangles": 200,
+        "bone": "hand_r"
+      },
+      "GreatShield": {
+        "triangles": 248,
+        "bone": "lowerarm_l"
+      },
+      "Cuirass": {
+        "triangles": 248,
+        "bone": "spine_03"
+      },
+      "CuirassHeavy": {
+        "triangles": 326,
+        "bone": "spine_03"
+      },
+      "Pauldron_L": {
+        "triangles": 224,
+        "bone": "upperarm_l"
+      },
+      "Pauldron_R": {
+        "triangles": 224,
+        "bone": "upperarm_r"
+      },
+      "PauldronLarge_L": {
+        "triangles": 544,
+        "bone": "upperarm_l"
+      },
+      "PauldronLarge_R": {
+        "triangles": 544,
+        "bone": "upperarm_r"
+      },
+      "Vambrace_L": {
+        "triangles": 120,
+        "bone": "lowerarm_l"
+      },
+      "Vambrace_R": {
+        "triangles": 120,
+        "bone": "lowerarm_r"
+      },
+      "Greave_L": {
+        "triangles": 144,
+        "bone": "calf_l"
+      },
+      "Greave_R": {
+        "triangles": 144,
+        "bone": "calf_r"
+      },
+      "Tassets": {
+        "triangles": 92,
+        "bone": "pelvis"
+      },
+      "Helm_Pot": {
+        "triangles": 312,
+        "bone": "Head"
+      },
+      "Helm_Great": {
+        "triangles": 424,
+        "bone": "Head"
+      },
+      "Cape": {
+        "triangles": 208,
+        "bone": "spine_03"
+      }
+    },
+    "loadouts": {
+      "soldier": [
+        "Sword_Rusty",
+        "Cuirass",
+        "Pauldron_L",
+        "Pauldron_R"
+      ],
+      "shieldbearer": [
+        "Axe_Rusty",
+        "GreatShield",
+        "Helm_Pot",
+        "Pauldron_L",
+        "Pauldron_R"
+      ],
+      "boss": [
+        "GreatAxe",
+        "GreatShield",
+        "Helm_Great",
+        "CuirassHeavy",
+        "PauldronLarge_L",
+        "PauldronLarge_R",
+        "Vambrace_L",
+        "Vambrace_R",
+        "Tassets",
+        "Greave_L",
+        "Greave_R",
+        "Cape"
+      ]
+    },
+    "loadoutTriangles": {
+      "soldier": 948,
+      "shieldbearer": 1124,
+      "boss": 3114
+    }
+  }
 }

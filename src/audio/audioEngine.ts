@@ -33,7 +33,7 @@ const PAUSE_FILTER_FADE_SECONDS = 0.25;
  *
  * 各素材の再生側は `input(bus)` で得たノードへ接続する（ローダ・再生は E7-1b 以降）。
  */
-export class AudioEngine {
+export class AudioEngine<C extends AudioContextLike = AudioContextLike> {
   private readonly buses: Record<BusName, GainNodeLike>;
   private readonly volumes: Record<BusName, number> = { ...DEFAULT_VOLUME };
   private readonly duckGain: GainNodeLike;
@@ -43,7 +43,8 @@ export class AudioEngine {
   private resumePromise: Promise<AudioContextStateLike> | undefined;
   private readonly stateListeners = new Set<(state: AudioContextStateLike) => void>();
 
-  constructor(private readonly ctx: AudioContextLike) {
+  constructor(readonly context: C) {
+    const ctx = context;
     const master = ctx.createGain();
     const children = {} as Record<ChildBusName, GainNodeLike>;
     for (const name of CHILD_BUSES) children[name] = ctx.createGain();
@@ -68,11 +69,11 @@ export class AudioEngine {
   }
 
   get state(): AudioContextStateLike {
-    return this.ctx.state;
+    return this.context.state;
   }
 
   get currentTime(): number {
-    return this.ctx.currentTime;
+    return this.context.currentTime;
   }
 
   /** 素材の再生ノードを接続する先（バスの入力）。 */
@@ -91,13 +92,13 @@ export class AudioEngine {
    * 既に running なら何もしない。失敗しても例外は投げず、結果の状態を返す。
    */
   resume(): Promise<AudioContextStateLike> {
-    if (this.ctx.state === 'running' || this.ctx.state === 'closed') {
-      return Promise.resolve(this.ctx.state);
+    if (this.context.state === 'running' || this.context.state === 'closed') {
+      return Promise.resolve(this.context.state);
     }
     // resume() はジェスチャ内で同期的に呼ぶ必要があるため、await を挟まずに起動する。
-    const p = (this.resumePromise ??= this.ctx.resume().then(
-      () => this.ctx.state,
-      () => this.ctx.state,
+    const p = (this.resumePromise ??= this.context.resume().then(
+      () => this.context.state,
+      () => this.context.state,
     ));
     void p.then(() => {
       if (this.resumePromise === p) this.resumePromise = undefined;
@@ -122,7 +123,7 @@ export class AudioEngine {
 
   /** BGM をダッキングする。解放用の ID を返す（`holdSeconds` 指定時は自動で戻る）。 */
   duckBgm(opts: DuckOptions): number {
-    const now = this.ctx.currentTime;
+    const now = this.context.currentTime;
     const id = this.duckEnvelope.start(now, opts);
     this.scheduleDuck(now);
     return id;
@@ -130,7 +131,7 @@ export class AudioEngine {
 
   /** `holdSeconds` なしで開始したダッキングを解除する。 */
   releaseDuck(id: number, releaseSeconds?: number): void {
-    const now = this.ctx.currentTime;
+    const now = this.context.currentTime;
     this.duckEnvelope.release(now, id, releaseSeconds);
     this.scheduleDuck(now);
   }
@@ -140,7 +141,7 @@ export class AudioEngine {
     if (this.paused === paused) return;
     this.paused = paused;
     const f = this.lowpass.frequency;
-    const now = this.ctx.currentTime;
+    const now = this.context.currentTime;
     f.cancelScheduledValues(now);
     f.setValueAtTime(f.value, now);
     f.linearRampToValueAtTime(
@@ -155,7 +156,7 @@ export class AudioEngine {
 
   private applyVolume(bus: BusName): void {
     const g = this.buses[bus].gain;
-    const now = this.ctx.currentTime;
+    const now = this.context.currentTime;
     g.cancelScheduledValues(now);
     g.setValueAtTime(volumeToGain(this.volumes[bus]), now);
   }
