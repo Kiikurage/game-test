@@ -9,6 +9,7 @@
 
 | パス | 内容 |
 | --- | --- |
+| `AGENTS.md` | エージェント運用ルール（チケット・ブランチ・PR・レビュー） |
 | `docs/` | 企画・設計・方針などの文書 |
 | `site/` | GitHub Pages で公開する静的ファイル（現在はダミーページ） |
 | `.github/workflows/` | GitHub Actions（Pages へのデプロイ） |
