@@ -278,3 +278,33 @@ test.describe('touch (mobile landscape)', () => {
     await expect.poll(async () => (await sim(page)).lockOn.targetId).toBeNull();
   });
 });
+
+test('a swing hits the dummy in front exactly once (hit resolution, ?debug wireframes)', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+  page.on('pageerror', (err) => errors.push(err.message));
+  await page.goto('./?scene=test&quality=low&scale=0.25&debug');
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await expect.poll(async () => (await sim(page)).player.grounded).toBe(true);
+
+  // dummy-a (0, -6) の 1.5m 手前で北向き
+  await teleport(page, 0, -4.5, Math.PI);
+  expect((await sim(page)).combat.hits).toBe(0);
+  await page.evaluate(() => {
+    window.__game?.dev.swing();
+  });
+  await expect.poll(async () => (await sim(page)).combat.hits, { timeout: 30_000 }).toBe(1);
+  // 持続が終わるまで待っても 2 回目は起きない
+  const steps = await page.evaluate(() => window.__game?.steps ?? 0);
+  await expect
+    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
+    .toBeGreaterThan(steps + 40);
+  const after = await sim(page);
+  expect(after.combat.hits).toBe(1);
+  expect(after.combat.lastHitTarget).toBe('dummy-a');
+  expect(errors).toEqual([]);
+});

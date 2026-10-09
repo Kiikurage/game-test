@@ -108,3 +108,23 @@ interface LockOnTarget {
 ## E2E / デバッグ用
 
 `window.__game.sim`（プレイヤー・カメラ・ロックオン・イベント累計）、`window.__game.dev`（`teleport(x, z, yaw)` / `pause(bool)` / `lock(id)` / `view(yawOffset, distance, pitchDeg)` / `pose(layer, time)`）、`window.__game.playerView`（再生中のクリップ）。`npm run shot` は `SHOT_SCRIPT=<module>` で撮影前に入力を注入できる（default export の `async (page, { name, index }) => {}`）。
+
+## 判定・ダメージ解決（#40）
+
+`src/game/combat/`（three 非依存）。仕様は vertical-slice.md の 2.3 / 4.2 節。
+
+```ts
+game.combat                          // HitResolver
+game.combat.addTarget(target)        // 被弾側（HitTarget）。UprightTarget が直立キャラの標準実装
+const atk = game.combat.startAttack(attackerId, 'player' | 'enemy', profile)   // 動作開始時（1 スイング = 1 インスタンス）
+game.combat.prime(atk, shape)        // 判定開始直前の姿勢（初回からスイープにする）
+game.combat.resolve(atk, shape)      // hitActive 中の毎ステップ。HitEvent[] を返す（ヒットストップ中は呼ばない）
+game.combat.endAttack(atk)
+game.combat.onHit((e: HitEvent) => …) // ヒットストップ・被弾リアクション・SE・パーティクルが購読
+```
+
+- **形状**（`shapes.ts`）: `capsuleShape`（武器: 半径 0.25m・長さ 1.1m。`WeaponPoseSource` がボーン姿勢を渡す）/ `sectorShape`（水平の扇形。`arcDeg >= 360` が全周、`circleShape`）。突進は原点が動く扇形で、前フレーム → 現在をスイープする。武器カプセルは端点を 0.1m 刻みで補間して判定するのでトンネリングしない。
+- **ハートボックス**: `UprightTarget(id, team, maxHp, HeartboxSpec[])`。敵・ボスは複数カプセル可（頭部判定なしなど）。`place(x, y, z, yaw)` で毎ステップ追従させ、`invulnerable`（無敵 F・被弾後無敵）・`staggered`（崩し中 ×1.5）・`guard`（E2-6）を持ち主が更新する。プレイヤーは `game.playerTarget`（`player.invulnerable` を毎ステップ反映）。
+- **ダメージ**: `AttackProfile.damage`（整数）。崩し中 ×1.5（四捨五入）、ガード成功は `guardChipDamage`（10%、切り捨て）、ジャストは 0。ガード側が失うスタミナは `HitEvent.guardStaminaCost`（ジャストは 50%）で返し、消費は E2-6 が `stamina.consume` で行う。強靭度削りは `HitEvent.poiseDamage`（ガード時 0）。HP が 0 になった命中は `killed: true`。
+- **遮蔽**: `isBlocked`（Rapier のレイキャスト、地形・静的物のみ）で壁越しには当たらない。
+- **?debug**: `render/combatDebugView.ts` がハートボックス（プレイヤー緑・敵水色・無敵中は灰紫）とヒットボックス（赤、命中で黄）をワイヤ表示する。`window.__game.dev.swing()` で仮の横斬り（軽攻撃 1 の 12F + 4F）を出せる（実際の攻撃動作は #46）。
