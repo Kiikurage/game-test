@@ -4,3 +4,5 @@ export * from './shapes';
 export * from './uprightTarget';
 export * from './weaponPose';
 export * from './debugSwing';
+export * from './poise';
+export * from './hitReactor';

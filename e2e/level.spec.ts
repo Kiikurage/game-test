@@ -114,6 +114,59 @@ test('the chapel walls block the player (no walking through them)', async ({ pag
   expect(p.x).toBeLessThan(39.8);
 });
 
+test('the player can walk from the bonfire through C, the catacomb D and the courtyard E to the arena F', async ({
+  page,
+}) => {
+  test.setTimeout(480_000);
+  await boot(page);
+  // メインルート全体を入力（W 押しっぱなし + 向き）だけで走破する。テレポートはしない
+  const route: [number, number][] = [
+    [10, 0],
+    [22, 6],
+    [32, 12],
+    [40, 17],
+    [52, 17],
+    [58, 21],
+    [58.5, 27],
+    [61, 28],
+    [62, 36],
+    [62, 46],
+    [63.5, 48.5],
+    [78, 48.5],
+    [84, 51],
+    [91.5, 52.5],
+    [98.5, 56],
+    [102, 62],
+    [104, 68],
+    [111, 75],
+    [118, 82],
+  ];
+  await walkThrough(page, route);
+  const end = (await sim(page)).player;
+  // 闘技場の床（高さ 9.9m）の上に立っている。壁抜け・落下はしていない
+  expect(Math.hypot(end.position.x - 118, end.position.z - 82)).toBeLessThan(2);
+  expect(end.position.y).toBeGreaterThan(9.6);
+  expect(end.position.y).toBeLessThan(10.3);
+  expect(end.grounded).toBe(true);
+});
+
+test('rolling in the 2.5m catacomb corridor does not pass through its walls', async ({ page }) => {
+  await boot(page);
+  // L 字の第 1 区間（x 60.75..63.25）の中央から東の壁へ向かってロール（W + Space の短押し）
+  await page.evaluate(() => {
+    window.__game?.dev.teleport(62, 42, Math.PI / 2);
+  });
+  await page.waitForTimeout(500);
+  await page.keyboard.down('KeyW');
+  await page.keyboard.press('Space');
+  await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
+  await page.waitForTimeout(1500);
+  await page.keyboard.up('KeyW');
+  const p = (await sim(page)).player.position;
+  expect(p.x).toBeGreaterThan(60.75);
+  expect(p.x).toBeLessThan(63.25);
+});
+
 test('?scene=test still opens the old test scene', async ({ page }) => {
   await page.goto('./?scene=test&quality=low&scale=0.25');
   await startGame(page);

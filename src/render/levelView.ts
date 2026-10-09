@@ -44,6 +44,7 @@ const BLOCK_COLOR: Record<BlockStyle, number> = {
   stairs: 0x948e82,
   bonfire: 0x55504a,
   stone: 0x9a968c,
+  sarcophagus: 0x7c776d,
 };
 
 /** 地形メッシュ（物理と同じ頂点）。頂点色は地表素材・道・勾配から決める。 */
@@ -93,6 +94,8 @@ function boxMesh(spec: PlacedBox, materials: Map<number, MeshStandardNodeMateria
 
 const BARK = new MeshStandardNodeMaterial({ color: 0x3f352c, roughness: 1, metalness: 0 });
 const COLUMN = new MeshStandardNodeMaterial({ color: 0x8a8378, roughness: 0.9, metalness: 0 });
+const WATER = new MeshStandardNodeMaterial({ color: 0x2a3a4a, roughness: 0.2, metalness: 0 });
+const IRON = new MeshStandardNodeMaterial({ color: 0x2c2b2a, roughness: 0.6, metalness: 0.5 });
 
 function cylinderObject(c: PlacedCylinder): Group {
   const group = new Group();
@@ -113,6 +116,38 @@ function cylinderObject(c: PlacedCylinder): Group {
       m.castShadow = true;
       m.receiveShadow = true;
     }
+  } else if (c.style === 'fountain') {
+    // 崩れた噴水: 低い水盤の縁と、折れた中央の柱
+    const basin = new Mesh(
+      new CylinderGeometry(c.radius, c.radius * 1.05, c.height * 0.8, 20),
+      COLUMN,
+    );
+    basin.position.y = c.height * 0.4;
+    const water = new Mesh(new CylinderGeometry(c.radius * 0.82, c.radius * 0.82, 0.05, 20), WATER);
+    water.position.y = c.height * 0.8 + 0.02;
+    const stump = new Mesh(new CylinderGeometry(0.32, 0.4, c.height * 1.5, 10), COLUMN);
+    stump.position.y = c.height * 0.75;
+    for (const m of [basin, stump]) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+    }
+    group.add(basin, water, stump);
+  } else if (c.style === 'pedestal') {
+    const lower = new Mesh(
+      new CylinderGeometry(c.radius, c.radius * 1.12, c.height * 0.55, 16),
+      COLUMN,
+    );
+    lower.position.y = c.height * 0.275;
+    const upper = new Mesh(
+      new CylinderGeometry(c.radius * 0.7, c.radius * 0.78, c.height * 0.45, 16),
+      COLUMN,
+    );
+    upper.position.y = c.height * 0.775;
+    for (const m of [lower, upper]) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+    }
+    group.add(lower, upper);
   } else {
     const column = new Mesh(new CylinderGeometry(c.radius, c.radius * 1.1, c.height, 12), COLUMN);
     column.position.y = c.height / 2;
@@ -142,6 +177,7 @@ export class LevelView {
     for (const box of level.boxes) this.root.add(boxMesh(box, materials));
     for (const cyl of level.cylinders) this.root.add(cylinderObject(cyl));
 
+    this.addGates();
     this.addBonfire();
     this.addTowerLight();
     this.addSpawnMarkers();
@@ -162,6 +198,49 @@ export class LevelView {
     );
     sword.position.set(x, y + 0.5 + 0.7, z);
     this.root.add(sword);
+  }
+
+  /** 門とレバー（グレーボックス。開閉の演出は別チケット）。鉄門は鉄格子、霧の門は青白い半透明の板。 */
+  private addGates(): void {
+    for (const g of this.level.gates) {
+      const { def } = g;
+      const gate = new Group();
+      gate.name = `gate:${def.id}`;
+      gate.position.set(def.x, g.y, def.z);
+      gate.rotation.y = def.yawDeg * DEG;
+      if (def.kind === 'iron') {
+        const bars = Math.round(def.width / 0.45);
+        for (let i = 0; i <= bars; i++) {
+          const bar = new Mesh(new BoxGeometry(0.07, def.height, 0.07), IRON);
+          bar.position.set(-def.width / 2 + (i * def.width) / bars, def.height / 2, 0);
+          bar.castShadow = true;
+          gate.add(bar);
+        }
+        for (const y of [0.4, def.height - 0.3]) {
+          const rail = new Mesh(new BoxGeometry(def.width, 0.1, 0.1), IRON);
+          rail.position.y = y;
+          gate.add(rail);
+        }
+      } else {
+        const fog = new Mesh(
+          new BoxGeometry(def.width, def.height, 0.1),
+          new MeshBasicNodeMaterial({ color: 0xa8c8ff, transparent: true, opacity: 0.18 }),
+        );
+        fog.position.y = def.height / 2;
+        gate.add(fog);
+      }
+      this.root.add(gate);
+    }
+    for (const lever of this.level.data.interactables.filter((i) => i.kind === 'lever')) {
+      const y = this.level.heightAt(lever.x, lever.z);
+      const post = new Mesh(new BoxGeometry(0.3, 1, 0.3), COLUMN);
+      post.position.set(lever.x, y + 0.5, lever.z);
+      const handle = new Mesh(new BoxGeometry(0.06, 0.6, 0.06), IRON);
+      handle.position.set(lever.x, y + 1.15, lever.z);
+      handle.rotation.z = -0.6;
+      post.castShadow = true;
+      this.root.add(post, handle);
+    }
   }
 
   /** 礼拝堂の塔のてっぺんの橙の灯り（開始地点から見えるランドマーク）。 */

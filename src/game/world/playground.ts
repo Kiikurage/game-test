@@ -15,6 +15,8 @@ export interface BoxSpec {
   readonly hz: number;
   readonly yawDeg?: number;
   readonly pitchDeg?: number;
+  /** false なら最初は無効（門など。`Game.setBoxEnabled` で切り替える）。既定は有効。 */
+  readonly enabled?: boolean;
 }
 
 export interface DummySpec {
