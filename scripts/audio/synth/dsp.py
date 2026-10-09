@@ -337,6 +337,35 @@ def click_score(x):
     return float(np.max(d / (rms + floor)))
 
 
+def loopify(x, n, xf):
+    """長さ n + xf の波形を、長さ n の継ぎ目なしループにする（末尾 xf を先頭へ等パワー・クロスフェード）。
+    x は (n,) または (2, n)。ノイズ状（無相関）の素材向け。周期成分は呼び出し側で整数周期にしておく。"""
+    ramp = np.linspace(0, np.pi / 2, xf)
+    fin, fout = np.sin(ramp), np.cos(ramp)
+    out = x[..., :n].copy()
+    out[..., :xf] = x[..., :xf] * fin + x[..., n : n + xf] * fout
+    return out
+
+
+def slow_noise(n, rng, hz, floor=0.0):
+    """ゆっくり変動する 0〜1 の制御信号（LFO 的な乱数）。"""
+    s = lp(white(n, rng), hz, 2)
+    s = (s - s.min()) / (s.max() - s.min() + 1e-12)
+    return floor + (1 - floor) * s
+
+
+def seam_score(x, width=0.05):
+    """ループ継ぎ目（末尾 → 先頭を 2 回つないだ前後 width 秒）の最大の隣接サンプル差を、
+    継ぎ目を除いた曲中の最大の隣接サンプル差で割った値。1 以下なら継ぎ目は曲中のどの打撃の立ち上がりよりも穏やか。"""
+    xx = _mono(x)
+    n = len(xx)
+    w = int(width * SR)
+    tiled = np.concatenate([xx, xx])
+    seam = np.abs(np.diff(tiled[n - w : n + w])).max()
+    ref = np.abs(np.diff(xx[w : n - w])).max() + 1e-9
+    return float(seam / ref)
+
+
 def write_wav(path, x):
     """float → 16bit PCM。モノラルは 1 次元、ステレオは (2, n)。"""
     x = np.clip(x, -1.0, 1.0)

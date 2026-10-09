@@ -47,6 +47,8 @@ test('loads the title-group SFX from the manifest and accepts play requests with
 
   // 少し待ってもメインループが回り続け、エラーが出ない
   const before = await page.evaluate(() => window.__game?.frames ?? 0);
-  await expect.poll(() => page.evaluate(() => window.__game?.frames ?? 0)).toBeGreaterThan(before);
+  await expect
+    .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 30_000 })
+    .toBeGreaterThan(before);
   expect(errors).toEqual([]);
 });

@@ -1,4 +1,16 @@
-import { Timer, Vector3, type Camera, type Mesh, type Object3D, type Scene } from 'three/webgpu';
+import {
+  BoxGeometry,
+  Mesh as ThreeMesh,
+  MeshBasicNodeMaterial,
+  Timer,
+  Vector3,
+  type Camera,
+  type Mesh,
+  type Object3D,
+  type Scene,
+} from 'three/webgpu';
+import { ATMOSPHERE } from '../environment';
+import { applyCharacterLight, setCharacterLightEnabled } from '../characterLight';
 import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
@@ -10,6 +22,7 @@ import {
   parseExplorationPreview,
   placeExplorationPreview,
 } from './explorationPreview';
+import { placeCorpsePreview } from '../corpses/corpsePreview';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
 import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
 
@@ -32,6 +45,10 @@ export interface ShowcaseState {
  *   `&undead=<gaunt|bloated|scorched|drowned|all>`  亡者マテリアルを適用（all は 4 バリアントを横並び）
  *   `&dissolve=<0..1>` ディゾルブ進行度、`&ember=<0..1>` 熾火の強さ（亡者のみ）
  *   `&props=sword-hand|sword-back|jar|all|swords|bell|statue|cairn`  探索用メッシュ（#108。騎士に持たせる / 並べて置く。explorationPreview.ts）
+ *   `&corpse=sitting|prone|praying|leaning|all|crowd`  遺体ポーズのプレビュー（#109。corpsePreview.ts）
+ *   `&light=front|back|side|shade`  太陽に対するカメラ位置（順光 / 逆光 / 横 / 影の中: 太陽との間に遮蔽物を置き、横から撮る）。
+ *   `&telegraph=<0..1>`  武器のリムライトの強調（攻撃予備動作の演出フック確認用）
+ *   `&rim=0`  キャラクターの補助光（リムライト等）を切る（改善前後の比較用）
  *   `&equip=soldier|shieldbearer|boss|all`  簡易装備メッシュを装着（boss は 2.2 倍、all は盾持ち・亡者兵・ボスを横並び。亡者マテリアルと併用可）
  */
 export class CharacterShowcase {
@@ -78,7 +95,15 @@ export class CharacterShowcase {
     const lateral = { shieldbearer: 0, soldier: -1.7, boss: 2.6 };
     const dissolve = Number(params.get('dissolve') ?? 0);
     const ember = Number(params.get('ember') ?? 0);
-    const facing = Math.atan2(4.5 - 0.8, 6 + 0.2); // カメラの方を向く
+    const telegraph = Number(params.get('telegraph') ?? 0);
+    setCharacterLightEnabled(params.get('rim') !== '0');
+    const lightMode = params.get('light');
+    // light 指定時はキャラクターが太陽に対して決まった向きになるカメラへ振り向く
+    const lightAzimuth = lightCameraAzimuth(lightMode);
+    const facing =
+      lightAzimuth === undefined
+        ? Math.atan2(4.5 - 0.8, 6 + 0.2) // カメラの方を向く
+        : Math.atan2(Math.cos(lightAzimuth), Math.sin(lightAzimuth));
     const spawn = (index: number, count: number): Character => {
       const loadout = loadouts[index];
       const c = assets.createCharacter(
@@ -111,6 +136,9 @@ export class CharacterShowcase {
         c.root.scale.multiply(new Vector3(...look.buildScale));
         look.setDissolve(dissolve);
         look.setEmber(ember);
+        look.setWeaponTelegraph(telegraph);
+      } else {
+        applyCharacterLight(c.root).setWeaponTelegraph(telegraph);
       }
       return c;
     };
@@ -125,7 +153,14 @@ export class CharacterShowcase {
         preview,
         isCharacterPreview(preview) ? spawned.map((c) => c.root) : [],
       );
-    applyView(character, camera, params.get('view'), Number(params.get('dist')), 0.8, -0.2);
+    if (params.has('corpse')) {
+      await placeCorpsePreview(scene, camera, assets, params);
+    } else if (lightAzimuth !== undefined) {
+      applyLightView(camera, lightAzimuth, Number(params.get('dist')), spawned.length);
+      if (lightMode === 'shade') addShadeOccluder(scene);
+    } else {
+      applyView(character, camera, params.get('view'), Number(params.get('dist')), 0.8, -0.2);
+    }
 
     const frozen = Number.isFinite(frozenAt);
     for (const c of spawned) {
@@ -193,4 +228,38 @@ function applyView(
     target.z + Math.cos(angle) * distance,
   );
   camera.lookAt(target.x, view === 'close' ? 1.25 : 0.9, target.z);
+}
+
+/** 太陽に対するカメラの方位（xz 平面, x 軸基準）。 */
+function lightCameraAzimuth(mode: string | null): number | undefined {
+  const sun = ATMOSPHERE.sunAzimuth;
+  switch (mode) {
+    case 'front':
+      return sun; // カメラが太陽側 = 太陽を背にして撮る
+    case 'back':
+      return sun + Math.PI; // 太陽に向かって撮る
+    case 'side':
+    case 'shade':
+      return sun + Math.PI / 2;
+    default:
+      return undefined;
+  }
+}
+
+function applyLightView(camera: Camera, azimuth: number, dist: number, count: number): void {
+  const distance = Number.isFinite(dist) && dist > 0 ? dist : 3.2 + count * 0.9;
+  camera.position.set(0.8 + Math.cos(azimuth) * distance, 1.4, -0.2 + Math.sin(azimuth) * distance);
+  camera.lookAt(0.8, 1.1, -0.2);
+}
+
+/** 影の確認用: 太陽とキャラクターの間に、描画されない（影だけ落とす）遮蔽物を置く。 */
+function addShadeOccluder(scene: Scene): void {
+  const material = new MeshBasicNodeMaterial();
+  material.colorWrite = false;
+  material.depthWrite = false;
+  const box = new ThreeMesh(new BoxGeometry(14, 14, 14), material);
+  const sunDir = new Vector3(Math.cos(ATMOSPHERE.sunAzimuth), 0, Math.sin(ATMOSPHERE.sunAzimuth));
+  box.position.set(0.8 + sunDir.x * 9, 7, -0.2 + sunDir.z * 9);
+  box.castShadow = true;
+  scene.add(box);
 }
