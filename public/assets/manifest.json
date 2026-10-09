@@ -243,10 +243,10 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 1389528,
+  "totalBytes": 1454496,
   "equipment": {
     "file": "equipment.glb",
-    "bytes": 105500,
+    "bytes": 109208,
     "triangles": 4490,
     "textureMemoryBytes": 0,
     "items": {
@@ -356,6 +356,39 @@
       "soldier": 948,
       "shieldbearer": 1124,
       "boss": 3114
+    }
+  },
+  "exploration": {
+    "file": "exploration.glb",
+    "bytes": 61260,
+    "triangles": 2679,
+    "textureMemoryBytes": 0,
+    "items": {
+      "GravekeeperGreatsword": {
+        "triangles": 418,
+        "bone": "hand_r"
+      },
+      "OilJar": {
+        "triangles": 407,
+        "bone": "hand_r"
+      },
+      "Bell": {
+        "triangles": 816
+      },
+      "PrayingStatue": {
+        "triangles": 576
+      },
+      "Cairn": {
+        "triangles": 210
+      },
+      "PlantedSword": {
+        "triangles": 252
+      }
+    },
+    "plantedSword": {
+      "length": 0.93,
+      "buriedTip": 0.2,
+      "buriedPommel": 0.06
     }
   }
 }

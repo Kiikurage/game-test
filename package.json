@@ -21,7 +21,8 @@
     "assets:audio:check": "node scripts/audio/build.mjs --check",
     "assets:audio:synth": "python3 scripts/audio/synth/build.py",
     "assets:build": "node scripts/assets/fetch.mjs && node scripts/assets/build.mjs",
-    "assets:equipment": "node scripts/assets/build-equipment.mjs"
+    "assets:equipment": "node scripts/assets/build-equipment.mjs",
+    "assets:exploration": "node scripts/assets/build-exploration.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",
