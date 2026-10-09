@@ -165,18 +165,30 @@ const mix3 = (a, b, t) => [
 const smooth = (e0, e1, x) => fade(Math.min(1, Math.max(0, (x - e0) / (e1 - e0))));
 
 /** 素材ごとの色（リニア RGB）。p はパーツのワールド位置（キャラクター空間 or アイテム空間）。 */
-const COLORS = {
-  // 錆びた鉄: 暗い鉄 → 赤茶の錆の斑、ところどころ擦れた地金
-  iron(p, seed) {
+export const COLORS = {
+  // 錆びた古い鉄。平面は鈍い青灰の鉄色が主で、錆は「エッジ・凹み・下向きの面・垂直面の雨垂れ」に
+  // 集中する（info: 頂点の法線 n と、硬いエッジらしさ edge）。コントラストと彩度は低く、ノイズは部位の大きさに
+  // 対して低周波（斑点・迷彩にならない）。擦れた地金はエッジにだけ薄く出る。
+  iron(p, seed, info) {
     const [x, y, z] = [p[0] + seed, p[1] + seed * 0.7, p[2] - seed * 0.3];
-    const base = [0.075, 0.072, 0.07];
-    const rustDark = [0.13, 0.055, 0.028];
-    const rustLight = [0.27, 0.115, 0.045];
-    const rustMix = smooth(0.42, 0.68, fbm(x * 7, y * 7, z * 7));
-    const rust = mix3(rustDark, rustLight, fbm(x * 21, y * 21, z * 21));
-    let c = mix3(base, rust, rustMix);
-    const bare = smooth(0.72, 0.85, fbm(x * 13 + 5, y * 13, z * 13));
-    c = mix3(c, [0.28, 0.27, 0.27], bare * 0.8);
+    const n = info?.n ?? [0, 1, 0];
+    const edge = info?.edge ?? 0;
+    // 地の鉄: 暗い青灰。ごく緩い明暗のむら
+    const tone = 0.85 + 0.3 * fbm(x * 2.2, y * 2.2, z * 2.2);
+    const steel = [0.062 * tone, 0.067 * tone, 0.078 * tone];
+    // 錆の集まりやすさ: 下向きの面・垂直面（雨垂れ筋）・エッジ・低周波のむら
+    const down = Math.max(0, -n[1]);
+    const vertical = 1 - Math.abs(n[1]);
+    const streak = fbm(x * 4.5, y * 0.9, z * 4.5); // 縦に長い筋
+    const patch = fbm(x * 2.6 + 7, y * 2.6, z * 2.6);
+    let wet =
+      0.3 + 0.5 * down + 0.3 * vertical * smooth(0.4, 0.8, streak) + 0.55 * edge + 0.35 * patch;
+    wet = smooth(0.45, 0.95, wet);
+    // 錆の色: 彩度を落とした暗い茶〜赤褐色（わずかに濃淡）
+    const rust = mix3([0.17, 0.085, 0.048], [0.25, 0.125, 0.066], fbm(x * 3.4, y * 3.4, z * 3.4));
+    let c = mix3(steel, rust, wet * 0.85);
+    // エッジの擦れ（地金が鈍く光る）
+    c = mix3(c, [0.17, 0.175, 0.19], edge * (1 - wet) * 0.45);
     return c;
   },
   // 暗い革・木
@@ -184,11 +196,15 @@ const COLORS = {
     const n = fbm(p[0] * 11 + seed, p[1] * 11, p[2] * 11);
     return mix3([0.045, 0.028, 0.02], [0.11, 0.07, 0.045], n);
   },
-  // 盾の面（剥げた木）
+  // 盾の面（剥げた木）: 暗く彩度を落とした茶。むらは低周波
   wood(p, seed) {
-    const n = fbm(p[0] * 9 + seed, p[1] * 5, p[2] * 9);
-    const chip = smooth(0.55, 0.75, fbm(p[0] * 17, p[1] * 17 + seed, p[2] * 17));
-    return mix3(mix3([0.06, 0.035, 0.022], [0.15, 0.09, 0.05], n), [0.2, 0.18, 0.15], chip * 0.3);
+    const n = fbm(p[0] * 5 + seed, p[1] * 3, p[2] * 5);
+    const chip = smooth(0.6, 0.8, fbm(p[0] * 9, p[1] * 9 + seed, p[2] * 9));
+    return mix3(
+      mix3([0.042, 0.03, 0.022], [0.092, 0.064, 0.042], n),
+      [0.14, 0.13, 0.115],
+      chip * 0.25,
+    );
   },
   // ボロ布（灰褐色 + 染み）
   cloth(p, seed) {
@@ -854,6 +870,39 @@ function matToQuat(M) {
 // ---------------------------------------------------------------- glTF 生成
 
 /**
+ * 頂点ごとの「硬いエッジらしさ」（0〜1）。同じ位置にある頂点の法線が大きく食い違うほど 1 に近い
+ * （フラットシェードの箱や多角形の稜線）。滑らかな面は 0。錆・擦れのマスクに使う。
+ */
+export function edgeness(geo) {
+  const key = (i) => [0, 1, 2].map((c) => Math.round(geo.positions[i * 3 + c] * 2000)).join(',');
+  const groups = new Map();
+  const count = geo.positions.length / 3;
+  for (let i = 0; i < count; i++) {
+    const k = key(i);
+    const list = groups.get(k);
+    if (list) list.push(i);
+    else groups.set(k, [i]);
+  }
+  const out = new Float32Array(count);
+  for (const list of groups.values()) {
+    let minDot = 1;
+    for (let a = 0; a < list.length; a++) {
+      for (let b = a + 1; b < list.length; b++) {
+        const [i, j] = [list[a], list[b]];
+        const d =
+          geo.normals[i * 3] * geo.normals[j * 3] +
+          geo.normals[i * 3 + 1] * geo.normals[j * 3 + 1] +
+          geo.normals[i * 3 + 2] * geo.normals[j * 3 + 2];
+        minDot = Math.min(minDot, d);
+      }
+    }
+    const e = smooth(0.04, 0.4, 1 - minDot);
+    for (const i of list) out[i] = e;
+  }
+  return out;
+}
+
+/**
  * @param {Record<string, number[]>} boneWorldMatrices ボーン名 → knight.glb の bind pose ワールド行列（列優先 16 要素）
  * @returns {{ document: Document, triangles: number, items: Record<string, { triangles: number, bone: string }> }}
  */
@@ -865,8 +914,8 @@ export function buildEquipmentDocument(boneWorldMatrices) {
   const metal = doc
     .createMaterial('RustyMetal')
     .setBaseColorFactor([1, 1, 1, 1])
-    .setMetallicFactor(0.5)
-    .setRoughnessFactor(0.72)
+    .setMetallicFactor(0.4)
+    .setRoughnessFactor(0.82)
     .setDoubleSided(true);
   const soft = doc
     .createMaterial('WornSoft')
