@@ -24,6 +24,12 @@ import {
   vec2,
   vec3,
 } from 'three/tsl';
+import {
+  characterLightNode,
+  createRimControls,
+  isWeaponObject,
+  type RimControls,
+} from '../characterLight';
 import { OUTFIT_MESHES, clampProgress, type UndeadVariant } from './variants';
 
 /** 材質の役割。同じ元マテリアル（MI_Ranger）でもメッシュ名で金属パーツを分ける。 */
@@ -59,12 +65,19 @@ export interface UndeadLook {
    */
   setEmber(amount: number): void;
   readonly ember: number;
+  /**
+   * 武器のリムライトを強める（0..1）。敵の攻撃予備動作（テレグラフ演出, #62）用。
+   * 縁の光だけが強まり、世界のライティングには影響しない。
+   */
+  setWeaponTelegraph(amount: number): void;
+  readonly weaponTelegraph: number;
   /** 生成したマテリアルを解放する。 */
   dispose(): void;
 }
 
 /** 1 つのキャラクターインスタンス内で共有するユニフォーム。 */
 interface Controls {
+  readonly rim: RimControls;
   readonly dissolve: UniformNode<'float', number>;
   readonly ember: UniformNode<'float', number>;
 }
@@ -76,7 +89,7 @@ interface Controls {
  * インスタンスごとに新しいマテリアルを作るので、`root` は `SkeletonUtils.clone` 済みであること。
  */
 export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadLook {
-  const controls: Controls = { dissolve: uniform(0), ember: uniform(0) };
+  const controls: Controls = { dissolve: uniform(0), ember: uniform(0), rim: createRimControls() };
   const created: Material[] = [];
   const cache = new Map<string, Material>();
 
@@ -84,12 +97,13 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
     if (!(obj as { isMesh?: boolean }).isMesh) return;
     const mesh = obj as Mesh;
     const role = roleOf(mesh);
+    const weapon = isWeaponObject(mesh);
     const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const converted = sources.map((src) => {
-      const key = `${src.uuid}:${role}`;
+      const key = `${src.uuid}:${role}:${weapon}`;
       let m = cache.get(key);
       if (!m) {
-        m = createUndeadMaterial(src as MeshStandardMaterial, role, variant, controls);
+        m = createUndeadMaterial(src as MeshStandardMaterial, role, variant, controls, weapon);
         cache.set(key, m);
         created.push(m);
       }
@@ -101,6 +115,7 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
 
   let dissolve = 0;
   let ember = 0;
+  let telegraph = 0;
   return {
     variant,
     buildScale: [variant.build.width, variant.build.height, variant.build.width],
@@ -117,6 +132,13 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
     setEmber(amount) {
       ember = clampProgress(amount);
       controls.ember.value = ember;
+    },
+    get weaponTelegraph() {
+      return telegraph;
+    },
+    setWeaponTelegraph(amount) {
+      telegraph = clampProgress(amount);
+      controls.rim.weapon.value = telegraph;
     },
     dispose() {
       for (const m of created) m.dispose();
@@ -147,6 +169,7 @@ function createUndeadMaterial(
   role: UndeadRole,
   variant: UndeadVariant,
   controls: Controls,
+  isWeapon: boolean,
 ): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial();
   material.name = `Undead_${role}_${src.name}`;
@@ -239,6 +262,11 @@ function createUndeadMaterial(
     vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b)
       .mul(smoothstep(0.35, 1.0, edge))
       .mul(controls.dissolve.greaterThan(0).select(3.2, 0)),
+  );
+
+  // 逆光・影でも輪郭が読めるリムライトと暗部の持ち上げ（#144）。ディゾルブで消える所は灰色に合わせて弱まる
+  emissive = emissive.add(
+    characterLightNode(albedo, controls.rim, isWeapon).mul(float(1).sub(charred)),
   );
 
   material.colorNode = albedo;
