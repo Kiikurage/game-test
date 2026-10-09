@@ -1,0 +1,111 @@
+# 音声素材パイプラインとライセンス記録（Issue #31）
+
+仕様: [vertical-slice.md](vertical-slice.md) 10 章。ランタイム側（バス・音量・ダッキング）は #30 の `docs/audio.md`、素材のローダは E7-1b。
+実素材はまだ含まない。パイプラインの動作確認用にダミー 2 件だけを入れている。
+
+## 1. 素材の取得可否と方針（調査日: 2026-10-09）
+
+調査環境はエージェントのクラウドコンテナ（プロキシ経由の制限付きネットワーク）。
+
+| 経路 | 到達 | 備考 |
+| --- | --- | --- |
+| `git clone` で GitHub のリポジトリ | 可 | `KenneyNL/Starter-Kit-*`（FPS / 3D Platformer / City Builder / Racing）を shallow clone して確認。各リポジトリの `sounds/`（`audio/`）に **CC0 の `.ogg`（Vorbis 44.1kHz ステレオ）** が入っている（README に「sound effects are CC0」。コードは MIT） |
+| `raw.githubusercontent.com` | 可 | |
+| `api.github.com` / `codeload.github.com`（zip） | 不可（403） | リポジトリ検索 API が使えないので、候補リポジトリは名前で当てる必要がある |
+| kenney.nl / opengameart.org / freesound.org | 不可 | プロキシで遮断。公式パックの直接ダウンロードはできない（Freesound は API キーも要る） |
+| npm レジストリ | 可 | `sfxmint`（CC0 効果音を役割名で取得する第三者パッケージ）等が存在するが、出典・ライセンスの確認コストが高く未評価。jsDelivr は不可 |
+| PyPI | 可 | 素材源としては未調査 |
+| ffmpeg（`libopus` / `aac`） | 可（apt） | 変換・合成に使う。ローカルは 6.1.1 |
+
+方針（優先順）:
+
+1. **自作・合成**: ffmpeg（`lavfi` の `sine` / `anoisesrc` 等）や Web Audio 合成で作る。ライセンスの問題が無く、再現可能。風・炎・低音のうなり・UI 音・衝撃音の下地に向く。オフライン合成物は元データ（WAV）として `assets-src/audio/` に置き、本パイプラインで Opus 化する。リアルタイム合成（Web Audio）にする場合はマニフェストに載せず、`AudioEngine` のバスへ直接つなぐ。
+2. **Kenney の CC0 サウンド（GitHub のスターターキット経由）**: 到達できて CC0 が README で明示されている。ただしゲーム向けの汎用音（ブラスターや足音など）が中心で、ソウルライクの剣戟・咆哮には合わない。UI・足音・インパクトの一部は使える見込み。公式パック（Impact Sounds、Interface Sounds 等）は kenney.nl が遮断されていて取得できないので、オーナーが手元で取得して `assets-src/audio/` に置く運用になる。
+3. **OpenGameArt / Freesound の CC0**: 到達不可。必要ならオーナーが手元で取得して配置する（ライセンスは各ページで CC0 であることを人間が確認する）。
+4. BGM は CC0 の入手が最も難しい。自作（ffmpeg / Web Audio での環境音楽の合成）か、オーナー取得素材を前提にする。
+
+結論: **エージェントだけで揃えられるのは UI・環境音・一部 SE まで**。剣戟・咆哮・BGM は合成での代替品を作るか、オーナー側で CC0 素材を調達する前提で、パイプラインはどちらからでも取り込める形にした。
+
+## 2. 取り込み手順
+
+```
+assets-src/audio/audio.json   元データの設定（人が編集する）
+assets-src/audio/**.wav 等    元データ（コミットする。変換前の WAV/FLAC/OGG/MP3）
+        │  npm run assets:audio
+        ▼
+public/assets/audio/<id>.ogg  Ogg Opus（コミットする）
+public/assets/audio/manifest.json  ランタイムが読むマニフェスト（コミットする）
+```
+
+| コマンド | 内容 |
+| --- | --- |
+| `npm run assets:audio` | 検証 → Opus 変換 → マニフェスト生成 → 容量集計（超過で失敗、80% 超で警告） |
+| `npm run assets:audio -- --m4a` | iOS 向けの AAC（`.m4a`）も出力しマニフェストに `fallbackFile` を入れる |
+| `npm run assets:audio:check` | ffmpeg 不要。設定・ライセンス表・出力マニフェスト・出力ファイルのサイズ・容量予算の整合を検査（`npm test` にも同等のテストあり） |
+| `node scripts/audio/make-dummy.mjs` | ダミー元データ（`assets-src/audio/dummy/`）の再生成 |
+
+ffmpeg / ffprobe（libopus 付き）が必要。CI では `apt-get install ffmpeg` してから実行する。
+
+### 変換仕様
+
+- 出力: Ogg Opus。チャンネルは SE・UI がモノラル、BGM・環境音がステレオ。ビットレートは SE / UI 48kbps、BGM 96kbps、環境音 64kbps（VBR、`audio` アプリケーション）。エントリごとに `bitrateKbps` で上書きできる。
+- サンプリングレート: 仕様は 44.1kHz だが、Opus は 8/12/16/24/48kHz のみ対応で内部 48kHz になる。入力が 44.1kHz でも libopus が 48kHz へリサンプルし、再生時は Web Audio が `AudioContext` のレートへ変換する。品質上の問題は無い。
+- メタデータは除去（`-map_metadata -1`）。
+- 元データは信頼できない外部データとして扱い、ffmpeg にファイルとして渡すだけ（`-protocol_whitelist file`、stdin 閉鎖）。`source` に `..` や絶対パスは書けない。
+
+### 設定（`audio.json`）の項目
+
+| 項目 | 必須 | 内容 |
+| --- | --- | --- |
+| `id` | ○ | 小文字英数と `. _ -`（例: `sfx.sword-light1`）。出力ファイル名にもなる |
+| `source` | ○ | `assets-src/audio/` からの相対パス（`.wav .flac .ogg .mp3 .aif .aiff`） |
+| `kind` | ○ | `se`（位置を持つ SE）/ `bgm` / `ambient` / `ui` |
+| `bus` | | 省略時は種別の既定（se→`sfx`、他は同名）。指定するなら一致が必要 |
+| `loop` / `loopStart` / `loopEnd` | | ループ有無とループ点（秒）。点は `loop: true` のときだけ。`loop: true` で省略時は 0〜末尾 |
+| `priority` | ○ | 0〜100、大きいほど優先。目安: プレイヤー被弾・ガード 90 / ボス 70 / 敵 50 / 足音 30 / 環境 10（仕様書 10.2 節の順） |
+| `gainDb` | | 音量補正（-40〜12dB）。出力の `gain`（線形）になり、ランタイムが素材ゲインとして掛ける。ピーク基準の目安は `PEAK_LEVEL`（#30） |
+| `bitrateKbps` | | 既定ビットレートの上書き（16〜256） |
+| `license` | ○ | 下のライセンス表のキー |
+
+出力マニフェスト（`public/assets/audio/manifest.json`、型は `src/audio/manifest.ts`）の各エントリ: `id` / `file` / `fallbackFile?` / `bus` / `kind` / `loop` / `loopStart?` / `loopEnd?` / `priority` / `gain` / `channels` / `bytes` / `duration`。トップレベルに `totalBytes` と `budgetBytes`。
+
+## 3. 容量予算
+
+- 総容量 **8MB 以内**（`AUDIO_BUDGET_BYTES`、Ogg Opus の合計）。ビルド時に集計し、**超過でエラー終了、80% 超で警告**。
+- 見積もり（仕様書 10.1 節）: BGM 5 曲（60〜90s × 96kbps ≒ 0.7〜1.1MB）で約 4.5MB、環境音 6 本（64kbps、ループ 20〜30s ≒ 0.2〜0.25MB）で約 1.4MB、SE 約 80 本（48kbps、平均 0.7s ≒ 4KB）で約 0.3MB。合計 約 6.2MB で予算内だが BGM が支配的。余裕が無ければ BGM のビットレートを 64〜80kbps に下げる。
+- `--m4a` の AAC は予算の対象外（端末は片方しか取得しないため）。合計は別途表示する。
+
+## 4. フォーマット互換（iOS / Android）
+
+| 環境 | Ogg Opus | AAC `.m4a` |
+| --- | --- | --- |
+| Android Chrome | 可 | 可 |
+| iOS Safari（WebKit） | 版により不確か。古い版は Ogg コンテナ非対応のため `decodeAudioData` が失敗する | 可（全版） |
+
+- 基準機は Android（Xperia 1 V / Chrome）なので Ogg Opus を主にする。iOS は公式にサポート対象外（direction.md）だが、動かす場合に備えて `--m4a` で AAC フォールバックを出せるようにしてある。
+- ローダ（E7-1b）は `fallbackFile` があり、かつ `new Audio().canPlayType('audio/ogg; codecs=opus')` が空文字なら `.m4a` を使う想定。実機（iOS）での確認は人間に依頼する必要がある（エージェント環境に実機が無い）。
+- `.webm`（Opus）は Safari の対応がさらに限定的なため使わない。
+- 自動再生制限は #30 の `docs/audio.md`（最初のタップで `resume()`）。
+
+## 5. ライセンス記録
+
+### ルール
+
+- **CC0（Public Domain Dedication）のみ取り込む**。CC-BY、CC-BY-NC、Freesound の独自ライセンス、ゲームエンジン付属素材（EULA 付き）、Mixamo 相当の再配布制限付き素材は取り込まない。「自作」は CC0 として公開する前提の自作物に限る。
+- 取り込むときは、**下の表に 1 行追加してから** `audio.json` の `license` にそのキーを書く。ビルド（`assets:audio` / `assets:audio:check`）と `npm test` は、キーが表に無い・ライセンス列が CC0（または自作）でない・取得日が `YYYY-MM-DD` でない・出典 URL か作者が空、のいずれかで失敗する。
+- 1 行は 1 つの「取得単位」（同じ出典・作者・ライセンスのパック）に対応させる。キーは `assets-src/audio/audio.json` の `license` と一致させる。
+- 再確認手順（取り込み時に必ず実施し、取得日を記録する）:
+  1. 出典ページ（または配布物の README / LICENSE）で、その素材が **CC0 1.0** であることを自分の目で確認する。パック全体が CC0 でも、個別素材に別ライセンスの注記が無いか確認する（OpenGameArt・Freesound は素材ごとにライセンスが違う）。
+  2. 再配布元が公式でない場合（GitHub のミラー等）は、公式ページの記載と一致することを確認し、取得元 URL とコミットを出典欄に書く。
+  3. ライセンス文のコピー（README の該当箇所や LICENSE）を `assets-src/LICENSES/` に保存する。
+  4. 表に 1 行追加する。後日 CC0 でないと判明した場合は、その素材を削除し、表の行を取り消し線にして理由を残す。
+
+### 表の形式
+
+列: `キー` / 用途 / 出典 URL / 作者 / ライセンス / 取得日（YYYY-MM-DD）/ 元ファイル・備考。ライセンス列は `CC0 1.0` か `自作（CC0 として公開）` のみ有効。
+
+### 取り込み済み
+
+| キー | 用途 | 出典 URL | 作者 | ライセンス | 取得日 | 元ファイル・備考 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dummy-generated` | パイプライン動作確認用ダミー（UI クリック風ビープ、ピンクノイズ） | `scripts/audio/make-dummy.mjs`（本リポジトリ） | 本リポジトリ（ffmpeg の `lavfi` で合成） | 自作（CC0 として公開） | 2026-10-09 | `assets-src/audio/dummy/click.wav`、`hiss.wav`。実素材に置き換えたら削除する |

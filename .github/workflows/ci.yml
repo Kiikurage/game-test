@@ -30,6 +30,13 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      - name: Audio pipeline (Opus conversion smoke test and budget check)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          npm run assets:audio
+          npm run assets:audio:check
+
       - name: Install Chromium for E2E
         run: npx playwright install --with-deps chromium
 
