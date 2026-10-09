@@ -96,6 +96,8 @@ async function bootstrap(): Promise<void> {
       ...(level
         ? levelGameOptions(level)
         : { terrain: createTerrainCollisionMesh(), terrainHeight }),
+      // `?enemies=0`: 敵を配置しない（敵に邪魔されない移動の E2E・地形の確認用）
+      ...(new URLSearchParams(location.search).get('enemies') === '0' && { enemies: [] }),
     });
     const view = new GameView(game, gameRenderer, level ?? undefined);
     game.addStaticCylinders(level ? level.cylinders : view.colliders);

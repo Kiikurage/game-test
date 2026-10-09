@@ -44,4 +44,4 @@ src/render/enemyDebugView.ts    ?debug の視野コーン・状態ラベル
 - ナビゲーション（#43）: `GameOptions.enemyNavigator` に `Navigator`（`nextPoint(from, to, out)`）を渡す。経路なしは null。
 - 被弾（#40 / #50）: `enemy.hp`、`stagger(frames)`、`kill()`、`provoke(x, z)`（被弾で Alert）、`fsm.freeze(frames)`（ヒットストップ）。
 - アニメーション: `src/render/assets/enemyAnimator.ts`。Action 系の状態は `states` にクリップを足す（攻撃は #54 でマーカー表）。
-- デバッグ: `?debug` で視野の扇（Idle 系）/ 視認範囲の円（戦闘中）と、状態・ゲージ・見失い時間のラベル。`window.__game.sim.enemies` に状態一覧、`dev.pause(true)` + `dev.advance(steps)` でシミュレーションを任意ステップ進められる。
+- デバッグ: `?debug` で視野の扇（Idle 系）/ 視認範囲の円（戦闘中）と、状態・ゲージ・見失い時間のラベル。`window.__game.sim.enemies` に状態一覧、`dev.pause(true)` + `dev.advance(steps)` でシミュレーションを任意ステップ進められる。`?enemies=0` で敵を置かない（地形の E2E 用）。
