@@ -36,8 +36,13 @@ export interface ClipEventEntry {
   readonly clipFps: number;
   /** クリップ内の再生範囲（クリップのフレーム番号、0 起点。start < end）。 */
   readonly clipRange: { readonly startFrame: number; readonly endFrame: number };
-  /** クリップ内で攻撃が当たる（振り抜く）フレーム（クリップのフレーム番号）。範囲内で start より後。 */
-  readonly clipHitFrame: number;
+  /**
+   * クリップ内で攻撃が当たる（振り抜く）フレーム（クリップのフレーム番号）。範囲内で start より後。
+   * 省略すると、判定を持たない動作（ロール・移動など）として再生範囲の全体を「全体フレーム」に合わせる。
+   */
+  readonly clipHitFrame?: number;
+  /** true で再生範囲を終端から先頭へ逆再生する（バックステップなど）。 */
+  readonly reverse?: boolean;
   /** 仕様上のフレームデータ（仕様書 2.3 節）。 */
   readonly spec: { readonly startup: number; readonly active: number; readonly recovery: number };
   /** フレーム昇順（同一フレームは記述順）。 */
@@ -67,8 +72,15 @@ export function totalFrames(entry: ClipEventEntry): number {
   return entry.spec.startup + entry.spec.active + entry.spec.recovery;
 }
 
-/** `playbackRate = クリップ内の当たり（秒換算）÷ 仕様の発生（秒換算）`。クリップが 60fps なら「当たりフレーム ÷ 発生フレーム」。 */
+/**
+ * `playbackRate = クリップ内の当たり（秒換算）÷ 仕様の発生（秒換算）`。クリップが 60fps なら「当たりフレーム ÷ 発生フレーム」。
+ * `clipHitFrame` がない動作は、再生範囲の長さ ÷ 全体フレーム（秒換算）。
+ */
 export function playbackRate(entry: ClipEventEntry): number {
+  if (entry.clipHitFrame === undefined) {
+    const rangeSeconds = (entry.clipRange.endFrame - entry.clipRange.startFrame) / entry.clipFps;
+    return rangeSeconds / (totalFrames(entry) / SIM_FPS);
+  }
   const clipHitSeconds = (entry.clipHitFrame - entry.clipRange.startFrame) / entry.clipFps;
   return clipHitSeconds / (entry.spec.startup / SIM_FPS);
 }
@@ -80,14 +92,17 @@ export function playbackRate(entry: ClipEventEntry): number {
 export function simFrameToClipTime(entry: ClipEventEntry, frame: number): number {
   const start = entry.clipRange.startFrame / entry.clipFps;
   const end = entry.clipRange.endFrame / entry.clipFps;
-  const t = start + ((frame - 1) / SIM_FPS) * playbackRate(entry);
+  const travelled = ((frame - 1) / SIM_FPS) * playbackRate(entry);
+  const t = entry.reverse ? end - travelled : start + travelled;
   return Math.min(Math.max(t, start), end);
 }
 
 /** `simFrameToClipTime` の逆変換。クリップ時間（秒）から、シミュレーションフレーム（小数、F1 起点）へ。 */
 export function clipTimeToSimFrame(entry: ClipEventEntry, clipTime: number): number {
   const start = entry.clipRange.startFrame / entry.clipFps;
-  return 1 + ((clipTime - start) / playbackRate(entry)) * SIM_FPS;
+  const end = entry.clipRange.endFrame / entry.clipFps;
+  const travelled = entry.reverse ? end - clipTime : clipTime - start;
+  return 1 + (travelled / playbackRate(entry)) * SIM_FPS;
 }
 
 /** マーカーのクリップ時間（秒）。 */
@@ -209,13 +224,20 @@ function parseEntry(raw: unknown, path: string): ClipEventEntry {
     );
   }
 
-  const clipHitFrame = asNumber(o.clipHitFrame, `${path}.clipHitFrame`, 0, false);
-  if (clipHitFrame <= startFrame || clipHitFrame > endFrame) {
-    throw new AnimDataError(
-      `${path}.clipHitFrame`,
-      `再生範囲 ${startFrame}–${endFrame} 内（開始より後）である必要があります（${clipHitFrame}）`,
-    );
+  let clipHitFrame: number | undefined;
+  if (o.clipHitFrame !== undefined) {
+    clipHitFrame = asNumber(o.clipHitFrame, `${path}.clipHitFrame`, 0, false);
+    if (clipHitFrame <= startFrame || clipHitFrame > endFrame) {
+      throw new AnimDataError(
+        `${path}.clipHitFrame`,
+        `再生範囲 ${startFrame}–${endFrame} 内（開始より後）である必要があります（${clipHitFrame}）`,
+      );
+    }
   }
+  if (o.reverse !== undefined && typeof o.reverse !== 'boolean') {
+    throw new AnimDataError(`${path}.reverse`, '真偽値が必要です');
+  }
+  const reverse = o.reverse === true;
 
   const spec = asObject(o.spec, `${path}.spec`);
   const startup = asNumber(spec.startup, `${path}.spec.startup`, 1, true);
@@ -246,7 +268,8 @@ function parseEntry(raw: unknown, path: string): ClipEventEntry {
     clip,
     clipFps,
     clipRange: { startFrame, endFrame },
-    clipHitFrame,
+    ...(clipHitFrame !== undefined && { clipHitFrame }),
+    ...(reverse && { reverse }),
     spec: { startup, active, recovery },
     markers,
   };
@@ -279,4 +302,12 @@ export function indexClipEvents(table: ClipEventTable): (id: string) => ClipEven
     if (!e) throw new Error(`イベントマーカー表に動作 ${id} がありません`);
     return e;
   };
+}
+
+/** 表を id で引く。存在しない id は undefined（状態に対応する動作表があるかを調べるとき用）。 */
+export function lookupClipEvents(
+  table: ClipEventTable,
+): (id: string) => ClipEventEntry | undefined {
+  const map = new Map(table.entries.map((e) => [e.id, e]));
+  return (id) => map.get(id);
 }

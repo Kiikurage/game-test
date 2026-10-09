@@ -1,4 +1,6 @@
-import { EventBus, type GameEventMap } from '../core/gameEvents';
+import { EventBus, type FootstepSurface, type GameEventMap } from '../core/gameEvents';
+import { MARKER_TYPES, type MarkerType } from './anim/eventMarkers';
+import type { AnimMarkerEvent } from './anim/markerDispatcher';
 import { Euler, Quaternion, Vector3 } from 'three/webgpu';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { InputReader, InputSnapshot } from '../core/input';
@@ -93,6 +95,13 @@ export class Game {
   readonly dummies: DummyTarget[] = [];
   /** プレイヤーイベント（ロール開始など）の累計回数（デバッグ・E2E 用）。 */
   readonly eventCounts = { rollStart: 0, backstepStart: 0, land: 0, staminaEmpty: 0 };
+  /** イベントマーカーの発火回数（E2E・デバッグ用）。 */
+  readonly markerCounts = Object.fromEntries(MARKER_TYPES.map((t) => [t, 0])) as Record<
+    MarkerType,
+    number
+  >;
+  /** 足音の地面の種類（#24 のレベルが場所ごとの種類を返すよう差し替える）。 */
+  footstepSurface: (x: number, z: number) => FootstepSurface = () => 'grass';
   /** 直近ステップのロックオンイベント（デバッグ・E2E 用）。 */
   lastLockOnEvent: LockOnEvent = 'none';
 
@@ -235,8 +244,30 @@ export class Game {
       lockTarget: this.lockOn.target,
     });
     for (const e of player.events) this.eventCounts[e.type]++;
+    for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
+  }
+
+  /** アニメーションのイベントマーカーをイベントバスへ流す。足音は音のイベント（`footstep`）にも変換する。 */
+  private publishMarker(owner: string, e: AnimMarkerEvent, feet: Vector3): void {
+    this.markerCounts[e.type]++;
+    const position = { x: feet.x, y: feet.y, z: feet.z };
+    this.events.emit('animMarker', {
+      owner,
+      marker: e.type,
+      actionId: e.actionId,
+      frame: e.frame,
+      position,
+    });
+    if (e.type === 'footstep') {
+      this.events.emit('footstep', {
+        surface: this.footstepSurface(feet.x, feet.z),
+        gait: e.gait ?? 'run',
+        source: 'player',
+        position,
+      });
+    }
   }
 
   /** ターゲット切替要求: 入力層のフリック/ホイール/十字キー、またはロックオン中のマウスの急な横移動。 */
@@ -340,6 +371,7 @@ export class Game {
         lastEvent: this.lastLockOnEvent,
       },
       events: { ...this.eventCounts },
+      markers: { ...this.markerCounts },
     };
   }
 }
@@ -367,4 +399,6 @@ export interface GameDebugState {
   readonly events: Readonly<
     Record<'rollStart' | 'backstepStart' | 'land' | 'staminaEmpty', number>
   >;
+  /** イベントマーカーの種別ごとの発火回数。 */
+  readonly markers: Readonly<Record<MarkerType, number>>;
 }

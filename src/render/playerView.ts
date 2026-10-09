@@ -3,14 +3,14 @@ import type { Game } from '../game/game';
 import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
-import type { ClipName } from './assets/clips';
+import { applyCharacterLight } from './characterLight';
 
 const Y_AXIS = new Vector3(0, 1, 0);
 
 /** E2E / デバッグ用の状態。 */
 export interface PlayerViewState {
-  /** 最もウェイトの大きいクリップ。 */
-  readonly clip: ClipName;
+  /** 下半身で最もウェイトの大きいクリップ。 */
+  readonly clip: string;
   readonly triangles: number;
 }
 
@@ -49,6 +49,8 @@ export class PlayerView {
   static async create(scene: Scene, game: Game, assets?: CharacterAssets): Promise<PlayerView> {
     const loaded = assets ?? (await CharacterAssets.load(['knight']));
     const character = loaded.createCharacter('knight');
+    // 逆光でも輪郭・武器が読めるよう補助光（リムライト・暗部の持ち上げ）を足す（#144）
+    applyCharacterLight(character.root);
     let triangles = 0;
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {
@@ -77,7 +79,7 @@ export class PlayerView {
     if (this.character.root.visible ? arm < 0.9 : arm > 1.2) {
       this.character.root.visible = !this.character.root.visible;
     }
-    this.animator.update(dt, player.animation);
+    this.animator.update(dt, player.animation, alpha);
     // ロックオン中の横移動は、体を移動方向へ向ける（上半身は背骨で対象へ戻す）
     this.offset.setFromAxisAngle(Y_AXIS, this.animator.bodyYawOffset);
     this.character.root.position.copy(this.position);

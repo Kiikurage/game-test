@@ -94,6 +94,25 @@ test('a short Space press rolls toward the stick direction and costs stamina', a
   expect((await sim(page)).events.rollStart).toBe(1);
 });
 
+test('a roll plays the Roll clip and fires the invulnerability and footstep markers', async ({
+  page,
+}) => {
+  await boot(page);
+  await page.keyboard.down('KeyD');
+  await page.keyboard.press('Space');
+  await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
+  await expect
+    .poll(async () => (await sim(page)).markers.invulnStart, { timeout: 30_000 })
+    .toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(async () => (await sim(page)).markers.footstep, { timeout: 30_000 })
+    .toBeGreaterThanOrEqual(1);
+  await page.keyboard.up('KeyD');
+  await expect.poll(async () => (await sim(page)).player.state).toBe('idle');
+  const m = (await sim(page)).markers;
+  expect(m.invulnEnd).toBeGreaterThanOrEqual(1);
+});
+
 test('Space without a direction does a backstep, and holding Space sprints', async ({ page }) => {
   await boot(page);
   await page.keyboard.press('Space');

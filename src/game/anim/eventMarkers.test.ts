@@ -225,11 +225,57 @@ describe('playbackRate と時間変換', () => {
   });
 });
 
+describe('当たりのない動作と逆再生', () => {
+  const roll = () =>
+    first({
+      id: 'r',
+      clip: 'Roll',
+      clipRange: { startFrame: 0, endFrame: 42 },
+      clipHitFrame: undefined,
+      spec: { startup: 3, active: 0, recovery: 29 },
+      markers: [
+        { type: 'invulnStart', frame: 4 },
+        { type: 'invulnEnd', frame: 15 },
+      ],
+    });
+
+  it('clipHitFrame がなければ再生範囲の全体を全体フレームに合わせる（ロール 1.4s → 32F = 2.625 倍）', () => {
+    const e = roll();
+    expect(e.clipHitFrame).toBeUndefined();
+    expect(playbackRate(e)).toBeCloseTo(2.625, 10);
+    // 最終フレーム F32 の終わり（= F33 の開始）でクリップ範囲の終端
+    expect(simFrameToClipTime(e, 33)).toBeCloseTo(1.4, 10);
+  });
+
+  it('reverse: 終端から先頭へ進み、往復変換も一致する', () => {
+    const e = first({
+      clipRange: { startFrame: 0, endFrame: 12 },
+      clipHitFrame: undefined,
+      reverse: true,
+      spec: { startup: 2, active: 0, recovery: 20 },
+      markers: [],
+    });
+    expect(simFrameToClipTime(e, 1)).toBeCloseTo(0.4, 10);
+    expect(simFrameToClipTime(e, 23)).toBeCloseTo(0, 10);
+    for (const f of [1, 5, 12, 22]) {
+      expect(clipTimeToSimFrame(e, simFrameToClipTime(e, f))).toBeCloseTo(f, 8);
+    }
+  });
+
+  it('reverse は真偽値のみ', () => {
+    expect(() => parse({ reverse: 1 })).toThrow(/真偽値/);
+  });
+});
+
 describe('サンプルデータ（軽攻撃 1）', () => {
   const e = getPlayerClipEvents('player.light1');
 
   it('ローダで読み込め、仕様書 2.3 節と一致する', () => {
-    expect(playerClipEvents.entries).toHaveLength(1);
+    expect(playerClipEvents.entries.map((x) => x.id)).toEqual([
+      'player.light1',
+      'player.roll',
+      'player.backstep',
+    ]);
     expect(e.spec).toEqual({ startup: 12, active: 4, recovery: 20 });
     expect(totalFrames(e)).toBe(36);
     expect(e.markers).toEqual([
@@ -237,7 +283,9 @@ describe('サンプルデータ（軽攻撃 1）', () => {
       { type: 'hitEnd', frame: 16 },
       { type: 'cancelOpen', frame: 20 },
     ]);
-    expect(playbackRate(e)).toBeCloseTo(7 / 30 / 0.2, 10);
+    // 実クリップ（Sword_Regular_A）の振り抜き = クリップ内 F8（clipMeasure.mjs の実測）
+    expect(e.clipHitFrame).toBe(8);
+    expect(playbackRate(e)).toBeCloseTo(8 / 30 / 0.2, 10);
   });
 
   it('indexClipEvents: 未知の id は例外', () => {
