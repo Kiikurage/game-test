@@ -106,6 +106,10 @@ export interface HitEvent {
   readonly multiplier: number;
   /** 強靭度削り（ガード成功・ジャストガードでは 0）。 */
   readonly poiseDamage: number;
+  /** 攻撃の元の強靭度削り（ガードされても元の値。ガード時の軽・重のノックバック判定に使う）。 */
+  readonly attackPoiseDamage: number;
+  /** 攻撃側の位置（足元。扇形・カプセルの原点）。ノックバックの方向（攻撃側から被弾側へ）の計算に使う。 */
+  readonly attackerPosition: Vec3;
   readonly guard: GuardOutcome;
   /** ガード成功時に防御側が失うスタミナ（ジャストガードは 50%）。ガードされなければ 0。E2-6 が消費する。 */
   readonly guardStaminaCost: number;
@@ -288,6 +292,8 @@ export class HitResolver {
       baseDamage: profile.damage,
       multiplier,
       poiseDamage,
+      attackPoiseDamage: profile.poiseDamage,
+      attackerPosition: { x: shape.origin.x, y: shape.origin.y, z: shape.origin.z },
       guard,
       guardStaminaCost,
       position,

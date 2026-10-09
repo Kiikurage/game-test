@@ -40,6 +40,31 @@ export interface GameEventMap {
     readonly frame: number;
     readonly position?: Vec3Like;
   };
+  /**
+   * ヒットストップの発生（4.1 節）。命中・`hit` と同じステップで発行する。パーティクル・赤フラッシュ・白い閃光・
+   * 画面振動・撃破スローの演出がこれを購読する（`frames` が 0 でも、演出だけのために発行する）。
+   */
+  hitStop: {
+    readonly attackerId: string;
+    readonly targetId: string;
+    readonly kind: HitKind;
+    /** 攻撃側・被弾側が凍結するフレーム数（60Hz）。 */
+    readonly frames: number;
+    /** 命中位置と、飛び散る向き（攻撃側 → 被弾側の水平方向 + わずかに上。単位ベクトル）。 */
+    readonly position: Vec3Like;
+    readonly normal: Vec3Like;
+    /** この命中で被弾側が死亡した（死亡処理はヒットストップ中でも始める）。 */
+    readonly killed: boolean;
+    /** プレイヤーが攻撃側か（パーティクルなどの出し分け用）。 */
+    readonly fromPlayer: boolean;
+    /** プレイヤーが被弾側か。 */
+    readonly toPlayer: boolean;
+    /** 画面の閃光（赤: 敵の攻撃がプレイヤーに命中、白: ジャストガード）と、その長さ。 */
+    readonly flash: 'red' | 'white' | null;
+    readonly flashFrames: number;
+    /** 撃破スロー（0.3 倍速）。なければ null。 */
+    readonly slowMotion: { readonly scale: number; readonly frames: number } | null;
+  };
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {
     readonly cue: string;

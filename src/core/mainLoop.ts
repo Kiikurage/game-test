@@ -10,6 +10,11 @@ export interface MainLoopCallbacks {
 export interface MainLoopOptions extends FixedStepperOptions {
   /** 1 フレームで消化する実時間の上限（秒）。タブ復帰時などの巨大な dt を丸める。 */
   maxFrameSeconds?: number;
+  /**
+   * グローバルのタイムスケール（スローモーション）。実時間の経過に掛けて固定ステップへ渡す。
+   * シミュレーションのステップ自体は 1/60 秒のまま（フレーム単位の決定性を保つ）。省略時は常に 1。
+   */
+  timeScale?: () => number;
 }
 
 /**
@@ -23,6 +28,7 @@ export class MainLoop {
 
   private readonly stepper: FixedStepper;
   private readonly maxFrameSeconds: number;
+  private readonly timeScale: () => number;
   private rafId: number | null = null;
   private last = 0;
 
@@ -32,6 +38,7 @@ export class MainLoop {
   ) {
     this.stepper = new FixedStepper(options);
     this.maxFrameSeconds = options.maxFrameSeconds ?? 0.25;
+    this.timeScale = options.timeScale ?? (() => 1);
   }
 
   start(): void {
@@ -51,7 +58,7 @@ export class MainLoop {
     const frameSeconds = Math.min((now - this.last) / 1000, this.maxFrameSeconds);
     this.last = now;
 
-    const { steps, alpha } = this.stepper.advance(frameSeconds);
+    const { steps, alpha } = this.stepper.advance(frameSeconds * this.timeScale());
     for (let i = 0; i < steps; i++) {
       this.callbacks.update(this.stepper.stepSeconds);
       this.stepCount++;
