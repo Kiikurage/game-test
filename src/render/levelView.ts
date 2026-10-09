@@ -1,7 +1,6 @@
 import {
   BoxGeometry,
   BufferGeometry,
-  CapsuleGeometry,
   CylinderGeometry,
   Float32BufferAttribute,
   Group,
@@ -375,30 +374,9 @@ export class LevelView {
     this.towerLamp = lamp;
   }
 
-  /** 敵・アイテムの配置の目印（グレーボックス用。実体は後続チケットで差し替える）。 */
+  /** アイテムの配置の目印（グレーボックス用。実体は後続チケットで差し替える）。敵は `EnemyViews` が描く。 */
   private addSpawnMarkers(): void {
-    const { enemies, items } = this.level.data;
-    const enemyMat = new MeshStandardNodeMaterial({
-      color: 0x8a3a3a,
-      roughness: 0.8,
-      transparent: true,
-      opacity: 0.55,
-    });
-    const shieldMat = new MeshStandardNodeMaterial({
-      color: 0x3a5a8a,
-      roughness: 0.8,
-      transparent: true,
-      opacity: 0.55,
-    });
-    for (const e of enemies) {
-      const marker = new Mesh(
-        new CapsuleGeometry(0.35, 1.1, 4, 10),
-        e.type === 'undead_shield' ? shieldMat : enemyMat,
-      );
-      marker.position.set(e.x, this.level.heightAt(e.x, e.z) + 0.9, e.z);
-      marker.name = `spawn:${e.id}`;
-      this.root.add(marker);
-    }
+    const { items } = this.level.data;
     const itemMat = new MeshBasicNodeMaterial({ color: 0xf0c050 });
     for (const item of items) {
       const marker = new Mesh(new SphereGeometry(0.2, 10, 8), itemMat);

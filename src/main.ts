@@ -13,6 +13,7 @@ import { mountTuningPanel } from './ui/tuningPanel';
 import { resetTuning, tuning } from './game/tuning';
 import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { PlayerView, type PlayerViewState } from './render/playerView';
+import { EnemyViews } from './render/enemyView';
 import type { PlayerAnimLayer } from './render/assets/playerAnimator';
 import { createTerrainCollisionMesh } from './render/testScene';
 import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
@@ -38,6 +39,8 @@ interface DebugState {
     teleport(x: number, z: number, yaw: number, y?: number): void;
     /** シミュレーションの一時停止（撮影用）。 */
     pause(paused: boolean): void;
+    /** シミュレーションを指定ステップ（60Hz）だけ進める（撮影・E2E 用。`pause(true)` と併用する）。 */
+    advance(steps: number): void;
     /** 指定した対象を直接ロックオンする（撮影用）。 */
     lock(id: string): boolean;
     /** カメラをプレイヤーの向き + `yawOffset` の背後に置き直す（撮影用）。 */
@@ -102,6 +105,8 @@ async function bootstrap(): Promise<void> {
       ...(level
         ? levelGameOptions(level)
         : { terrain: createTerrainCollisionMesh(), terrainHeight }),
+      // `?enemies=0`: 敵を配置しない（敵に邪魔されない移動の E2E・地形の確認用）
+      ...(new URLSearchParams(location.search).get('enemies') === '0' && { enemies: [] }),
     });
     const view = new GameView(game, gameRenderer, level ?? undefined);
     game.addStaticCylinders(level ? level.cylinders : view.colliders);
@@ -134,6 +139,16 @@ async function bootstrap(): Promise<void> {
         return undefined;
       });
       if (playerView) view.attachPlayer(playerView);
+      if (game.enemies.enemies.length > 0) {
+        const enemyViews = await EnemyViews.create(view.scene, game).catch((e: unknown) => {
+          console.error('enemy views failed to load', e);
+          return undefined;
+        });
+        if (enemyViews) {
+          enemyViews.setDebug(isDebugEnabled(location.search));
+          view.attachEnemies(enemyViews);
+        }
+      }
     }
 
     new ResizeObserver(() => {
@@ -224,6 +239,9 @@ async function bootstrap(): Promise<void> {
         lock: (id) => game.lockOnTo(id),
         pause: (p) => {
           paused = p;
+        },
+        advance: (steps) => {
+          for (let i = 0; i < steps; i++) game.update(1 / 60);
         },
         view: (yawOffset, distance, pitchDeg) => {
           if (distance !== undefined) tuning.camera.distance = distance;

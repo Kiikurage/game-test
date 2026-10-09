@@ -497,15 +497,7 @@ const enemies: EnemySpawn[] = [
     yaw: -Math.PI / 2,
     behavior: 'wait',
   },
-  {
-    id: 'd-undead-1',
-    type: 'undead_soldier',
-    area: 'D',
-    x: 62,
-    z: 51.3,
-    yaw: Math.PI,
-    behavior: 'wait',
-  },
+  // 石棺の亡者兵（待ち伏せ）は起き上がりモーションと同時に別チケットで追加する（棺の上に直置きすると蓋の上に乗るため、ここでは置かない）。
   // E（噴水の周り）
   {
     id: 'e-undead-1',
