@@ -82,6 +82,12 @@ export type Tuning = {
     redFlashFrames: number;
     whiteFlashFrames: number;
   };
+  /** 被弾リアクション（`?debug` で調整）。押し戻しは距離（仕様書 4.4 節）を何ステップで滑らせるか。 */
+  readonly reaction: {
+    lightSlideFrames: number;
+    heavySlideFrames: number;
+    guardSlideFrames: number;
+  };
   readonly camera: {
     distance: number;
     pivotHeight: number;
@@ -172,6 +178,11 @@ function createTuning(): Tuning {
       chargedShakeFrames: HEAVY_CHARGED_SCREEN_SHAKE_FRAMES,
       redFlashFrames: HIT_FLASH.redFrames,
       whiteFlashFrames: HIT_FLASH.whiteFrames,
+    },
+    reaction: {
+      lightSlideFrames: 8,
+      heavySlideFrames: 14,
+      guardSlideFrames: 8,
     },
     camera: {
       distance: CAMERA.distance,

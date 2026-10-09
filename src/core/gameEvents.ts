@@ -65,6 +65,20 @@ export interface GameEventMap {
     /** 撃破スロー（0.3 倍速）。なければ null。 */
     readonly slowMotion: { readonly scale: number; readonly frames: number } | null;
   };
+  /**
+   * 被弾リアクションの発生（強靭度・仰け反り・転倒・崩し・ガードの押し戻し。#50）。命中と同じステップで発行する。
+   * `interruptsAction` は、回復・溜めなどの進行中の動作が失われる反応（E2-7 が購読する）。
+   */
+  hitReaction: {
+    readonly targetId: string;
+    readonly kind: 'none' | 'flinch' | 'stagger' | 'knockdown' | 'guardPush';
+    readonly frames: number;
+    readonly blocksAction: boolean;
+    readonly interruptsAction: boolean;
+    readonly knockback: number;
+    readonly broke: boolean;
+    readonly heavy: boolean;
+  };
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {
     readonly cue: string;

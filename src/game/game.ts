@@ -11,13 +11,16 @@ import { createPhysics, type Physics } from './physics';
 import { Player } from './player/player';
 import {
   DebugSwing,
-  HitResolver,
   decideHitStop,
   type Freezable,
+  HOLLOW_SOLDIER_REACTOR,
+  HitReactor,
+  HitResolver,
   PLAYER_HEARTBOXES,
   UprightTarget,
   uprightHeartbox,
   type HitEvent,
+  type HitReaction,
 } from './combat';
 import { PLAYER_STATS } from './data';
 import { TimeScale } from './timeScale';
@@ -129,6 +132,11 @@ export class Game {
   /** ?debug 用の仮の攻撃（判定と可視化の動作確認。実際の攻撃動作は #46）。 */
   readonly debugSwing = new DebugSwing(this.combat);
   /**
+   * プレイヤー以外の被弾側の強靭度・押し戻し（`HitReactor`）。テストシーンのダミーは亡者兵相当（強靭度 50）。
+   * 敵（#42 以降）は自分の `HitReactor` を作って `addReactor` し、命中時の反応を自分の状態機械へ反映する。
+   */
+  readonly reactors = new Map<string, HitReactor>();
+  /**
    * グローバルのタイムスケール（撃破スローなど）。メインループが `current` を実時間へ掛ける。
    * シミュレーションはスロー中もフレーム単位で決定的（`timeScale.ts`）。
    */
@@ -153,8 +161,12 @@ export class Game {
   /** 直近ステップのロックオンイベント（デバッグ・E2E 用）。 */
   lastLockOnEvent: LockOnEvent = 'none';
 
-  /** ヒットストップで凍結するキャラクター（ID → 凍結口）。プレイヤーは登録済み、敵は自分で `registerFreezable` する。 */
-  private readonly freezables = new Map<string, Freezable>();
+  /** 強靭度崩し中の 1.5 倍を反映する対象（`reactors` と同じ ID）。 */
+  private readonly reactiveTargets = new Map<string, UprightTarget>();
+  private readonly dummyReactorIds = new Set<string>();
+  private readonly slideScratch = { x: 0, z: 0 };
+  /** ヒットストップで凍結するもの（ID → 凍結口）。プレイヤー・登録済みの被弾リアクタは自動、敵は自分で `registerFreezable`。 */
+  private readonly freezables = new Map<string, Freezable[]>();
   private input: InputReader;
   private pendingLockEvent: LockOnEvent | null = null;
   private readonly cameraCollision: CameraCollision;
@@ -162,6 +174,7 @@ export class Game {
   private readonly spawnYaw: number;
   private readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
+  private readonly boxColliders = new Map<string, RAPIER.Collider>();
 
   private constructor(
     private readonly physics: Physics,
@@ -191,12 +204,14 @@ export class Game {
       const q = TMP_QUAT.setFromAxisAngle(EULER_Y, ((b.yawDeg ?? 0) * Math.PI) / 180);
       const qx = new Quaternion().setFromAxisAngle(EULER_X, ((b.pitchDeg ?? 0) * Math.PI) / 180);
       q.multiply(qx);
-      world.createCollider(
+      const collider = world.createCollider(
         rapier.ColliderDesc.cuboid(b.hx, b.hy, b.hz)
           .setTranslation(b.x, b.y, b.z)
           .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
           .setCollisionGroups(WORLD_GROUPS),
       );
+      if (b.enabled === false) collider.setEnabled(false);
+      this.boxColliders.set(b.id, collider);
     }
     const heightAt = options.terrainHeight ?? (() => 0);
     this.heightAt = heightAt;
@@ -210,6 +225,11 @@ export class Game {
       ]);
       heart.place(d.x, y, d.z, 0);
       this.combat.addTarget(heart);
+      const reactor = new HitReactor(HOLLOW_SOLDIER_REACTOR);
+      this.reactors.set(d.id, reactor);
+      this.registerFreezable(d.id, reactor);
+      this.reactiveTargets.set(d.id, heart);
+      this.dummyReactorIds.add(d.id);
       world.createCollider(
         rapier.ColliderDesc.cylinder(d.height / 2, d.radius)
           .setTranslation(d.x, y + d.height / 2, d.z)
@@ -228,7 +248,7 @@ export class Game {
     this.camera.reset(this.player.feet, this.spawnYaw);
     this.combat.addTarget(this.playerTarget);
     this.syncPlayerTarget();
-    this.freezables.set('player', {
+    this.registerFreezable('player', {
       freeze: (frames) => {
         this.player.hitStop(frames);
       },
@@ -237,6 +257,7 @@ export class Game {
       this.hitCount++;
       this.hitLog.push(e);
       if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
+      this.applyReaction(e);
       this.applyHitStop(e);
       this.events.emit('hit', {
         kind: e.kind,
@@ -260,6 +281,14 @@ export class Game {
     const target = this.lockOnTargets.find((t) => t.id === id);
     if (!target) return false;
     this.pendingLockEvent = this.lockOn.lock(target);
+    return true;
+  }
+
+  /** 静的な箱（門など。id は `BoxSpec.id`）の衝突を有効 / 無効にする。該当する id がなければ false。 */
+  setBoxEnabled(id: string, enabled: boolean): boolean {
+    const collider = this.boxColliders.get(id);
+    if (!collider) return false;
+    collider.setEnabled(enabled);
     return true;
   }
 
@@ -324,6 +353,7 @@ export class Game {
     for (const e of player.events) this.eventCounts[e.type]++;
     for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
     this.syncPlayerTarget();
+    this.stepReactors();
     // 攻撃側（プレイヤー）が凍結中は、仮の攻撃のフレームも進めない
     if (!player.fsm.isFrozenStep) this.debugSwing.update(player.feet, player.yaw);
     this.combat.step();
@@ -331,13 +361,70 @@ export class Game {
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
   }
 
+  /**
+   * 敵などの被弾側を登録する。`reactor` は命中時の強靭度・押し戻しの計算に使い、毎ステップ `step` する。
+   * `target` は崩し中の被ダメージ 1.5 倍を反映する `UprightTarget`（`HitResolver` に登録済みのもの）。
+   */
+  addReactor(id: string, reactor: HitReactor, target?: UprightTarget): void {
+    this.reactors.set(id, reactor);
+    this.registerFreezable(id, reactor);
+    if (target) this.reactiveTargets.set(id, target);
+  }
+
+  removeReactor(id: string): void {
+    this.reactors.delete(id);
+    this.freezables.delete(id);
+    this.reactiveTargets.delete(id);
+    this.dummyReactorIds.delete(id);
+  }
+
+  /**
+   * 登録済みの反応体を 1 ステップ進める（強靭度の回復・崩しの残り・被弾後無敵）。ダミーは押し戻しを受けないので
+   * 変位を捨てる（敵は自分で `reactor.consumeSlide` を呼んで移動に足す）。
+   */
+  private stepReactors(): void {
+    for (const [id, reactor] of this.reactors) {
+      // ヒットストップ中は強靭度の回復・崩しの残り・被弾後無敵・押し戻しも止める
+      if (reactor.consumeFreeze()) continue;
+      reactor.step();
+      if (this.dummyReactorIds.has(id)) reactor.consumeSlide(this.slideScratch);
+      const target = this.reactiveTargets.get(id);
+      if (target) target.staggered = reactor.staggered;
+    }
+  }
+
+  /** 命中を被弾側の強靭度・押し戻し・仰け反りへ反映し、`hitReaction` を発行する。 */
+  private applyReaction(e: HitEvent): void {
+    const id = e.targetId;
+    // 押し戻しの向き: 攻撃側の原点 → 命中位置
+    const dx = e.position.x - e.attackerPosition.x;
+    const dz = e.position.z - e.attackerPosition.z;
+    let reaction: HitReaction;
+    if (id === 'player') {
+      reaction = this.player.receiveHit(e, dx, dz);
+    } else {
+      const reactor = this.reactors.get(id);
+      if (!reactor) return;
+      reaction = reactor.react(e, dx, dz);
+      const target = this.reactiveTargets.get(id);
+      if (target) target.staggered = reactor.staggered;
+    }
+    this.events.emit('hitReaction', { targetId: id, ...reaction });
+  }
+
   /** ヒットストップの凍結口を登録する（敵・ボス。`CharacterFsm` はそのまま渡せる）。 */
   registerFreezable(id: string, target: Freezable): void {
-    this.freezables.set(id, target);
+    const list = this.freezables.get(id);
+    if (list) list.push(target);
+    else this.freezables.set(id, [target]);
   }
 
   unregisterFreezable(id: string): void {
     this.freezables.delete(id);
+  }
+
+  private freeze(id: string, frames: number): void {
+    for (const f of this.freezables.get(id) ?? []) f.freeze(frames);
   }
 
   /**
@@ -358,8 +445,8 @@ export class Game {
       tuning.hitStop,
     );
     if (decision.frames > 0) {
-      this.freezables.get(e.attackerId)?.freeze(decision.frames);
-      if (e.targetId !== e.attackerId) this.freezables.get(e.targetId)?.freeze(decision.frames);
+      this.freeze(e.attackerId, decision.frames);
+      if (e.targetId !== e.attackerId) this.freeze(e.targetId, decision.frames);
       this.hitStopCount++;
     }
     this.lastHitStopFrames = decision.frames;

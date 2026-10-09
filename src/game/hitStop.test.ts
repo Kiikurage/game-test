@@ -100,6 +100,23 @@ describe('hit-stop (Game)', () => {
     expect(game.debugState.combat.lastHitStopFrames).toBe(6);
   });
 
+  it('被弾リアクタ（ダミーの強靭度・崩しの残り）もヒットストップ中は進まない', () => {
+    const reactor = game.reactors.get('dummy-a');
+    if (!reactor) throw new Error('dummy reactor not found');
+    for (let i = 0; i < 3; i++) {
+      playerHits('dummy-a', 'light1');
+      run(30);
+    }
+    expect(reactor.staggered).toBe(true);
+    const before = reactor.poise.staggerRemaining;
+    // 崩し中の追撃（4F 凍結）。凍結の 4 ステップは崩しの残りが減らない
+    playerHits('dummy-a', 'light1');
+    run(4);
+    expect(reactor.poise.staggerRemaining).toBe(before);
+    run(1);
+    expect(reactor.poise.staggerRemaining).toBe(before - 1);
+  });
+
   it('ボスの攻撃は 8F', () => {
     game.bossIds.add('boss-1');
     const boss = addEnemy('boss-1');
