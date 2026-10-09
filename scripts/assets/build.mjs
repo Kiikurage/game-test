@@ -3,6 +3,7 @@
 //   characters/<name>.glb : スキン付きキャラクター（テクスチャ縮小・WebP、メッシュ簡略化・量子化・meshopt）
 //   animations.glb        : 選定したクリップだけを 1 ファイルにまとめたもの（Quaternius 共通リグ用）
 //   props.glb             : 剣・盾（自作）
+//   equipment.glb         : 亡者・ボス用の簡易装備メッシュ（自作。build-equipment.mjs が追記する）
 //   manifest.json         : 出力ファイルのサイズ・三角形数・クリップ一覧
 //
 // 元データは信頼できない外部データ。glTF / 画像としてパースするだけで、実行はしない。
@@ -446,3 +447,6 @@ const total =
 manifest.totalBytes = total;
 writeFileSync(join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 console.log(`total ${kb(total)} -> ${relative(ROOT, OUT_DIR)}`);
+
+// 簡易装備メッシュ（knight.glb の bind pose からソケットを計算するので最後に作る）
+await import('./build-equipment.mjs');
