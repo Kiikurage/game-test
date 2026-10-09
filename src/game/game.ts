@@ -124,6 +124,7 @@ export class Game {
   private readonly spawnYaw: number;
   private readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
+  private readonly boxColliders = new Map<string, RAPIER.Collider>();
 
   private constructor(
     private readonly physics: Physics,
@@ -153,12 +154,14 @@ export class Game {
       const q = TMP_QUAT.setFromAxisAngle(EULER_Y, ((b.yawDeg ?? 0) * Math.PI) / 180);
       const qx = new Quaternion().setFromAxisAngle(EULER_X, ((b.pitchDeg ?? 0) * Math.PI) / 180);
       q.multiply(qx);
-      world.createCollider(
+      const collider = world.createCollider(
         rapier.ColliderDesc.cuboid(b.hx, b.hy, b.hz)
           .setTranslation(b.x, b.y, b.z)
           .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
           .setCollisionGroups(WORLD_GROUPS),
       );
+      if (b.enabled === false) collider.setEnabled(false);
+      this.boxColliders.set(b.id, collider);
     }
     const heightAt = options.terrainHeight ?? (() => 0);
     this.heightAt = heightAt;
@@ -199,6 +202,14 @@ export class Game {
     const target = this.lockOnTargets.find((t) => t.id === id);
     if (!target) return false;
     this.pendingLockEvent = this.lockOn.lock(target);
+    return true;
+  }
+
+  /** 静的な箱（門など。id は `BoxSpec.id`）の衝突を有効 / 無効にする。該当する id がなければ false。 */
+  setBoxEnabled(id: string, enabled: boolean): boolean {
+    const collider = this.boxColliders.get(id);
+    if (!collider) return false;
+    collider.setEnabled(enabled);
     return true;
   }
 

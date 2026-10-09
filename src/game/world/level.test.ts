@@ -293,3 +293,145 @@ describe('walkability of areas A to C', () => {
     }
   });
 });
+
+describe('areas D to F (E4-1b)', () => {
+  const spawn = ASHEN_FOUNDATION.playerSpawn;
+  const data = ASHEN_FOUNDATION;
+  const box = (id: string) => {
+    const b = level.boxes.find((x) => x.id === id);
+    if (!b) throw new Error(`no box ${id}`);
+    return b;
+  };
+
+  it('defines the iron gate G1, its lever and the fog gate at the spec coordinates', () => {
+    const gate = (id: string) => data.gates.find((g) => g.id === id);
+    expect(gate('G1')).toMatchObject({ kind: 'iron', x: 78, z: 32, blocking: true });
+    expect(gate('G1')?.leverId).toBe('lever-g1');
+    expect(gate('fog-gate')).toMatchObject({ kind: 'fog', x: 104, z: 68, blocking: false });
+    const at = (id: string) => data.interactables.find((i) => i.id === id);
+    expect(at('lever-g1')).toMatchObject({ kind: 'lever', x: 80, z: 36 });
+    expect(at('G1')).toMatchObject({ kind: 'gate', x: 78, z: 32 });
+    expect(at('fog-gate')).toMatchObject({ kind: 'gate', area: 'E', x: 104, z: 68 });
+    // 門のコライダ: G1 は有効、霧の門は無効で始まる。id は門の id
+    const boxes = level.gates.map((g) => g.box);
+    expect(boxes.find((b) => b.id === 'G1')?.enabled).toBe(true);
+    expect(boxes.find((b) => b.id === 'fog-gate')?.enabled).toBe(false);
+  });
+
+  it('builds the arena: Ø32 circle, 4 pillars (h 4m, r 0.7m) evenly spaced, pedestal in the centre', () => {
+    const f = data.areas.find((a) => a.id === 'F')?.shape;
+    expect(f).toMatchObject({ type: 'circle', cx: 122, cz: 86, r: 16 });
+    const pillars = level.cylinders.filter((c) => c.id.startsWith('f-pillar'));
+    expect(pillars).toHaveLength(4);
+    for (const p of pillars) {
+      expect(p.radius).toBeCloseTo(0.7, 6);
+      expect(p.height - 0.3).toBeCloseTo(4, 6);
+      expect(Math.hypot(p.x - 122, p.z - 86)).toBeCloseTo(12, 6);
+    }
+    const sorted = pillars.map((p) => Math.atan2(p.z - 86, p.x - 122)).sort((a, b) => a - b);
+    for (let i = 0; i < 4; i++) {
+      const next = sorted[(i + 1) % 4] ?? 0;
+      const cur = sorted[i] ?? 0;
+      expect((next - cur + 2 * Math.PI) % (2 * Math.PI)).toBeCloseTo(Math.PI / 2, 6);
+    }
+    expect(level.cylinders.find((c) => c.style === 'pedestal')).toMatchObject({ x: 122, z: 86 });
+    // 外周の壁の内面は円の外（内径 32m 以上）
+    for (const b of level.boxes.filter((x) => x.id.startsWith('f-wall-'))) {
+      expect(Math.hypot(b.x - 122, b.z - 86) - b.hz).toBeGreaterThanOrEqual(15.99);
+    }
+  });
+
+  it('makes the catacomb corridor 2.5m wide with an L turn, about 22m from the entrance', () => {
+    // 第 1 区間: 西壁の東面と岩盤の西面の間
+    const w = box('d-wall-w');
+    const s = box('d-mass-s');
+    expect(s.x - s.hx - (w.x + w.hx)).toBeCloseTo(2.5, 6);
+    // 第 2 区間: 南の岩盤の北面と北の岩盤の南面の間
+    const n = box('d-mass-n');
+    expect(n.z - n.hz - (s.z + s.hz)).toBeCloseTo(2.5, 6);
+    // 入口 (62,38) → 角 (62,48.5) → 盾持ちの位置 (74,49) の道のり
+    const length = Math.hypot(0, 48.5 - 38) + Math.hypot(74 - 62, 49 - 48.5);
+    expect(length).toBeGreaterThan(21);
+    expect(length).toBeLessThan(24);
+  });
+
+  it('places the courtyard fountain as an obstacle and keeps a route around it', () => {
+    const fountain = level.cylinders.find((c) => c.style === 'fountain');
+    expect(fountain).toBeDefined();
+    expect(fountain?.x).toBeGreaterThan(84);
+    expect(fountain?.x).toBeLessThan(104);
+    expect(reachable(level, { x: 84, z: 51 }, { x: 104, z: 66 })).toBe(true);
+  });
+
+  it('lets the player walk from the bonfire to the arena', () => {
+    expect(reachable(level, spawn, { x: 62, z: 40 })).toBe(true);
+    expect(reachable(level, spawn, { x: 76, z: 48.5 })).toBe(true);
+    expect(reachable(level, spawn, { x: 100, z: 60 })).toBe(true);
+    expect(reachable(level, spawn, { x: 118, z: 82 })).toBe(true);
+    expect(reachable(level, spawn, { x: 122, z: 92 })).toBe(true);
+  });
+
+  it('gives the courtyard two approach routes (west entrance, south breach)', () => {
+    const west = (x: number, z: number) => x > 82 && x < 86 && z > 47 && z < 55;
+    const south = (x: number, z: number) => x > 90 && x < 98 && z > 46 && z < 50;
+    const centre = { x: 94, z: 64 };
+    expect(reachable(level, spawn, centre, (x, z) => west(x, z) || south(x, z))).toBe(false);
+    expect(reachable(level, spawn, centre, south)).toBe(true);
+    expect(reachable(level, spawn, centre, west)).toBe(true);
+  });
+
+  it('seals the arena except for the passage from the fog gate', () => {
+    const passage = (x: number, z: number) => x > 105 && x < 112 && z > 70 && z < 77;
+    expect(reachable(level, spawn, { x: 122, z: 92 }, passage)).toBe(false);
+  });
+
+  it('keeps the main route clear of props through D, E and F', () => {
+    const route = data.route;
+    const start = route.findIndex((p) => p.x === 62 && p.z === 36);
+    expect(start).toBeGreaterThan(0);
+    for (let i = start; i + 1 < route.length; i++) {
+      const a = route[i];
+      const b = route[i + 1];
+      if (!a || !b) continue;
+      for (let t = 0; t <= 1; t += 0.05) {
+        const x = a.x + (b.x - a.x) * t;
+        const z = a.z + (b.z - a.z) * t;
+        expect(
+          isBlocked(level, x, z, () => false),
+          `route blocked at (${x}, ${z})`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('keeps the climb from C to the arena gentle along the main route (< 22 degrees)', () => {
+    const route = data.route;
+    const start = route.findIndex((p) => p.x === 61 && p.z === 28);
+    for (let i = start; i + 1 < route.length; i++) {
+      const a = route[i];
+      const b = route[i + 1];
+      if (!a || !b) continue;
+      const run = Math.hypot(b.x - a.x, b.z - a.z);
+      const deg = (Math.atan2(Math.abs(b.height - a.height), run) * 180) / Math.PI;
+      expect(deg, `${i}`).toBeLessThan(22);
+    }
+  });
+
+  it('connects the shortcut from G1 down to the bonfire area, through the open gate', () => {
+    const lane = data.extraRoutes?.[0];
+    if (!lane) throw new Error('no shortcut route');
+    const g1 = lane.findIndex((p) => p.x === 78 && p.z === 32);
+    let length = 0;
+    for (let i = g1; i + 1 < lane.length; i++) {
+      const a = lane[i];
+      const b = lane[i + 1];
+      if (a && b) length += Math.hypot(b.x - a.x, b.z - a.z);
+    }
+    expect(length).toBeGreaterThan(70);
+    expect(length).toBeLessThan(100);
+    // ショートカット（G1 より南）に敵はいない
+    const onRoad = data.enemies.filter((e) => e.x > 64 && e.x < 82 && e.z > 4 && e.z < 32);
+    expect(onRoad).toEqual([]);
+    expect(reachable(level, { x: 8, z: -5 }, { x: 80.3, z: 40 })).toBe(true);
+  });
+});
