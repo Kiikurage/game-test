@@ -8,6 +8,7 @@ import type {
   BlockProp,
   CylinderProp,
   EnemySpawn,
+  GateDef,
   InteractableSpawn,
   ItemSpawn,
   LevelData,
@@ -16,6 +17,13 @@ import type {
 
 /** 礼拝堂の床の高さ（m）。B の道は篝火の高さ 0 からここまで緩く上る。 */
 const C_FLOOR = 3.4;
+/**
+ * 中庭・闘技場の床の高さ（m）。地下墓所は床を平らにせず、C（3.4）から E（7.4）へ通路が緩く上る。
+ * `D_BASE` は地下墓所の岩盤の基準高さ（通路の床より高い）。
+ */
+const D_BASE = 5.4;
+const E_FLOOR = 7.4;
+const F_FLOOR = 9.9;
 const WALL_T = 0.35;
 const WALL_H = 3.6;
 
@@ -84,6 +92,201 @@ function pewRow(id: string, x: number, z: number): BlockProp {
     baseY: C_FLOOR,
   };
 }
+
+/** 任意の向きの壁（始点 → 終点）。厚みは WALL_T の 2 倍。`extend` は両端を延ばして継ぎ目の隙間を消す。 */
+function wallSeg(
+  id: string,
+  [x0, z0]: readonly [number, number],
+  [x1, z1]: readonly [number, number],
+  height: number,
+  baseY: number | undefined,
+  opts: { style?: BlockProp['style']; extend?: number; halfThickness?: number } = {},
+): BlockProp {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const extend = opts.extend ?? 0;
+  return {
+    kind: 'block',
+    id,
+    style: opts.style ?? 'wall',
+    x: (x0 + x1) / 2,
+    z: (z0 + z1) / 2,
+    hx: len / 2 + extend,
+    hz: opts.halfThickness ?? WALL_T,
+    height,
+    ...(baseY === undefined ? {} : { baseY }),
+    yawDeg: (Math.atan2(-(z1 - z0), x1 - x0) * 180) / Math.PI,
+  };
+}
+
+/** 軸に平行な矩形の塊（地下墓所の岩盤など）。 */
+function mass(
+  id: string,
+  [x0, x1]: readonly [number, number],
+  [z0, z1]: readonly [number, number],
+  height: number,
+  baseY: number | undefined,
+): BlockProp {
+  return {
+    kind: 'block',
+    id,
+    style: 'wall',
+    x: (x0 + x1) / 2,
+    z: (z0 + z1) / 2,
+    hx: (x1 - x0) / 2,
+    hz: (z1 - z0) / 2,
+    height,
+    ...(baseY === undefined ? {} : { baseY }),
+  };
+}
+
+// --- D 地下墓所: 通路幅 2.5m の L 字（入口 (62,36) → 北へ → 角 → 東へ → 出口 (78.6,48.5)）。岩盤の塊で囲む ---
+const D_WALL_H = 3.8;
+const D_PROPS: PropSpec[] = [
+  mass('d-wall-w', [60, 60.75], [35.5, 53.75], D_WALL_H, D_BASE),
+  mass('d-cap-n', [60, 64], [52.75, 53.75], D_WALL_H, D_BASE),
+  mass('d-mass-n', [63.25, 78.6], [49.75, 53.75], D_WALL_H, D_BASE),
+  mass('d-mass-s', [63.25, 78.6], [35.5, 47.25], D_WALL_H, D_BASE),
+  // 角の奥の窪み（石棺。蓋を押しのけて亡者兵が起き上がる手続きモーションは別チケット）
+  {
+    kind: 'block',
+    id: 'd-sarcophagus',
+    style: 'sarcophagus',
+    x: 62,
+    z: 51.5,
+    hx: 0.8,
+    hz: 0.95,
+    height: 0.75,
+  },
+];
+
+// --- E 中庭 (84..104, 48..68): 外壁に 西の入口・南の崩れ口の 2 か所。北東の角に霧の門 (104,68) ---
+const E_WALL_H = 3.3;
+const E_PROPS: PropSpec[] = [
+  // 西壁（入口 z 48..54）、南壁（崩れ口 x 92..96）、東壁、北壁（霧の門の手前で止める）
+  mass('e-wall-w', [83.65, 84.35], [54, 68], E_WALL_H, E_FLOOR),
+  mass('e-wall-s1', [84, 92], [47.65, 48.35], E_WALL_H, E_FLOOR),
+  mass('e-wall-s2', [96, 104], [47.65, 48.35], E_WALL_H, E_FLOOR),
+  mass('e-wall-e', [103.65, 104.35], [48, 64.5], E_WALL_H, E_FLOOR),
+  mass('e-wall-n', [84, 100.8], [67.65, 68.35], E_WALL_H, E_FLOOR),
+  // 崩れ口の瓦礫
+  {
+    kind: 'block',
+    id: 'e-rubble-1',
+    style: 'rubble',
+    x: 91.6,
+    z: 49,
+    hx: 0.8,
+    hz: 0.5,
+    height: 0.9,
+    yawDeg: 25,
+    baseY: E_FLOOR,
+  },
+  {
+    kind: 'block',
+    id: 'e-rubble-2',
+    style: 'rubble',
+    x: 96.5,
+    z: 49.3,
+    hx: 0.7,
+    hz: 0.6,
+    height: 1.2,
+    yawDeg: -30,
+    baseY: E_FLOOR,
+  },
+  // 崩れた噴水（障害物）と、位置取りのための壁の欠片・折れた柱
+  { kind: 'cylinder', id: 'e-fountain', style: 'fountain', x: 94, z: 58, radius: 2.2, height: 1.3 },
+  {
+    kind: 'block',
+    id: 'e-wall-frag',
+    style: 'wall',
+    x: 90,
+    z: 62.5,
+    hx: 2.2,
+    hz: WALL_T,
+    height: 1.7,
+    baseY: E_FLOOR,
+  },
+  {
+    kind: 'cylinder',
+    id: 'e-column-1',
+    style: 'column',
+    x: 89,
+    z: 55.5,
+    radius: 0.45,
+    height: 2.4,
+  },
+  { kind: 'cylinder', id: 'e-column-2', style: 'column', x: 99, z: 63, radius: 0.45, height: 3 },
+  { kind: 'cylinder', id: 'e-column-3', style: 'column', x: 88, z: 66, radius: 0.5, height: 1.6 },
+];
+
+// --- ショートカット（G1 から A へ向かう道）の入口の両側と、G1 の北の道（中庭へ続く北進路）の東壁 ---
+const SHORTCUT_END: readonly [number, number] = [68, 8];
+const G1_POS: readonly [number, number] = [78, 32];
+const LANE_PROPS: PropSpec[] = [
+  // 鉄門 G1 より南（ショートカット）の両側の壁。道は幅 約 5m
+  wallSeg('lane-s-e', [70.9, 6.8], [80.9, 30.8], 4.2, undefined, { extend: 0.4 }),
+  wallSeg('lane-s-w', [65.1, 9.2], [75.1, 33.2], 4.2, undefined, { extend: 0.4 }),
+  // G1 より北（中庭へ続く北進路）の両側。西は地下墓所の岩盤、東は壁（脇道 S4 の亀裂の壁の位置）
+  wallSeg('lane-n-w', [75.1, 33.2], [78, 36], 4.2, undefined, { extend: 0.3 }),
+  wallSeg('lane-n-e0', [80.9, 30.8], [82.5, 36], 4.2, undefined, { extend: 0.3 }),
+  mass('lane-n-e', [82.15, 82.85], [36, 46.5], 4.2, undefined),
+];
+
+// --- F 闘技場: 直径 32m。外周の壁（北東側の霧の門からの通路 1 か所を除く）、柱 4 本、中央の台座 ---
+const F_CENTER = { x: 122, z: 86 };
+const F_RING_R = 16.5;
+const F_RING_N = 24;
+const F_ENTRY_DEG = 225;
+const F_WALL_H = 3.4;
+
+function arenaRing(): BlockProp[] {
+  const walls: BlockProp[] = [];
+  const half = F_RING_R * Math.tan(Math.PI / F_RING_N);
+  for (let i = 1; i < F_RING_N; i++) {
+    // i = 0 を飛ばして通路の口（幅 約 4.3m）にする
+    const theta = ((F_ENTRY_DEG + (i * 360) / F_RING_N) * Math.PI) / 180;
+    walls.push({
+      kind: 'block',
+      id: `f-wall-${i}`,
+      style: 'wall',
+      x: F_CENTER.x + Math.cos(theta) * F_RING_R,
+      z: F_CENTER.z + Math.sin(theta) * F_RING_R,
+      hx: half + 0.25,
+      hz: 0.5,
+      height: F_WALL_H,
+      baseY: F_FLOOR,
+      yawDeg: (Math.atan2(-Math.cos(theta), -Math.sin(theta)) * 180) / Math.PI,
+    });
+  }
+  return walls;
+}
+
+const F_PROPS: PropSpec[] = [
+  ...arenaRing(),
+  // 霧の門から闘技場の口へ続く通路の壁（幅 約 4.3m）
+  wallSeg('f-pass-l', [100.46, 68], [108.8, 76.3], 3.4, E_FLOOR, { extend: 0.3 }),
+  wallSeg('f-pass-r', [104, 64.46], [111.86, 72.3], 3.4, E_FLOOR, { extend: 0.3 }),
+  // 柱 4 本（高さ 4m・半径 0.7m）を円周付近（r = 12m）に等間隔。通路の口の正面を避ける
+  ...[0, 90, 180, 270].map((deg, i): CylinderProp => ({
+    kind: 'cylinder',
+    id: `f-pillar-${i + 1}`,
+    style: 'column',
+    x: F_CENTER.x + Math.cos((deg * Math.PI) / 180) * 12,
+    z: F_CENTER.z + Math.sin((deg * Math.PI) / 180) * 12,
+    radius: 0.7,
+    height: 4,
+  })),
+  // 中央の古い台座
+  {
+    kind: 'cylinder',
+    id: 'f-pedestal',
+    style: 'pedestal',
+    x: F_CENTER.x,
+    z: F_CENTER.z,
+    radius: 1.6,
+    height: 0.9,
+  },
+];
 
 const props: PropSpec[] = [
   // --- A 篝火「灰の炉」 ---
@@ -228,6 +431,10 @@ const props: PropSpec[] = [
     hz: 3,
     height: 18,
   },
+  ...D_PROPS,
+  ...E_PROPS,
+  ...LANE_PROPS,
+  ...F_PROPS,
 ];
 
 const enemies: EnemySpawn[] = [
@@ -280,6 +487,54 @@ const enemies: EnemySpawn[] = [
     yaw: Math.PI,
     behavior: 'wait',
   },
+  // D（通路奥の盾持ちと、L 字の角の窪みの石棺。石棺の亡者兵は半分進んだ時点で起き上がる: 別チケット）
+  {
+    id: 'd-shield-1',
+    type: 'undead_shield',
+    area: 'D',
+    x: 74,
+    z: 49,
+    yaw: -Math.PI / 2,
+    behavior: 'wait',
+  },
+  {
+    id: 'd-undead-1',
+    type: 'undead_soldier',
+    area: 'D',
+    x: 62,
+    z: 51.3,
+    yaw: Math.PI,
+    behavior: 'wait',
+  },
+  // E（噴水の周り）
+  {
+    id: 'e-undead-1',
+    type: 'undead_soldier',
+    area: 'E',
+    x: 91,
+    z: 56.5,
+    yaw: -Math.PI / 2,
+    behavior: 'wait',
+  },
+  {
+    id: 'e-undead-2',
+    type: 'undead_soldier',
+    area: 'E',
+    x: 97,
+    z: 61,
+    yaw: Math.PI / 2,
+    behavior: 'patrol',
+    patrolRadius: 3,
+  },
+  {
+    id: 'e-shield-1',
+    type: 'undead_shield',
+    area: 'E',
+    x: 94,
+    z: 54.5,
+    yaw: -Math.PI / 2,
+    behavior: 'wait',
+  },
 ];
 
 const items: ItemSpawn[] = [{ id: 'flask-c', kind: 'flask_up', area: 'C', x: 54, z: 26.8 }];
@@ -287,6 +542,36 @@ const items: ItemSpawn[] = [{ id: 'flask-c', kind: 'flask_up', area: 'C', x: 54,
 const interactables: InteractableSpawn[] = [
   { id: 'bonfire', kind: 'bonfire', area: 'A', x: 0, z: 0 },
   { id: 'stele-a', kind: 'tablet', area: 'A', x: -4.6, z: 3.4 },
+  // 鉄門 G1（78,32）とレバー（80,36）は中庭の外の通路上、霧の門（104,68）は中庭の北東の角
+  { id: 'G1', kind: 'gate', area: null, x: 78, z: 32 },
+  { id: 'lever-g1', kind: 'lever', area: null, x: 80, z: 36 },
+  { id: 'fog-gate', kind: 'gate', area: 'E', x: 104, z: 68 },
+];
+
+const gates: GateDef[] = [
+  // 鉄門: 中庭側（北）からだけレバーで開く。開く前は通路を塞ぐ。通り抜ける向き = 北北東（A 側 → 中庭側）
+  {
+    id: 'G1',
+    kind: 'iron',
+    x: G1_POS[0],
+    z: G1_POS[1],
+    yawDeg: (Math.atan2(G1_POS[0] - SHORTCUT_END[0], G1_POS[1] - SHORTCUT_END[1]) * 180) / Math.PI,
+    width: 5.2,
+    height: 3.6,
+    blocking: true,
+    leverId: 'lever-g1',
+  },
+  // 霧の門: 闘技場の口へ向かう北東向き。ボス戦中だけ塞ぐ（開始時は通れる）
+  {
+    id: 'fog-gate',
+    kind: 'fog',
+    x: 104,
+    z: 68,
+    yawDeg: 45,
+    width: 4.4,
+    height: 6,
+    blocking: false,
+  },
 ];
 
 export const ASHEN_FOUNDATION: LevelData = {
@@ -338,14 +623,14 @@ export const ASHEN_FOUNDATION: LevelData = {
       name: '中庭',
       shape: { type: 'rect', minX: 84, maxX: 104, minZ: 48, maxZ: 68 },
       surface: 'stone',
-      floor: { height: 7.4, margin: 1, blend: 6 },
+      floor: { height: E_FLOOR, margin: 1, blend: 6 },
     },
     {
       id: 'F',
       name: '闘技場',
       shape: { type: 'circle', cx: 122, cz: 86, r: 16 },
       surface: 'stone',
-      floor: { height: 9.9, margin: 1, blend: 6 },
+      floor: { height: F_FLOOR, margin: 1, blend: 6 },
     },
   ],
   // メインルート: A → B（緩い上り）→ C の西の門。C の東の崩れ口から D の入口へ（空白区間 約 10m）
@@ -360,8 +645,33 @@ export const ASHEN_FOUNDATION: LevelData = {
     { x: 58, z: 21, height: C_FLOOR, halfWidth: 3 },
     { x: 58.5, z: 27, height: C_FLOOR, halfWidth: 3 },
     { x: 61, z: 28, height: C_FLOOR, halfWidth: 3.5 },
-    { x: 62, z: 38, height: 4, halfWidth: 4 },
+    // D 地下墓所: 入口 (62,36) → 北へ → L 字の角 (62,48.5) → 東へ → 出口 (78,48.5)
+    { x: 62, z: 36, height: 4.2, halfWidth: 2.5 },
+    { x: 62, z: 48.5, height: 5, halfWidth: 2 },
+    { x: 78, z: 48.5, height: 6.2, halfWidth: 2 },
+    // E 中庭: 西の入口 → 噴水の南を回って北東の霧の門へ
+    { x: 84, z: 51, height: E_FLOOR, halfWidth: 3 },
+    { x: 91.5, z: 52.5, height: E_FLOOR, halfWidth: 3 },
+    { x: 98.5, z: 56, height: E_FLOOR, halfWidth: 3 },
+    { x: 102, z: 62, height: E_FLOOR, halfWidth: 2.5 },
+    { x: 104, z: 68, height: E_FLOOR, halfWidth: 2.5 },
+    // 霧の門 → F 闘技場へ（緩い上り）
+    { x: 111, z: 75, height: F_FLOOR, halfWidth: 3 },
+    { x: 118, z: 82, height: F_FLOOR, halfWidth: 3 },
   ],
+  extraRoutes: [
+    // ショートカット: 鉄門 G1（78,32）→ 北の道（レバー (80,36)）→ 中庭の西の入口 の、G1 から A への道
+    [
+      { x: 84, z: 51, height: E_FLOOR, halfWidth: 3 },
+      { x: 80.5, z: 47, height: 6.5, halfWidth: 2.2 },
+      { x: 80.2, z: 37, height: 5.6, halfWidth: 2.2 },
+      { x: G1_POS[0], z: G1_POS[1], height: 5.5, halfWidth: 2.6 },
+      { x: SHORTCUT_END[0], z: SHORTCUT_END[1], height: 4.2, halfWidth: 2.6 },
+      { x: 34, z: -4.5, height: 1.7, halfWidth: 2.6 },
+      { x: 8, z: -5, height: 0, halfWidth: 2.6 },
+    ],
+  ],
+  gates,
   bonfire: { x: 0, z: 0 },
   playerSpawn: { x: 0, z: -2.4, yaw: 1.0 },
   props,

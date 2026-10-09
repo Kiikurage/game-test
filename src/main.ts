@@ -46,6 +46,10 @@ interface DebugState {
     pose(layer: PlayerAnimLayer | null, time?: number): void;
     /** ?debug 用の仮の攻撃（軽攻撃 1 の判定）を 1 回出す。判定の動作確認・撮影用。 */
     swing(): void;
+    /** プレイヤーを `frames` ステップ凍結する（ヒットストップの確認用）。 */
+    hitStop(frames: number): void;
+    /** タイムスケールを `scale` 倍にして `frames` ステップ続ける（スローモーションの確認用）。 */
+    slowMotion(scale: number, frames: number): void;
     /** カメラを任意の視点へ固定する（俯瞰撮影用）。`null` でゲームのカメラへ戻す。 */
     freeCam(position: [number, number, number] | null, target?: [number, number, number]): void;
   };
@@ -159,18 +163,21 @@ async function bootstrap(): Promise<void> {
     void sfx?.preloadGroup('title'); // 暫定: タイトル画面ができたらそこで呼ぶ（field は敵・ボス SE 用）
 
     let paused = false;
-    const loop = new MainLoop({
-      update: (dt) => {
-        if (paused) return;
-        input.step(dt); // 入力スナップショットを確定してから game が読む
-        game.update(dt);
+    const loop = new MainLoop(
+      {
+        update: (dt) => {
+          if (paused) return;
+          input.step(dt); // 入力スナップショットを確定してから game が読む
+          game.update(dt);
+        },
+        render: (alpha) => {
+          showcase?.update();
+          view.render(alpha);
+          sfx?.syncListener(view.camera);
+        },
       },
-      render: (alpha) => {
-        showcase?.update();
-        view.render(alpha);
-        sfx?.syncListener(view.camera);
-      },
-    });
+      { timeScale: () => game.timeScale.current },
+    );
     loop.start();
 
     window.__game = {
@@ -229,6 +236,12 @@ async function bootstrap(): Promise<void> {
         },
         swing: () => {
           game.debugSwing.start();
+        },
+        hitStop: (frames) => {
+          game.player.hitStop(frames);
+        },
+        slowMotion: (scale, frames) => {
+          game.timeScale.start(scale, frames);
         },
         pose: (layer, time = 0) => {
           playerView?.setDebugPose(layer ? { layer, time } : null);
