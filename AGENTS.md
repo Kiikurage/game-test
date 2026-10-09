@@ -141,7 +141,7 @@ src/
   game/          シミュレーション（Rapier 物理含む）。描画・DOM に依存しない
   render/        three/webgpu による描画。game の状態を読み取って描くだけ
   audio/         Web Audio のバス・音量・ダッキング・resume（DOM 非依存の純粋ロジック + AudioContext ラッパー）
-  input/         入力デバイス（未実装）。game には入力スナップショットだけ渡す
+  input/         入力デバイス（キーボード/マウス・ゲームパッド・タッチ）。game には入力スナップショットだけ渡す（型は core/input.ts、操作割当は docs/controls.md）
   ui/            DOM オーバーレイ（非対応画面・横画面ヒント・今後の HUD）
 ```
 
