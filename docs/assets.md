@@ -225,6 +225,8 @@ Rogue / Mage も同系統。**KayKit はキャラクター間でリグとクリ�
 | 騎士（プレイヤー、敵の流用元） | Modular Character Outfits - Fantasy（Standard）の `Male_Ranger`（フード・ショルダーパッド・ブーツ・ベルト等） + Universal Base Characters（Standard）の `Superhero_Male` の頭部 | CC0 1.0 | 色調を鋼色に寄せる、頭部のみ切り出し、メッシュ簡略化、テクスチャ縮小・WebP 化 |
 | アニメーション 34 クリップ | Universal Animation Library（`gaits.glb`、17 クリップ）と Universal Animation Library 2（`animations.glb`、17 クリップ）、いずれも Standard 版・ルートモーション無し | CC0 1.0 | 必要クリップのみ抽出、スケール/子ボーンの平行移動トラック削除、リサンプル、meshopt 圧縮 |
 | 剣・盾 | 自作（`scripts/assets/props.mjs` がコードで生成。素材由来のライセンスなし） | — | — |
+| 簡易装備メッシュ（亡者兵・盾持ち・ボス） | 自作（`scripts/assets/equipment.mjs`。7.7 節） | — | — |
+| 探索用メッシュ（墓守の大剣・獣脂の壺・鐘・祈る像・石積み・突き立つ剣） | 自作（`scripts/assets/exploration.mjs`。7.8 節。外部素材・テクスチャなし） | — | — |
 
 - 元の 3 パックの `*-license.txt` はいずれも「CC0 1.0 Universal」であることを取得時に実物で確認し、`assets-src/LICENSES/` に控えを保存している（`npm run assets:fetch` が CC0 の文言を検証し、違えば停止する）。
 - クリップ一覧は `src/render/assets/clips.ts`（`CLIP_NAMES`）。待機/歩き/ジョグ/スプリント（`Idle_Loop` `Walk_Loop` `Jog_Fwd_Loop` `Sprint_Loop`）、`Roll`、剣攻撃（`Sword_Regular_A/B/C` と `_Rec`、`Sword_Regular_Combo`、`Sword_Heavy_Combo`、`Sword_Attack`、`Melee_Hook`）、ガード（`Sword_Block`、`Idle_Shield_Loop`、`Idle_Shield_Break`、`Shield_OneShot`）、被弾（`Hit_Chest` `Hit_Head` `Hit_Knockback`）、`Death01`、ジャンプ、篝火休憩（`Sitting_*`）、回復（`Consume`）ほか。
@@ -328,3 +330,22 @@ look.setEmber(1);                                                    // ボス�
 - ランタイム: `EquipmentAssets.load()` → `equipLoadout(character, 'boss')` / `equip(character, 'GreatAxe')` / `unequip(...)`（`src/render/assets/equipment.ts`）。`Character.attachAt(name, bone, object, position, quaternion)` を新設。兜を付けるときはフードを隠す。
 - 注意（#10 のバグ修正）: glb の小物ノードは頂点量子化のためノード自身に平行移動・スケールを持つ。`Character.attach` がそれを上書きして剣・盾がずれていたため、ソケットの姿勢はホルダー（`Group`）に持たせるようにした。
 - 確認用: `?equip=soldier|shieldbearer|boss|all`（`?view=front&dist=8.5` と併用。boss は dist 12 程度）。
+
+### 7.8 探索用の簡易メッシュ（Issue #108）
+
+探索・脇道要素（仕様書 14.4 / 14.5 / 14.7 節）の小物。**すべて自作**（`scripts/assets/exploration.mjs` がコードで生成。素材由来のライセンスなし、テクスチャなし）。
+7.7 節の装備メッシュと同じ作り方（頂点カラーの錆・苔・煤、金属 / 柔素材の 2 プリミティブ）で、生成の共通部分は `equipment.mjs` の `buildItemsDocument` を使う。
+
+| ID | 内容 | 取り付け / 配置 |
+| --- | --- | --- |
+| `GravekeeperGreatsword` | 墓守の大剣。全長 1.5m、刃こぼれ（左右に欠け）、垂れた鍔、鉄輪を巻いた長い握り | 手 `hand_r` と背中 `spine_03` の 2 つ（`extras.sockets.hand` / `.back`）。持ち替えで `setGreatswordMount` が切り替える |
+| `OilJar` | 獣脂の壺。素焼き、口に焦げた布の栓と垂れた布端、縁に縄 | 手 `hand_r`。腕を下ろした姿勢で口が上。`releaseOilJar` で手から放してシーンへ付け替える（投擲） |
+| `Bell` | 鐘。緑青の青銅、鉄の吊り金具、クラッパーと引き綱 | 原点 = 梁の吊り金具の上端（北壁上の梁から吊る）。鐘は下へ垂れ、綱が下がる |
+| `PrayingStatue` | 祈る像。台座つき、膝をつき頭巾を被って胸の前で手を合わせる石像（苔） | 原点 = 台座の底面中央、正面 +Z |
+| `Cairn` | 石積み。3 段（脇道の入口の目印） | 原点 = 底面中央。**インスタンシング** |
+| `PlantedSword` | 突き立つ剣 1 本（亡者兵の剣と同形）。霧の門前の 12 本用 | 中心が原点。**インスタンシング**。埋まる深さは `PLANTED_SWORD`（extras と `src/core/plantedSwords.ts` で一致、テストで検証） |
+
+- 予算（実測、manifest の `exploration`）: 6 アイテム合計 2,679 tris（大剣 418 / 壺 407 / 鐘 816 / 像 576 / 石積み 210 / 剣 252）/ 約 60KB / テクスチャメモリ 0。`exploration.test.ts` が検証している。石積みと剣はインスタンシングで 1 種 = 2 ドローコール（金属 / 柔素材）。
+- ランタイム: `ExplorationAssets.load()`（`src/render/assets/exploration.ts`）。`create(id)`（静的に置く。量子化のため `Group` で包んで返す）/ `setGreatswordMount(character, 'hand' | 'back' | 'none')` / `holdOilJar` / `releaseOilJar(character, scene)` / `createCairns(placements)` / `createPlantedSwords(placements)`。
+- 突き立つ剣 12 本の配置: `gateSwordPlacements({ gate, approachYaw })`（`src/core/plantedSwords.ts`、純粋ロジック）。11 本が門を中心にした半径 3.2m の半円（接近側 ±80°）に並び、刃の面が門を向く。残る 1 本は半円の端のさらに外（半径 +1.1m）に離れ、**逆さ**（柄頭が刺さり刃が上）で門に背を向ける。傾きは決定的な乱数で ±5°。
+- 確認用: `?props=all|swords|bell|statue|cairn`（騎士なしで並べる。背景のフィールドを隠し、プレビュー専用の補助光を足す）、`?props=sword-hand&clip=Sword_Idle&view=front&dist=3.2` / `?props=sword-back&view=back&dist=3.2`（大剣を手 / 背中）、`?props=jar&view=front&dist=2.2`（壺を持つ）。

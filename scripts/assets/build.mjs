@@ -450,3 +450,5 @@ console.log(`total ${kb(total)} -> ${relative(ROOT, OUT_DIR)}`);
 
 // 簡易装備メッシュ（knight.glb の bind pose からソケットを計算するので最後に作る）
 await import('./build-equipment.mjs');
+// 探索用の簡易メッシュ（同じく knight.glb の bind pose を使う）
+await import('./build-exploration.mjs');
