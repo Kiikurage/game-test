@@ -29,6 +29,11 @@ describe('hit reaction (player + dummy)', () => {
   /** 型の絞り込みに邪魔されず、現在の状態名を読む。 */
   const stateName = (): string => game.player.state;
 
+  /** 命中のヒットストップ（敵の攻撃は 6F）が明けるまで進める。凍結中は反応の窓・押し戻しも進まない。 */
+  function thaw(): void {
+    run(game.player.fsm.freezeRemaining);
+  }
+
   function run(frames: number): void {
     for (let i = 0; i < frames; i++) {
       game.update(DT);
@@ -59,6 +64,7 @@ describe('hit reaction (player + dummy)', () => {
     const events = enemyHitsPlayer(30);
     expect(events).toHaveLength(1);
     expect(game.player.state).toBe('flinch');
+    thaw();
     // 仰け反り中は入力を受け付けない
     input.setMove(1, 0);
     let flinchSteps = 0;
@@ -74,8 +80,9 @@ describe('hit reaction (player + dummy)', () => {
     expect(game.player.state).toBe('move');
   });
 
-  it('被弾後無敵: 被弾から 18F は次の命中を受けず、19F 目で当たる', () => {
+  it('被弾後無敵: 被弾から 18F は次の命中を受けず、19F 目で当たる（ヒットストップ中は進まない）', () => {
     enemyHitsPlayer(10);
+    thaw();
     for (let i = 1; i <= 18; i++) {
       run(1);
       expect(game.playerTarget.invulnerable).toBe(true);
@@ -90,6 +97,7 @@ describe('hit reaction (player + dummy)', () => {
     const z0 = game.player.feet.z;
     enemyHitsPlayer(50);
     expect(game.player.state).toBe('knockdown');
+    thaw();
     let invulnerableUntil = 0;
     let downSteps = 0;
     for (let i = 0; i < 80 && stateName() === 'knockdown'; i++) {
@@ -107,6 +115,7 @@ describe('hit reaction (player + dummy)', () => {
 
   it('転倒中の F37 は無敵が切れて被弾できる（軽い追撃は転倒を中断しない）', () => {
     enemyHitsPlayer(50);
+    thaw();
     run(36);
     expect(game.player.state).toBe('knockdown');
     expect(game.player.stateFrame).toBe(36);
