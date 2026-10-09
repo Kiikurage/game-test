@@ -1,9 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame } from './helpers';
 
 test('loads the title-group SFX from the manifest and accepts play requests without errors', async ({
   page,
@@ -15,7 +11,7 @@ test('loads the title-group SFX from the manifest and accepts play requests with
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
 
   await page.goto('./?quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
 
   // title グループ（UI・環境音・BGM）のプリロードで、マニフェストのそれらの素材がすべてデコードされる
   const titleCount = await page.evaluate(async () => {

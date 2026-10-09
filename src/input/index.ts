@@ -112,6 +112,11 @@ export class InputSystem implements InputReader {
     });
   }
 
+  /** Pointer Lock を要求する（「クリックして開始」など、ユーザー操作のハンドラ内で呼ぶ）。 */
+  requestPointerLock(): void {
+    this.keyboardMouse.requestLock();
+  }
+
   get snapshot(): InputSnapshot {
     return this.current;
   }

@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame } from './helpers';
 
 /** ソフトウェア描画でもシミュレーションが回るよう、最小品質・低解像度で起動する。 */
 async function boot(page: Page): Promise<void> {
@@ -13,7 +9,7 @@ async function boot(page: Page): Promise<void> {
   });
   page.on('pageerror', (err) => errors.push(err.message));
   await page.goto('./?quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
     .toBeGreaterThan(30);

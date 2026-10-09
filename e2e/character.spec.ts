@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame } from './helpers';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -18,7 +14,7 @@ test('loads the character assets and plays the idle animation', async ({ page })
   const errors = collectErrors(page);
   // `?clip=` を付けるとキャラクター確認用のショーケース表示になる（付けなければ操作可能なプレイヤー）
   await page.goto('./?clip=Idle_Loop');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
 
   const initial = await page.evaluate(() => window.__game?.showcase);
   expect(initial?.clip).toBe('Idle_Loop');
@@ -34,7 +30,7 @@ test('loads the character assets and plays the idle animation', async ({ page })
 test('plays the requested clip and can freeze it at a given time', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('./?clip=Roll&t=0.5');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
 
   await page.waitForTimeout(500);
   const state = await page.evaluate(() => window.__game?.showcase);

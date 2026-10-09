@@ -180,7 +180,7 @@ export class KeyboardMouseInput {
     this.collector.requestTargetSwitch(e.deltaY > 0 ? 1 : -1);
   };
 
-  private requestLock(): void {
+  requestLock(): void {
     try {
       // 生のマウス移動量（加速なし）を使えるなら使う。非対応環境では通常のロックにフォールバック。
       const p = this.target.requestPointerLock({ unadjustedMovement: true }) as unknown as
