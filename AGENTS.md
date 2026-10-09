@@ -140,7 +140,7 @@ src/
   core/          純粋なロジック（DOM/three 非依存）: 固定ステップ、メインループ、WebGPU 判定、補間用 Transform
   game/          シミュレーション（Rapier 物理含む）。描画・DOM に依存しない
   render/        three/webgpu による描画。game の状態を読み取って描くだけ
-  input/         入力デバイス（未実装）。game には入力スナップショットだけ渡す
+  input/         入力デバイス（キーボード/マウス・ゲームパッド・タッチ）。game には入力スナップショットだけ渡す（型は core/input.ts、操作割当は docs/controls.md）
   ui/            DOM オーバーレイ（非対応画面・横画面ヒント・今後の HUD）
 ```
 
