@@ -3,6 +3,7 @@ import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
 import { EquipmentAssets, parseLoadoutName, type LoadoutName } from './equipment';
+import { placeCorpsePreview } from '../corpses/corpsePreview';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
 import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
 
@@ -24,6 +25,7 @@ export interface ShowcaseState {
  *   `&view=front|left|right|back|close` と `&dist=<m>`  キャラクターに寄ったカメラ位置（既定はゲームのカメラのまま）
  *   `&undead=<gaunt|bloated|scorched|drowned|all>`  亡者マテリアルを適用（all は 4 バリアントを横並び）
  *   `&dissolve=<0..1>` ディゾルブ進行度、`&ember=<0..1>` 熾火の強さ（亡者のみ）
+ *   `&corpse=sitting|prone|praying|leaning|all|crowd`  遺体ポーズのプレビュー（#109。corpsePreview.ts）
  *   `&equip=soldier|shieldbearer|boss|all`  簡易装備メッシュを装着（boss は 2.2 倍、all は盾持ち・亡者兵・ボスを横並び。亡者マテリアルと併用可）
  */
 export class CharacterShowcase {
@@ -101,7 +103,8 @@ export class CharacterShowcase {
     const count = Math.max(1, undeadIds.length, loadouts.length);
     const spawned = Array.from({ length: count }, (_, i) => spawn(i, count));
     const [character, ...extras] = spawned as [Character, ...Character[]];
-    applyView(character, camera, params.get('view'), Number(params.get('dist')), 0.8, -0.2);
+    if (params.has('corpse')) await placeCorpsePreview(scene, camera, assets, params);
+    else applyView(character, camera, params.get('view'), Number(params.get('dist')), 0.8, -0.2);
 
     const frozen = Number.isFinite(frozenAt);
     for (const c of spawned) {
