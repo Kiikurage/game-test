@@ -71,7 +71,9 @@ export class TelegraphDemo {
       this.circle.clock.setFrame(f);
       this.shadow.clock.setFrame(f);
       // 直線は 12F 間隔で順に発生する
-      this.lines.forEach((l, i) => l.clock.setFrame(f - i * 12));
+      this.lines.forEach((l, i) => {
+        l.clock.setFrame(f - i * 12);
+      });
       for (const t of this.all()) t.sync();
     } else {
       this.circle.show();
