@@ -1,15 +1,22 @@
-import { DoubleSide, Group, Mesh, MeshBasicNodeMaterial, type UniformNode } from 'three/webgpu';
+import {
+  DoubleSide,
+  Group,
+  Mesh,
+  MeshBasicNodeMaterial,
+  type Node,
+  type UniformNode,
+} from 'three/webgpu';
 import {
   abs,
   attribute,
   clamp,
   float,
-  fract,
   length,
   mix,
+  mx_worley_noise_vec2,
   smoothstep,
-  step,
   uniform,
+  vec2,
   vec3,
 } from 'three/tsl';
 import { terrainHeight } from '../terrain';
@@ -32,10 +39,6 @@ const POOL_SIZE: Record<Kind, number> = { circle: 6, shadow: 3, line: 6 };
 
 /** 帯の標準の幅（m）。仕様 6.3 節 技 7 の灰の波は幅 1.5m。 */
 export const DEFAULT_LINE_WIDTH = 1.5;
-
-/** 赤橙。HDR（>1）でブルームに乗る。 */
-const WARN_BASE = vec3(1.0, 0.13, 0.02);
-const WARN_RIM = vec3(1.0, 0.36, 0.07);
 
 interface Uniforms {
   appear: UniformNode<'float', number>;
@@ -74,63 +77,63 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
   material.polygonOffsetFactor = -2;
   material.polygonOffsetUnits = -2;
 
+  // 地面が熾火色に灼け、ひび割れから光が漏れる表現。低彩度・低不透明度・柔らかい縁で世界観になじませ、
+  // 範囲は「縁の灼け」と「ひびの密度」で読ませる。点滅は呼吸のようにゆっくり（暗側でも消えない）。
+  const emberDim = vec3(0.62, 0.2, 0.07);
+  const emberHot = vec3(1.0, 0.42, 0.12);
+  const crack = (xy: Node<'vec2'>): Node<'float'> => {
+    const w = mx_worley_noise_vec2(xy);
+    return float(1).sub(smoothstep(0.0, 0.09, w.y.sub(w.x)));
+  };
+
   if (kind === 'circle') {
-    // 円: 縁の太い帯 + 内側の細い輪 + 斜めのハザード縞の塗り。縞と点滅は色に依存しない手がかり。
-    const rr = length(local).div(mix(float(0.78), float(1), u.appear));
-    const rim = smoothstep(0.9, 0.935, rr).mul(float(1).sub(smoothstep(0.985, 1.0, rr)));
-    const inside = float(1).sub(smoothstep(0.985, 1.0, rr));
-    const ring2 = smoothstep(0.02, 0.0, abs(rr.sub(0.55)));
-    const diag = abs(fract(local.x.add(local.y).mul(u.sizeA).mul(0.9)).sub(0.5)).mul(2);
-    const stripes = smoothstep(0.4, 0.6, diag);
-    const fill = inside.mul(float(0.1).add(stripes.mul(0.24))).mul(u.blink);
-    const rimLevel = mix(float(0.7), float(1), u.blink);
-    const a = rim.mul(0.95).mul(rimLevel).add(ring2.mul(0.4).mul(u.blink)).add(fill);
-    material.opacityNode = clamp(a, 0, 1).mul(u.appear).mul(u.fade);
-    material.colorNode = mix(
-      WARN_BASE.mul(1.35),
-      WARN_RIM.mul(0.95),
-      clamp(rim.add(stripes.mul(0.2)), 0, 1),
-    );
+    const rr = length(local).div(mix(float(0.82), float(1), u.appear));
+    const soft = float(1).sub(smoothstep(0.9, 1.0, rr));
+    // 縁ほど強く灼ける（中心は薄い）。外縁は柔らかく溶ける
+    const rim = smoothstep(0.55, 0.95, rr).mul(soft);
+    const edgeLine = smoothstep(0.86, 0.93, rr).mul(soft).mul(0.5);
+    const cracks = crack(local.mul(u.sizeA).mul(0.38))
+      .mul(smoothstep(0.1, 0.8, rr))
+      .mul(soft);
+    const glow = mix(float(0.55), float(1), u.blink);
+    const a = rim.mul(0.2).add(soft.mul(0.12)).add(edgeLine).add(cracks.mul(0.5)).mul(glow);
+    material.opacityNode = clamp(a, 0, 0.8).mul(u.appear).mul(u.fade);
+    material.colorNode = mix(emberDim, emberHot, clamp(cracks.add(edgeLine), 0, 1));
   } else if (kind === 'shadow') {
-    // 影の円（技 5 滞空中の着地点ガイド）: 暗い柔らかい円で、着地が近づくほど濃く締まる
-    const rr = length(local).div(mix(float(0.7), float(1), u.appear));
-    const body = float(1).sub(smoothstep(0.3, mix(float(1.0), float(0.82), u.progress), rr));
-    const rim = smoothstep(0.92, 0.95, rr)
-      .mul(float(1).sub(smoothstep(0.985, 1.0, rr)))
-      .mul(mix(float(0.15), float(0.7), u.progress));
-    const blinkRim = rim.mul(mix(float(0.6), float(1), u.blink));
-    const a = body.mul(mix(float(0.28), float(0.72), u.progress)).add(blinkRim);
-    material.opacityNode = clamp(a, 0, 1).mul(u.appear).mul(u.fade);
-    material.colorNode = mix(
-      vec3(0.015, 0.008, 0.008),
-      WARN_RIM.mul(1.4),
-      clamp(blinkRim.mul(2), 0, 1),
-    );
+    // 影の円（技 5 滞空中の着地点ガイド）: 暗い柔らかい円。着地が近いほど濃く締まり、縁がうっすら灼ける
+    const rr = length(local).div(mix(float(0.75), float(1), u.appear));
+    const body = float(1).sub(smoothstep(0.35, mix(float(1.0), float(0.85), u.progress), rr));
+    const rim = smoothstep(0.88, 0.95, rr)
+      .mul(float(1).sub(smoothstep(0.96, 1.0, rr)))
+      .mul(mix(float(0.15), float(0.5), u.progress));
+    const glowRim = rim.mul(mix(float(0.6), float(1), u.blink));
+    const a = body.mul(mix(float(0.25), float(0.65), u.progress)).add(glowRim);
+    material.opacityNode = clamp(a, 0, 0.8).mul(u.appear).mul(u.fade);
+    material.colorNode = mix(vec3(0.012, 0.007, 0.007), emberHot, clamp(glowRim.mul(2.5), 0, 1));
   } else {
-    // 帯（直線）: 両縁と端の帯 + 進行方向へ流れる「>」の縞
+    // 帯（直線）: 柔らかい縁の灼け + ひび。進行方向の先ほど少し強く灼ける
     const halfW = u.sizeA.mul(0.5);
-    const len = u.sizeB;
     const ax = abs(local.x).mul(2);
-    const ex = ax.div(mix(float(0.3), float(1), u.appear));
-    const inside = float(1).sub(smoothstep(0.97, 1.0, ex));
+    const ex = ax.div(mix(float(0.4), float(1), u.appear));
+    const soft = float(1).sub(smoothstep(0.8, 1.0, ex));
     const edge = smoothstep(
-      float(1).sub(float(0.14).div(halfW)),
-      float(1).sub(float(0.08).div(halfW)),
+      float(1).sub(float(0.22).div(halfW)),
+      float(1).sub(float(0.1).div(halfW)),
       ex,
-    ).mul(inside);
-    const capS = float(1).sub(smoothstep(0.0, float(0.16).div(len), local.y));
-    const capE = smoothstep(float(1).sub(float(0.16).div(len)), 1.0, local.y);
-    const c = fract(local.y.mul(len).add(ax.mul(halfW).mul(0.9)).div(1.4).sub(u.frame.mul(0.05)));
-    const chev = step(0.5, c);
-    const fill = inside.mul(float(0.1).add(chev.mul(0.26))).mul(u.blink);
-    const rimLevel = mix(float(0.7), float(1), u.blink);
-    const a = edge.add(capS.add(capE).mul(inside)).mul(0.95).mul(rimLevel).add(fill);
-    material.opacityNode = clamp(a, 0, 1).mul(u.appear).mul(u.fade);
-    material.colorNode = mix(
-      WARN_BASE.mul(1.35),
-      WARN_RIM.mul(0.95),
-      clamp(edge.add(chev.mul(0.2)), 0, 1),
-    );
+    )
+      .mul(soft)
+      .mul(0.5);
+    const cap = float(1)
+      .sub(smoothstep(0.0, float(0.2).div(u.sizeB), local.y))
+      .add(smoothstep(float(1).sub(float(0.2).div(u.sizeB)), 1.0, local.y))
+      .mul(soft)
+      .mul(0.3);
+    const cracks = crack(vec2(local.x.mul(u.sizeA), local.y.mul(u.sizeB)).mul(0.4)).mul(soft);
+    const glow = mix(float(0.55), float(1), u.blink);
+    const along = mix(float(0.8), float(1.15), local.y);
+    const a = soft.mul(0.13).add(edge).add(cap).add(cracks.mul(0.42)).mul(glow).mul(along);
+    material.opacityNode = clamp(a, 0, 0.8).mul(u.appear).mul(u.fade);
+    material.colorNode = mix(emberDim, emberHot, clamp(cracks.add(edge), 0, 1));
   }
   return material;
 }

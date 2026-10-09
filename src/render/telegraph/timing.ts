@@ -24,11 +24,11 @@ export interface BlinkParams {
 }
 
 export const DEFAULT_BLINK: BlinkParams = {
-  periodFrames: 20,
+  periodFrames: 30,
   duty: 0.5,
-  minLevel: 0.3,
+  minLevel: 0.5,
   startFrame: APPEAR_FRAMES,
-  edgeFrames: 2,
+  edgeFrames: 6,
 };
 
 function clamp01(x: number): number {
