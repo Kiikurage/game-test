@@ -5,6 +5,19 @@ test.describe.configure({ timeout: 120_000 });
 
 /** ソフトウェア描画では描画が極端に遅いので、最小品質・低解像度で起動し、draw は省く（`?nodraw`。描画の検証は他の spec）。足場・ダミーのあるテストシーン（?scene=test）で試す。 */
 async function boot(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const log: unknown[] = [];
+    (window as unknown as { __keys: unknown[] }).__keys = log;
+    for (const type of ['keydown', 'keyup'])
+      window.addEventListener(
+        type,
+        (e) => {
+          const k = e as KeyboardEvent;
+          log.push([type, k.code, Math.round(k.timeStamp), Math.round(performance.now())]);
+        },
+        true,
+      );
+  });
   const errors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(msg.text());
@@ -34,6 +47,7 @@ test.afterEach(async ({ page }, info) => {
       input: window.__game?.input,
       player: window.__game?.sim.player,
       camera: window.__game?.sim.camera.yaw,
+      keys: (window as unknown as { __keys?: unknown }).__keys,
     }))
     .catch((e: unknown) => String(e));
   console.log(`[diag] ${info.title}: ${JSON.stringify(state)}`);
