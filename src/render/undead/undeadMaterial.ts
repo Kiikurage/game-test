@@ -1,0 +1,259 @@
+import {
+  Color,
+  MeshStandardNodeMaterial,
+  type Material,
+  type Mesh,
+  type MeshStandardMaterial,
+  type Node,
+  type Object3D,
+  type UniformNode,
+} from 'three/webgpu';
+import {
+  abs,
+  float,
+  luminance,
+  mix,
+  mx_noise_float,
+  positionLocal,
+  positionWorld,
+  saturate,
+  smoothstep,
+  texture,
+  uniform,
+  uv,
+  vec2,
+  vec3,
+} from 'three/tsl';
+import { OUTFIT_MESHES, clampProgress, type UndeadVariant } from './variants';
+
+/** 材質の役割。同じ元マテリアル（MI_Ranger）でもメッシュ名で金属パーツを分ける。 */
+export type UndeadRole = 'skin' | 'cloth' | 'metal';
+
+/** 眼の発光色（青白）と熾火色（ボスのフェーズ 2 / ディゾルブの縁）。 */
+const EYE_COLOR = new Color(0x9fd8ff);
+const EMBER_COLOR = new Color(0xff5a14);
+const ASH_COLOR = new Color(0x15110f);
+
+/** 顔テクスチャ（Head_Skin の MI_Head）上の両眼の UV 座標。 */
+const EYE_UVS = [
+  [0.139, 0.252],
+  [0.231, 0.252],
+] as const;
+const EYE_RADIUS = 0.0125;
+/** ディゾルブの縁の幅（ノイズ値の範囲）。 */
+const DISSOLVE_EDGE = 0.1;
+
+/** 亡者の見た目を外から操作するハンドル。 */
+export interface UndeadLook {
+  readonly variant: UndeadVariant;
+  /**
+   * 体型の倍率 [x, y, z]（幅, 高さ, 幅）。呼び出し側が `root.scale` に掛ける
+   * （例: ボスなら 2.2 倍にこの値を乗せる）。骨格のスケールで表すとスキニングの結果が崩れるためここでは触らない。
+   */
+  readonly buildScale: readonly [number, number, number];
+  /** ディゾルブ進行度（0 = 無傷、1 = 完全に消失）。範囲外は丸める。 */
+  setDissolve(progress: number): void;
+  readonly dissolve: number;
+  /**
+   * 熾火の強さ（0〜1）。ボスのフェーズ 2 用: 眼が橙になり、鎧の継ぎ目・肌の亀裂・武器が熾火色に光る。
+   */
+  setEmber(amount: number): void;
+  readonly ember: number;
+  /** 生成したマテリアルを解放する。 */
+  dispose(): void;
+}
+
+/** 1 つのキャラクターインスタンス内で共有するユニフォーム。 */
+interface Controls {
+  readonly dissolve: UniformNode<'float', number>;
+  readonly ember: UniformNode<'float', number>;
+}
+
+/**
+ * キャラクター（`Character.root` など）の全メッシュへ亡者マテリアルを適用する。
+ * 追加テクスチャは無し: 元のベースカラー/法線/金属粗さテクスチャに、TSL の色演算と
+ * 1〜2 回の Perlin ノイズ（斑・ひび・ディゾルブ）だけを加える。
+ * インスタンスごとに新しいマテリアルを作るので、`root` は `SkeletonUtils.clone` 済みであること。
+ */
+export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadLook {
+  const controls: Controls = { dissolve: uniform(0), ember: uniform(0) };
+  const created: Material[] = [];
+  const cache = new Map<string, Material>();
+
+  root.traverse((obj) => {
+    if (!(obj as { isMesh?: boolean }).isMesh) return;
+    const mesh = obj as Mesh;
+    const role = roleOf(mesh);
+    const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const converted = sources.map((src) => {
+      const key = `${src.uuid}:${role}`;
+      let m = cache.get(key);
+      if (!m) {
+        m = createUndeadMaterial(src as MeshStandardMaterial, role, variant, controls);
+        cache.set(key, m);
+        created.push(m);
+      }
+      return m;
+    });
+    mesh.material = Array.isArray(mesh.material) ? converted : (converted[0] as Material);
+    if (isHiddenBy(mesh.name, variant)) mesh.visible = false;
+  });
+
+  let dissolve = 0;
+  let ember = 0;
+  return {
+    variant,
+    buildScale: [variant.build.width, variant.build.height, variant.build.width],
+    get dissolve() {
+      return dissolve;
+    },
+    setDissolve(progress) {
+      dissolve = clampProgress(progress);
+      controls.dissolve.value = dissolve;
+    },
+    get ember() {
+      return ember;
+    },
+    setEmber(amount) {
+      ember = clampProgress(amount);
+      controls.ember.value = ember;
+    },
+    dispose() {
+      for (const m of created) m.dispose();
+    },
+  };
+}
+
+function roleOf(mesh: Mesh): UndeadRole {
+  const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+  const name = material?.name ?? '';
+  if (name === 'MI_Regular_Male' || name === 'MI_Head') return 'skin';
+  if (/Pauldron|Bracer/.test(mesh.name)) return 'metal';
+  // 武器・盾などの小物（テクスチャ無しの単色マテリアル）は金属扱い
+  if (name !== 'MI_Ranger') return 'metal';
+  return 'cloth';
+}
+
+function isHiddenBy(meshName: string, variant: UndeadVariant): boolean {
+  const hidden: string[] = [];
+  if (!variant.hood) hidden.push(...OUTFIT_MESHES.hood);
+  if (!variant.pauldron) hidden.push(...OUTFIT_MESHES.pauldron);
+  if (!variant.belts) hidden.push(...OUTFIT_MESHES.belts);
+  return hidden.includes(meshName);
+}
+
+function createUndeadMaterial(
+  src: MeshStandardMaterial,
+  role: UndeadRole,
+  variant: UndeadVariant,
+  controls: Controls,
+): MeshStandardNodeMaterial {
+  const material = new MeshStandardNodeMaterial();
+  material.name = `Undead_${role}_${src.name}`;
+  if (src.normalMap) {
+    material.normalMap = src.normalMap;
+    material.normalScale.copy(src.normalScale);
+  }
+
+  const srcColor = vec3(src.color.r, src.color.g, src.color.b);
+  const base = src.map ? texture(src.map).rgb.mul(srcColor) : srcColor;
+  const lum = luminance(base);
+  // 小物（UV 無し）はローカル座標でノイズを引く
+  const noiseCoord = (k: number): Node<'vec2'> | Node<'vec3'> =>
+    src.map ? uv().mul(k) : positionLocal.mul(k * 1.2);
+  const uv0 = uv();
+
+  let albedo: Node<'vec3'>;
+  let emissive: Node<'vec3'>;
+  // 熾火の亀裂: ノイズの等値線（谷）が光る。フェーズ 2 で ember を上げると現れる。
+  const crack = float(1).sub(smoothstep(0.0, 0.035, abs(mx_noise_float(noiseCoord(30)))));
+  const emberGlow = vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b).mul(controls.ember);
+
+  if (role === 'skin') {
+    const skin = new Color(variant.skin);
+    const bruise = new Color(variant.bruise);
+    // 暗い灰褐色。元テクスチャは明度だけ借りる（髭・陰影を残す）。
+    const tone = vec3(skin.r, skin.g, skin.b).mul(lum.mul(1.6).add(0.45)).mul(2.3);
+    // 痣・腐敗の斑
+    const isFace = src.name === 'MI_Head';
+    const blotch = smoothstep(-0.35, 0.6, mx_noise_float(uv0.mul(isFace ? 22 : 9)));
+    albedo = mix(
+      tone,
+      vec3(bruise.r, bruise.g, bruise.b).mul(lum.add(0.4)).mul(2.3),
+      blotch.mul(0.5),
+    );
+    // 落ち窪んだ眼窩: 眼の周りを暗くする
+    if (isFace) albedo = albedo.mul(float(1).sub(eyeMaskNode(uv0, EYE_RADIUS * 3.2).mul(0.7)));
+    material.roughness = 0.88;
+    material.metalness = 0;
+    // 眼の発光（顔テクスチャ上の 2 点）。ボスのフェーズ 2 で橙へ寄る。
+    const eyeMask = eyeMaskNode(uv0);
+    const eyeColor = mix(
+      vec3(EYE_COLOR.r, EYE_COLOR.g, EYE_COLOR.b),
+      vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b),
+      controls.ember,
+    );
+    const faceOnly = isFace ? float(1) : float(0);
+    emissive = eyeColor
+      .mul(eyeMask)
+      .mul(faceOnly)
+      .mul(1.6 * variant.eyeGlow);
+    emissive = emissive.add(emberGlow.mul(crack).mul(0.6));
+  } else if (role === 'cloth') {
+    const tint = new Color(variant.cloth);
+    // 色を落としてから布の色を乗せる。足元ほど泥で暗くなる。
+    const desat = mix(vec3(lum), base, 0.35);
+    const dirt = smoothstep(0.0, 1.1, positionWorld.y).mul(0.45).add(0.55);
+    const stain = smoothstep(-0.2, 0.5, mx_noise_float(uv0.mul(14)))
+      .mul(0.35)
+      .add(0.65);
+    albedo = desat
+      .mul(vec3(tint.r, tint.g, tint.b))
+      .mul(5.0)
+      .mul(dirt)
+      .mul(stain);
+    material.metalness = src.metalness;
+    material.roughness = 1;
+    if (src.metalnessMap) material.metalnessMap = src.metalnessMap;
+    if (src.roughnessMap) material.roughnessMap = src.roughnessMap;
+    emissive = emberGlow.mul(crack).mul(0.9);
+  } else {
+    const rust = new Color(variant.rust);
+    // 錆: ノイズで鉄の暗色と赤茶の錆を混ぜる。ボスは錆の縁が熾火で光る。
+    const rustMask = smoothstep(-0.25, 0.35, mx_noise_float(noiseCoord(11).add(3.7)));
+    const iron = vec3(0.17, 0.16, 0.15).mul(lum.mul(0.8).add(0.5));
+    const rusty = vec3(rust.r, rust.g, rust.b).mul(lum.mul(0.9).add(0.35));
+    albedo = mix(iron, rusty, rustMask);
+    material.metalness = 0.45;
+    material.roughness = 0.72;
+    emissive = emberGlow.mul(crack.mul(0.7).add(rustMask.oneMinus().mul(0.06)));
+  }
+
+  // ディゾルブ: ワールド座標のノイズがしきい値を下回った所から消える。縁は熾火色に光り、焦げた灰色になる。
+  const n = saturate(mx_noise_float(positionWorld.mul(4.2)).mul(0.9).add(0.5));
+  const threshold = mix(float(-DISSOLVE_EDGE - 0.01), float(1.01), controls.dissolve);
+  const edge = float(1).sub(smoothstep(threshold, threshold.add(DISSOLVE_EDGE), n));
+  const charred = edge.mul(edge);
+  albedo = mix(albedo, vec3(ASH_COLOR.r, ASH_COLOR.g, ASH_COLOR.b), charred.mul(0.9));
+  emissive = emissive.add(
+    vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b)
+      .mul(smoothstep(0.35, 1.0, edge))
+      .mul(controls.dissolve.greaterThan(0).select(3.2, 0)),
+  );
+
+  material.colorNode = albedo;
+  material.emissiveNode = emissive;
+  // 完全に消えた画素を捨てる（ブレンド無し、半透明パスにならない）
+  material.opacityNode = n.greaterThan(threshold).select(float(1), float(0));
+  material.alphaTest = 0.5;
+  return material;
+}
+
+function eyeMaskNode(uvNode: ReturnType<typeof uv>, radius = EYE_RADIUS) {
+  let mask: Node<'float'> = float(0);
+  for (const [u, v] of EYE_UVS) {
+    const d = uvNode.sub(vec2(u, v)).length();
+    mask = mask.add(float(1).sub(smoothstep(radius * 0.35, radius, d)));
+  }
+  return saturate(mask);
+}
