@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "sounds": [
+    {
+      "id": "ui.dummy-click",
+      "source": "dummy/click.wav",
+      "kind": "ui",
+      "priority": 70,
+      "gainDb": -3,
+      "license": "dummy-generated"
+    },
+    {
+      "id": "ambient.dummy-hiss",
+      "source": "dummy/hiss.wav",
+      "kind": "ambient",
+      "loop": true,
+      "loopStart": 0,
+      "loopEnd": 0.5,
+      "priority": 10,
+      "license": "dummy-generated"
+    }
+  ]
+}
