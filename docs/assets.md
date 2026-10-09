@@ -351,6 +351,7 @@ look.setEmber(1);                                                    // ボス�
 - 突き立つ剣 12 本の配置: `gateSwordPlacements({ gate, approachYaw })`（`src/core/plantedSwords.ts`、純粋ロジック）。11 本が門を中心にした半径 3.2m の半円（接近側 ±80°）に並び、刃の面が門を向く。残る 1 本は半円の端のさらに外（半径 +1.1m）に離れ、**逆さ**（柄頭が刺さり刃が上）で門に背を向ける。傾きは決定的な乱数で ±5°。
 - 確認用: `?props=all|swords|bell|statue|cairn`（騎士なしで並べる。背景のフィールドを隠し、プレビュー専用の補助光を足す）、`?props=sword-hand&clip=Sword_Idle&view=front&dist=3.2` / `?props=sword-back&view=back&dist=3.2`（大剣を手 / 背中）、`?props=jar&view=front&dist=2.2`（壺を持つ）。
 
+<<<<<<< HEAD
 ### 7.10 プレイヤー（旅の騎士）の見た目（Issue #103）
 
 #10 のプレイヤー（UBC のレンジャー衣装 + 頭部）は「レンジャー」寄りだったので、**自作の騎士装備**（`scripts/assets/player.mjs` がコードで生成。素材由来のライセンスなし、テクスチャなし）を重ねて「旅の騎士」にする。装備メッシュ（7.7 節）・探索用メッシュ（7.8 節）と同じ作り方（頂点カラー、`buildItemsDocument`、予算検証テスト）。敵の「錆びた装備」と対になる**手入れされた鋼 + 深紅の布**の色設計で、三人称の**後ろ姿のシルエット**（兜の羽根飾り・張り出した肩当て・長い外套）を重視している。
@@ -372,6 +373,8 @@ look.setEmber(1);                                                    // ボス�
 - 確認用: `?player=1`（`&view=front|back|left|right|close&dist=3.2`、`&clip=Jog_Fwd_Loop|Sprint_Loop|Sword_Idle…`、`&speed=<m/s>` で外套のなびき、`&light=front|back|side|shade` で光の向き）。撮影は `SHOT_QUERY='?player=1&view=back&dist=3.2' npm run shot`。
 
 
+=======
+>>>>>>> origin/feat/108-exploration-props
 ### 7.9 遺体ポーズ 4 種（Issue #109）
 
 環境ストーリーテリングの遺体（仕様書 14.7 節）。UBC の騎士（レンジャー衣装）を流用し、**新規アセット・新規クリップなし**（コードでポーズを作る）。亡者ではない人の遺体なので亡者マテリアルは使わず、肌を青白く・衣装を暗い色に寄せる。
