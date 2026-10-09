@@ -43,6 +43,16 @@ test('plays the requested clip and can freeze it at a given time', async ({ page
   expect(errors).toEqual([]);
 });
 
+test('shows the exploration props preview without errors (#108)', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('./?props=all&quality=low&scale=0.25');
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await page.goto('./?props=sword-back&view=back&quality=low&scale=0.25');
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await page.waitForTimeout(500);
+  expect(errors).toEqual([]);
+});
+
 test('places a dozen frozen corpses without errors (#109)', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('./?corpse=crowd&n=12&quality=low&scale=0.25');

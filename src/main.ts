@@ -52,10 +52,10 @@ interface DebugState {
   };
 }
 
-/** キャラクター確認用の URL 指定（`?clip=` / `?view=`）があるか。あれば従来どおり騎士を 1 体置いて見せる。 */
+/** キャラクター確認用の URL 指定（`?clip=` / `?view=` / `?corpse=` / `?props=` など）があるか。あれば従来どおり騎士を 1 体置いて見せる。 */
 function isShowcaseRequested(search: string): boolean {
   const params = new URLSearchParams(search);
-  return params.has('clip') || params.has('view') || params.has('corpse');
+  return ['clip', 'view', 'corpse', 'props', 'equip', 'undead', 'light'].some((k) => params.has(k));
 }
 
 declare global {
