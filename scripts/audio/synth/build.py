@@ -25,6 +25,7 @@ from dsp import (  # noqa: E402
     loudness_integrated,
     loudness_momentary_max,
     click_score,
+    seam_score,
     write_wav,
 )
 from registry import REGISTRY, make  # noqa: E402
@@ -39,7 +40,7 @@ CONFIG = AUDIO_DIR / "audio.json"
 KIND_TARGET = {
     "se": (0.8, -16.0),
     "ui": (0.7, -18.0),
-    "ambient": (0.4, -32.0),
+    "ambient": (0.4, -27.0),
     "bgm": (0.6, -23.0),
 }
 
@@ -83,12 +84,31 @@ def qc(s, x):
         e = edge_click_score(x)
         if e > 0.01:
             problems.append(f"端が 0 でない({e:.3f})")
+    if s.loop is not None:
+        ss = seam_score(x)
+        if ss > 1.3:
+            problems.append(f"ループの継ぎ目が目立つ(seam {ss:.1f})")
     cs = click_score(x)
     if cs > 14 and not s.clicks_ok:
         problems.append(f"不連続の疑い(click {cs:.1f})")
     if not np.all(np.isfinite(x)):
         problems.append("NaN/inf")
     return problems
+
+
+# ループ素材は Opus のコーデック立ち上がり・終端の誤差がループ継ぎ目に乗らないよう、
+# ループ区間の前に 1 秒（ループ末尾のコピー）、後ろに 0.5 秒（ループ先頭のコピー）を付けて書き出し、
+# loopStart / loopEnd をその分だけずらす。ループ区間そのものは継ぎ目なしの波形。
+LOOP_LEAD = 1.0
+LOOP_TRAIL = 0.5
+
+
+def with_loop_padding(s, x):
+    if s.loop is None:
+        return x
+    assert s.loop[0] == 0 and abs(s.loop[1] - x.shape[-1] / SR) < 1e-6, f"{s.id}: loop は全長（0, 長さ）で指定する"
+    lead, trail = int(LOOP_LEAD * SR), int(LOOP_TRAIL * SR)
+    return np.concatenate([x[..., -lead:], x, x[..., :trail]], axis=-1)
 
 
 def update_config(sounds):
@@ -99,7 +119,7 @@ def update_config(sounds):
     for s in sounds:
         e = {"id": s.id, "source": f"{s.group}/{s.id}.wav", "kind": s.kind}
         if s.loop:
-            e.update(loop=True, loopStart=round(s.loop[0], 4), loopEnd=round(s.loop[1], 4))
+            e.update(loop=True, loopStart=round(LOOP_LEAD + s.loop[0], 4), loopEnd=round(LOOP_LEAD + s.loop[1], 4))
         e["priority"] = s.priority
         if s.bitrate:
             e["bitrateKbps"] = s.bitrate
@@ -159,7 +179,7 @@ def main():
         problems = qc(s, x)
         out = AUDIO_DIR / s.group
         out.mkdir(parents=True, exist_ok=True)
-        write_wav(out / f"{s.id}.wav", x)
+        write_wav(out / f"{s.id}.wav", with_loop_padding(s, x))
         lufs = measure(s.kind, x)
         rows.append(
             dict(

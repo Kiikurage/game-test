@@ -315,6 +315,341 @@
       "kind": "ui",
       "priority": 85,
       "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-grass1",
+      "source": "se/sfx.footstep-grass1.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-grass2",
+      "source": "se/sfx.footstep-grass2.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-grass3",
+      "source": "se/sfx.footstep-grass3.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-grass4",
+      "source": "se/sfx.footstep-grass4.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-stone1",
+      "source": "se/sfx.footstep-stone1.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-stone2",
+      "source": "se/sfx.footstep-stone2.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-stone3",
+      "source": "se/sfx.footstep-stone3.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-stone4",
+      "source": "se/sfx.footstep-stone4.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-wood1",
+      "source": "se/sfx.footstep-wood1.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-wood2",
+      "source": "se/sfx.footstep-wood2.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-wood3",
+      "source": "se/sfx.footstep-wood3.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-wood4",
+      "source": "se/sfx.footstep-wood4.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-crypt1",
+      "source": "se/sfx.footstep-crypt1.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-crypt2",
+      "source": "se/sfx.footstep-crypt2.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-crypt3",
+      "source": "se/sfx.footstep-crypt3.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.footstep-crypt4",
+      "source": "se/sfx.footstep-crypt4.wav",
+      "kind": "se",
+      "priority": 30,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ambient.wind",
+      "source": "ambient/ambient.wind.wav",
+      "kind": "ambient",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 25.0,
+      "priority": 10,
+      "bitrateKbps": 48,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ambient.ash-leaves",
+      "source": "ambient/ambient.ash-leaves.wav",
+      "kind": "ambient",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 21.0,
+      "priority": 10,
+      "bitrateKbps": 48,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ambient.bell-distant",
+      "source": "ambient/ambient.bell-distant.wav",
+      "kind": "ambient",
+      "priority": 10,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ambient.fire",
+      "source": "ambient/ambient.fire.wav",
+      "kind": "ambient",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 17.0,
+      "priority": 10,
+      "bitrateKbps": 48,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ambient.fog-gate",
+      "source": "ambient/ambient.fog-gate.wav",
+      "kind": "ambient",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 21.0,
+      "priority": 10,
+      "bitrateKbps": 64,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "ambient.crypt",
+      "source": "ambient/ambient.crypt.wav",
+      "kind": "ambient",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 25.0,
+      "priority": 10,
+      "bitrateKbps": 64,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.step1",
+      "source": "se/sfx.boss.step1.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.step2",
+      "source": "se/sfx.boss.step2.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.step3",
+      "source": "se/sfx.boss.step3.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.step4",
+      "source": "se/sfx.boss.step4.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.roar",
+      "source": "se/sfx.boss.roar.wav",
+      "kind": "se",
+      "priority": 75,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.axe-swing1",
+      "source": "se/sfx.boss.axe-swing1.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.axe-swing2",
+      "source": "se/sfx.boss.axe-swing2.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.axe-swing3",
+      "source": "se/sfx.boss.axe-swing3.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.slam1",
+      "source": "se/sfx.boss.slam1.wav",
+      "kind": "se",
+      "priority": 72,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.slam2",
+      "source": "se/sfx.boss.slam2.wav",
+      "kind": "se",
+      "priority": 72,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.ash-wave1",
+      "source": "se/sfx.boss.ash-wave1.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.ash-wave2",
+      "source": "se/sfx.boss.ash-wave2.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.ash-wave3",
+      "source": "se/sfx.boss.ash-wave3.wav",
+      "kind": "se",
+      "priority": 70,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.enter",
+      "source": "se/sfx.boss.enter.wav",
+      "kind": "se",
+      "priority": 72,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.defeat",
+      "source": "se/sfx.boss.defeat.wav",
+      "kind": "se",
+      "priority": 75,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "sfx.boss.shield-bash",
+      "source": "se/sfx.boss.shield-bash.wav",
+      "kind": "se",
+      "priority": 72,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "bgm.title",
+      "source": "bgm/bgm.title.wav",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 61.0,
+      "priority": 40,
+      "bitrateKbps": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "bgm.boss",
+      "source": "bgm/bgm.boss.wav",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 91.0,
+      "priority": 45,
+      "bitrateKbps": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "bgm.boss-layer",
+      "source": "bgm/bgm.boss-layer.wav",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1.0,
+      "loopEnd": 91.0,
+      "priority": 46,
+      "bitrateKbps": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "bgm.victory",
+      "source": "bgm/bgm.victory.wav",
+      "kind": "bgm",
+      "priority": 50,
+      "bitrateKbps": 80,
+      "license": "synth-game-test"
+    },
+    {
+      "id": "bgm.ending",
+      "source": "bgm/bgm.ending.wav",
+      "kind": "bgm",
+      "priority": 40,
+      "bitrateKbps": 80,
+      "license": "synth-game-test"
     }
   ]
 }
