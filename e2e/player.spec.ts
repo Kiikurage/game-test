@@ -20,6 +20,25 @@ async function boot(page: Page): Promise<void> {
   expect(errors).toEqual([]);
 }
 
+// 失敗時の調査用: 入力・シミュレーション・フォーカスの状態を出す
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  const state = await page
+    .evaluate(() => ({
+      focus: document.hasFocus(),
+      hidden: document.hidden,
+      lock: document.pointerLockElement !== null,
+      state: document.getElementById('app')?.dataset.state,
+      steps: window.__game?.steps,
+      frames: window.__game?.frames,
+      input: window.__game?.input,
+      player: window.__game?.sim.player,
+      camera: window.__game?.sim.camera.yaw,
+    }))
+    .catch((e: unknown) => String(e));
+  console.log(`[diag] ${info.title}: ${JSON.stringify(state)}`);
+});
+
 const sim = (page: Page) =>
   page.evaluate(() => {
     const s = window.__game?.sim;
