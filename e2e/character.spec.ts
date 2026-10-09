@@ -42,7 +42,7 @@ test('plays the requested clip and can freeze it at a given time', async ({ page
 test('places a dozen frozen corpses without errors (#109)', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('./?corpse=crowd&n=12&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   const state = await page.evaluate(
     () =>
       (window as unknown as { __corpsePreview?: { count: number; triangles: number } })
