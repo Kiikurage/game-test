@@ -4,6 +4,24 @@ export type QualityLevel = 'low' | 'medium' | 'high';
 
 export const QUALITY_LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
 
+/** パーティクルの個数予算（品質プリセットで段階化する）。 */
+export interface ParticleQuality {
+  /** 環境の灰（プレイヤー周辺に追従）。仕様 7.2 節: 200〜400 個。0 で無効。 */
+  readonly ambientAsh: number;
+  /** 篝火 1 基あたりの炎のビルボード数。 */
+  readonly bonfireFlames: number;
+  /** 篝火 1 基あたりの火の粉の数。 */
+  readonly bonfireSparks: number;
+  /** 熾火フィールド 1 つあたりの粒数。 */
+  readonly emberField: number;
+  /** バースト（ヒット・撃破）の同時スロット数（レイヤごと）。 */
+  readonly burstSlots: number;
+  /** バーストの 1 回あたり粒数に掛ける係数（0..1）。 */
+  readonly burstDensity: number;
+  /** 篝火の点光源（ゆらぎ付き）を使うか。 */
+  readonly bonfireLight: boolean;
+}
+
 /** 品質プリセット。描画基盤の各機能のコスト/品質ノブをここに集約する。 */
 export interface QualityPreset {
   readonly level: QualityLevel;
@@ -21,6 +39,8 @@ export interface QualityPreset {
   readonly grassCount: number;
   /** 地面等の手続き的ディテール（TSL ノイズのオクターブ数）。 */
   readonly detailOctaves: number;
+  /** パーティクルの個数予算。 */
+  readonly particles: ParticleQuality;
   /** 内部解像度の上限（動的解像度の最大値を決める）。 */
   readonly resolution: ResolutionLimits;
 }
@@ -35,6 +55,15 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     bloomStrength: 0,
     detailOctaves: 1,
     grassCount: 0,
+    particles: {
+      ambientAsh: 150,
+      bonfireFlames: 18,
+      bonfireSparks: 14,
+      emberField: 24,
+      burstSlots: 6,
+      burstDensity: 0.5,
+      bonfireLight: false,
+    },
     resolution: { maxPixelRatio: 1.5, maxPixels: 1_000_000 },
   },
   medium: {
@@ -46,6 +75,15 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     bloomStrength: 0.35,
     detailOctaves: 2,
     grassCount: 5000,
+    particles: {
+      ambientAsh: 300,
+      bonfireFlames: 30,
+      bonfireSparks: 26,
+      emberField: 44,
+      burstSlots: 10,
+      burstDensity: 0.75,
+      bonfireLight: true,
+    },
     resolution: { maxPixelRatio: 2, maxPixels: 1_800_000 },
   },
   high: {
@@ -57,6 +95,15 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     bloomStrength: 0.45,
     detailOctaves: 3,
     grassCount: 14000,
+    particles: {
+      ambientAsh: 400,
+      bonfireFlames: 44,
+      bonfireSparks: 40,
+      emberField: 64,
+      burstSlots: 16,
+      burstDensity: 1,
+      bonfireLight: true,
+    },
     resolution: { maxPixelRatio: 2, maxPixels: 4_000_000 },
   },
 };

@@ -9,3 +9,4 @@
 | [anim-event-markers.md](anim-event-markers.md) | アニメーションイベントマーカー表（JSON 形式・検証・再生速度とフレーム ⇔ 秒の変換） |
 | [vertical-slice.md](vertical-slice.md) | 垂直スライスのゲームデザイン仕様書（体験の流れ・プレイヤー/敵/ボスのフレームデータ・フィールド・UI・オーディオ・スマホ配慮・チェックリスト・M1 以降のエピック案） |
 | [player-controller.md](player-controller.md) | プレイヤーコントローラ・三人称カメラ・ロックオンの構成と API 要約（#24 / #32 / #40 向け）、調整値、デバッグ用フック |
+| [audio-assets.md](audio-assets.md) | 音声素材パイプライン（Opus 変換・マニフェスト・容量予算）、素材の取得可否と方針、CC0 ライセンス記録表 |

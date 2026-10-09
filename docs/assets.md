@@ -282,3 +282,49 @@ knight.update(dt);
 - `Character`: `play(name, { fade, timeScale, clampWhenFinished })` / `update(dt)` / `attach('sword' | 'shield', object)` / `detach` / `getBoneWorldPosition(bone)` / `dispose()`。クリップ名は `ClipName` 型で、`_Loop` で終わるもの（と `Sword_Idle`）はループ、それ以外は 1 回再生して終端で停止する。
 - 剣は `hand_r`、盾は `lowerarm_l` に取り付ける（位置・向きは `character.ts` の `SOCKETS`）。
 - 動作確認ページ: `npm run dev` などで開き、URL に `?clip=Roll&t=0.5&view=left&dist=3` を付ける（`clip` クリップ名、`t` 再生位置を固定、`view` `front|left|right|back|close`、`dist` カメラ距離）。撮影は `SHOT_QUERY='?clip=…' npm run shot`（`'|'` 区切りで複数枚）。このページ内のキャラクター配置は #8 のプレイヤー統合で置き換える。
+
+### 7.6 亡者マテリアル（Issue #22）
+
+UBC の騎士メッシュに、追加テクスチャなし・TSL のみで「亡者」の見た目を与える（`src/render/undead/`）。
+
+```ts
+const knight = assets.createCharacter('knight');
+const look = applyUndeadLook(knight.root, UNDEAD_VARIANTS.gaunt);   // マテリアルを亡者用に差し替える（インスタンスごとに生成）
+knight.root.scale.set(...look.buildScale);                           // 体型（ボスは 2.2 倍にこれを乗せる）
+look.setDissolve(elapsedFrames / DISSOLVE_FRAMES.soldier);           // 0..1。1 で完全に消える（雑魚 60F / ボス 90F）
+look.setEmber(1);                                                    // ボスのフェーズ 2: 眼・亀裂・小物が熾火色
+```
+
+- バリアント 4 種（`gaunt` / `bloated` / `scorched` / `drowned`）。肌色・斑の色・衣の色・錆の色・体型・フード/肩当て/ベルトの有無・眼の強さが異なる。`pickVariantId(rand, previous)` は直前と同じものを選ばない。
+- 肌（`MI_Regular_Male` / `MI_Head`）は元テクスチャの明度だけ借りた灰褐色 + Perlin ノイズの斑、眼窩の影。眼は顔テクスチャ上の 2 点の UV マスクで青白く発光（エミッシブ）。
+- 衣（`MI_Ranger`）は彩度を落として色替え、足元ほど泥で暗くする。肩当て・籠手（と UV の無い小物）は鉄 + 錆のノイズ。
+- ディゾルブはワールド座標の Perlin ノイズがしきい値を下回った画素を `discard`（ブレンドなし）。縁は焦げ + 熾火色に光る。
+- 追加コスト: フラグメントあたりノイズ 2〜3 回（斑・ひび・ディゾルブ）、テクスチャサンプルは元と同数。
+- 確認用: `?undead=gaunt|bloated|scorched|drowned|all&dissolve=0.5&ember=1`（`?view=front&dist=7` と併用）。
+
+### 7.7 簡易装備メッシュ（Issue #23）
+
+亡者兵・盾持ち・ボスの武器・防具。**すべて自作**（`scripts/assets/equipment.mjs` がコードで生成。素材由来のライセンスなし、テクスチャなし）。
+錆・汚れは頂点カラー（COLOR_0、ノイズで暗い鉄 → 赤茶の錆 → 擦れた地金）で表す。
+
+| ID | 取り付けボーン | 内容 |
+| --- | --- | --- |
+| `Sword_Rusty` | `hand_r` | 欠けて先端が折れた片手剣（亡者兵） |
+| `Axe_Rusty` | `hand_r` | 片手斧（盾持ち） |
+| `GreatAxe` | `hand_r` | 全長約 1.5m の大斧（ボス。握りは柄の下 1/3） |
+| `GreatShield` | `lowerarm_l` | ヒーターシールド型の大盾（ボス・盾持ちで共用） |
+| `Cuirass` / `CuirassHeavy` | `spine_03` | 胸当て / 重装版（喉当て付き、ボス） |
+| `Pauldron_L/R` / `PauldronLarge_L/R` | `upperarm_l/r` | 肩当て（亡者兵・盾持ち）/ 3 段の大型（ボス） |
+| `Vambrace_L/R` | `lowerarm_l/r` | 籠手（ボス） |
+| `Greave_L/R` | `calf_l/r` | 脛当て（ボス） |
+| `Tassets` | `pelvis` | 草摺り（ボス） |
+| `Helm_Pot` / `Helm_Great` | `Head` | 鉢形兜（盾持ち）/ 眼のスリット付き全頭兜（ボス） |
+| `Cape` | `spine_03` | ボロ布のマント（ボス） |
+
+- 装備一覧（`LOADOUTS`）: `soldier` = 剣・胸当て・肩当て、`shieldbearer` = 斧・大盾・鉢形兜・肩当て、`boss` = 大斧・大盾・全頭兜・重胸当て・大型肩当て・籠手・草摺り・脛当て・マント。ボスは UBC を 2.2 倍にした `root` に取り付けるので、装備も一緒に拡大される（形状は拡大しても破綻しない）。
+- 手持ち品（剣・斧・大盾）は `props.glb` と同じソケット（`hand_r` / `lowerarm_l`）に乗る。防具は knight.glb の bind pose（T ポーズ）の位置で作り、取り付けボーンの bind ワールド行列の逆行列をソケットとして計算する（`build-equipment.mjs`）。ボーン名とソケット（position / quaternion）は各ノードの `extras` に入る。
+- 生成: `npm run assets:equipment`（`assets:build` の最後にも実行される。knight.glb が必要）。出力は `public/assets/equipment.glb`、`manifest.json` の `equipment` に記録。
+- 予算（実測、manifest）: 全 18 アイテム合計 4,490 tris / 約 110KB / テクスチャメモリ 0。1 体ぶんの装備は soldier 948 / shieldbearer 1,124 / boss 3,114 tris で、騎士 21,252 tris と合わせて 25,000 tris の予算内（boss が最大の 24,366）。`equipment.test.ts` が検証している。
+- ランタイム: `EquipmentAssets.load()` → `equipLoadout(character, 'boss')` / `equip(character, 'GreatAxe')` / `unequip(...)`（`src/render/assets/equipment.ts`）。`Character.attachAt(name, bone, object, position, quaternion)` を新設。兜を付けるときはフードを隠す。
+- 注意（#10 のバグ修正）: glb の小物ノードは頂点量子化のためノード自身に平行移動・スケールを持つ。`Character.attach` がそれを上書きして剣・盾がずれていたため、ソケットの姿勢はホルダー（`Group`）に持たせるようにした。
+- 確認用: `?equip=soldier|shieldbearer|boss|all`（`?view=front&dist=8.5` と併用。boss は dist 12 程度）。

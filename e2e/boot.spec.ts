@@ -35,6 +35,57 @@ test('renders with the WebGPU backend and no console errors', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
+test('creates an AudioContext that stays suspended until the first user gesture', async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  const logs: string[] = [];
+  page.on('console', (msg) => logs.push(`${msg.type()}: ${msg.text()}`));
+  // ヘッドレス Chromium は環境により自動再生制限が効いたり効かなかったりするため、
+  // モバイル相当の制限（ユーザー操作の resume までは suspended）をシムで決定的に再現する。
+  await page.addInitScript(() => {
+    const Native = window.AudioContext;
+    // 注: init script は関数の文字列としてページへ渡るため、private フィールド等のトランスパイル補助が必要な構文は避ける
+    const unlocked = new WeakSet<object>();
+    window.AudioContext = class extends Native {
+      override get state(): AudioContextState {
+        return unlocked.has(this) ? super.state : 'suspended';
+      }
+      override resume(): Promise<void> {
+        if (navigator.userActivation.isActive && !unlocked.has(this)) {
+          unlocked.add(this);
+          this.dispatchEvent(new Event('statechange'));
+        }
+        return unlocked.has(this) ? super.resume() : Promise.resolve();
+      }
+    };
+  });
+  await page.goto('./');
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+
+  // 失敗時に原因が分かるよう、例外も文字列として返す
+  const readAudioState = (): Promise<string> =>
+    page.evaluate(() => {
+      try {
+        return String(window.__game?.audio?.state);
+      } catch (e) {
+        return `throw: ${String(e)}`;
+      }
+    });
+  let state = await readAudioState();
+  for (let i = 0; i < 50 && state !== 'suspended'; i++) {
+    await page.waitForTimeout(200);
+    state = await readAudioState();
+  }
+  expect(state, `console: ${logs.join(' | ')}`).toBe('suspended');
+  await page.waitForTimeout(500);
+  expect(await readAudioState()).toBe('suspended');
+
+  await page.mouse.click(200, 200);
+  await expect.poll(readAudioState).toBe('running');
+  expect(errors).toEqual([]);
+});
+
 test('shows the unsupported screen when WebGPU is unavailable', async ({ page }) => {
   const errors = collectErrors(page);
   await page.addInitScript(() => {

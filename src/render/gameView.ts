@@ -6,6 +6,8 @@ import type { GameRenderer } from './renderer';
 import { PlaygroundView } from './playground';
 import type { PlayerView } from './playerView';
 import { createTestScene, type ColliderCylinder } from './testScene';
+import { ParticleSystem } from './particles';
+import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
 
 /**
  * Game の状態を three のシーンとして描画する。
@@ -19,6 +21,8 @@ export class GameView {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(50, 1, 0.1, 500);
   readonly environment: Environment;
+  /** パーティクル（環境の灰・篝火・熾火・ヒット/撃破バースト）。 */
+  readonly particles: ParticleSystem;
   /** 影のカバー範囲が追従する対象（プレイヤー等）。未設定なら game のプレイヤー位置。 */
   shadowFocusTarget: Object3D | null = null;
   /** false にすると game のカメラ追従を止める（キャラクター確認用ショーケースが自分でカメラを置くとき）。 */
@@ -31,6 +35,8 @@ export class GameView {
   private readonly postProcess: PostProcess;
   private readonly tmpPosition = new Vector3();
   private readonly tmpQuaternion = new Quaternion();
+  private readonly particleDemo: ParticleDemo | null = null;
+  private lastRenderMs = 0;
 
   constructor(
     private readonly game: Game,
@@ -47,6 +53,16 @@ export class GameView {
 
     this.camera.position.set(5.5, 2.4, 8.5);
     this.camera.lookAt(-1.5, 4.6, -8);
+
+    this.particles = new ParticleSystem(preset.particles);
+    this.scene.add(this.particles.root);
+    // ?pfx=0: パーティクルを非表示にする（負荷比較・不具合切り分け用）
+    if (new URLSearchParams(window.location.search).get('pfx') === '0') {
+      this.particles.root.visible = false;
+    }
+    if (isParticleDemoEnabled(window.location.search)) {
+      this.particleDemo = new ParticleDemo(this.particles, this.scene, this.camera);
+    }
 
     this.postProcess = createPostProcess(gameRenderer.renderer, this.scene, this.camera, preset);
 
@@ -77,7 +93,13 @@ export class GameView {
     if (this.useGameCamera) this.syncCamera(alpha);
     this.playerView?.update(alpha);
     this.playground.update(this.camera);
-    this.environment.followShadowFocus(this.shadowFocusTarget?.position ?? this.game.player.feet);
+    const focus = this.shadowFocusTarget?.position ?? this.game.player.feet;
+    this.environment.followShadowFocus(focus);
+    const now = performance.now();
+    const dt = this.lastRenderMs > 0 ? (now - this.lastRenderMs) / 1000 : 0;
+    this.lastRenderMs = now;
+    this.particleDemo?.update(dt);
+    this.particles.update(dt, focus);
     this.postProcess.render();
     this.gameRenderer.endFrame();
   }

@@ -1,3 +1,4 @@
+import { EventBus, type GameEventMap } from '../core/gameEvents';
 import { Euler, Quaternion, Vector3 } from 'three/webgpu';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { InputReader, InputSnapshot } from '../core/input';
@@ -80,6 +81,9 @@ const EULER_Y = new Vector3(0, 1, 0);
  * 1 ステップの順序: ロックオン → カメラの向き → プレイヤー → 物理 → カメラの位置（衝突）。
  */
 export class Game {
+  /** game が発行するイベント（音など）。audio 層が購読する。game は Web Audio に依存しない。 */
+  readonly events = new EventBus<GameEventMap>();
+
   readonly player: Player;
   readonly camera = new ThirdPersonCamera();
   readonly lockOn = new LockOnController();
