@@ -20,7 +20,7 @@ src/game/
   testing/fakeInput.ts         テスト用の InputReader
 src/render/
   playerView.ts                騎士モデルの描画（player.transform を補間）
-  assets/playerAnimator.ts     暫定の速度ブレンド（#32 が置き換える）
+  anim/characterAnimator.ts    アニメーションコントローラ（クロスフェード・上半身/下半身レイヤ・マーカー駆動。#32）
   playground.ts                足場・ダミー・ロックオンマーカーの描画
 src/ui/tuningPanel.ts          ?debug の調整パネル
 ```
@@ -58,6 +58,10 @@ player.teleport(pos, yaw)
 - **ロール / バックステップ**: `PLAYER_ACTIONS.roll` / `.backstep` のフレームデータどおり（全体 32F / 22F、距離 3.2m / 2.0m、無敵 F4–F15 / F1–F8）。入力（回避確定 = `buttons.dodge.pressed`）と同じステップで F1 が始まる。先行入力は `InputReader.consumeBuffered('dodge')` で消費。スタミナ 0 では開始できない。移動入力があればロール、なければバックステップ。ロール F26 から移動へキャンセル可。終了時にボタンが押されていればダッシュへ。
 - **落下 / 着地**: 接地が 4F 切れたら `fall`。1.2m 以上落ちると `land`（10F、3m 以上で 22F、速度 35%）。
 - **地形**: 40° まで登れ、それ以上は滑る。0.35m までの段差は自動で乗り越える（Rapier のオートステップ。接地中に下向きの移動量を与えるとオートステップが働かないので、接地中の鉛直速度は 0 とし、吸着は snap-to-ground に任せている）。見た目の跳ね上がりは `transform` だけ平滑化している。
+
+### アニメーション（#32）
+
+`player.animation` を `render/anim/characterAnimator.ts` が読み、ロコモーション（Idle / Walk / Run / ロックオン時のストレイフ）をクロスフェードで再生する。アクション中は `game/anim/` のマーカー表（`player.<状態 ID>`）のクリップ範囲と再生速度を仕様フレームに合わせ、マーカー（`hitStart` / `cancelOpen` / `invulnStart` / `footstep` など）を `game/anim/markerDispatcher.ts` がイベントバスの `animMarker`（足音は `footstep` にも）へ流す。状態機械は `game/anim/characterFsm.ts`（敵・ボスと共用）。ヒットストップは `freeze(frames)` で状態フレームとアニメーションを同時に止める。表の `clipRange` / `clipHitFrame` は `scripts/assets/clipMeasure.mjs`（animations.glb を実測）で検証される。
 
 ### 後続の戦闘（#40 など）が状態を足すとき
 
