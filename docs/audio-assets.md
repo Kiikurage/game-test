@@ -153,3 +153,13 @@ CI は WAV をコミット済みとして `assets:audio` だけを実行する�
 `sfx.guard-just`・`sfx.shield-deflect1〜2`・`sfx.sword-light1〜3`・`sfx.sword-heavy1〜2`・`sfx.roll1〜2`・`sfx.hurt1〜2`・`sfx.heal-drink`・`sfx.heal-glow`・`sfx.breathless`・`sfx.defeat-collapse`・`sfx.defeat-ash` は `sound` イベントで cue を直接渡す。
 敵は `sfx.enemy.*`（プリロードの `field` グループ対象）、UI は `ui.*`（`title` グループ）。
 
+
+### 足音・環境音・ボス SE（#37）
+
+- 足音 16: `sfx.footstep-{grass,stone,wood,crypt}{1..4}`（`docs/audio.md` の `footstep` イベントの cue）（モノラル、短い単発）。歩き / 走り / ロールは再生側で音量を変える。地下は石の足音を 1.7s の残響に通す。
+- 環境音 6（ステレオ）: `ambient.wind` / `ash-leaves` / `fire` / `fog-gate` / `crypt` はループ、`ambient.bell-distant` は単発（遠い鐘。再生間隔は呼び出し側）。
+- ボス SE 16: 足音 4（66 / 58 / 52 / 46 Hz 帯の低音）、咆哮 1（ピーク 0.99）、斧の風切り 3、叩きつけ 2、灰の波 3（地割れ・突風・降灰）、入場 1、撃破 1、盾打ち 1。
+- **ループ素材の継ぎ目**: ループ区間そのものを継ぎ目なしに作る（ノイズは末尾 2s を先頭へ等パワー・クロスフェード、`fog-gate` は全周波数・LFO を 1/20Hz の格子 = ループ長で整数周期、`crypt` の水滴残響は 3 連結してリバーブをかけ中央を切り出す）。
+  さらに Opus の立ち上がり・終端の誤差がループ点に乗らないよう、書き出す WAV は **前に 1s（ループ末尾のコピー）、後ろに 0.5s（先頭のコピー）** を付け、`loopStart = 1.0`、`loopEnd = 1.0 + 長さ` とする（`audio.json` / マニフェストの値）。
+  ランタイムは `AudioBufferSourceNode` の `loop` / `loopStart` / `loopEnd` をそのまま使えばよい。
+- 継ぎ目の検査（`build.py`）: ループ区間を 2 回つなぎ、継ぎ目付近の隣接サンプル差が通常の差の何倍かを見る（6 倍超で失敗）。Opus 化後にデコードした波形でも確認済み（継ぎ目の段差は通常の隣接差と同程度。tonal な `fog-gate` だけ 1 倍強、ピークの 2%）。
