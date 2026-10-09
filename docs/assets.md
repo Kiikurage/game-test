@@ -213,3 +213,72 @@ Rogue / Mage も同系統。**KayKit はキャラクター間でリグとクリ�
 3. **Mixamo を使うか**: 到達不可で、再配布条件にも注意が要る。KayKit 内蔵クリップで足りるなら使わない方針でよいか。
 4. **ローリングの方式**: 手続き的ロール（最小コスト）か、UAL の `Roll` のリターゲット（高品質、調整あり）か。
 5. **アセットの置き場とサイズ**: KayKit 1 リポジトリは 100MB を超える（FBX/OBJ/Blend を含む）。コミット対象は glb/gltf と必要なテクスチャに絞り、リポジトリ肥大を避ける運用でよいか。
+
+## 7. 採用アセットと取り込みパイプライン（Issue #10）
+
+オーナー決定（2026-10-09、[direction.md](direction.md) 5 章）により、キャラクターは Quaternius の Universal Base Characters + Universal Animation Library（UAL / UAL2）で等身寄りにし、ライセンスは CC0 のみとする。1〜6 章の KayKit 推奨案は採用しない。
+
+### 7.1 採用アセット一覧
+
+| 用途 | 元アセット | ライセンス | 加工 |
+| --- | --- | --- | --- |
+| 騎士（プレイヤー、敵の流用元） | Modular Character Outfits - Fantasy（Standard）の `Male_Ranger`（フード・ショルダーパッド・ブーツ・ベルト等） + Universal Base Characters（Standard）の `Superhero_Male` の頭部 | CC0 1.0 | 色調を鋼色に寄せる、頭部のみ切り出し、メッシュ簡略化、テクスチャ縮小・WebP 化 |
+| アニメーション 34 クリップ | Universal Animation Library（`gaits.glb`、17 クリップ）と Universal Animation Library 2（`animations.glb`、17 クリップ）、いずれも Standard 版・ルートモーション無し | CC0 1.0 | 必要クリップのみ抽出、スケール/子ボーンの平行移動トラック削除、リサンプル、meshopt 圧縮 |
+| 剣・盾 | 自作（`scripts/assets/props.mjs` がコードで生成。素材由来のライセンスなし） | — | — |
+
+- 元の 3 パックの `*-license.txt` はいずれも「CC0 1.0 Universal」であることを取得時に実物で確認し、`assets-src/LICENSES/` に控えを保存している（`npm run assets:fetch` が CC0 の文言を検証し、違えば停止する）。
+- クリップ一覧は `src/render/assets/clips.ts`（`CLIP_NAMES`）。待機/歩き/ジョグ/スプリント（`Idle_Loop` `Walk_Loop` `Jog_Fwd_Loop` `Sprint_Loop`）、`Roll`、剣攻撃（`Sword_Regular_A/B/C` と `_Rec`、`Sword_Regular_Combo`、`Sword_Heavy_Combo`、`Sword_Attack`、`Melee_Hook`）、ガード（`Sword_Block`、`Idle_Shield_Loop`、`Idle_Shield_Break`、`Shield_OneShot`）、被弾（`Hit_Chest` `Hit_Head` `Hit_Knockback`）、`Death01`、ジャンプ、篝火休憩（`Sitting_*`）、回復（`Consume`）ほか。
+- UAL にはバックステップ・左右ストレイフ・ロックオン歩行のクリップが無い。ロックオン中の移動は #8 以降で前進クリップの流用や手続き的な処理で補う必要がある。
+- 全クリップは同一の 65 ボーン共通リグ（Quaternius Universal リグ）用で、ボーン名で自動的にバインドされる。クリップのリグとキャラクターの待機姿勢には最大 0.15（クォータニオン距離）程度の差があるが、見た目の破綻は確認されなかったため、リターゲットは行わない。
+
+### 7.2 取得元と再現手順
+
+- 取得元: <https://github.com/OpenAgentsInc/openagents>（commit `e2247fd8101517d768c5937d7df720d35e89c77e`、`assets/verse/characters/quaternius/`）。Quaternius の公式サイトへはエージェント環境から届かないため、Standard 版（CC0）をそのまま再配布している第三者リポジトリを使う。同ディレクトリの README にある Bestiary（QAL）は取得対象に含めない。
+- `assets-src/sources.json` に commit と使用ファイルの SHA-256 を固定している。`npm run assets:fetch` は必要なファイルだけを sparse に取得して `assets-src/quaternius/`（gitignore 対象、約 54MB）へ置き、ハッシュを検証する。取得元を変えるときだけ `npm run assets:fetch -- --update-lock` で更新する。
+- `npm run assets:build` は fetch → 変換を実行し、`public/assets/` を再生成する（出力はコミットする）。変換は `scripts/assets/`（`config.mjs` に設定、`build.mjs` が本体）。
+- 取得データは信頼できない外部データとして扱い、glTF / 画像としてパースするだけで実行はしない。
+- 注意: 第三者リポジトリ経由のため、公式配布物との同一性は SHA-256 の固定でしか担保できない。オーナーが公式サイトの Standard 版を取得して差し替える場合は、同じ相対パスに置いて `--update-lock` を実行する。
+
+### 7.3 出力と実測値
+
+| ファイル | サイズ | 内容 |
+| --- | --- | --- |
+| `public/assets/characters/knight.glb` | 約 505KB | 65 ボーン、21,252 tris（元 29,834）、マテリアル 3、テクスチャ 7 枚（WebP） |
+| `public/assets/animations.glb` | 約 730KB | 34 クリップ（骨格のみ、メッシュなし） |
+| `public/assets/props.glb` | 約 18KB | 剣・盾（計 950 tris） |
+| `public/assets/manifest.json` | 約 5KB | 上記のサイズ・三角形数・クリップ長（テストが参照） |
+
+- 初回ダウンロードは合計 約 1.25MB。キャラクターを増やしても `animations.glb` は共有できる。
+- テクスチャ: ベースカラー 1024px、法線・金属/粗さ 512px（元は 2048〜4096px の PNG で合計 数十 MB）、頭部は顔の UV 範囲だけを切り抜いた 512px。WebP は `EXT_texture_webp` で three の `GLTFLoader` がそのまま読める。
+- メッシュ: meshopt で圧縮し（`EXT_meshopt_compression`）、位置/法線/UV を量子化（`KHR_mesh_quantization`）。three の `GLTFLoader` + `MeshoptDecoder`（`three/addons`）で WebGPURenderer 上でもスキニング込みで正しく描画できることを確認した。Draco は使っていない。
+- KTX2 は採用しなかった。変換に必要な `toktx`（KTX-Software）がこの環境に無く導入できなかったため。GPU 圧縮テクスチャにするとテクスチャメモリは 1/4〜1/8 になるので、メモリが問題になった場合の改善案として残す（three r186 には `KTX2Loader` と Basis トランスコーダが同梱されている）。
+
+### 7.4 キャラクター 1 体あたりの性能予算
+
+Xperia 1 V（30fps 目標）で、プレイヤー + 敵数体が同時に出ることを前提にした予算。
+
+| 項目 | 予算 | 現状（knight） |
+| --- | --- | --- |
+| 三角形数 | 25,000 tris 以下 | 21,252 tris（剣・盾を除く。小物は +950 tris） |
+| テクスチャメモリ（GPU、ミップマップ込み、非圧縮 RGBA8 換算） | 24MB 以下 | 約 17.3MB |
+| ダウンロード（キャラクター 1 種） | 800KB 以下 | 約 505KB（アニメーション 約 730KB は全キャラ共有） |
+| 全アセットの合計（コミットするサイズ） | 3MB 以下 | 約 1.25MB |
+
+- 同種の敵は同じジオメトリ・テクスチャを共有する（`CharacterAssets.createCharacter` は `SkeletonUtils.clone` でスケルトンのみ複製する）ので、増えるのはスケルトンとマテリアルの参照だけ。敵の種類が増えるとテクスチャメモリは種類数分だけ増える。
+- 同時表示 6 体（プレイヤー + 敵 5）で約 130,000 tris（影パスを除く）。重ければ、遠景の敵はボーン数・三角形数を落とした LOD を用意する（`simplify` の比率は `scripts/assets/config.mjs` の `CHARACTERS` で調整できる）。
+- 予算は `src/render/assets/clips.test.ts` のテストで検証している（超過するとテストが失敗する）。
+
+### 7.5 ランタイムのローダ API（`src/render/assets/`）
+
+```ts
+const assets = await CharacterAssets.load(['knight']);          // characters/knight.glb + animations.glb + props.glb
+const knight = assets.createCharacter('knight', { tint: 0x884444 }); // 色違い・剣盾の有無は options
+scene.add(knight.root);                                          // 足元が原点、+Z 向き、身長 約 1.8m
+knight.play('Sword_Regular_A', { fade: 0.1 });                   // 前のクリップとクロスフェード
+// 毎フレーム
+knight.update(dt);
+```
+
+- `Character`: `play(name, { fade, timeScale, clampWhenFinished })` / `update(dt)` / `attach('sword' | 'shield', object)` / `detach` / `getBoneWorldPosition(bone)` / `dispose()`。クリップ名は `ClipName` 型で、`_Loop` で終わるもの（と `Sword_Idle`）はループ、それ以外は 1 回再生して終端で停止する。
+- 剣は `hand_r`、盾は `lowerarm_l` に取り付ける（位置・向きは `character.ts` の `SOCKETS`）。
+- 動作確認ページ: `npm run dev` などで開き、URL に `?clip=Roll&t=0.5&view=left&dist=3` を付ける（`clip` クリップ名、`t` 再生位置を固定、`view` `front|left|right|back|close`、`dist` カメラ距離）。撮影は `SHOT_QUERY='?clip=…' npm run shot`（`'|'` 区切りで複数枚）。このページ内のキャラクター配置は #8 のプレイヤー統合で置き換える。
