@@ -2,7 +2,15 @@ import { Quaternion, Vector3 } from 'three/webgpu';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputReader, InputSnapshot } from '../../core/input';
-import { MOVEMENT, PLAYER_ACTIONS, PLAYER_STATS, STAMINA, type CancelWindow } from '../data';
+import {
+  MOVEMENT,
+  PLAYER_ACTIONS,
+  PLAYER_STATS,
+  STAMINA,
+  inWindow,
+  totalFrames,
+  type CancelWindow,
+} from '../data';
 import {
   HitReactor,
   PLAYER_REACTOR,
@@ -14,6 +22,7 @@ import { CharacterFsm, type StateKind } from '../anim/characterFsm';
 import { GaitClock } from '../anim/locomotion';
 import { MarkerDispatcher, type AnimMarkerEvent } from '../anim/markerDispatcher';
 import { findPlayerClipEvents } from '../anim/playerClips';
+import type { PlayerAttackInfo } from '../combat/playerAttack';
 import type { LockOnTarget } from '../lockOn/targets';
 import type { Physics } from '../physics';
 import { tuning } from '../tuning';
@@ -32,12 +41,21 @@ import {
 import {
   PLAYER_STATE_GRAPH,
   isDodgeState,
+  isLightAttackState,
   isReactionState,
+  type LightAttackId,
   type PlayerStateId,
 } from './playerStates';
 import { Stamina, type StaminaContext } from './stamina';
 
-export { PLAYER_STATE_GRAPH, isDodgeState, isReactionState, type PlayerStateId };
+export {
+  PLAYER_STATE_GRAPH,
+  isDodgeState,
+  isLightAttackState,
+  isReactionState,
+  type LightAttackId,
+  type PlayerStateId,
+};
 
 /** プレイヤーが 1 ステップに受け取るもの。 */
 export interface PlayerFrame {
@@ -52,6 +70,7 @@ export interface PlayerFrame {
 export type PlayerEvent =
   | { readonly type: 'rollStart' }
   | { readonly type: 'backstepStart' }
+  | { readonly type: 'attackStart'; readonly id: LightAttackId }
   | { readonly type: 'land'; readonly fallHeight: number }
   | { readonly type: 'staminaEmpty' };
 
@@ -115,6 +134,31 @@ function cancelStart(
 }
 const ROLL_MOVE_CANCEL = cancelStart(PLAYER_ACTIONS.roll.cancels, 'move', 26);
 
+/** 軽攻撃の次段（コンボ順）。軽 3 はコンボ終点。 */
+const NEXT_LIGHT: Readonly<Record<LightAttackId, LightAttackId | null>> = {
+  light1: 'light2',
+  light2: 'light3',
+  light3: null,
+};
+
+/**
+ * 軽攻撃の前進量の配分（フレームごとの移動距離 m）。発生 + 持続の間に、中ほどを厚く（踏み込み）、
+ * 振り終わり（硬直）では止まる。合計が仕様の前進量（0.5 / 0.5 / 1.0 m）になる。
+ */
+function attackLungeProfile(id: LightAttackId): number[] {
+  const a = PLAYER_ACTIONS[id];
+  const n = a.startup + a.active;
+  const w: number[] = [];
+  for (let f = 1; f <= n; f++) w.push(Math.sin((Math.PI * (f - 0.5)) / n) ** 1.5);
+  const sum = w.reduce((x, y) => x + y, 0);
+  return w.map((x) => (x / sum) * a.moveDistance);
+}
+const LUNGE: Readonly<Record<LightAttackId, readonly number[]>> = {
+  light1: attackLungeProfile('light1'),
+  light2: attackLungeProfile('light2'),
+  light3: attackLungeProfile('light3'),
+};
+
 /**
  * プレイヤー: Rapier のキャラクターコントローラ（カプセル・kinematic）で動く本体。
  * 位置・向き・状態は game 層が持ち、render 層は `transform`（補間用）と `animation` を読んで描くだけ。
@@ -171,6 +215,12 @@ export class Player {
   private dashing = false;
   private turnRate = 0;
   private turnResponse = 0;
+  /** 更新した（ヒットストップで凍結されなかった）ステップ数。コンボ窓の経過時間に使う。 */
+  private stepCount = 0;
+  /** 直近に出した軽攻撃と、その開始ステップ（コンボ窓の判定。ロール等で途切れたら null）。 */
+  private lastAttack: LightAttackId | null = null;
+  private lastAttackStartStep = 0;
+  private attackSerial = 0;
 
   constructor(physics: Physics, spawn: Vector3, yaw: number) {
     const { rapier, world } = physics;
@@ -340,6 +390,7 @@ export class Player {
       this.syncTransform();
       return;
     }
+    this.stepCount++;
     this.reactor.step();
     this.reactor.consumeSlide(this.slide);
     const snap = frame.input.snapshot;
@@ -390,13 +441,17 @@ export class Player {
       case 'dash':
         return this.updateGround(dt, snap, frame);
       case 'roll':
-        return this.updateRoll(snap);
+        return this.updateRoll(snap, frame);
       case 'backstep':
-        return this.updateBackstep();
+        return this.updateBackstep(frame);
       case 'fall':
         return this.updateFall(dt, snap, frame);
       case 'land':
         return this.updateLand(dt, snap, frame);
+      case 'light1':
+      case 'light2':
+      case 'light3':
+        return this.updateAttack(this.state, frame);
       case 'flinch':
       case 'knockdown':
         return this.updateReaction();
@@ -410,6 +465,7 @@ export class Player {
     );
     switch (next) {
       case 'roll': {
+        this.lastAttack = null;
         this.stamina.consume(PLAYER_ACTIONS.roll.staminaCost);
         // 入力方向（カメラ基準）へ。向きは以降の更新で素早く合わせる。
         this.dodgeDirYaw = yawOf(this.worldMove.x, this.worldMove.y);
@@ -417,6 +473,7 @@ export class Player {
         break;
       }
       case 'backstep':
+        this.lastAttack = null;
         this.stamina.consume(PLAYER_ACTIONS.backstep.staminaCost);
         this.dodgeDirYaw = wrapAngle(this.yaw + Math.PI);
         this.events.push({ type: 'backstepStart' });
@@ -424,6 +481,17 @@ export class Player {
       case 'fall':
         this.fallStartY = this.lastGroundY;
         break;
+      case 'light1':
+      case 'light2':
+      case 'light3': {
+        const data = PLAYER_ACTIONS[next];
+        this.stamina.consume(data.staminaCost);
+        this.lastAttack = next;
+        this.lastAttackStartStep = this.stepCount;
+        this.attackSerial++;
+        this.events.push({ type: 'attackStart', id: next });
+        break;
+      }
       default:
         break;
     }
@@ -437,8 +505,80 @@ export class Player {
     const dodge = this.tryDodge(frame);
     if (dodge) return dodge;
 
+    // 軽攻撃（先行入力を含む）。コンボ窓が残っていれば次段、なければ軽 1。
+    const attack = this.tryLightAttack(frame, this.nextComboAttack());
+    if (attack) return attack;
+
     this.computeLocomotion(dt, snap, frame, 1);
     return null;
+  }
+
+  /** 地上で軽攻撃入力を受けたときに出す動作。前の攻撃のコンボ窓（持続終了 + 4F 〜 全体 + 12F）の中なら次段。 */
+  private nextComboAttack(): LightAttackId {
+    const last = this.lastAttack;
+    if (!last) return 'light1';
+    const next = NEXT_LIGHT[last];
+    const window = PLAYER_ACTIONS[last].cancels.find((c) => c.to === 'lightAttack');
+    if (!next || !window) return 'light1';
+    const age = this.stepCount - this.lastAttackStartStep + 1;
+    return inWindow(age, window) ? next : 'light1';
+  }
+
+  /** 先行入力（攻撃 10F）を消費して `id` を始める。スタミナ 0 では開始できない（入力は残り、期限で消える）。 */
+  private tryLightAttack(frame: PlayerFrame, id: LightAttackId): LightAttackId | null {
+    if (!frame.input.hasBuffered('lightAttack')) return null;
+    if (!this.stamina.canStart(PLAYER_ACTIONS[id].staminaCost)) return null;
+    frame.input.consumeBuffered('lightAttack');
+    return id;
+  }
+
+  /**
+   * 軽攻撃（light1〜3）。前進（発生 + 持続の間）・旋回制限・キャンセル（ロール / 次段）・終了。
+   * 動作の全体（発生 + 持続 + 硬直）が終わった次のステップで移動系へ戻り、そのステップから入力を受け付ける。
+   */
+  private updateAttack(id: LightAttackId, frame: PlayerFrame): PlayerStateId | null {
+    const f = this.stateFrame;
+    const data = PLAYER_ACTIONS[id];
+
+    // 前進: 向いている方向へ、モーションの踏み込み量だけ（硬直中は止まる）
+    const dist = LUNGE[id][f - 1] ?? 0;
+    this.velocity.x = Math.sin(this.yaw) * dist * 60;
+    this.velocity.y = Math.cos(this.yaw) * dist * 60;
+
+    // キャンセル: ロール / バックステップ（持続終了の 2F 後〜）、次段の軽攻撃（持続終了 + 4F 〜 全体 + 12F）
+    if (this.fsm.canCancelTo('dodge')) {
+      const dodge = this.tryDodge(frame);
+      if (dodge) return dodge;
+    }
+    const next = NEXT_LIGHT[id];
+    if (next && this.fsm.canCancelTo('lightAttack')) {
+      const chain = this.tryLightAttack(frame, next);
+      if (chain) return chain;
+    }
+
+    if (f > totalFrames(data)) return this.afterAttackState();
+    return null;
+  }
+
+  private afterAttackState(): PlayerStateId {
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    return this.moveMagnitude > 0 ? 'move' : 'idle';
+  }
+
+  /** 攻撃判定との接続用: いま出している軽攻撃（なければ null）。`PlayerAttackDriver` が読む。 */
+  get attack(): PlayerAttackInfo | null {
+    if (!isLightAttackState(this.state)) return null;
+    return {
+      id: this.state,
+      serial: this.attackSerial,
+      frame: this.stateFrame,
+      hitActive: this.markers.hitActive,
+    };
+  }
+
+  /** 直近のステップがヒットストップで凍結されたか。 */
+  get frozen(): boolean {
+    return this.fsm.isFrozenStep;
   }
 
   private tryDodge(frame: PlayerFrame): PlayerStateId | null {
@@ -550,7 +690,7 @@ export class Player {
     this.gait.advance(speed, dt, { reverse, out: this.markerEvents });
   }
 
-  private updateRoll(snap: InputSnapshot): PlayerStateId | null {
+  private updateRoll(snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
     const f = this.stateFrame;
     // 向きは入力方向へ素早く合わせる（ロックオン中も、終了後に対象方向へ戻す）
     this.turnRate = tuning.player.rollTurnDegPerSecond * DEG;
@@ -560,6 +700,12 @@ export class Player {
     this.velocity.x = Math.sin(this.dodgeDirYaw) * dist * 60;
     this.velocity.y = Math.cos(this.dodgeDirYaw) * dist * 60;
 
+    // F26 から攻撃へキャンセル可（先行入力あり）。
+    if (this.fsm.canCancelTo('lightAttack')) {
+      const attack = this.tryLightAttack(frame, 'light1');
+      if (attack) return attack;
+    }
+
     // F26 から移動へキャンセル可（移動入力があるとき）。入力がなければ F32 まで硬直。
     if (f >= ROLL_FRAMES || (f >= ROLL_MOVE_CANCEL && this.moveMagnitude > 0.001)) {
       return this.afterDodgeState(snap);
@@ -567,13 +713,18 @@ export class Player {
     return null;
   }
 
-  private updateBackstep(): PlayerStateId | null {
+  private updateBackstep(frame: PlayerFrame): PlayerStateId | null {
     const f = this.stateFrame;
     const dist = BACKSTEP_PROFILE[f - 1] ?? 0;
     this.velocity.x = Math.sin(this.dodgeDirYaw) * dist * 60;
     this.velocity.y = Math.cos(this.dodgeDirYaw) * dist * 60;
     // 向きは変えない（ロックオン中は対象を向いたまま）
     this.turnRate = 0;
+    // F18 から攻撃へキャンセル可（先行入力あり）
+    if (this.fsm.canCancelTo('lightAttack')) {
+      const attack = this.tryLightAttack(frame, 'light1');
+      if (attack) return attack;
+    }
     if (f >= BACKSTEP_FRAMES) return this.moveMagnitude > 0 ? 'move' : 'idle';
     return null;
   }
@@ -633,6 +784,10 @@ export class Player {
       return;
     }
     if (this.state === 'backstep' || isReactionState(this.state)) return;
+    if (isLightAttackState(this.state)) {
+      this.applyAttackFacing(frame, dt);
+      return;
+    }
 
     let target: number | null = null;
     let rate = this.turnRate;
@@ -647,6 +802,26 @@ export class Player {
     if (target !== null) {
       this.yaw = turnToward(this.yaw, target, rate, response, dt);
     }
+  }
+
+  /**
+   * 攻撃中の旋回: 発生の間（当たり窓が開くまで）だけ、ロックオン対象 / 入力方向へ素早く向きを合わせる。
+   * 持続・硬直中は向き固定（振り抜く方向がぶれない。ロールで躱される余地にもなる）。
+   */
+  private applyAttackFacing(frame: PlayerFrame, dt: number): void {
+    const id = this.state as LightAttackId;
+    if (this.stateFrame > PLAYER_ACTIONS[id].startup) return;
+    let target: number | null = null;
+    if (frame.lockTarget) target = this.toTargetYaw;
+    else if (this.moveMagnitude > 0.001) target = yawOf(this.worldMove.x, this.worldMove.y);
+    if (target === null) return;
+    this.yaw = turnToward(
+      this.yaw,
+      target,
+      tuning.player.attackTurnDegPerSecond * DEG,
+      tuning.player.attackTurnResponse,
+      dt,
+    );
   }
 
   /** スタミナ回復に影響する行動。走り・ダッシュ中は回復しない（歩き以下は回復する）。 */
@@ -728,6 +903,7 @@ export class Player {
       this.state !== 'roll' &&
       this.state !== 'backstep' &&
       this.state !== 'land' &&
+      !isLightAttackState(this.state) &&
       !isReactionState(this.state)
     );
   }

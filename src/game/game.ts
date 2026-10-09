@@ -23,6 +23,7 @@ import {
   SHIELDBEARER_REACTOR,
   HitReactor,
   HitResolver,
+  PlayerAttackDriver,
   PLAYER_HEARTBOXES,
   UprightTarget,
   uprightHeartbox,
@@ -145,6 +146,8 @@ export class Game {
   readonly playerTarget = new UprightTarget('player', 'player', PLAYER_STATS.hp, PLAYER_HEARTBOXES);
   /** ?debug 用の仮の攻撃（判定と可視化の動作確認。実際の攻撃動作は #46）。 */
   readonly debugSwing = new DebugSwing(this.combat);
+  /** プレイヤーの攻撃動作（軽攻撃 3 段）と判定のつなぎ。 */
+  readonly attackDriver = new PlayerAttackDriver(this.combat);
   /**
    * プレイヤー以外の被弾側の強靭度・押し戻し（`HitReactor`）。テストシーンのダミーは亡者兵相当（強靭度 50）。
    * 敵（#42 以降）は自分の `HitReactor` を作って `addReactor` し、命中時の反応を自分の状態機械へ反映する。
@@ -164,7 +167,13 @@ export class Game {
   readonly hitLog: HitEvent[] = [];
   hitCount = 0;
   /** プレイヤーイベント（ロール開始など）の累計回数（デバッグ・E2E 用）。 */
-  readonly eventCounts = { rollStart: 0, backstepStart: 0, land: 0, staminaEmpty: 0 };
+  readonly eventCounts = {
+    rollStart: 0,
+    backstepStart: 0,
+    attackStart: 0,
+    land: 0,
+    staminaEmpty: 0,
+  };
   /** イベントマーカーの発火回数（E2E・デバッグ用）。 */
   readonly markerCounts = Object.fromEntries(MARKER_TYPES.map((t) => [t, 0])) as Record<
     MarkerType,
@@ -441,6 +450,7 @@ export class Game {
     for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
     this.syncPlayerTarget();
     this.stepReactors();
+    this.attackDriver.update(player);
     // 攻撃側（プレイヤー）が凍結中は、仮の攻撃のフレームも進めない
     if (!player.fsm.isFrozenStep) this.debugSwing.update(player.feet, player.yaw);
     this.combat.step();
@@ -800,7 +810,7 @@ export interface GameDebugState {
   };
   readonly lockOn: { readonly targetId: string | null; readonly lastEvent: string };
   readonly events: Readonly<
-    Record<'rollStart' | 'backstepStart' | 'land' | 'staminaEmpty', number>
+    Record<'rollStart' | 'backstepStart' | 'attackStart' | 'land' | 'staminaEmpty', number>
   >;
   /** イベントマーカーの種別ごとの発火回数。 */
   readonly markers: Readonly<Record<MarkerType, number>>;
