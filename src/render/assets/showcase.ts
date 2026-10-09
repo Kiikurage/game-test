@@ -22,6 +22,7 @@ import {
   parseExplorationPreview,
   placeExplorationPreview,
 } from './explorationPreview';
+import { PlayerKitAssets, type CapeRig } from '../player/playerKit';
 import { placeCorpsePreview } from '../corpses/corpsePreview';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
 import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
@@ -49,6 +50,8 @@ export interface ShowcaseState {
  *   `&light=front|back|side|shade`  太陽に対するカメラ位置（順光 / 逆光 / 横 / 影の中: 太陽との間に遮蔽物を置き、横から撮る）。
  *   `&telegraph=<0..1>`  武器のリムライトの強調（攻撃予備動作の演出フック確認用）
  *   `&rim=0`  キャラクターの補助光（リムライト等）を切る（改善前後の比較用）
+ *   `&props=sword-hand|sword-back|jar|all|swords|bell|statue|cairn`  探索用メッシュ（#108。騎士に持たせる / 並べて置く。explorationPreview.ts）
+ *   `&player=1`  旅の騎士の装備（#103: 兜・胸甲・陣羽織・肩当て・籠手・脛当て・外套）。外套は `&speed=<m/s>`（既定はクリップから推定）でなびく
  *   `&equip=soldier|shieldbearer|boss|all`  簡易装備メッシュを装着（boss は 2.2 倍、all は盾持ち・亡者兵・ボスを横並び。亡者マテリアルと併用可）
  */
 export class CharacterShowcase {
@@ -60,6 +63,8 @@ export class CharacterShowcase {
     readonly clip: ClipName,
     private readonly frozen: boolean,
     readonly triangles: number,
+    private readonly capes: readonly CapeRig[] = [],
+    private readonly speed = 0,
   ) {}
 
   /** シーンに置かれたキャラクターのルート（影の追従対象などに使う）。 */
@@ -90,6 +95,8 @@ export class CharacterShowcase {
         ? ['shieldbearer', 'soldier', 'boss']
         : [parseLoadoutName(equipParam)].filter((n) => n !== undefined);
     const equipment = loadouts.length > 0 ? await EquipmentAssets.load() : undefined;
+    const playerKit = params.get('player') === null ? undefined : await PlayerKitAssets.load();
+    const capes: CapeRig[] = [];
     const preview = parseExplorationPreview(params.get('props'));
     const exploration = preview ? await ExplorationAssets.load() : undefined;
     const lateral = { shieldbearer: 0, soldier: -1.7, boss: 2.6 };
@@ -130,6 +137,7 @@ export class CharacterShowcase {
       if (exploration && preview && isCharacterPreview(preview)) {
         applyCharacterPreview(exploration, c, preview);
       }
+      if (playerKit) capes.push(playerKit.equipKnight(c).cape);
       const id = undeadIds[index];
       if (id !== undefined) {
         const look: UndeadLook = applyUndeadLook(c.root, UNDEAD_VARIANTS[id]);
@@ -145,7 +153,7 @@ export class CharacterShowcase {
     const count = Math.max(1, undeadIds.length, loadouts.length);
     const spawned = Array.from({ length: count }, (_, i) => spawn(i, count));
     const [character, ...extras] = spawned as [Character, ...Character[]];
-    if (exploration && preview)
+    if (exploration && preview) {
       placeExplorationPreview(
         scene,
         camera,
@@ -153,6 +161,7 @@ export class CharacterShowcase {
         preview,
         isCharacterPreview(preview) ? spawned.map((c) => c.root) : [],
       );
+    }
     if (params.has('corpse')) {
       await placeCorpsePreview(scene, camera, assets, params);
     } else if (lightAzimuth !== undefined) {
@@ -180,14 +189,21 @@ export class CharacterShowcase {
         triangles += (index ? index.count : (attributes['position']?.count ?? 0)) / 3;
       }
     });
-    return new CharacterShowcase(character, extras, clip, frozen, triangles);
+    const speedParam = params.get('speed');
+    const speed =
+      speedParam !== null && Number.isFinite(Number(speedParam))
+        ? Number(speedParam)
+        : clipSpeed(clip);
+    return new CharacterShowcase(character, extras, clip, frozen, triangles, capes, speed);
   }
 
   /** 毎フレーム呼ぶ。実時間でアニメーションを進める。 */
   update(): void {
     this.timer.update();
-    if (this.frozen) return;
     const dt = this.timer.getDelta();
+    // 外套は姿勢を固定していても（&t=）実時間で揺れる（ポーズごとの傾きに追従して垂れる）
+    for (const cape of this.capes) cape.update(dt, { forwardSpeed: this.speed, turnRate: 0 });
+    if (this.frozen) return;
     this.character.update(dt);
     for (const c of this.extras) c.update(dt);
   }
@@ -262,4 +278,12 @@ function addShadeOccluder(scene: Scene): void {
   box.position.set(0.8 + sunDir.x * 9, 7, -0.2 + sunDir.z * 9);
   box.castShadow = true;
   scene.add(box);
+}
+
+/** クリップから推定する前進速度（m/s。外套のなびき確認用）。 */
+function clipSpeed(clip: ClipName): number {
+  if (clip === 'Sprint_Loop') return 7;
+  if (clip === 'Jog_Fwd_Loop') return 4.5;
+  if (clip === 'Walk_Loop') return 1.7;
+  return 0;
 }

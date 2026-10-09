@@ -452,3 +452,5 @@ console.log(`total ${kb(total)} -> ${relative(ROOT, OUT_DIR)}`);
 await import('./build-equipment.mjs');
 // 探索用の簡易メッシュ（同じく knight.glb の bind pose を使う）
 await import('./build-exploration.mjs');
+// プレイヤー（旅の騎士）の装備
+await import('./build-player.mjs');
