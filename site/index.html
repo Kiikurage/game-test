@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>game-test</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid;
+      place-items: center;
+      background: #0d0c0a;
+      color: #d9cfb8;
+      font-family: system-ui, sans-serif;
+      padding: 16px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    h1 { font-weight: 300; letter-spacing: 0.3em; margin: 0 0 0.5em; }
+    p { margin: 0.4em 0; opacity: 0.8; }
+    .ok { color: #9fd38a; }
+    .ng { color: #e08a7a; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>COMING SOON</h1>
+    <p>ブラウザ 3D アクション（開発中）</p>
+    <p id="webgpu">WebGPU: 確認中…</p>
+  </main>
+  <script type="module">
+    const el = document.getElementById('webgpu');
+    let ok = false;
+    if ('gpu' in navigator) {
+      try { ok = !!(await navigator.gpu.requestAdapter()); } catch { ok = false; }
+    }
+    el.textContent = ok ? 'WebGPU: 利用可能' : 'WebGPU: 利用不可';
+    el.className = ok ? 'ok' : 'ng';
+  </script>
+</body>
+</html>
