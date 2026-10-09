@@ -79,13 +79,13 @@ jobs:
           npm run assets:audio:check
 
   e2e:
-    name: e2e (${{ matrix.shard }}/2)
+    name: e2e (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -117,7 +117,7 @@ jobs:
         run: npx playwright install-deps chromium
 
       - name: E2E (headless WebGPU via SwiftShader)
-        run: npm run e2e -- --shard=${{ matrix.shard }}/2
+        run: npm run e2e -- --fully-parallel --shard=${{ matrix.shard }}/3
 
       - name: Upload Playwright report
         if: failure()
