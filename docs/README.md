@@ -4,4 +4,4 @@
 
 | 文書 | 内容 |
 | --- | --- |
-| [direction-draft.md](direction-draft.md) | 方針の議論のたたき台（未確定事項の一覧） |
+| [direction.md](direction.md) | 基本方針（スコープ・技術スタック・操作・性能目標・アセット・作り込みの重点） |
