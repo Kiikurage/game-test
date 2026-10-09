@@ -3,6 +3,8 @@ import type { Game } from '../game/game';
 import { createEnvironment, type Environment } from './environment';
 import { createPostProcess, type PostProcess } from './postprocess';
 import type { GameRenderer } from './renderer';
+import { GroundTelegraphs } from './telegraph';
+import { TelegraphDemo, isTelegraphDemoEnabled } from './telegraph/demo';
 import { PlaygroundView } from './playground';
 import { LevelView } from './levelView';
 import type { Level } from '../game/world/level';
@@ -23,6 +25,8 @@ export class GameView {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(50, 1, 0.1, 500);
   readonly environment: Environment;
+  /** ボス技の地面予告（円・直線・影の円）。 */
+  readonly telegraphs = new GroundTelegraphs();
   /** パーティクル（環境の灰・篝火・熾火・ヒット/撃破バースト）。 */
   readonly particles: ParticleSystem;
   /** 影のカバー範囲が追従する対象（プレイヤー等）。未設定なら game のプレイヤー位置。 */
@@ -38,6 +42,7 @@ export class GameView {
   private readonly postProcess: PostProcess;
   private readonly tmpPosition = new Vector3();
   private readonly tmpQuaternion = new Quaternion();
+  private readonly telegraphDemo: TelegraphDemo | null = null;
   private readonly particleDemo: ParticleDemo | null = null;
   private lastRenderMs = 0;
 
@@ -72,6 +77,10 @@ export class GameView {
     }
     if (isParticleDemoEnabled(window.location.search)) {
       this.particleDemo = new ParticleDemo(this.particles, this.scene, this.camera);
+    }
+    this.scene.add(this.telegraphs.root);
+    if (isTelegraphDemoEnabled(window.location.search)) {
+      this.telegraphDemo = new TelegraphDemo(this.telegraphs, this.camera);
     }
 
     this.postProcess = createPostProcess(gameRenderer.renderer, this.scene, this.camera, preset);
@@ -121,6 +130,8 @@ export class GameView {
     this.lastRenderMs = now;
     this.particleDemo?.update(dt);
     this.particles.update(dt, focus);
+    this.telegraphDemo?.update(Math.min(dt, 0.1));
+    this.telegraphs.update(dt);
     this.postProcess.render();
     this.gameRenderer.endFrame();
   }
