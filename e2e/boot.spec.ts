@@ -39,19 +39,22 @@ test('creates an AudioContext that stays suspended until the first user gesture'
   page,
 }) => {
   const errors = collectErrors(page);
-  // ヘッドレス Chromium は自動再生制限が効かず AudioContext が即 running になるため、
-  // モバイル相当の制限（ユーザー操作があるまで suspended）をシムで再現する。
+  // ヘッドレス Chromium は環境により自動再生制限が効いたり効かなかったりするため、
+  // モバイル相当の制限（ユーザー操作の resume までは suspended）をシムで決定的に再現する。
   await page.addInitScript(() => {
     const Native = window.AudioContext;
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    const originalResume = Native.prototype.resume;
-    Native.prototype.resume = function (this: AudioContext) {
-      return navigator.userActivation.isActive ? originalResume.call(this) : Promise.resolve();
-    };
+    // 注: init script は関数の文字列としてページへ渡るため、private フィールド等のトランスパイル補助が必要な構文は避ける
+    const unlocked = new WeakSet<object>();
     window.AudioContext = class extends Native {
-      constructor(options?: AudioContextOptions) {
-        super(options);
-        void this.suspend();
+      override get state(): AudioContextState {
+        return unlocked.has(this) ? super.state : 'suspended';
+      }
+      override resume(): Promise<void> {
+        if (navigator.userActivation.isActive && !unlocked.has(this)) {
+          unlocked.add(this);
+          this.dispatchEvent(new Event('statechange'));
+        }
+        return unlocked.has(this) ? super.resume() : Promise.resolve();
       }
     };
   });
