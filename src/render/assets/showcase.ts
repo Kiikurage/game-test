@@ -45,6 +45,7 @@ export interface ShowcaseState {
  *   `&view=front|left|right|back|close` と `&dist=<m>`  キャラクターに寄ったカメラ位置（既定はゲームのカメラのまま）
  *   `&undead=<gaunt|bloated|scorched|drowned|all>`  亡者マテリアルを適用（all は 4 バリアントを横並び）
  *   `&dissolve=<0..1>` ディゾルブ進行度、`&ember=<0..1>` 熾火の強さ（亡者のみ）
+ *   `&props=sword-hand|sword-back|jar|all|swords|bell|statue|cairn`  探索用メッシュ（#108。騎士に持たせる / 並べて置く。explorationPreview.ts）
  *   `&corpse=sitting|prone|praying|leaning|all|crowd`  遺体ポーズのプレビュー（#109。corpsePreview.ts）
  *   `&light=front|back|side|shade`  太陽に対するカメラ位置（順光 / 逆光 / 横 / 影の中: 太陽との間に遮蔽物を置き、横から撮る）。
  *   `&telegraph=<0..1>`  武器のリムライトの強調（攻撃予備動作の演出フック確認用）

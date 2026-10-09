@@ -2,7 +2,11 @@ import { Quaternion, Vector3 } from 'three/webgpu';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputReader, InputSnapshot } from '../../core/input';
-import { MOVEMENT, PLAYER_ACTIONS, PLAYER_STATS, STAMINA, inWindow } from '../data';
+import { MOVEMENT, PLAYER_ACTIONS, PLAYER_STATS, STAMINA, type CancelWindow } from '../data';
+import { CharacterFsm, type StateKind } from '../anim/characterFsm';
+import { GaitClock } from '../anim/locomotion';
+import { MarkerDispatcher, type AnimMarkerEvent } from '../anim/markerDispatcher';
+import { findPlayerClipEvents } from '../anim/playerClips';
 import type { LockOnTarget } from '../lockOn/targets';
 import type { Physics } from '../physics';
 import { tuning } from '../tuning';
@@ -18,19 +22,10 @@ import {
   yawOf,
   type Vec2Like,
 } from './movement';
+import { PLAYER_STATE_GRAPH, isDodgeState, type PlayerStateId } from './playerStates';
 import { Stamina } from './stamina';
 
-/**
- * プレイヤーの行動状態。後続の攻撃・ガード・被弾・回復（#40 など）は、ここへ状態を足して
- * `Player.updateState` の分岐とキャンセル窓（`PLAYER_ACTIONS.*.cancels`）を使って遷移を書く。
- * アニメーション（#32）は `Player.animation` を読む。
- */
-export type PlayerStateId = 'idle' | 'move' | 'dash' | 'roll' | 'backstep' | 'fall' | 'land';
-
-/** ロール・バックステップ中のように、入力による通常移動を受け付けない状態。 */
-export function isDodgeState(state: PlayerStateId): boolean {
-  return state === 'roll' || state === 'backstep';
-}
+export { PLAYER_STATE_GRAPH, isDodgeState, type PlayerStateId };
 
 /** プレイヤーが 1 ステップに受け取るもの。 */
 export interface PlayerFrame {
@@ -48,9 +43,20 @@ export type PlayerEvent =
   | { readonly type: 'land'; readonly fallHeight: number }
   | { readonly type: 'staminaEmpty' };
 
-/** アニメーション側（#32）が読む、状態に依存しない描画用の情報。 */
+/** アニメーション側（`CharacterAnimator`）が読む、状態に依存しない描画用の情報。 */
 export interface PlayerAnimationState {
   readonly state: PlayerStateId;
+  /** 状態の共通分類（Idle / Move / Action / Stagger / Dead）。 */
+  readonly kind: StateKind;
+  /** `kind: 'action'` の間の動作 ID（マーカー表は `player.<動作 ID>`）。 */
+  readonly actionId: string | null;
+  /** 動作の全体フレーム数がマーカー表にない状態（着地など）の長さ。なければ 0。 */
+  readonly totalFrames: number;
+  /** 歩行サイクルの共通位相（0..1）と、直近 1 ステップでの変化量（逆回しなら負）。 */
+  readonly gaitPhase: number;
+  readonly gaitPhaseStep: number;
+  /** ヒットストップ中（直近のステップが凍結だった）。アニメーションも止める。 */
+  readonly frozen: boolean;
   /** 現在の状態に入ってからのフレーム数（F1 起点）。 */
   readonly stateFrame: number;
   /** 水平速度の大きさ（m/s）。 */
@@ -60,6 +66,10 @@ export interface PlayerAnimationState {
   readonly lockedOn: boolean;
   /** 向き（ヨー）。 */
   readonly yaw: number;
+}
+
+interface ActionCancels {
+  readonly cancels: readonly CancelWindow[];
 }
 
 const CAPSULE_RADIUS = PLAYER_STATS.hurtCapsule.radius;
@@ -104,9 +114,14 @@ export class Player {
   readonly transform = new InterpolatedTransform();
   readonly stamina = new Stamina();
 
-  state: PlayerStateId = 'idle';
-  /** 現在の状態に入ってからのフレーム数（F1 起点）。 */
-  stateFrame = 0;
+  /** 状態機械（遷移の検証・状態フレーム・キャンセル窓・ヒットストップ）。 */
+  readonly fsm = new CharacterFsm<PlayerStateId>(PLAYER_STATE_GRAPH, 'idle', {
+    cancelsOf: (id) => (PLAYER_ACTIONS as Readonly<Record<string, ActionCancels>>)[id]?.cancels,
+  });
+  /** このステップに発火したイベントマーカー（足音・当たり窓・無敵窓など）。1 ステップごとにクリアされる。 */
+  readonly markerEvents: AnimMarkerEvent[] = [];
+  private readonly markers = new MarkerDispatcher();
+  private readonly gait = new GaitClock();
   yaw = 0;
   grounded = true;
   /** 水平速度（x, z）。 */
@@ -175,6 +190,23 @@ export class Player {
     this.transform.snap();
   }
 
+  get state(): PlayerStateId {
+    return this.fsm.state;
+  }
+
+  /** 現在の状態に入ってからのフレーム数（F1 起点）。 */
+  get stateFrame(): number {
+    return this.fsm.stateFrame;
+  }
+
+  /**
+   * ヒットストップ: `frames` ステップのあいだ、状態フレーム・移動・アニメーションを凍結する（4.1 節）。
+   * 呼ぶのは命中判定側（#40 以降）。次の `update` から効く。
+   */
+  hitStop(frames: number): void {
+    this.fsm.freeze(frames);
+  }
+
   /** 物理ボディ（カメラ衝突の問い合わせから除外するのに使う）。 */
   get rigidBody(): RAPIER.RigidBody {
     return this.body;
@@ -190,15 +222,9 @@ export class Player {
     return this.position;
   }
 
-  /** ロールの無敵フレーム中か（被ダメージ判定を持たない。2.3 節）。後続の被弾判定が参照する。 */
+  /** 無敵フレーム中か（被ダメージ判定を持たない。2.3 節）。窓はイベントマーカー（`invulnStart` / `invulnEnd`）が決める。 */
   get invulnerable(): boolean {
-    if (this.state === 'roll') {
-      return inWindow(this.stateFrame, PLAYER_ACTIONS.roll.invuln);
-    }
-    if (this.state === 'backstep') {
-      return inWindow(this.stateFrame, PLAYER_ACTIONS.backstep.invuln);
-    }
-    return false;
+    return this.markers.invulnerable;
   }
 
   /** アニメーション・デバッグ用の描画情報。 */
@@ -209,6 +235,12 @@ export class Player {
     const cos = Math.cos(this.yaw);
     return {
       state: this.state,
+      kind: this.fsm.kind,
+      actionId: this.fsm.actionId,
+      totalFrames: this.state === 'land' ? this.landFrames : 0,
+      gaitPhase: this.gait.phase,
+      gaitPhaseStep: this.gait.lastDelta,
+      frozen: this.fsm.isFrozenStep,
       stateFrame: this.stateFrame,
       speed,
       localVelocity: {
@@ -231,8 +263,9 @@ export class Player {
     this.verticalVelocity = 0;
     this.airFrames = 0;
     this.lastGroundY = position.y;
-    this.state = 'idle';
-    this.stateFrame = 0;
+    this.fsm.reset('idle');
+    this.markers.begin(undefined);
+    this.gait.reset();
     this.body.setTranslation({ x: position.x, y: position.y + CENTER_Y, z: position.z }, true);
     this.body.setNextKinematicTranslation({
       x: position.x,
@@ -247,6 +280,12 @@ export class Player {
   update(dt: number, frame: PlayerFrame): void {
     this.transform.beginStep();
     this.events.length = 0;
+    this.markerEvents.length = 0;
+    // ヒットストップ中は状態フレーム・移動・スタミナ回復を含めて丸ごと止める
+    if (this.fsm.consumeFreeze()) {
+      this.syncTransform();
+      return;
+    }
     const snap = frame.input.snapshot;
 
     cameraRelativeMove(snap.move, frame.cameraYaw, this.worldMove);
@@ -270,15 +309,19 @@ export class Player {
 
     // 状態更新。遷移した場合は新しい状態の F1 を同じステップ内で実行する（入力から動き出しまで 0 フレーム）。
     for (let i = 0; i < 3; i++) {
-      this.stateFrame++;
+      this.fsm.advance();
       const next = this.updateState(dt, snap, frame);
       if (next === null) break;
       this.enterState(next);
     }
+    // イベントマーカーは、最終的に落ち着いた状態のフレームで発火する（途中で捨てた状態の分は出さない）
+    this.markers.advance(this.fsm.stateFrame, this.markerEvents);
+    this.stampFootstepGait();
 
     this.applyFacing(frame, dt);
     this.stamina.update(dt, this.regenMode());
     this.moveBody(dt);
+    this.advanceGait(dt);
     this.syncTransform(dt);
   }
 
@@ -302,8 +345,10 @@ export class Player {
   }
 
   private enterState(next: PlayerStateId): void {
-    this.state = next;
-    this.stateFrame = 0;
+    this.fsm.transition(next);
+    this.markers.begin(
+      this.fsm.actionId ? findPlayerClipEvents(`player.${this.fsm.actionId}`) : undefined,
+    );
     switch (next) {
       case 'roll': {
         this.stamina.consume(PLAYER_ACTIONS.roll.staminaCost);
@@ -414,8 +459,36 @@ export class Player {
 
   private setLocomotionLabel(label: 'idle' | 'move' | 'dash'): void {
     if (this.state === label) return;
-    this.state = label;
-    this.stateFrame = 1;
+    this.fsm.transition(label, { frame: 1 });
+    this.markers.begin(undefined);
+  }
+
+  /** ロール・バックステップの足音は歩様 `roll`（それ以外はマーカーを書いた側の歩様 = 走り）。 */
+  private stampFootstepGait(): void {
+    if (!isDodgeState(this.state)) return;
+    for (let i = 0; i < this.markerEvents.length; i++) {
+      const e = this.markerEvents[i];
+      if (e && e.type === 'footstep' && e.gait === undefined) {
+        this.markerEvents[i] = { ...e, gait: 'roll' };
+      }
+    }
+  }
+
+  /** 歩行サイクルの位相を進める（移動系の状態だけ）。足の接地で `footstep` を発火する。 */
+  private advanceGait(dt: number): void {
+    const locomoting = this.state === 'idle' || this.state === 'move' || this.state === 'dash';
+    if (!locomoting) {
+      this.gait.lastDelta = 0;
+      return;
+    }
+    const v = this.actualVelocity;
+    const speed = Math.hypot(v.x, v.y);
+    const sin = Math.sin(this.yaw);
+    const cos = Math.cos(this.yaw);
+    const localZ = sin * v.x + cos * v.y;
+    const localX = -cos * v.x + sin * v.y;
+    const reverse = this.lockedOn && localZ < -0.5 && Math.abs(localZ) > Math.abs(localX);
+    this.gait.advance(speed, dt, { reverse, out: this.markerEvents });
   }
 
   private updateRoll(snap: InputSnapshot): PlayerStateId | null {

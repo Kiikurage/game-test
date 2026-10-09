@@ -5,13 +5,40 @@
       "id": "player.light1",
       "clip": "Sword_Regular_A",
       "clipFps": 30,
-      "clipRange": { "startFrame": 0, "endFrame": 24 },
-      "clipHitFrame": 7,
+      "clipRange": { "startFrame": 0, "endFrame": 13 },
+      "clipHitFrame": 8,
       "spec": { "startup": 12, "active": 4, "recovery": 20 },
       "markers": [
         { "type": "hitStart", "frame": 13 },
         { "type": "hitEnd", "frame": 16 },
         { "type": "cancelOpen", "frame": 20 }
+      ]
+    },
+    {
+      "id": "player.roll",
+      "clip": "Roll",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 42 },
+      "spec": { "startup": 3, "active": 0, "recovery": 29 },
+      "markers": [
+        { "type": "invulnStart", "frame": 4 },
+        { "type": "invulnEnd", "frame": 15 },
+        { "type": "footstep", "frame": 18 },
+        { "type": "cancelOpen", "frame": 26 }
+      ]
+    },
+    {
+      "id": "player.backstep",
+      "clip": "Sword_Dash",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 12 },
+      "reverse": true,
+      "spec": { "startup": 2, "active": 0, "recovery": 20 },
+      "markers": [
+        { "type": "invulnStart", "frame": 1 },
+        { "type": "invulnEnd", "frame": 8 },
+        { "type": "footstep", "frame": 10 },
+        { "type": "cancelOpen", "frame": 18 }
       ]
     }
   ]

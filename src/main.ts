@@ -1,4 +1,5 @@
 import './style.css';
+import { Vector3 } from 'three/webgpu';
 import { MainLoop } from './core/mainLoop';
 import { checkWebGPUSupport } from './core/webgpuSupport';
 import { createBrowserAudioEngine, createSfxSystem, installAudioUnlock } from './audio';
@@ -14,6 +15,8 @@ import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase'
 import { PlayerView, type PlayerViewState } from './render/playerView';
 import type { PlayerAnimLayer } from './render/assets/playerAnimator';
 import { createTerrainCollisionMesh } from './render/testScene';
+import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
+import { createLevel, levelGameOptions } from './game/world/level';
 import { terrainHeight } from './render/terrain';
 import { mountOrientationHint, showUnsupportedScreen } from './ui/overlays';
 
@@ -31,7 +34,7 @@ interface DebugState {
   readonly sim: GameDebugState;
   /** E2E 用の操作（テレポートなど）。 */
   readonly dev: {
-    teleport(x: number, z: number, yaw: number): void;
+    teleport(x: number, z: number, yaw: number, y?: number): void;
     /** シミュレーションの一時停止（撮影用）。 */
     pause(paused: boolean): void;
     /** 指定した対象を直接ロックオンする（撮影用）。 */
@@ -40,6 +43,8 @@ interface DebugState {
     view(yawOffset: number, distance?: number, pitchDeg?: number): void;
     /** プレイヤーのアニメーションレイヤーを時刻で固定表示する（撮影用）。 */
     pose(layer: PlayerAnimLayer | null, time?: number): void;
+    /** カメラを任意の視点へ固定する（俯瞰撮影用）。`null` でゲームのカメラへ戻す。 */
+    freeCam(position: [number, number, number] | null, target?: [number, number, number]): void;
   };
   /** プレイヤーの描画状態（読み込み失敗時は undefined）。 */
   readonly playerView?: PlayerViewState;
@@ -80,13 +85,19 @@ async function bootstrap(): Promise<void> {
     const quality = selectQuality(location.search, readDeviceHints());
     const gameRenderer = await createRenderer(root, quality);
     const input = new InputSystem(root);
+    // 既定はレベル「灰の礎」。`?scene=test` で従来のテストシーン（雰囲気確認用）
+    const level =
+      new URLSearchParams(location.search).get('scene') === 'test'
+        ? null
+        : createLevel(ASHEN_FOUNDATION);
     const game = await Game.create({
       input,
-      terrain: createTerrainCollisionMesh(),
-      terrainHeight,
+      ...(level
+        ? levelGameOptions(level)
+        : { terrain: createTerrainCollisionMesh(), terrainHeight }),
     });
-    const view = new GameView(game, gameRenderer);
-    game.addStaticCylinders(view.colliders);
+    const view = new GameView(game, gameRenderer, level ?? undefined);
+    game.addStaticCylinders(level ? level.cylinders : view.colliders);
 
     let showcase: CharacterShowcase | undefined;
     let playerView: PlayerView | undefined;
@@ -186,8 +197,8 @@ async function bootstrap(): Promise<void> {
         return game.debugState;
       },
       dev: {
-        teleport: (x, z, yaw) => {
-          game.teleportPlayer(x, z, yaw);
+        teleport: (x, z, yaw, y) => {
+          game.teleportPlayer(x, z, yaw, y);
         },
         lock: (id) => game.lockOnTo(id),
         pause: (p) => {
@@ -196,6 +207,11 @@ async function bootstrap(): Promise<void> {
         view: (yawOffset, distance, pitchDeg) => {
           if (distance !== undefined) tuning.camera.distance = distance;
           game.camera.reset(game.player.feet, game.player.yaw + yawOffset, pitchDeg);
+        },
+        freeCam: (position, target = [0, 0, 0]) => {
+          view.setFreeCamera(
+            position && { position: new Vector3(...position), target: new Vector3(...target) },
+          );
         },
         pose: (layer, time = 0) => {
           playerView?.setDebugPose(layer ? { layer, time } : null);

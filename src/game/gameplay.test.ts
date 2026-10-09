@@ -391,4 +391,123 @@ describe('gameplay (player controller + camera + lock-on)', () => {
       expect(game.camera.armLength).toBeLessThan(1.0);
     });
   });
+  describe('state machine and animation events', () => {
+    it('fires footstep markers while running, in time with the gait, and forwards them to the event bus', () => {
+      const steps: { gait: string; surface: string }[] = [];
+      game.events.on('footstep', (e) => steps.push({ gait: e.gait, surface: e.surface }));
+      const markers: string[] = [];
+      game.events.on('animMarker', (e) => markers.push(`${e.owner}:${e.marker}`));
+      run(10);
+      expect(steps).toEqual([]); // 立っている間は足音なし
+      input.setMove(0, 1);
+      run(120); // 2 秒走る（4.5 m/s、約 2.1 サイクル = 4 歩前後）
+      expect(steps.length).toBeGreaterThanOrEqual(3);
+      expect(steps.length).toBeLessThanOrEqual(7);
+      expect(steps.every((s) => s.gait === 'run' && s.surface === 'grass')).toBe(true);
+      expect(markers.every((m) => m === 'player:footstep')).toBe(true);
+      expect(game.debugState.markers.footstep).toBe(steps.length);
+      input.setMove(0, 0);
+      run(30);
+      const stopped = steps.length;
+      run(60);
+      expect(steps.length).toBe(stopped);
+    });
+
+    it('fires the roll markers on their frames: invulnStart F4, invulnEnd F15, footstep F18, cancelOpen F26', () => {
+      run(10);
+      input.setMove(1, 0);
+      input.press('dodge');
+      const seen: { frame: number; marker: string }[] = [];
+      game.events.on('animMarker', (e) => seen.push({ frame: e.frame, marker: e.marker }));
+      const gaits: (string | undefined)[] = [];
+      game.events.on('footstep', (e) => gaits.push(e.gait));
+      run(1);
+      input.setMove(0, 0);
+      run(40);
+      const roll = seen.filter((s) =>
+        ['invulnStart', 'invulnEnd', 'footstep', 'cancelOpen'].includes(s.marker),
+      );
+      expect(roll.map((s) => `${s.marker}@${s.frame}`)).toEqual([
+        'invulnStart@4',
+        'invulnEnd@15',
+        'footstep@18',
+        'cancelOpen@26',
+      ]);
+      expect(gaits).toEqual(['roll']);
+    });
+
+    it('freezes state frame, movement and stamina regeneration during hit-stop, then resumes', () => {
+      run(10);
+      input.setMove(1, 0);
+      input.press('dodge');
+      run(10);
+      expect(game.player.state).toBe('roll');
+      const frame = game.player.stateFrame;
+      const x = pos().x;
+      const stamina = game.player.stamina.current;
+      game.player.hitStop(6);
+      run(6);
+      // 6 ステップ進めても状態フレーム・位置・スタミナは変わらない
+      expect(game.player.stateFrame).toBe(frame);
+      expect(pos().x).toBeCloseTo(x, 6);
+      expect(game.player.stamina.current).toBe(stamina);
+      expect(game.player.animation.frozen).toBe(true);
+      // 7 ステップ目から再開する
+      run(1);
+      expect(game.player.stateFrame).toBe(frame + 1);
+      expect(game.player.animation.frozen).toBe(false);
+      expect(pos().x).toBeGreaterThan(x + 0.01);
+    });
+
+    it('stretches the invulnerability window by exactly the hit-stop frames (marker windows freeze too)', () => {
+      run(10);
+      input.setMove(1, 0);
+      input.press('dodge');
+      const invulnerableSteps: number[] = [];
+      run(1);
+      run(5, () => undefined); // roll F2..F6
+      expect(game.player.stateFrame).toBe(6);
+      game.player.hitStop(5);
+      for (let i = 0; i < 40; i++) {
+        run(1);
+        if (game.player.state !== 'roll') break;
+        if (game.player.invulnerable) invulnerableSteps.push(game.player.stateFrame);
+      }
+      // F6 はすでに窓の中。凍結の 5 ステップは F6 のまま窓が保たれ、その後 F15 まで続く
+      expect(invulnerableSteps.filter((f) => f === 6)).toHaveLength(5);
+      expect(new Set(invulnerableSteps).size).toBe(PLAYER_ACTIONS.roll.invuln.end - 6 + 1);
+      expect(invulnerableSteps.at(-1)).toBe(PLAYER_ACTIONS.roll.invuln.end);
+    });
+
+    it('rejects nothing during normal play: every transition the player makes is declared in the graph', () => {
+      // 不正遷移は IllegalTransitionError になるので、走る・止まる・ロール・落下・着地を通して例外が出ないこと
+      run(10);
+      input.setMove(0, 1);
+      run(30);
+      input.press('dodge');
+      run(40);
+      input.setMove(0, 0);
+      input.press('dodge');
+      run(30);
+      game.player.teleport(pos().clone().set(0, 6, 0), 0);
+      run(120);
+      expect(game.player.state).toBe('idle');
+    });
+
+    it('exposes the animation state the controller reads (kind, action id, gait phase)', () => {
+      run(10);
+      expect(game.player.animation.kind).toBe('idle');
+      expect(game.player.animation.actionId).toBeNull();
+      input.setMove(0, 1);
+      run(30);
+      expect(game.player.animation.kind).toBe('move');
+      expect(game.player.animation.gaitPhase).toBeGreaterThanOrEqual(0);
+      expect(game.player.animation.gaitPhase).toBeLessThan(1);
+      expect(Math.abs(game.player.animation.gaitPhaseStep)).toBeGreaterThan(0);
+      input.press('dodge');
+      run(1);
+      expect(game.player.animation.kind).toBe('action');
+      expect(game.player.animation.actionId).toBe('roll');
+    });
+  });
 });
