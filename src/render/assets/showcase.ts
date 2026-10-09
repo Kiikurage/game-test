@@ -1,4 +1,4 @@
-import { Timer, type Camera, type Mesh, type Scene } from 'three/webgpu';
+import { Timer, type Camera, type Mesh, type Object3D, type Scene } from 'three/webgpu';
 import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
@@ -35,6 +35,11 @@ export class CharacterShowcase {
     readonly triangles: number,
   ) {}
 
+  /** シーンに置かれたキャラクターのルート（影の追従対象などに使う）。 */
+  get root(): Object3D {
+    return this.character.root;
+  }
+
   static async create(
     scene: Scene,
     camera: Camera,
@@ -54,13 +59,20 @@ export class CharacterShowcase {
         : [parseVariantId(undeadParam)].filter((id) => id !== undefined);
     const dissolve = Number(params.get('dissolve') ?? 0);
     const ember = Number(params.get('ember') ?? 0);
-    const facing = Math.atan2(4.5 - 1.4, 6 - 1.2); // カメラの方を向く
+    const facing = Math.atan2(4.5 - 0.8, 6 + 0.2); // カメラの方を向く
     const spawn = (index: number, count: number): Character => {
       const c = assets.createCharacter('knight');
       // 横並びの間隔 1.6m。向きに対して左右へ振る
       const offset = (index - (count - 1) / 2) * 1.6;
-      c.root.position.set(1.4 + Math.cos(facing) * offset, 0, 1.2 - Math.sin(facing) * offset);
+      c.root.position.set(0.8 + Math.cos(facing) * offset, 0, -0.2 - Math.sin(facing) * offset);
       c.root.rotation.y = facing;
+      // 描画基盤（#7）の影の中に立たせる
+      c.root.traverse((obj) => {
+        if ((obj as { isMesh?: boolean }).isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
       scene.add(c.root);
       const id = undeadIds[index];
       if (id !== undefined) {
@@ -74,7 +86,7 @@ export class CharacterShowcase {
     const count = Math.max(1, undeadIds.length);
     const spawned = Array.from({ length: count }, (_, i) => spawn(i, count));
     const [character, ...extras] = spawned as [Character, ...Character[]];
-    applyView(character, camera, params.get('view'), Number(params.get('dist')), 1.4, 1.2);
+    applyView(character, camera, params.get('view'), Number(params.get('dist')), 0.8, -0.2);
 
     const frozen = Number.isFinite(frozenAt);
     for (const c of spawned) {

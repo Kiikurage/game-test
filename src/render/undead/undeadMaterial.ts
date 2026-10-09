@@ -173,13 +173,13 @@ function createUndeadMaterial(
     const skin = new Color(variant.skin);
     const bruise = new Color(variant.bruise);
     // 暗い灰褐色。元テクスチャは明度だけ借りる（髭・陰影を残す）。
-    const tone = vec3(skin.r, skin.g, skin.b).mul(lum.mul(1.6).add(0.45)).mul(2.3);
+    const tone = vec3(skin.r, skin.g, skin.b).mul(lum.mul(1.6).add(0.45)).mul(3.4);
     // 痣・腐敗の斑
     const isFace = src.name === 'MI_Head';
     const blotch = smoothstep(-0.35, 0.6, mx_noise_float(uv0.mul(isFace ? 22 : 9)));
     albedo = mix(
       tone,
-      vec3(bruise.r, bruise.g, bruise.b).mul(lum.add(0.4)).mul(2.3),
+      vec3(bruise.r, bruise.g, bruise.b).mul(lum.add(0.4)).mul(3.4),
       blotch.mul(0.5),
     );
     // 落ち窪んだ眼窩: 眼の周りを暗くする
@@ -209,7 +209,7 @@ function createUndeadMaterial(
       .add(0.65);
     albedo = desat
       .mul(vec3(tint.r, tint.g, tint.b))
-      .mul(5.0)
+      .mul(7.0)
       .mul(dirt)
       .mul(stain);
     material.metalness = src.metalness;

@@ -62,7 +62,7 @@ try {
       await page.waitForTimeout(waitSeconds * 1000);
       const state = await page.evaluate(() => document.getElementById('app')?.dataset.state);
       const file = queries.length > 1 ? `${base}-${index}-${name}.png` : `${base}-${name}.png`;
-      await page.screenshot({ path: file });
+      await page.screenshot({ path: file, timeout: 180_000 });
       console.log(`${file} (state=${state}) ${query}`);
       await context.close();
     }
