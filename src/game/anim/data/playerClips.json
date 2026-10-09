@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "player.light1",
+      "clip": "Sword_Regular_A",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 24 },
+      "clipHitFrame": 7,
+      "spec": { "startup": 12, "active": 4, "recovery": 20 },
+      "markers": [
+        { "type": "hitStart", "frame": 13 },
+        { "type": "hitEnd", "frame": 16 },
+        { "type": "cancelOpen", "frame": 20 }
+      ]
+    }
+  ]
+}
