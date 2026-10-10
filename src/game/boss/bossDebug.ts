@@ -1,6 +1,7 @@
 import type { Game } from '../game';
 import { PLAYER_ACTIONS, trackEndFrame } from '../data';
 import { yawOf } from '../player/movement';
+import { setDebugSlow } from '../timeScale';
 import type { Boss } from './boss';
 import { bossSystemOf } from './boss.system';
 import { BOSS_MOVE_IDS, type BossMoveId, type BossPhase } from './bossData';
@@ -203,9 +204,7 @@ export class BossDebugTool {
         }
         break;
       case 'slow': {
-        const scale = value as number;
-        this.game.timeScale.reset();
-        if (scale < 1) this.game.timeScale.start(scale, Number.MAX_SAFE_INTEGER);
+        setDebugSlow(this.game.timeScale, value as number);
         break;
       }
       case 'distance':

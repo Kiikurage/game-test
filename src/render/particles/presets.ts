@@ -282,6 +282,15 @@ export const hitSparkInit: BurstInit<HitParams> = (out, _i, _n, p, rng) => {
   out.life = 0.22 + rng() * 0.32;
 };
 
+/** 強攻撃のフル溜めの閃き（#200）: 刃先から小さな火花が四方へ短く散る（`p.power` で速さを変える。法線は上向きで渡す）。 */
+export const chargeGlintInit: BurstInit<HitParams> = (out, _i, _n, p, rng) => {
+  out.x = p.x;
+  out.y = p.y;
+  out.z = p.z;
+  sprayVelocity(out, p, (1.4 + rng() * 2.2) * p.power, 1.6, rng);
+  out.life = 0.26 + rng() * 0.22;
+};
+
 export const hitDustInit: BurstInit<HitParams> = (out, _i, _n, p, rng) => {
   out.x = p.x + (rng() - 0.5) * 0.12;
   out.y = p.y + (rng() - 0.5) * 0.12;
