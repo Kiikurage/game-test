@@ -110,9 +110,9 @@ export function runAttackCapsule(feet: Vec3, yaw: number, p: number, out: Capsul
 
 /**
  * 強攻撃（溜めなし / フル溜め共通。Sword_Heavy_Combo の振り下ろし）: 頭上に構えた剣を、正面の鉛直面で
- * 仰角 +80°（真上近く）→ −45°（前下）へ振り下ろす。手元の高さ 1.5m、体の前 0.25m。
+ * 仰角 +80°（真上近く）→ −45°（前下）へ振り下ろす。手元の高さ 1.5m、体の前 0.6m（実クリップの振り下ろしは手が体の前 1m ほどを通る）。
  * `p` は持続中の進行（0 = 判定開始直前の姿勢 = 振りかぶり、1 = 持続の最終フレーム = 地面近く）。
- * 剣先は p = 0.64 で水平（高さ 1.5m・前 1.7m）を通り、前進 0.8〜1.0m と合わせて体の前 2.5m 近くまで届く。
+ * 剣先は p = 0.64 で水平（高さ 1.5m・前 2.05m）を通り、前進 0.8〜1.0m と合わせて体の前 2.8m 近くまで届く。
  */
 export function heavyAttackCapsule(feet: Vec3, yaw: number, p: number, out: Capsule): Capsule {
   const len = WEAPON_CAPSULE.length;
@@ -122,7 +122,7 @@ export function heavyAttackCapsule(feet: Vec3, yaw: number, p: number, out: Caps
   const sx = Math.sin(yaw);
   const sz = Math.cos(yaw);
   const height = 1.5;
-  const forward = 0.25;
+  const forward = 0.6;
   const grip = 0.35;
   set(
     out.a,
