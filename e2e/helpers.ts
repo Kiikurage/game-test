@@ -54,3 +54,65 @@ export async function holdKey(page: Page, code: string, steps: number): Promise<
     await page.keyboard.up(code);
   }
 }
+
+/**
+ * 左クリック（pointerdown → pointerup）を Pointer Lock 要素へ同一タスクで発火する。`page.mouse.click` 相当。
+ * 入力は collector のラッチに溜まり、次のシミュレーションステップで 1 回の押下として消費される。
+ */
+export async function clickInPage(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const target = document.pointerLockElement;
+    if (!target) throw new Error('pointer lock is not held');
+    const init = { pointerType: 'mouse', button: 0, bubbles: true, cancelable: true };
+    target.dispatchEvent(new PointerEvent('pointerdown', init));
+    window.dispatchEvent(new PointerEvent('pointerup', init));
+  });
+}
+
+/**
+ * プレイヤーが `state` の `frame` フレーム目以降に達した最初の描画フレームで、その同じタスク内で左クリックを発火する。
+ * 「ポーリング → CDP 経由で入力」だと往復中にシミュレーションが進み、コンボの入力窓を過ぎることがあるため、
+ * 待機と入力をページ内の 1 つの rAF コールバックにまとめる。
+ * `maxFrame` を超えて到達した場合は窓を逃したとみなして reject する（既定: 無制限）。
+ */
+export async function clickWhenPlayerFrame(
+  page: Page,
+  state: string,
+  frame: number,
+  maxFrame = Number.POSITIVE_INFINITY,
+): Promise<void> {
+  await page.evaluate(
+    ({ state, frame, maxFrame }) =>
+      new Promise<void>((resolve, reject) => {
+        const deadline = performance.now() + 30_000;
+        const tick = (): void => {
+          const p = window.__game?.sim.player;
+          if (p && p.state === state && p.stateFrame >= frame) {
+            if (p.stateFrame > maxFrame) {
+              reject(
+                new Error(`missed the input window: ${state} F${p.stateFrame} > F${maxFrame}`),
+              );
+              return;
+            }
+            const target = document.pointerLockElement;
+            if (!target) {
+              reject(new Error('pointer lock is not held'));
+              return;
+            }
+            const init = { pointerType: 'mouse', button: 0, bubbles: true, cancelable: true };
+            target.dispatchEvent(new PointerEvent('pointerdown', init));
+            window.dispatchEvent(new PointerEvent('pointerup', init));
+            resolve();
+            return;
+          }
+          if (performance.now() > deadline) {
+            reject(new Error(`timeout waiting for ${state} F${frame}`));
+            return;
+          }
+          requestAnimationFrame(tick);
+        };
+        tick();
+      }),
+    { state, frame, maxFrame },
+  );
+}
