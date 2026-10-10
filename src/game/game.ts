@@ -203,7 +203,7 @@ export class Game {
     number
   >;
   /** 足音の地面の種類（#24 のレベルが場所ごとの種類を返すよう差し替える）。 */
-  footstepSurface: (x: number, z: number) => FootstepSurface = () => 'grass';
+  footstepSurface: (x: number, z: number, y?: number) => FootstepSurface = () => 'grass';
   /** 直近ステップのロックオンイベント（デバッグ・E2E 用）。 */
   lastLockOnEvent: LockOnEvent = 'none';
 
@@ -565,7 +565,7 @@ export class Game {
         if (m.type !== 'footstep') continue;
         const f = enemy.position;
         this.events.emit('footstep', {
-          surface: this.footstepSurface(f.x, f.z),
+          surface: this.footstepSurface(f.x, f.z, f.y),
           gait: m.gait ?? 'run',
           source: 'enemy',
           position: { x: f.x, y: f.y, z: f.z },
@@ -745,7 +745,7 @@ export class Game {
     });
     if (e.type === 'footstep') {
       this.events.emit('footstep', {
-        surface: this.footstepSurface(feet.x, feet.z),
+        surface: this.footstepSurface(feet.x, feet.z, feet.y),
         gait: e.gait ?? 'run',
         source: 'player',
         position,
