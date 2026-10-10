@@ -49,6 +49,8 @@ interface DebugState {
     pose(layer: PlayerAnimLayer | null, time?: number): void;
     /** 音源を鳴らす（敵の聴覚・経路探索の E2E 用）。 */
     noise(x: number, y: number, z: number, kind: 'bell' | 'dash' | 'combat'): void;
+    /** プレイヤーの HP を減らす（回復瓶の確認・撮影用）。 */
+    damage(amount: number): void;
     /** ?debug 用の仮の攻撃（軽攻撃 1 の判定）を 1 回出す。判定の動作確認・撮影用。 */
     swing(): void;
     /** プレイヤーを `frames` ステップ凍結する（ヒットストップの確認用）。 */
@@ -259,6 +261,9 @@ async function bootstrap(): Promise<void> {
         },
         swing: () => {
           game.debugSwing.start();
+        },
+        damage: (amount) => {
+          game.playerTarget.health.damage(amount);
         },
         hitStop: (frames) => {
           game.player.hitStop(frames);

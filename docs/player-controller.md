@@ -161,3 +161,23 @@ lightAttackCapsule(id, feet, yaw, p, out)   // 各段の武器カプセルの軌
 - **判定**: ゲーム側の手続き的な武器カプセル（半径 0.25m・長さ 1.1m）を、持続中の毎ステップ「前フレーム → 現在」でスイープ。向きと高さは実クリップの剣の動きに合わせた（軽 1: 右下から左上へ斬り上げながら水平 110°、軽 2: 左から右へ肩の高さで水平 90°、軽 3: 剣先 1.2m → 2.2m の突き・弧 40°。UAL2 の `Sword_Regular_B` は縦斬りではなく水平斬りだったため、仕様の「斬り下ろし」とは見た目が異なる）。ダメージ 40 / 42 / 52、強靭度削り 20 / 20 / 35。1 スイング 1 ヒット。命中は `game.combat.onHit` / `events.emit('hit')` で通知される（ヒットストップ・被弾リアクションはそこへ繋ぐ。`player.hitStop(frames)` で攻撃側を凍結できる）。
 - **アニメーション**: `Sword_Regular_A/B/C` を `clipHitFrame`（実測 8 / 8 / 20）で発生に合わせて再生し、振り終わり以降は `tail`（`Sword_Regular_A_Rec` / `_B_Rec`）を残りのフレームに合わせて再生する（軽 3 は C の全長が全体 52F にほぼ一致するので tail なし）。
 - **ヒットストップ・火花・被弾リアクション**: 命中（`HitEvent.attackId` が `light1〜3`）は #49 / #50 が購読する（`hitStop` イベント → `GameView` が火花）。
+
+## 回復瓶（#48）
+
+仕様は vertical-slice.md の 2.1（瓶の数）・2.3 節（回復）・2.4 節（先行入力 6F）。数値は `PLAYER_ACTIONS.heal` / `healEmpty`、クリップとマーカーは `player.heal`（`Consume` 全体を 54F に合わせる。`healApply` F26・`cancelOpen` F30）/ `player.healEmpty`（前半 14F を 20F に）。
+
+```ts
+player.flask             // Flask: count / max / available / use() / refill() / increaseMax() / restore() / onChange()
+player.health            // Health（Game は playerTarget の Health を渡す）。回復は health.heal(120)（最大 HP でクランプ）
+player.state             // 'heal'（54F）| 'healEmpty'（20F）。kind: 'action'（isActionable は false）
+player.events            // healStart（F1・瓶消費）/ healApply { amount }（F26）/ healEmpty
+game.events 'heal'       // { amount, hp, position }: HUD の HP ゲージ・光のパーティクル用。SE は 'sound'（sfx.heal-drink / sfx.heal-glow）
+game.respawn()           // 瓶を最大数まで補充（篝火・死亡）。礼拝堂のアイテムは flask.increaseMax()
+```
+
+- **入力**: `item`（PC は `R`）。先行入力は 6F（`INPUT_BUFFER_FRAMES`。入力層のバッファはアクション別: 攻撃 10F・ロール 8F・回復 6F。`input/config.ts`）。地上と、ロール F26–F32 のキャンセルで開始できる。
+- **開始条件**: HP が満タンなら入力だけ消費して何も起きない（瓶は減らない）。残数 1 以上なら回復、0 なら空振り（20F・回復なし・SE なし）。スタミナは不要。
+- **消費と加算**: 瓶は F1 で消費、HP 加算は `healApply` マーカー（F26）。F26 より前に仰け反り・転倒で状態を離れると加算は起きず、瓶だけ失われる。
+- **キャンセル**: F1–F25 はロール・攻撃・ガードへ不可。F30 からロール（先行入力あり）。攻撃・ガードは F36 から（`PLAYER_ACTIONS.heal.cancels` に窓があり、各チケットが状態グラフに遷移を足して `updateDrinking` で `canCancelTo` を見るだけで繋げられる）。
+- **移動**: 回復中・空振り中は入力方向へ 1.0 m/s（`MOVEMENT.heal`）。アニメーションは全身が Consume（足は動かさない）。
+- **デバッグ**: `window.__game.dev.damage(n)` で HP を減らせる。`sim.combat.flask` が残数。
