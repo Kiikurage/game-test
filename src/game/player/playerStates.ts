@@ -21,7 +21,9 @@ export type PlayerStateId =
   | 'healEmpty'
   // 被弾（#50）: 仰け反り 24F（Hit_Chest）/ 転倒 48F（Hit_Knockback）。どの状態からも入る。
   | 'flinch'
-  | 'knockdown';
+  | 'knockdown'
+  // 死亡（HP 0）。どの状態からも入り、リスポーン（`Player.teleport`）でしか出られない。演出・UI は別チケット。
+  | 'dead';
 
 /** 軽攻撃の動作 ID（コンボ順）。状態 ID・`PLAYER_ACTIONS` のキー・マーカー表 `player.<id>` が一致する。 */
 export const LIGHT_ATTACK_IDS = ['light1', 'light2', 'light3'] as const;
@@ -32,7 +34,7 @@ export function isLightAttackState(state: PlayerStateId): state is LightAttackId
 }
 
 /** 被弾で入る状態（どの状態からも遷移できる）。 */
-const REACTIONS = ['flinch', 'knockdown'] as const;
+const REACTIONS = ['flinch', 'knockdown', 'dead'] as const;
 /** 回復瓶の動作（地上・ロール F26 以降から入る）。 */
 const HEALS = ['heal', 'healEmpty'] as const;
 
@@ -78,8 +80,9 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   },
   healEmpty: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   // 被弾の硬直。終了後は移動・待機・落下へ（硬直中は行動不能。再被弾は restart / 転倒への格上げ）
-  flinch: { kind: 'stagger', to: ['idle', 'move', 'fall', 'knockdown'] },
-  knockdown: { kind: 'stagger', to: ['idle', 'move', 'fall', 'flinch'] },
+  flinch: { kind: 'stagger', to: ['idle', 'move', 'fall', 'knockdown', 'dead'] },
+  knockdown: { kind: 'stagger', to: ['idle', 'move', 'fall', 'flinch', 'dead'] },
+  dead: { kind: 'dead', to: [] },
 };
 
 /** 被弾の硬直中（仰け反り・転倒）。 */

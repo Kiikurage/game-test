@@ -22,6 +22,8 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     // 被弾（#50）: 仰け反り 24F に Hit_Chest（0.33s）、転倒 48F に Hit_Knockback（0.83s）を引き伸ばして合わせる
     flinch: { clip: 'Hit_Chest', fadeIn: 0.03, fadeOut: 0.1, fallbackFrames: 24 },
     knockdown: { clip: 'Hit_Knockback', fadeIn: 0.03, fadeOut: 0.12, fallbackFrames: 48 },
+    // 死亡（HP 0）: 倒れて動かない（演出・UI は別チケット）
+    dead: { clip: 'Death01', fadeIn: 0.08, fadeOut: 0.1, fallbackFrames: 90 },
   },
   // 回避は切れ味重視: 入りは素早く、戻りはやや長く
   actionFades: {
