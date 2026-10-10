@@ -44,6 +44,7 @@ export function seededRandom(seed: string): () => number {
 
 export class EnemyManager {
   readonly enemies: Enemy[] = [];
+  private readonly inits = new Map<string, EnemyInit>();
   /** 音の受け口。足音・命中音などを発生側が `emit` する。 */
   readonly noises = new NoiseField();
 
@@ -71,7 +72,27 @@ export class EnemyManager {
     const attack = this.options.createAttack?.(init, random);
     if (attack) enemy.attackBehavior = attack;
     this.enemies.push(enemy);
+    this.inits.set(init.id, init);
     return enemy;
+  }
+
+  /**
+   * 全員を出発地点へ戻して復活させる（篝火の休憩・リスポーン。HP 全回復・待機状態）。倒れていた敵は新しい体で
+   * 蘇る。戻り値は、倒れていて復活した敵（ハートボックスなどの再登録が要る）。
+   */
+  respawnAll(): Enemy[] {
+    const revived: Enemy[] = [];
+    for (const enemy of this.enemies) {
+      const init = this.inits.get(enemy.id);
+      if (!init) continue;
+      if (enemy.alive) {
+        enemy.reset();
+      } else {
+        enemy.revive(this.options.createBody(init));
+        revived.push(enemy);
+      }
+    }
+    return revived;
   }
 
   /** 1 ステップ進める。音は敵の更新の後に期限を進める。 */

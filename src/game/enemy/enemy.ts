@@ -219,7 +219,8 @@ export class Enemy implements LockOnTarget {
 
   constructor(
     init: EnemyInit,
-    readonly body: EnemyBody,
+    /** 体（衝突・接地）。`revive` で作り直す（倒すと取り除かれるため）。 */
+    public body: EnemyBody,
     private readonly deps: EnemyDeps,
   ) {
     this.id = init.id;
@@ -358,9 +359,24 @@ export class Enemy implements LockOnTarget {
     this.speedNow = 0;
     this.actualSpeed = 0;
     this.patrolIndex = 0;
+    this.patrolDir = 1;
+    this.pauseFrames = 0;
+    this.holdFrames = 0;
+    this.cooldownFrames = 0;
+    this.staggerFrames = 0;
+    this.deadFrames = 0;
     this.fsm.reset('idle');
     this.syncTransform();
     this.transform.snap();
+  }
+
+  /**
+   * 倒れた敵を、新しい体で出発地点に復活させる（篝火の休憩・死亡後のリスポーン）。生きている敵は `reset` でよい。
+   * `body` は出発地点に置いた新しい体（倒したときに古い体は取り除かれている）。
+   */
+  revive(body: EnemyBody): void {
+    this.body = body;
+    this.reset();
   }
 
   // ---- 1 ステップ ----

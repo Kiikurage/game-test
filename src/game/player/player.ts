@@ -57,6 +57,8 @@ import {
   isHealState,
   isLightAttackState,
   isReactionState,
+  isScriptedState,
+  isSeatedState,
   type LightAttackId,
   type PlayerAttackId,
   type PlayerStateId,
@@ -71,6 +73,8 @@ export {
   isHealState,
   isLightAttackState,
   isReactionState,
+  isScriptedState,
+  isSeatedState,
   type LightAttackId,
   type PlayerAttackId,
   type PlayerStateId,
@@ -98,6 +102,16 @@ export type PlayerEvent =
   | { readonly type: 'attackStart'; readonly id: PlayerAttackId }
   | { readonly type: 'land'; readonly fallHeight: number }
   | { readonly type: 'staminaEmpty' };
+
+/** 状況アクションの状態（`Player.beginScripted`）。 */
+export type ScriptedActionState = 'interact' | 'sitDown' | 'standUp';
+
+export interface ScriptedOptions {
+  /** 動作の長さ（フレーム）。この後に次の状態へ移る（interact / standUp は移動系、sitDown は rest）。 */
+  readonly frames: number;
+  /** この向き（ヨー）へ体を向ける（省略時は今の向きのまま）。 */
+  readonly faceYaw?: number;
+}
 
 /** アニメーション側（`CharacterAnimator`）が読む、状態に依存しない描画用の情報。 */
 export interface PlayerAnimationState {
@@ -260,6 +274,9 @@ export class Player {
   private lastAttack: LightAttackId | null = null;
   private lastAttackStartStep = 0;
   private attackSerial = 0;
+  /** 状況アクションの長さ（フレーム）と、向ける先（`beginScripted`）。 */
+  private scriptedFrames = 0;
+  private scriptedFaceYaw: number | null = null;
 
   /** ガードのフレーム・窓（入力補助 11.2 節で差し替えられる。実際の差し替えは E10-1）。 */
   guardParams: GuardParams = DEFAULT_GUARD_PARAMS;
@@ -459,6 +476,7 @@ export class Player {
   get invulnerable(): boolean {
     return (
       this.state === 'dead' ||
+      isSeatedState(this.state) ||
       this.markers.invulnerable ||
       this.reactor.invulnerable ||
       (this.state === 'knockdown' && knockdownInvulnerable(this.stateFrame))
@@ -480,7 +498,7 @@ export class Player {
       state: this.state,
       kind: this.fsm.kind,
       actionId: this.fsm.actionId,
-      totalFrames: this.state === 'land' ? this.landFrames : 0,
+      totalFrames: this.state === 'land' ? this.landFrames : this.scriptedTotalFrames(),
       gaitPhase: this.gait.phase,
       gaitPhaseStep: this.gait.lastDelta,
       frozen: this.fsm.isFrozenStep,
@@ -494,6 +512,49 @@ export class Player {
       yaw: this.yaw,
       guard: this.guardPresentation(),
     };
+  }
+
+  private scriptedTotalFrames(): number {
+    return isScriptedState(this.state) ? this.scriptedFrames : 0;
+  }
+
+  /**
+   * 状況アクションを始める（「調べる」の動作・座り込み・立ち上がり。インタラクション #55）。
+   * 地上の移動系・休憩中から入れる（`rest` からは `standUp` だけ）。ロール・攻撃・被弾などの最中は入れず false。
+   * 始めたら入力による移動・攻撃はできない（`frames` 後に自動で次の状態へ）。座っている間は被弾しない。
+   * 立ち上がり（`standUp`）は `teleport` の直後（リスポーン）にも始められる。
+   */
+  beginScripted(state: ScriptedActionState, options: ScriptedOptions): boolean {
+    if (this.state === state || !this.fsm.canTransition(state)) return false;
+    if (!this.grounded && state !== 'standUp') return false;
+    this.fsm.transition(state);
+    this.markers.begin(undefined);
+    this.scriptedFrames = Math.max(1, Math.floor(options.frames));
+    this.scriptedFaceYaw = options.faceYaw ?? null;
+    this.lastAttack = null;
+    this.dashing = false;
+    this.dashLatch = false;
+    this.guardStun = 0;
+    return true;
+  }
+
+  /** 状況アクションの入力を受け付けられるか（地上の移動系、または篝火に座って保持している間）。 */
+  get canInteract(): boolean {
+    switch (this.state) {
+      case 'idle':
+      case 'move':
+      case 'dash':
+        return this.grounded;
+      case 'rest':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /** 篝火に座って保持している間（再入力で立ち上がる）。 */
+  get resting(): boolean {
+    return this.state === 'rest';
   }
 
   private guardPresentation(): GuardPresentation {
@@ -518,6 +579,8 @@ export class Player {
     this.airFrames = 0;
     this.lastGroundY = position.y;
     this.fsm.reset('idle');
+    this.scriptedFrames = 0;
+    this.scriptedFaceYaw = null;
     this.guardStun = 0;
     this.guardAge = 0;
     this.guardResume = false;
@@ -624,6 +687,11 @@ export class Player {
         return this.updateGuardRelease(dt, snap, frame);
       case 'guardBreak':
         return this.updateGuardBreak();
+      case 'interact':
+      case 'sitDown':
+      case 'rest':
+      case 'standUp':
+        return this.updateScripted(dt);
       case 'dead':
         // 倒れたまま動かない
         this.velocity.x = 0;
@@ -1014,7 +1082,7 @@ export class Player {
     }
 
     // F26 から移動へキャンセル可（移動入力があるとき）。入力がなければ F32 まで硬直。
-    if (f >= ROLL_FRAMES || (f >= ROLL_MOVE_CANCEL && this.moveMagnitude > 0.001)) {
+    if (f > ROLL_FRAMES || (f >= ROLL_MOVE_CANCEL && this.moveMagnitude > 0.001)) {
       return this.afterDodgeState(snap);
     }
     return null;
@@ -1032,7 +1100,7 @@ export class Player {
       const attack = this.tryLightAttack(frame, 'light1');
       if (attack) return attack;
     }
-    if (f >= BACKSTEP_FRAMES) return this.moveMagnitude > 0 ? 'move' : 'idle';
+    if (f > BACKSTEP_FRAMES) return this.moveMagnitude > 0 ? 'move' : 'idle';
     return null;
   }
 
@@ -1170,6 +1238,20 @@ export class Player {
     return null;
   }
 
+  // ---- 状況アクション（調べる・座り込み・休憩・立ち上がり）----
+
+  /** 入力を受け付けず、その場で止まる。長さが過ぎたら次の状態へ（`rest` は `standUp` が呼ばれるまで保持）。 */
+  private updateScripted(dt: number): PlayerStateId | null {
+    this.tmpVelocity.x = 0;
+    this.tmpVelocity.y = 0;
+    const decel = tuning.player.run / (tuning.player.stopFrames / 60);
+    approachVelocity(this.velocity, this.tmpVelocity, decel, decel, dt);
+    if (this.state === 'rest' || this.stateFrame <= this.scriptedFrames) return null;
+    if (this.state === 'sitDown') return 'rest';
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    return 'idle';
+  }
+
   // ---- 向き・スタミナ・移動 ----
 
   private applyFacing(frame: PlayerFrame, dt: number): void {
@@ -1183,6 +1265,13 @@ export class Player {
       this.state === 'dead' ||
       isReactionState(this.state)
     ) {
+      return;
+    }
+    if (isScriptedState(this.state)) {
+      // 状況アクション: 指定された向きへ（ロックオン・入力は無視）
+      if (this.scriptedFaceYaw !== null) {
+        this.yaw = turnToward(this.yaw, this.scriptedFaceYaw, this.turnRate, this.turnResponse, dt);
+      }
       return;
     }
     if (isAttackState(this.state)) {
