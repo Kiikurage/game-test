@@ -190,7 +190,10 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
       // 遠く離れているときは描かない（影も含む。待機中のボスが他エリアの描画予算を食わないように。#85）
       const feet = game.player.feet;
       const far =
-        boss !== null && Math.hypot(boss.position.x - feet.x, boss.position.z - feet.z) > 70;
+        boss !== null &&
+        !boss.isEngaged &&
+        boss.introFrame < 0 &&
+        Math.hypot(boss.position.x - feet.x, boss.position.z - feet.z) > 22;
       root.visible = boss !== null && !far && (boss.alive || (defeatFx?.visible ?? false));
       bands.visible = root.visible;
       if (model) model.root.visible = root.visible;
@@ -230,8 +233,8 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
         model.lateUpdate(dt);
         // 予兆中は斧（盾打ちの 1 段目は盾）の縁が光る（種別で色・強さが違う。技の最中でなければ消す）
         const glow = boss.state === 'attack' ? bossWeaponGlow(boss.debugInfo, boss.phase) : null;
-        const onAxe = glow && glow.target === 'axe' && glow.amount > 0;
-        const onShield = glow && glow.target === 'shield' && glow.amount > 0;
+        const onAxe = glow && glow.target === 'axe' && glow.amount > 70;
+        const onShield = glow && glow.target === 'shield' && glow.amount > 70;
         if (onAxe) model.look.setWeaponTelegraph(glow.amount, glow.color, glow.style);
         else if (model.look.weaponTelegraph !== 0) model.look.setWeaponTelegraph(0);
         if (onShield) model.look.setShieldTelegraph(glow.amount, glow.color, glow.style);
