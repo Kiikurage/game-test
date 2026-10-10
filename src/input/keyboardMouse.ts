@@ -38,6 +38,20 @@ export function keysToMove(down: ReadonlySet<string>): { x: number; y: number } 
   return { x, y };
 }
 
+/** 異常値の判定を行う、ロック取得後の mousemove の数。 */
+export const SPIKE_CHECK_MOVES = 5;
+
+/** ロック取得後の最初の数回の mousemove の移動量（px）がこれを超えたら異常値として捨てる。 */
+export const FIRST_MOVE_SPIKE_PX = 300;
+
+/**
+ * Pointer Lock を取得した後の最初の数回の mousemove に、直前のカーソル位置との差が巨大な値（ビューポート半分ほど）で
+ * まとめて届くことがある。最初の数イベントだけを対象に、異常に大きいものを捨てる（通常のプレイ中の素早い振りは捨てない）。
+ */
+export function isFirstMoveSpike(movementX: number, movementY: number): boolean {
+  return Math.abs(movementX) > FIRST_MOVE_SPIKE_PX || Math.abs(movementY) > FIRST_MOVE_SPIKE_PX;
+}
+
 /**
  * キーボード / マウス入力。カメラは Pointer Lock 中のみ動かす（キャンバスのクリックでロック開始）。
  * ロックを取得したクリック自体は攻撃として扱わない。
@@ -45,6 +59,10 @@ export function keysToMove(down: ReadonlySet<string>): { x: number; y: number } 
 export class KeyboardMouseInput {
   private readonly keys = new Set<string>();
   private lastWheelMs = Number.NEGATIVE_INFINITY;
+  /** Pointer Lock を取得してから受けた mousemove の数（異常値の判定は最初の数イベントだけ）。 */
+  private movesSinceLock = Number.POSITIVE_INFINITY;
+  /** 現在のロックを検出済みか。 */
+  private lockSeen = false;
   private disposers: (() => void)[] = [];
 
   constructor(
@@ -72,7 +90,13 @@ export class KeyboardMouseInput {
       e.preventDefault();
     });
     this.listen(document, 'pointerlockchange', () => {
-      if (!this.pointerLocked) this.releaseMouseButtons();
+      if (this.pointerLocked) {
+        if (!this.lockSeen) this.movesSinceLock = 0;
+        this.lockSeen = true;
+      } else {
+        this.lockSeen = false;
+        this.releaseMouseButtons();
+      }
     });
   }
 
@@ -165,6 +189,15 @@ export class KeyboardMouseInput {
 
   private readonly onMouseMove = (e: MouseEvent): void => {
     if (!this.pointerLocked) return;
+    // pointerlockchange の通知より先に mousemove が届くことがあるため、ロックの開始はここでも検出する
+    if (!this.lockSeen) {
+      this.lockSeen = true;
+      this.movesSinceLock = 0;
+    }
+    if (this.movesSinceLock < SPIKE_CHECK_MOVES) {
+      this.movesSinceLock++;
+      if (isFirstMoveSpike(e.movementX, e.movementY)) return;
+    }
     this.onActivity();
     const k = LOOK_SENSITIVITY.mouse;
     this.collector.addLook(e.movementX * k, (INVERT_LOOK_Y ? 1 : -1) * e.movementY * k);
@@ -180,7 +213,7 @@ export class KeyboardMouseInput {
     this.collector.requestTargetSwitch(e.deltaY > 0 ? 1 : -1);
   };
 
-  private requestLock(): void {
+  requestLock(): void {
     try {
       // 生のマウス移動量（加速なし）を使えるなら使う。非対応環境では通常のロックにフォールバック。
       const p = this.target.requestPointerLock({ unadjustedMovement: true }) as unknown as

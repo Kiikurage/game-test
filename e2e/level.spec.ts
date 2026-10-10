@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame, tapKey } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で起動する。 */
 async function boot(page: Page): Promise<void> {
@@ -13,8 +9,8 @@ async function boot(page: Page): Promise<void> {
   });
   page.on('pageerror', (err) => errors.push(err.message));
   // 地形・壁の検証なので、敵（経路上に立つ）は置かない
-  await page.goto('./?quality=low&scale=0.25&enemies=0');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
+  await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
     .toBeGreaterThan(30);
@@ -163,7 +159,7 @@ test('rolling in the 2.5m catacomb corridor does not pass through its walls', as
   });
   await page.waitForTimeout(500);
   await page.keyboard.down('KeyW');
-  await page.keyboard.press('Space');
+  await tapKey(page, 'Space');
   await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
   await page.waitForTimeout(1500);
   await page.keyboard.up('KeyW');
@@ -174,7 +170,7 @@ test('rolling in the 2.5m catacomb corridor does not pass through its walls', as
 
 test('?scene=test still opens the old test scene', async ({ page }) => {
   await page.goto('./?scene=test&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
     .toBeGreaterThan(30);
