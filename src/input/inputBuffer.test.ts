@@ -43,3 +43,15 @@ describe('InputBuffer', () => {
     expect(b.has('dodge', 1.14)).toBe(true);
   });
 });
+
+describe('InputBuffer.extend（ヒットストップ中の期限延長）', () => {
+  it('保持中の入力の期限を延ばし、期限切れ後には効かない', () => {
+    const b = new InputBuffer(0.15);
+    b.push('lightAttack', 1.0);
+    b.extend(0.1);
+    expect(b.has('lightAttack', 1.25)).toBe(true);
+    expect(b.has('lightAttack', 1.26)).toBe(false);
+    b.extend(1);
+    expect(b.has('lightAttack', 1.1)).toBe(false);
+  });
+});

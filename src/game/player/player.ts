@@ -3,9 +3,12 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputReader, InputSnapshot } from '../../core/input';
 import {
+  HEAVY_CHARGE_MOVE_SPEED,
+  HEAVY_FULL_CHARGE_STAMINA_EXTRA,
   MOVEMENT,
   PLAYER_ACTIONS,
   PLAYER_STATS,
+  RUN_ATTACK_MIN_SPEED_RATIO,
   STAMINA,
   inWindow,
   totalFrames,
@@ -55,8 +58,10 @@ import {
   isDodgeState,
   isGuardState,
   isHealState,
+  isHeavyAttackState,
   isLightAttackState,
   isReactionState,
+  type HeavyAttackId,
   isScriptedState,
   isSeatedState,
   type LightAttackId,
@@ -71,8 +76,10 @@ export {
   isDodgeState,
   isGuardState,
   isHealState,
+  isHeavyAttackState,
   isLightAttackState,
   isReactionState,
+  type HeavyAttackId,
   isScriptedState,
   isSeatedState,
   type LightAttackId,
@@ -183,6 +190,8 @@ function cancelStart(
   return cancels.find((c) => c.to === to)?.start ?? fallback;
 }
 const ROLL_MOVE_CANCEL = cancelStart(PLAYER_ACTIONS.roll.cancels, 'move', 26);
+/** 強攻撃の溜めの最大（フレーム）。ボタンをこの長さ以上保持して離すとフル溜め（`heavyCharged`）。 */
+const HEAVY_CHARGE_FRAMES = PLAYER_ACTIONS.heavyCharged.chargeFrames;
 
 /** 軽攻撃の次段（コンボ順）。軽 3 はコンボ終点。 */
 const NEXT_LIGHT: Readonly<Record<LightAttackId, LightAttackId | null>> = {
@@ -207,6 +216,9 @@ const LUNGE: Readonly<Record<PlayerAttackId, readonly number[]>> = {
   light1: attackLungeProfile('light1'),
   light2: attackLungeProfile('light2'),
   light3: attackLungeProfile('light3'),
+  heavy: attackLungeProfile('heavy'),
+  heavyCharged: attackLungeProfile('heavyCharged'),
+  runAttack: attackLungeProfile('runAttack'),
   guardCounter: attackLungeProfile('guardCounter'),
 };
 
@@ -274,6 +286,10 @@ export class Player {
   private lastAttack: LightAttackId | null = null;
   private lastAttackStartStep = 0;
   private attackSerial = 0;
+  /** 強攻撃のスーパーアーマー（強靭度の加算）を付与中か。窓の頭で 1 回付与し、窓を出たら外す。 */
+  private armorActive = false;
+  /** 溜めがフル（30F）に達して、追加のスタミナ（34 − 28）を消費済みか。 */
+  private chargeExtraPaid = false;
   /** 状況アクションの長さ（フレーム）と、向ける先（`beginScripted`）。 */
   private scriptedFrames = 0;
   private scriptedFaceYaw: number | null = null;
@@ -437,6 +453,8 @@ export class Player {
     if (this.state === 'dead') return;
     this.fsm.transition('dead');
     this.markers.begin(undefined);
+    this.reactor.poise.clearBonus();
+    this.armorActive = false;
     this.guardStun = 0;
     this.counterWindow.close();
     this.dashing = false;
@@ -586,6 +604,7 @@ export class Player {
     this.guardResume = false;
     this.counterWindow.close();
     this.reactor.reset();
+    this.armorActive = false;
     this.slide.x = 0;
     this.slide.z = 0;
     this.markers.begin(undefined);
@@ -607,6 +626,7 @@ export class Player {
     this.markerEvents.length = 0;
     // ヒットストップ中は状態フレーム・移動・スタミナ回復を含めて丸ごと止める
     if (this.fsm.consumeFreeze()) {
+      frame.input.holdBuffer?.(dt); // 先行入力の期限も凍結分だけ延ばす（4.1 節）
       this.syncTransform();
       return;
     }
@@ -645,6 +665,7 @@ export class Player {
     // イベントマーカーは、最終的に落ち着いた状態のフレームで発火する（途中で捨てた状態の分は出さない）
     this.markers.advance(this.fsm.stateFrame, this.markerEvents);
     this.applyHealMarkers();
+    this.applySuperArmor();
     this.stampFootstepGait();
 
     this.applyFacing(frame, dt);
@@ -673,8 +694,13 @@ export class Player {
       case 'light1':
       case 'light2':
       case 'light3':
+      case 'heavy':
+      case 'heavyCharged':
+      case 'runAttack':
       case 'guardCounter':
         return this.updateAttack(this.state, frame);
+      case 'heavyCharge':
+        return this.updateHeavyCharge(dt, snap, frame);
       case 'heal':
       case 'healEmpty':
         return this.updateDrinking(this.state, dt, frame);
@@ -744,6 +770,25 @@ export class Player {
         this.events.push({ type: 'attackStart', id: next });
         break;
       }
+      case 'heavyCharge':
+        // スタミナは溜め開始時に 28（溜めなしの値）を消費し、フル溜めに達した時点で差分（+6 = 計 34）を消費する。
+        this.lastAttack = null;
+        this.stamina.consume(PLAYER_ACTIONS.heavy.staminaCost);
+        this.chargeExtraPaid = false;
+        break;
+      case 'heavy':
+      case 'heavyCharged':
+        // 消費は溜め開始時（`heavyCharge`）に済んでいる。ここは発生（F1）。
+        this.lastAttack = null;
+        this.attackSerial++;
+        this.events.push({ type: 'attackStart', id: next });
+        break;
+      case 'runAttack':
+        this.lastAttack = null;
+        this.stamina.consume(PLAYER_ACTIONS.runAttack.staminaCost);
+        this.attackSerial++;
+        this.events.push({ type: 'attackStart', id: next });
+        break;
       case 'guardCounter':
         this.lastAttack = null;
         this.stamina.consume(PLAYER_ACTIONS.guardCounter.staminaCost);
@@ -775,9 +820,13 @@ export class Player {
     const dodge = this.tryDodge(frame);
     if (dodge) return dodge;
 
-    // 軽攻撃（先行入力を含む）。コンボ窓が残っていれば次段、なければ軽 1。
-    const attack = this.tryLightAttack(frame, this.nextComboAttack());
+    // 軽攻撃（先行入力を含む）。コンボ窓が残っていれば次段、なければ（走り中なら走り攻撃、でなければ）軽 1。
+    const attack = this.tryLightAttack(frame, this.groundLightAttack());
     if (attack) return attack;
+
+    // 強攻撃（溜め開始。ボタンを離した時点で発生へ）
+    const heavy = this.tryHeavyAttack(frame);
+    if (heavy) return heavy;
 
     // ガード（保持入力。行動不能中に押していても、動作可能になった瞬間に構える）
     const guard = this.tryGuard(frame, snap);
@@ -795,6 +844,7 @@ export class Player {
     if (!snap.buttons.guard.held || !this.stamina.canStart()) return null;
     // 構え前の古い攻撃入力が残っていて、構えた瞬間に解除されないようにする
     frame.input.clearBuffer('lightAttack');
+    frame.input.clearBuffer('heavyAttack');
     return 'guard';
   }
 
@@ -809,12 +859,89 @@ export class Player {
     return inWindow(age, window) ? next : 'light1';
   }
 
+  /**
+   * 地上の軽攻撃入力で出す動作。コンボ窓が残っていれば次段、なければ、ダッシュまたは走り中は走り攻撃、
+   * それ以外は軽 1（2.3 節）。
+   */
+  private groundLightAttack(): LightAttackId | 'runAttack' {
+    const combo = this.nextComboAttack();
+    if (combo !== 'light1') return combo;
+    return this.running ? 'runAttack' : 'light1';
+  }
+
+  /** ダッシュ中、または走りの速さ（走り最高速の 75% 以上）で動いている。走り攻撃の発動条件。 */
+  private get running(): boolean {
+    if (this.state === 'dash') return true;
+    if (this.state !== 'move') return false;
+    const speed = Math.hypot(this.velocity.x, this.velocity.y);
+    return speed >= tuning.player.run * RUN_ATTACK_MIN_SPEED_RATIO;
+  }
+
   /** 先行入力（攻撃 10F）を消費して `id` を始める。スタミナ 0 では開始できない（入力は残り、期限で消える）。 */
-  private tryLightAttack(frame: PlayerFrame, id: LightAttackId): LightAttackId | null {
+  private tryLightAttack(
+    frame: PlayerFrame,
+    id: LightAttackId | 'runAttack',
+  ): LightAttackId | 'runAttack' | null {
     if (!frame.input.hasBuffered('lightAttack')) return null;
     if (!this.stamina.canStart(PLAYER_ACTIONS[id].staminaCost)) return null;
     frame.input.consumeBuffered('lightAttack');
     return id;
+  }
+
+  /** 先行入力（攻撃 10F）を消費して強攻撃の溜めを始める。スタミナ 0 では開始できない。 */
+  private tryHeavyAttack(frame: PlayerFrame): 'heavyCharge' | null {
+    if (!frame.input.hasBuffered('heavyAttack')) return null;
+    if (!this.stamina.canStart(PLAYER_ACTIONS.heavy.staminaCost)) return null;
+    frame.input.consumeBuffered('heavyAttack');
+    return 'heavyCharge';
+  }
+
+  /**
+   * 強攻撃の溜め: ボタンを保持している間、歩き 1.0 m/s で動ける。離した時点で発生へ（保持したフレーム数が
+   * 30 未満なら溜めなし `heavy`、30 以上ならフル溜め `heavyCharged`）。フル溜めに達した時点でスタミナの差分を消費する。
+   * 溜め中もロール/バックステップで抜けられる（溜めはまだ攻撃の動作ではないため）。
+   */
+  private updateHeavyCharge(
+    dt: number,
+    snap: InputSnapshot,
+    frame: PlayerFrame,
+  ): PlayerStateId | null {
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    const dodge = this.tryDodge(frame);
+    if (dodge) return dodge;
+    // F1 = 入力のステップ。ボタンを保持したステップ数 = stateFrame − 1（離した時点のステップは数えない）
+    if (!snap.buttons.heavyAttack.held) {
+      return this.stateFrame - 1 >= HEAVY_CHARGE_FRAMES ? 'heavyCharged' : 'heavy';
+    }
+    if (this.stateFrame >= HEAVY_CHARGE_FRAMES && !this.chargeExtraPaid) {
+      this.chargeExtraPaid = true;
+      this.stamina.consume(HEAVY_FULL_CHARGE_STAMINA_EXTRA);
+    }
+    this.driftVelocity(dt, HEAVY_CHARGE_MOVE_SPEED);
+    return null;
+  }
+
+  /** 溜めに入ってからのステップ数（デバッグ・テスト用。溜め中でなければ 0）。 */
+  get chargeFrames(): number {
+    return this.state === 'heavyCharge' ? this.stateFrame : 0;
+  }
+
+  /**
+   * 強攻撃のスーパーアーマー（2.3 節）: 発生 F6 から持続終了まで、強靭度に `poiseBonus`（+40）を加える。
+   * 窓の頭で 1 回 `grant`、窓を出たら（状態が変わって被弾で崩れた場合も含め）`clearBonus`。
+   * 加算分は被弾で先に削られるので、崩れない限り仰け反らない（`HitReactor`）。
+   */
+  private applySuperArmor(): void {
+    const state = this.state;
+    const armor = isHeavyAttackState(state) ? PLAYER_ACTIONS[state].superArmor : undefined;
+    const wanted = armor !== undefined && inWindow(this.stateFrame, armor);
+    if (wanted && !this.armorActive) {
+      this.reactor.poise.grant(armor.poiseBonus);
+      this.armorActive = true;
+    } else if (!wanted && this.armorActive) {
+      this.reactor.poise.clearBonus();
+      this.armorActive = false;
+    }
   }
 
   /**
@@ -835,10 +962,15 @@ export class Player {
       const dodge = this.tryDodge(frame);
       if (dodge) return dodge;
     }
-    const next = id === 'guardCounter' ? null : NEXT_LIGHT[id];
+    const next = isLightAttackState(id) ? NEXT_LIGHT[id] : null;
     if (next && this.fsm.canCancelTo('lightAttack')) {
       const chain = this.tryLightAttack(frame, next);
       if (chain) return chain;
+    }
+    // 軽攻撃の窓から強攻撃へ（軽 1 → 強、軽 2 → 強、軽 3 の後も可）
+    if (isLightAttackState(id) && this.fsm.canCancelTo('heavyAttack')) {
+      const heavy = this.tryHeavyAttack(frame);
+      if (heavy) return heavy;
     }
     // ガード: 持続終了の 6F 後から（軽攻撃のキャンセル窓）
     if (this.fsm.canCancelTo('guard')) {
@@ -909,6 +1041,10 @@ export class Player {
       const attack = this.tryLightAttack(frame, 'light1');
       if (attack) return attack;
     }
+    if (this.fsm.canCancelTo('heavyAttack')) {
+      const heavy = this.tryHeavyAttack(frame);
+      if (heavy) return heavy;
+    }
     // F36 からガードへキャンセル可（ボタン保持）
     if (this.fsm.canCancelTo('guard')) {
       const guard = this.tryGuard(frame, frame.input.snapshot);
@@ -920,9 +1056,9 @@ export class Player {
   }
 
   /** 回復中の移動: 入力方向へ 1.0 m/s（強さに比例）。ロックオン中も同じ（ストレイフはしない）。 */
-  private driftVelocity(dt: number): void {
+  private driftVelocity(dt: number, maxSpeed: number = MOVEMENT.heal): void {
     const m = this.moveMagnitude;
-    const speed = MOVEMENT.heal * Math.min(1, m / 0.6);
+    const speed = maxSpeed * Math.min(1, m / 0.6);
     this.tmpVelocity.x = m > 0 ? (this.worldMove.x / m) * speed : 0;
     this.tmpVelocity.y = m > 0 ? (this.worldMove.y / m) * speed : 0;
     const accel = tuning.player.run / (tuning.player.accelFrames / 60);
@@ -1069,6 +1205,10 @@ export class Player {
       const attack = this.tryLightAttack(frame, 'light1');
       if (attack) return attack;
     }
+    if (this.fsm.canCancelTo('heavyAttack')) {
+      const heavy = this.tryHeavyAttack(frame);
+      if (heavy) return heavy;
+    }
 
     // F26 からガードへキャンセル可（ボタン保持）
     if (this.fsm.canCancelTo('guard')) {
@@ -1099,6 +1239,10 @@ export class Player {
     if (this.fsm.canCancelTo('lightAttack')) {
       const attack = this.tryLightAttack(frame, 'light1');
       if (attack) return attack;
+    }
+    if (this.fsm.canCancelTo('heavyAttack')) {
+      const heavy = this.tryHeavyAttack(frame);
+      if (heavy) return heavy;
     }
     if (f > BACKSTEP_FRAMES) return this.moveMagnitude > 0 ? 'move' : 'idle';
     return null;
@@ -1393,6 +1537,7 @@ export class Player {
       this.state !== 'roll' &&
       this.state !== 'backstep' &&
       this.state !== 'land' &&
+      this.state !== 'heavyCharge' &&
       !isAttackState(this.state) &&
       this.state !== 'guardRelease' &&
       this.state !== 'guardBreak' &&

@@ -155,12 +155,33 @@ lightAttackCapsule(id, feet, yaw, p, out)   // 各段の武器カプセルの軌
 - **全体の長さ**: 軽 1 は F1–F36 が `light1`（当たり窓 F13–F16）、F37 で移動系へ戻る（軽 2: 36F / 軽 3: 52F）。
 - **コンボ窓**: 次段入力は「持続終了 + 4F 〜 全体 + 12F」（軽 1: F20–F48、軽 2: F18–F48）。窓が開いた最初のフレームで次段の F1 へ。動作が終わった後（F37–F48）の入力も次段になり、窓を過ぎると軽 1。軽 3 は軽攻撃に繋がらない（終了後は軽 1）。ロール・バックステップを挟むとコンボは途切れる。窓は `PLAYER_ACTIONS.<id>.cancels` が正で、`fsm.canCancelTo('lightAttack')` で判定する。
 - **先行入力**: 入力バッファ（#6）の `hasBuffered` / `consumeBuffered('lightAttack')`。バッファは最後の 1 入力のみ・10F 保持なので、窓の開始より 10F 前（F11）から押せる。
+- **ヒットストップ中**: 凍結ステップは `holdBuffer` で先行入力の期限も止める（#197。`hit-stop.md`）。
 - **キャンセル先**: ロール / バックステップ（軽 1: F18 / 軽 2: F16 / 軽 3: F24 から。先行入力あり）。強攻撃・ガードは各チケットで、状態グラフと `cancels` に窓を足して `updateAttack` で `canCancelTo` を見るだけで繋げられる。
 - **前進**: 発生 + 持続の間に、踏み込みの山形で 0.5 / 0.5 / 1.0 m（`attackLungeProfile`）。硬直中は止まる。壁・ダミーのコライダで止まる。
 - **旋回**: 発生の間（当たり窓が開くまで）だけ、ロックオン対象 / 入力方向へ 540°/s（`tuning.player.attackTurnDegPerSecond`）で向く。持続・硬直中は向き固定。
 - **判定**: ゲーム側の手続き的な武器カプセル（半径 0.25m・長さ 1.1m）を、持続中の毎ステップ「前フレーム → 現在」でスイープ。向きと高さは実クリップの剣の動きに合わせた（軽 1: 右下から左上へ斬り上げながら水平 110°、軽 2: 左から右へ肩の高さで水平 90°、軽 3: 剣先 1.2m → 2.2m の突き・弧 40°。UAL2 の `Sword_Regular_B` は縦斬りではなく水平斬りだったため、仕様の「斬り下ろし」とは見た目が異なる）。ダメージ 40 / 42 / 52、強靭度削り 20 / 20 / 35。1 スイング 1 ヒット。命中は `game.combat.onHit` / `events.emit('hit')` で通知される（ヒットストップ・被弾リアクションはそこへ繋ぐ。`player.hitStop(frames)` で攻撃側を凍結できる）。
 - **アニメーション**: `Sword_Regular_A/B/C` を `clipHitFrame`（実測 8 / 8 / 20）で発生に合わせて再生し、振り終わり以降は `tail`（`Sword_Regular_A_Rec` / `_B_Rec`）を残りのフレームに合わせて再生する（軽 3 は C の全長が全体 52F にほぼ一致するので tail なし）。
 - **ヒットストップ・火花・被弾リアクション**: 命中（`HitEvent.attackId` が `light1〜3`）は #49 / #50 が購読する（`hitStop` イベント → `GameView` が火花）。
+
+## 強攻撃（溜め・スーパーアーマー）と走り攻撃（#52）
+
+仕様は vertical-slice.md の 2.3 節（強攻撃・走り攻撃・コンボ補足）・2.4 節（入力）。数値は `PLAYER_ACTIONS.heavy` / `heavyCharged` / `runAttack`、クリップとマーカーは `player.heavy` / `player.heavyCharged` / `player.runAttack`。
+
+```ts
+player.state          // 'heavyCharge'（溜め。ボタン保持中）→ 'heavy'（溜めなし）| 'heavyCharged'（フル溜め）/ 'runAttack'
+player.chargeFrames   // 溜め中の経過ステップ（溜め中でなければ 0。デバッグ・テスト用）
+player.reactor.poise.bonus   // スーパーアーマー中は 40 から削られる（`sim.player.poiseBonus`）
+heavyAttackCapsule / runAttackCapsule(feet, yaw, p, out)   // 武器カプセルの軌道（`playerAttack.ts`）
+```
+
+- **入力**: 右クリック / R2 / 強攻撃ボタン（`heavyAttack`。先行入力 10F）。ボタンを押したステップが `heavyCharge` の F1（地上・軽攻撃の窓・ロール F26 / バックステップ F18 / 回復 F36 のキャンセルから入れる）。ボタンを離したステップが `heavy` / `heavyCharged` の F1。
+- **溜め**: 保持したステップ数 N（離したステップは数えない）が 30 未満なら `heavy`、30 以上なら `heavyCharged`。30F を超えて保持しても最大のまま（補間なし）。溜め中は入力方向へ 1.0 m/s（`HEAVY_CHARGE_MOVE_SPEED`）。全体は溜め N + 66F（フル溜めは 30 + 66F）。溜め中もロール / バックステップで抜けられる（スタミナは消費済み）。
+- **スタミナ**: 溜め開始時に 28（溜めなしの値）を消費し、溜めが 30F に達した時点で差分 6 を消費する（フル溜めの合計は 34。29F で離せば 28 のまま）。0 のときは開始できない。0 へクランプされる消費は仕様どおり開始できる。
+- **スーパーアーマー**: `heavy` / `heavyCharged` の F6 から持続終了（F28）まで、`Poise.grant(40)`（窓の頭で 1 回）→ 窓を出たら `clearBonus`（`Player.applySuperArmor`）。加算分が先に削られるので、崩れない限り仰け反らない（`HitReactor`）。溜め中・硬直中は持たない。
+- **ロールへのキャンセル**: F44（持続終了 + 16F）から（先行入力あり）。強攻撃の後は軽攻撃 1（コンボ窓なし）。軽 1 / 2 / 3 の窓（F20 / F18 / F26 から）で強攻撃（溜め）へ移れる。
+- **走り攻撃**: ダッシュ中（`dash`）、または走り最高速の 75% 以上（`RUN_ATTACK_MIN_SPEED_RATIO`）で動いている `move` 中の軽攻撃入力。前の軽攻撃のコンボ窓が残っていれば次段が優先。前進 2.0m・キャンセル窓なし。
+- **アニメーション**: 溜めは `Sword_Heavy_Combo` の f58–f66（剣を引いて低く構える）を 14F で再生して保持（`states.heavyCharge`）。`heavy` / `heavyCharged` は f66 → f80（`clipHitFrame` 77 = 振り下ろし）の後、`tail` で f90–f121（剣を地面から戻す）を残りの硬直に合わせる。走り攻撃は `Sword_Dash` の f2–f13（`clipHitFrame` 10）+ tail f13–f46。
+- **ヒットストップ・画面振動**: `hitStop.ts` が `attackId`（`heavy` = 8F、`heavyCharged` = 12F + 画面振動、`runAttack` は強攻撃と同じ）で決める。
 
 ## 回復瓶（#48）
 
