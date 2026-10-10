@@ -42,7 +42,7 @@ function median(values: number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? 0;
 }
 
-registerViewPlugin('bossShowcase', ({ view }) => {
+registerViewPlugin('bossShowcase', ({ view, gameRenderer }) => {
   const params = new URLSearchParams(location.search);
   const requested = params.get('bossmodel');
   let boss: BossCharacter | undefined;
@@ -67,11 +67,16 @@ registerViewPlugin('bossShowcase', ({ view }) => {
     async load() {
       if (requested === null) return;
       const phase = requested === '2' ? 2 : 1;
-      const { assets, equipment } = await BossCharacter.load(
+      const { assets, equipment, lod } = await BossCharacter.load(
         await CharacterAssets.load(['knight']),
         await EquipmentAssets.load(),
       );
-      boss = BossCharacter.create(assets, equipment);
+      boss = BossCharacter.create(assets, equipment, lod);
+      const { preset } = gameRenderer.quality;
+      boss.lodConfig = {
+        nearDistance: preset.characterLod.nearDistance,
+        shadowDistance: preset.shadowRadius * 1.4,
+      };
       boss.root.position.copy(BOSS_AT);
       view.scene.add(boss.root);
       boss.bindParticles(view.particles);
@@ -114,6 +119,7 @@ registerViewPlugin('bossShowcase', ({ view }) => {
     update(dt) {
       if (!boss || !animator) return;
       thrown?.update(dt);
+      boss.updateLod(view.camera, view.shadowFocusTarget?.position);
       if (!fixedClip) {
         // 歩行位相はモデル空間の速度で進める（拡大後の歩幅。bossGait.ts）。計測のため固定刻みで進める
         const step = gaitParam === null ? Math.min(dt, 0.1) : FIXED_DT;

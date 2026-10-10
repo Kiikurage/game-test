@@ -42,7 +42,7 @@ function ring(radius: number, steps = 64): BufferGeometry {
  * 移動のアニメーションは位置の変化から速度を求めて再生する（技のモーションは E5-2 以降）。
  * `?debug` では距離帯（3.5m / 8m）の円と、状態・距離帯・直前の技・選択重みの表示を出す。
  */
-registerViewPlugin('boss', ({ game, view }) => {
+registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
   const system = bossSystemOf(game);
   const debug = isDebugEnabled(location.search);
   const root = new Group();
@@ -131,8 +131,13 @@ registerViewPlugin('boss', ({ game, view }) => {
 
   return {
     async load() {
-      const { assets, equipment } = await BossCharacter.load();
-      model = BossCharacter.create(assets, equipment);
+      const { assets, equipment, lod } = await BossCharacter.load();
+      model = BossCharacter.create(assets, equipment, lod);
+      const { preset } = gameRenderer.quality;
+      model.lodConfig = {
+        nearDistance: preset.characterLod.nearDistance,
+        shadowDistance: preset.shadowRadius * 1.4,
+      };
       model.root.visible = false;
       view.scene.add(model.root);
       model.bindParticles(view.particles);
@@ -160,9 +165,14 @@ registerViewPlugin('boss', ({ game, view }) => {
         lastValid = true;
         model.root.position.copy(p);
         model.root.rotation.y = boss.yaw;
+        const visible = model.updateLod(
+          view.camera,
+          view.shadowFocusTarget?.position ?? game.player.feet,
+        );
         if (model.phase !== boss.phase) model.setPhase(boss.phase);
         gait.advance(toModelSpeed(speed), dt, { profile: BOSS_LOCOMOTION });
-        animator.update(dt, bossMoveState(speed, gait));
+        // 画面にも影にも出ないときはアニメーションを省く
+        if (visible) animator.update(dt, bossMoveState(speed, gait));
         model.lateUpdate(dt);
       }
       if (overlay) {

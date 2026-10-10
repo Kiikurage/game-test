@@ -286,14 +286,20 @@ function createUndeadMaterial(
     // 熾火: 鎧の継ぎ目に沿った太めの亀裂（約 4 周期/m。細かいノイズだと全面がキラキラして見える）。
     // 武器は刃（+X 側）が熾火色に焼ける（大斧の刃。ローカル +X が刃、+Y が柄の先）。
     const seamCoord = positionLocal.mul(src.map ? 14 : 5.5);
-    const seamLine = float(1).sub(smoothstep(0.0, 0.04, abs(mx_noise_float(seamCoord))));
+    const seamLine = float(1).sub(smoothstep(0.0, 0.032, abs(mx_noise_float(seamCoord))));
     // 全面に網目が出ないよう、低周波のむらで「よく焼けた所」だけに絞る
-    const seamHeat = smoothstep(-0.15, 0.3, mx_noise_float(seamCoord.mul(0.23).add(7.3)));
+    const seamHeat = smoothstep(0.05, 0.5, mx_noise_float(seamCoord.mul(0.23).add(7.3)));
     const seam = seamLine.mul(seamHeat);
+    // 刃は縁だけ強く、面は薄く（面全体を強く光らせると白ピンクに飛んで、肌色の塊に見える）
     const blade = isWeapon
-      ? smoothstep(0.18, 0.4, positionLocal.x)
-          .mul(smoothstep(0.45, 0.62, positionLocal.y))
-          .mul(1.6)
+      ? smoothstep(0.3, 0.43, positionLocal.x)
+          .mul(smoothstep(0.5, 0.64, positionLocal.y))
+          .mul(0.95)
+          .add(
+            smoothstep(0.1, 0.3, positionLocal.x)
+              .mul(smoothstep(0.45, 0.62, positionLocal.y))
+              .mul(0.12),
+          )
       : float(0);
     emissive = emberGlow.mul(seam.mul(1.1).add(blade).add(rustMask.oneMinus().mul(0.03)));
   }

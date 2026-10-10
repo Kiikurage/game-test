@@ -454,13 +454,23 @@ function greatShield() {
 function cuirass(heavy) {
   const k = heavy ? 1.12 : 1;
   const ringAt = (y, rx, rz, cz = 0) => ({ y, ring: ellipse(rx * k, rz * k, 0, cz, 16) });
-  const shell = loft([
-    ringAt(1.0, 0.185, 0.135, 0.0),
-    ringAt(1.1, 0.2, 0.145, 0.0),
-    ringAt(1.24, 0.235, 0.165, 0.015),
-    ringAt(1.38, 0.245, 0.17, 0.01),
-    ringAt(1.47, 0.205, 0.14, 0.0),
-  ]);
+  const shell = loft(
+    heavy
+      ? [
+          ringAt(1.0, 0.165, 0.12, 0.0),
+          ringAt(1.1, 0.178, 0.128, 0.0),
+          ringAt(1.24, 0.225, 0.15, 0.02),
+          ringAt(1.38, 0.245, 0.155, 0.01),
+          ringAt(1.47, 0.2, 0.125, 0.0),
+        ]
+      : [
+          ringAt(1.0, 0.185, 0.135, 0.0),
+          ringAt(1.1, 0.2, 0.145, 0.0),
+          ringAt(1.24, 0.235, 0.165, 0.015),
+          ringAt(1.38, 0.245, 0.17, 0.01),
+          ringAt(1.47, 0.205, 0.14, 0.0),
+        ],
+  );
   const belt = loft([ringAt(1.04, 0.2, 0.15), ringAt(1.1, 0.208, 0.155)]);
   const ridge = box(0, 1.28, 0.18 * k, 0.025, 0.3, 0.03);
   const rivets = merge(
@@ -483,17 +493,18 @@ function cuirass(heavy) {
 }
 
 /** 左肩の肩当て（T ポーズ、キャラクターの左 = +X）。size で大きさを変える。 */
-function pauldronLeft(size, tiers) {
+function pauldronLeft(size, tiers, flat = 1) {
+  // flat < 1: 低い（平たい）板金。大型（ボス）は球の塊に見えないよう、薄い板を段々に重ねる
   const dome = (s) =>
     lathe(
       [
         [
           [0.15 * s, 0.0],
-          [0.145 * s, 0.03 * s],
-          [0.12 * s, 0.075 * s],
-          [0.08 * s, 0.108 * s],
-          [0.03 * s, 0.125 * s],
-          [0, 0.128 * s],
+          [0.145 * s, 0.03 * s * flat],
+          [0.12 * s, 0.075 * s * flat],
+          [0.08 * s, 0.108 * s * flat],
+          [0.03 * s, 0.125 * s * flat],
+          [0, 0.128 * s * flat],
         ],
       ],
       16,
@@ -502,7 +513,14 @@ function pauldronLeft(size, tiers) {
   for (let t = 0; t < tiers; t++) {
     const s = size * (1 + t * 0.14);
     parts.push(
-      transform(dome(s), compose(move(0, -0.045 * t * size, 0), rotZ(-38), move(0.2, 1.5, 0.0))),
+      transform(
+        dome(s),
+        compose(
+          move(0, -0.045 * t * size * (flat < 1 ? 1.9 : 1), 0),
+          rotZ(-38),
+          move(0.2, 1.5, 0.0),
+        ),
+      ),
     );
   }
   // 縁の返し
@@ -778,8 +796,8 @@ export const ITEMS = {
   CuirassHeavy: { build: () => cuirass(true), socket: 'spine_03' },
   Pauldron_L: { build: () => pauldronLeft(0.85, 1), socket: 'upperarm_l' },
   Pauldron_R: { build: () => mirrorParts(pauldronLeft(0.85, 1)), socket: 'upperarm_r' },
-  PauldronLarge_L: { build: () => pauldronLeft(1.12, 3), socket: 'upperarm_l' },
-  PauldronLarge_R: { build: () => mirrorParts(pauldronLeft(1.12, 3)), socket: 'upperarm_r' },
+  PauldronLarge_L: { build: () => pauldronLeft(0.98, 3, 0.55), socket: 'upperarm_l' },
+  PauldronLarge_R: { build: () => mirrorParts(pauldronLeft(0.98, 3, 0.55)), socket: 'upperarm_r' },
   Vambrace_L: { build: vambraceLeft, socket: 'lowerarm_l' },
   Vambrace_R: { build: () => mirrorParts(vambraceLeft()), socket: 'lowerarm_r' },
   Greave_L: { build: greaveLeft, socket: 'calf_l' },

@@ -243,10 +243,10 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 2032740,
+  "totalBytes": 2032668,
   "equipment": {
     "file": "equipment.glb",
-    "bytes": 109208,
+    "bytes": 109136,
     "triangles": 4490,
     "textureMemoryBytes": 0,
     "items": {

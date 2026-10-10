@@ -1,11 +1,25 @@
-import { Quaternion, Vector3, type Group, type Mesh, type Object3D } from 'three/webgpu';
+import {
+  Frustum,
+  Matrix4,
+  MeshStandardNodeMaterial,
+  Quaternion,
+  Sphere,
+  Vector3,
+  type Camera,
+  type Group,
+  type Mesh,
+  type Object3D,
+} from 'three/webgpu';
 import type { EmberField, ParticleSystem } from '../particles';
 import { BOSS_SCALE } from '../boss/bossGait';
 import { emberPulse } from '../boss/bossLook';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
+import { captureUndeadSources, createUndeadColorizer } from '../undead/undeadLod';
 import { BOSS_VARIANT } from '../undead/variants';
 import type { Character } from './character';
 import { CharacterAssets } from './characterAssets';
+import { createLodBuilder, type CharacterLod, type CharacterLodBuilder } from './characterLod';
+import { createCanvasSampler, type TextureSampler } from './textureSampler';
 import { EquipmentAssets } from './equipment';
 
 /**
@@ -26,6 +40,23 @@ import { EquipmentAssets } from './equipment';
  */
 export const BOSS_EMBER_FIELD = { radius: 1.3, height: 1.7 } as const;
 
+/** 簡略メッシュ（遠景・影）の作成に使うもの。`BossCharacter.load` が用意する（`?lod=0` では undefined）。 */
+export interface BossLodAssets {
+  readonly builder: CharacterLodBuilder;
+  readonly material: MeshStandardNodeMaterial;
+  readonly sampler: TextureSampler;
+}
+
+/** ボスの LOD 設定（`GameView` の品質プリセットから）。nearDistance には体格（2.2 倍）が掛かる。 */
+export interface BossLodConfig {
+  nearDistance: number;
+  shadowDistance: number;
+}
+
+/** 詳細 ↔ 簡略の切り替えのヒステリシス幅（m）と、画面外でも長い影が入りうる分の広がり（m）。 */
+const LOD_HYSTERESIS = 1.5;
+const SHADOW_REACH = 9;
+
 export type BossGrip = 'shield' | 'twoHand';
 
 const SHIELD_ID = 'GreatShield';
@@ -37,6 +68,13 @@ const smooth = (t: number): number => {
   const k = Math.min(1, Math.max(0, t));
   return k * k * (3 - 2 * k);
 };
+
+function isDetachableProp(mesh: Object3D): boolean {
+  for (let o: Object3D | null = mesh; o; o = o.parent) {
+    if (o.name === `equip:${AXE_ID}` || o.name === `equip:${SHIELD_ID}`) return true;
+  }
+  return false;
+}
 
 export class BossCharacter {
   readonly root: Group;
@@ -54,6 +92,14 @@ export class BossCharacter {
   private emberField: EmberField | undefined;
   private particles: ParticleSystem | undefined;
 
+  /** 簡略メッシュ（遠景・影）。作れなかった / `?lod=0` のときは null。 */
+  readonly lod: CharacterLod | null;
+  lodConfig: BossLodConfig = { nearDistance: Infinity, shadowDistance: Infinity };
+  private near = true;
+  private readonly frustum = new Frustum();
+  private readonly projection = new Matrix4();
+  private readonly sphere = new Sphere();
+
   private readonly pr = new Vector3();
   private readonly pl = new Vector3();
   private readonly dir = new Vector3();
@@ -67,7 +113,9 @@ export class BossCharacter {
     readonly character: Character,
     private readonly equipment: EquipmentAssets,
     look: UndeadLook,
+    lod: CharacterLod | null,
   ) {
+    this.lod = lod;
     this.root = character.root;
     this.look = look;
     this.shieldHolder = character.root.getObjectByName(`equip:${SHIELD_ID}`) ?? undefined;
@@ -82,18 +130,40 @@ export class BossCharacter {
   static async load(
     assets?: CharacterAssets,
     equipment?: EquipmentAssets,
-  ): Promise<{ assets: CharacterAssets; equipment: EquipmentAssets }> {
-    const [a, e] = await Promise.all([
+  ): Promise<{ assets: CharacterAssets; equipment: EquipmentAssets; lod?: BossLodAssets }> {
+    const [a, e, builder] = await Promise.all([
       assets ?? CharacterAssets.load(['knight']),
       equipment ?? EquipmentAssets.load(),
+      createLodBuilder().catch((err: unknown) => {
+        console.error('character LOD unavailable', err);
+        return undefined;
+      }),
     ]);
-    return { assets: a, equipment: e };
+    if (!builder) return { assets: a, equipment: e };
+    return {
+      assets: a,
+      equipment: e,
+      lod: {
+        builder,
+        material: new MeshStandardNodeMaterial({
+          vertexColors: true,
+          roughness: 0.9,
+          metalness: 0.1,
+        }),
+        sampler: createCanvasSampler(),
+      },
+    };
   }
 
   /** ボスを 1 体作る。`root` をシーンへ追加して使う（足元が原点、+Z 向き、身長 約 4.0m）。 */
-  static create(assets: CharacterAssets, equipment: EquipmentAssets): BossCharacter {
+  static create(
+    assets: CharacterAssets,
+    equipment: EquipmentAssets,
+    lodAssets?: BossLodAssets,
+  ): BossCharacter {
     const character = assets.createCharacter('knight', { sword: false, shield: false });
     equipment.equipLoadout(character, 'boss');
+    const sources = captureUndeadSources(character.root);
     const look = applyUndeadLook(character.root, BOSS_VARIANT);
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {
@@ -102,8 +172,15 @@ export class BossCharacter {
         mesh.receiveShadow = true;
       }
     });
+    // 簡略メッシュ: 骨に固定された身体・鎧・兜・マントを 1 本に結合する（遠景・影用）。
+    // 斧（両手持ちで手の線に合わせる）と盾（投げ捨てる）は結合しない。常に詳細で描き、自分で影を落とす
+    const lod =
+      lodAssets?.builder.create(character.root, lodAssets.material, {
+        colorize: createUndeadColorizer(sources, BOSS_VARIANT, lodAssets.sampler),
+        exclude: isDetachableProp,
+      }) ?? null;
     character.root.scale.setScalar(BOSS_SCALE);
-    return new BossCharacter(character, equipment, look);
+    return new BossCharacter(character, equipment, look, lod);
   }
 
   get phase(): 1 | 2 {
@@ -203,6 +280,35 @@ export class BossCharacter {
     }
     this.emberField?.place(this.root.position.x, this.root.position.y, this.root.position.z);
     if (this.gripValue === 'twoHand') this.alignAxe();
+  }
+
+  /**
+   * 毎フレーム呼ぶ（`lateUpdate` の前）。距離・視錐台から詳細 / 簡略 / 非表示と、影の簡略メッシュの要否を決める。
+   * フェーズ 2（熾火）と撃破演出（ディゾルブ）は詳細メッシュのまま（簡略メッシュには発光・ディゾルブが無い）。
+   * 戻り値が false のときは画面にも影にも出ない（アニメーション更新を省いてよい）。
+   */
+  updateLod(camera: Camera, shadowFocus?: Vector3): boolean {
+    const { lod } = this;
+    if (!lod) return true;
+    camera.updateMatrixWorld();
+    this.projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.projection);
+    const size = BOSS_SCALE;
+    const pos = this.root.position;
+    this.sphere.center.copy(pos);
+    this.sphere.center.y += 0.9 * size;
+    this.sphere.radius = 1.3 * size;
+    const inView = this.frustum.intersectsSphere(this.sphere);
+    this.sphere.radius += SHADOW_REACH;
+    const shadowVisible = this.frustum.intersectsSphere(this.sphere);
+    const dist = camera.position.distanceTo(pos);
+    const focusDist = shadowFocus ? pos.distanceTo(shadowFocus) : 0;
+    const shadow = shadowVisible && focusDist < this.lodConfig.shadowDistance;
+    const nearDistance = this.lodConfig.nearDistance * size + (this.near ? LOD_HYSTERESIS : 0);
+    this.near = dist < nearDistance || this.emberValue > 0 || this.look.dissolve > 0;
+    if (this.look.dissolve >= 1) lod.apply('none', false);
+    else lod.apply(inView ? (this.near ? 'near' : 'far') : 'none', shadow);
+    return !lod.isIdle;
   }
 
   /** 熾火パーティクルを返却し、マテリアルを解放する。シーンからの除去は呼び出し側で行う。 */
