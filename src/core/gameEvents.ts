@@ -55,6 +55,17 @@ export interface BossBattleEvents {
     readonly hp: number;
     readonly transitionFrames: number;
   };
+  /**
+   * フェーズ移行の演出の節目（#84 / 6.5 節）。`bossPhaseBoundary` の後、ボスの移行 F に同期して発行する（`frame` = 移行の F。開始は 0）。
+   * `end` は F120（戦闘再開）。移行の途中でボスがリセットされたときは、その場で `end`（`aborted: true`）を発行する。
+   * 描画（盾投げ・咆哮・熾火・画面の縁）・UI（HP バーの境界の光）はこれと `bossTransitionOf(game).frame` を読む。
+   */
+  bossTransition: {
+    readonly id: string;
+    readonly cue: 'start' | 'flinchEnd' | 'shieldThrow' | 'roar' | 'roarEnd' | 'end';
+    readonly frame: number;
+    readonly aborted: boolean;
+  };
   /** 撃破（HP 0）。 */
   bossDefeated: {
     readonly id: string;
@@ -191,6 +202,14 @@ export interface GameEventMap {
     readonly frames: number;
   };
   /**
+   * BGM のレイヤー追加指示（フェーズ 2 の `bgm.boss-layer` など）。`bgm.boss` と同じ再生位置から `frames` かけてクロスフェードで重ねる。
+   * 実処理は audio 層（購読は E7-4b）。
+   */
+  bgmLayer: {
+    readonly layer: string;
+    readonly frames: number;
+  };
+  /**
    * ボスの叩きつけ（跳躍叩きつけの着地など）。着地の衝撃の演出（パーティクル・破片）が購読する。
    * 画面振動は game 側が `slamAt`（カメラ演出）で出すので、ここでは出さない。
    */
@@ -206,6 +225,7 @@ export interface GameEventMap {
   bossEngaged: BossBattleEvents['bossEngaged'];
   bossHpChanged: BossBattleEvents['bossHpChanged'];
   bossPhaseBoundary: BossBattleEvents['bossPhaseBoundary'];
+  bossTransition: BossBattleEvents['bossTransition'];
   bossDefeated: BossBattleEvents['bossDefeated'];
   bossReset: BossBattleEvents['bossReset'];
   bossPillarHit: BossBattleEvents['bossPillarHit'];

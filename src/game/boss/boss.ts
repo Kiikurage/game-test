@@ -279,6 +279,11 @@ export class Boss implements BossMoveActor {
     return this.engaged;
   }
 
+  /** フェーズ移行の経過フレーム（開始の瞬間が 0、F1 から数える）。移行中でなければ -1。 */
+  get transitionFrame(): number {
+    return this.stateId === 'transition' ? this.stateFrames : -1;
+  }
+
   /** 無敵か（フェーズ移行中）。被弾側（`UprightTarget.invulnerable`）へ写す。 */
   get invulnerable(): boolean {
     return this.stateId === 'transition';
