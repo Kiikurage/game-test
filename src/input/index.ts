@@ -130,6 +130,10 @@ export class InputSystem implements InputReader {
     return this.buffer.has(action, this.clock);
   }
 
+  holdBuffer(dt: number): void {
+    this.buffer.extend(dt);
+  }
+
   clearBuffer(action?: Action): void {
     this.buffer.clear(action);
   }
