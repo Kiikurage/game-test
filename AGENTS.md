@@ -136,6 +136,15 @@ Node.js 22.12 以上。初回は `npm ci`。
   `e2e/helpers.ts` の `startGame(page)` で開始する（`#app[data-state]`: loading → ready → running ⇄ paused）。
   `npm run shot` は既定で開始後を撮る。`SHOT_STATE=ready|loading` で開始画面・ローディング画面を撮れる。
 
+### テストの安定性（時間依存のテストを書かない）
+
+- E2E で `page.waitForTimeout` や実時間の締切（`Date.now()`）を使わない。待ちはシミュレーション基準にする: `e2e/helpers.ts` の `waitSteps`（ステップ数）・`waitFrames`（描画フレーム数）・`holdKey`（ステップ数だけキー保持）・`tapKey`（短押し）、`expect.poll` による状態待ち、`window.__game.dev.advance(steps)`。
+  実時間でしか待てないもの（ループ開始前の非同期状態、実時間の入力速度が仕様のもの）だけ、理由をコメントして例外にする。
+- ロジック検証の E2E は `?quality=low&scale=0.25&nodraw` で開く（SwiftShader は遅く、実時間あたりのステップ数が大きく変動する）。
+- Rapier を使うユニットテストは必要十分なステップ数にとどめる。`vitest.config.ts` の `testTimeout` は 30 秒（並列負荷対策）。
+- 起動時の初回シェーダコンパイルはローディング中（`GameView.warmUp`）に済ませる。開始直後に描画が止まる前提のテストを書かない。
+- 新規・変更したテストは `--repeat-each=5` を並列負荷下で通してから PR にする。
+
 ## 9. ソース構成と依存方向
 
 ```

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
+import { startGame, tapKey, waitSteps } from './helpers';
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -389,7 +389,7 @@ test('R drinks a flask: the drinking animation plays and HP is restored at F26',
 
   // HP 満タンでは飲まない（瓶は減らない）
   await page.keyboard.press('KeyR');
-  await page.waitForTimeout(500);
+  await waitSteps(page, 30);
   expect((await sim(page)).player.state).toBe('idle');
   expect((await sim(page)).combat.flask).toBe(2);
 });
