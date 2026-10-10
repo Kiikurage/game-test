@@ -179,3 +179,23 @@ describe('toRanges', () => {
     ]);
   });
 });
+
+describe('registered moves (E5-3)', () => {
+  it('overhead can be rolled left and right at F36-F46 (spec 6.3)', () => {
+    for (const direction of ['left', 'right'] as const) {
+      const { frames } = findDodgeWindows(
+        { move: 'overhead', phase: 1 },
+        { direction, from: 1, to: 60 },
+      );
+      for (let f = 36; f <= 46; f++) expect(frames).toContain(f);
+      expect(frames).not.toContain(47);
+    }
+  });
+
+  it('every registered basic move yields a dodge window', () => {
+    for (const move of ['overhead', 'sweep', 'combo3'] as const) {
+      const w = findDodgeWindows({ move, phase: 1 }, { direction: 'toward' });
+      expect(w.windows.length, move).toBeGreaterThan(0);
+    }
+  });
+});
