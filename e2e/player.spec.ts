@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey, waitSteps } from './helpers';
+import { clickInPage, clickWhenPlayerFrame, startGame, tapKey, waitSteps } from './helpers';
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -407,27 +407,15 @@ test('left clicks chain the 3-hit light combo and each swing hits the dummy once
     .toBe(true);
   expect((await sim(page)).combat.hits).toBe(0);
 
-  const click = () => page.mouse.click(640, 360);
-  const waitFrame = (state: string, frame: number) =>
-    expect
-      .poll(
-        async () => {
-          const p = (await sim(page)).player;
-          return p.state === state && p.stateFrame >= frame;
-        },
-        { timeout: 30_000 },
-      )
-      .toBe(true);
-
-  // 軽 1（先行入力は 10F・窓は F20 から）。F12 以降に押せば F20 の窓で次段へ繋がる。
-  await click();
+  // 軽 1（先行入力は 10F・窓は F20〜F48）。F12 で命中するとヒットストップ（4F）の間も入力バッファの時計は進むため、
+  // ヒットストップ明けの F15 以降に押せば F20 の窓まで先行入力が残り、次段へ繋がる。
+  // 待機と入力はページ内の同一フレームで行う（CDP 往復の間にシミュレーションが進んで窓を逃すのを防ぐ）。
+  await clickInPage(page);
   await expect.poll(async () => (await sim(page)).player.state).toBe('light1');
   expect((await sim(page)).events.attackStart).toBe(1);
-  await waitFrame('light1', 12);
-  await click();
+  await clickWhenPlayerFrame(page, 'light1', 15, 40);
   await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('light2');
-  await waitFrame('light2', 12);
-  await click();
+  await clickWhenPlayerFrame(page, 'light2', 15, 40);
   await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('light3');
 
   // 3 段それぞれが 1 回ずつ命中し、終わると待機へ戻る
