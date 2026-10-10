@@ -16,6 +16,7 @@ import {
   mx_noise_float,
   positionLocal,
   positionWorld,
+  normalWorld,
   sin,
   cos,
   smoothstep,
@@ -71,6 +72,7 @@ export function createEnvironmentMaterials(): Record<EnvironmentGroup, Material>
 export function createGroundMaterial(): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
   const stone = attribute('stone', 'float');
+  const path = attribute('path', 'float');
   const p = positionWorld.xz;
 
   // 敷石（running bond）: 1.15m × 0.68m
@@ -97,7 +99,33 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
   const fine = mx_noise_float(positionWorld.mul(11));
   const dirt = float(0.84).add(coarse.mul(0.26)).add(mid.mul(0.16)).add(fine.mul(0.1));
 
-  const factor = mix(dirt, flag.mul(dirt.mul(0.5).add(0.5)), stone.mul(patch));
+  // 踏み固められた道: 縁は湿って暗い轍、中は砂利の粒が明るく光る。道の外は草の根が張って暗い斑が出る
+  const pebble = smoothstep(0.35, 0.6, mx_noise_float(positionWorld.mul(23)));
+  const rut = smoothstep(0.25, 0.6, path).mul(float(1).sub(smoothstep(0.6, 0.95, path)));
+  const tread = float(1)
+    .sub(rut.mul(0.22))
+    .add(pebble.mul(path).mul(0.45))
+    .sub(mx_noise_float(positionWorld.mul(5.5)).mul(path).mul(0.12));
+  const verge = float(1).sub(
+    smoothstep(0.0, 0.3, path)
+      .mul(float(1).sub(smoothstep(0.3, 0.6, path)))
+      .mul(0.12),
+  );
+
+  // 急斜面の岩肌: 縦に走る地層の縞と割れ目、粒状の凹凸（のっぺりした崖を避ける）
+  const rockMask = smoothstep(0.93, 0.74, normalWorld.y);
+  const strata = mx_noise_float(
+    vec3(positionWorld.x.mul(0.35), positionWorld.y.mul(2.4), positionWorld.z.mul(0.35)),
+  );
+  const grain = mx_noise_float(positionWorld.mul(4.3));
+  const rockTone = float(0.78).add(strata.mul(0.34)).add(grain.mul(0.14));
+  const rocky = mix(float(1), rockTone, rockMask);
+
+  const factor = mix(
+    dirt.mul(tread).mul(verge).mul(rocky),
+    flag.mul(dirt.mul(0.5).add(0.5)),
+    stone.mul(patch),
+  );
   material.colorNode = vec4(vec3(factor), 1);
   return material;
 }

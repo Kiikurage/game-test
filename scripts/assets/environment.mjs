@@ -119,7 +119,7 @@ export const ENV_COLORS = {
     const n = info?.n ?? [0, 1, 0];
     const tint = info?.tint ?? 1;
     const warm = fbm(x * 3.1, y * 3.1, z * 3.1);
-    let base = mix3([0.075, 0.077, 0.08], [0.175, 0.17, 0.162], warm);
+    let base = mix3([0.1, 0.1, 0.104], [0.235, 0.226, 0.208], warm);
     base = mix3(
       base,
       [0.16, 0.175, 0.2],
@@ -137,6 +137,15 @@ export const ENV_COLORS = {
     // エッジの欠けて明るい地肌
     base = mix3(base, [0.3, 0.28, 0.25], (info?.edge ?? 0) * 0.25);
     return base;
+  },
+  // 蔦・苔: 深い緑に、日の当たる所の黄緑と枯れた茶のむら
+  ivy(p, seed, info) {
+    const [x, y, z] = [p[0] + seed, p[1], p[2]];
+    const n = fbm(x * 9, y * 9, z * 9);
+    const tint = info?.tint ?? 1;
+    let c = mix3([0.02, 0.04, 0.016], [0.07, 0.1, 0.03], n);
+    c = mix3(c, [0.09, 0.07, 0.03], smooth(0.6, 0.85, fbm(x * 5 + 7, y * 5, z * 5)) * 0.5);
+    return c.map((v) => v * tint);
   },
   darkStone(p, seed) {
     const n = fbm(p[0] * 5 + seed, p[1] * 5, p[2] * 5);
@@ -212,87 +221,275 @@ export const ENV_COLORS = {
 // ---------------------------------------------------------------- 積み石の壁モジュール（長さ 2m × 厚さ 0.7m）
 
 /**
- * 石積みの壁 1 区画（x 方向に len、厚み t、高さ h）。段ごとに石を running bond で積み、ruin > 0 で上の石が
- * 欠けて凸凹になる。window で尖頭アーチの窓を開ける。原点 = 底面中央。
+ * 積み石の壁 1 区画（x 方向に len、厚み t、高さ h）。段ごとに小ぶりの石を running bond で積み（段の高さ・石の幅・
+ * 出入りをばらつかせる）、土台の大きな石組み・ruin > 0 で上の石が欠けた凸凹・蔦と苔の塊で変化をつける。
+ * window で尖頭アーチ（ゴシックの二心アーチ）の窓を開け、迫石の縁取りを巡らせる。beams で崩れた屋根の梁を突き出す。
+ * 原点 = 底面中央。
  */
-function wallModule({ len = 2, h = 3.6, t = 0.7, seed = 1, ruin = 0, window = false }) {
+function wallModule({
+  len = 2,
+  h = 3.6,
+  t = 0.7,
+  seed = 1,
+  ruin = 0,
+  window = false,
+  beams = false,
+}) {
   const rnd = rng(seed);
   const parts = [];
-  // 芯（石の隙間から見える暗い面）。欠けた上端より低く
-  parts.push(
-    part(
-      box(0, h * 0.5 * (1 - ruin * 0.4), 0, len - 0.06, h * (1 - ruin * 0.4), t * 0.78),
-      'darkStone',
-    ),
-  );
 
-  // 欠けた上端の高さ（0.5m 幅の列ごと）
-  const cols = Math.max(1, Math.round(len / 0.5));
-  const colTop = Array.from({ length: cols }, () => h * (1 - ruin * (0.12 + 0.55 * rnd())));
+  // 尖頭窓の寸法（開口の幅 ww、アーチの起点 ys、頂点 ys + 0.866 ww）
+  const ww = 0.86;
+  const sill = h * 0.34;
+  const ys = h * 0.56;
+  const hwAt = (y) => {
+    // 二心アーチの縁の半幅（y は絶対値）
+    const dy = y - ys;
+    if (dy <= 0) return ww / 2;
+    if (dy >= 0.866 * ww) return 0;
+    return Math.max(0, -ww / 2 + Math.sqrt(ww * ww - dy * dy));
+  };
+  const apex = ys + 0.866 * ww;
+
+  // 窓の開口（アーチ部分は段付きの矩形で近似する）
+  const holes = [];
+  if (window) {
+    holes.push({ x0: -ww / 2, x1: ww / 2, y0: sill, y1: ys });
+    const steps = 7;
+    for (let i = 0; i < steps; i++) {
+      const y0 = ys + (i / steps) * 0.866 * ww;
+      const y1 = ys + ((i + 1) / steps) * 0.866 * ww;
+      const hw = hwAt(y0 + (y1 - y0) * 0.5);
+      if (hw > 0.015) holes.push({ x0: -hw, x1: hw, y0, y1 });
+    }
+  }
+  const carve = (a, b, y0, y1) => {
+    let pieces = [[a, b]];
+    for (const hole of holes) {
+      if (y1 <= hole.y0 + 1e-6 || y0 >= hole.y1 - 1e-6) continue;
+      const next = [];
+      for (const [p, q] of pieces) {
+        if (q <= hole.x0 || p >= hole.x1) next.push([p, q]);
+        else {
+          if (p < hole.x0) next.push([p, hole.x0]);
+          if (q > hole.x1) next.push([hole.x1, q]);
+        }
+      }
+      pieces = next;
+    }
+    return pieces;
+  };
+
+  // 芯（石の隙間から見える暗い面）。欠けた上端より低く。窓の開口は抜く
+  const coreTop = h * (1 - ruin * 0.93) - 0.12;
+  const bands = [0, ...(window ? [sill, ys, apex] : []), coreTop].filter(
+    (v, i, a) => v <= coreTop && (i === 0 || v > a[i - 1]),
+  );
+  for (let i = 0; i + 1 < bands.length; i++) {
+    const y0 = bands[i];
+    const y1 = bands[i + 1];
+    const mid = (y0 + y1) / 2;
+    const inWindowBand = window && mid > sill && mid < apex;
+    const cut = inWindowBand ? hwAt(y0) + 0.02 : 0;
+    const spans = inWindowBand
+      ? [
+          [-len / 2 + 0.03, -cut],
+          [cut, len / 2 - 0.03],
+        ]
+      : [[-len / 2 + 0.03, len / 2 - 0.03]];
+    for (const [a, b] of spans) {
+      if (b - a < 0.05) continue;
+      parts.push(part(box((a + b) / 2, (y0 + y1) / 2, 0, b - a, y1 - y0, t * 0.74), 'darkStone'));
+    }
+  }
+
+  // 欠けた上端の高さ（0.35m 幅の列ごと。長い欠けと短い欠けが混ざる）
+  const cols = Math.max(1, Math.round(len / 0.35));
+  let wave = rnd();
+  const colTop = Array.from({ length: cols }, () => {
+    wave = Math.min(1, Math.max(0, wave + (rnd() - 0.5) * 0.9));
+    return h * (1 - ruin * (0.08 + 0.85 * wave));
+  });
   const topAt = (x) =>
     colTop[Math.min(cols - 1, Math.max(0, Math.floor(((x + len / 2) / len) * cols)))];
-
-  // 窓の開口（2 つの矩形で尖頭形を近似）
-  const holes = window
-    ? [
-        { x0: -0.42, x1: 0.42, y0: h * 0.42, y1: h * 0.76 },
-        { x0: -0.2, x1: 0.2, y0: h * 0.76, y1: h * 0.9 },
-      ]
-    : [];
 
   let y = 0;
   let row = 0;
   while (y < h - 0.05) {
-    const rh = Math.min(h - y, 0.5 + 0.18 * rnd());
-    let x = -len / 2 + (row % 2 ? 0.45 : 0) * rnd();
-    // 段の先頭: 半端な石で始めて running bond にする
-    let bl = row % 2 ? 0.35 + 0.3 * rnd() : 0.7 + 0.5 * rnd();
+    // 土台の 1 段目は大きな石、上へ行くほど小さく
+    const base = row === 0;
+    const rh = Math.min(h - y, base ? 0.46 : 0.24 + 0.17 * rnd());
+    const bulge = base ? 1.07 : 1;
+    let x = -len / 2;
+    let bl = (base ? 0.8 : row % 2 ? 0.18 + 0.3 * rnd() : 0.42 + 0.4 * rnd()) * (0.8 + 0.4 * rnd());
     while (x < len / 2 - 0.02) {
       const x1 = Math.min(len / 2, x + bl);
-      let pieces = [[x, x1]];
-      for (const hole of holes) {
-        if (y + rh <= hole.y0 + 1e-6 || y >= hole.y1 - 1e-6) continue;
-        const next = [];
-        for (const [a, b] of pieces) {
-          if (b <= hole.x0 || a >= hole.x1) next.push([a, b]);
-          else {
-            if (a < hole.x0) next.push([a, hole.x0]);
-            if (b > hole.x1) next.push([hole.x1, b]);
-          }
-        }
-        pieces = next;
-      }
-      for (const [a, b] of pieces) {
-        if (b - a < 0.12) continue;
+      for (const [a, b] of carve(x, x1, y, y + rh)) {
+        if (b - a < 0.1) continue;
         const cx = (a + b) / 2;
         if (y >= topAt(cx) - 0.02) continue; // 欠けて無い
         const ht = Math.min(rh, topAt(cx) - y);
-        const tt = t * (0.9 + 0.1 * rnd());
+        // 石ごとに壁面からの出入りと傾きをつけて、積み石の凹凸を出す
+        const tt = t * (0.86 + 0.14 * rnd()) * bulge;
         const g = slab(
           cx,
           y + ht / 2,
-          (rnd() - 0.5) * 0.05,
-          b - a - 0.035,
-          ht - 0.03,
+          (rnd() - 0.5) * 0.07,
+          b - a - 0.03,
+          ht - 0.025,
           tt,
-          (rnd() - 0.5) * 3,
+          (rnd() - 0.5) * 4,
+          (rnd() - 0.5) * 2,
+          (rnd() - 0.5) * 2,
         );
-        parts.push(part(g, 'stone', 0.6 + 0.65 * rnd()));
+        parts.push(part(g, 'stone', 0.55 + 0.7 * rnd()));
       }
       x = x1;
-      bl = 0.7 + 0.5 * rnd();
+      bl = (0.3 + 0.5 * rnd()) * (row % 3 === 0 ? 1.2 : 1);
     }
     y += rh;
     row++;
   }
+
   if (window) {
-    // 尖頭アーチの縁取り（2 枚の傾いた石 + 窓台）
-    const wy = h * 0.76;
-    const arch = (sgn) => slab(sgn * 0.23, wy + 0.2, 0, 0.62, 0.14, t * 0.96, 0, 0, sgn * 40);
-    parts.push(part(arch(-1), 'stone', 1.15));
-    parts.push(part(arch(1), 'stone', 1.15));
-    parts.push(part(slab(0, h * 0.42 - 0.04, 0.04, 1.04, 0.12, t * 1.04), 'stone', 1.2));
-    // 窓の奥は暗い（外が見えるので空側は抜ける）
+    // 尖頭アーチの縁取り（迫石）: 二心アーチの両側の弧に沿って石を並べる
+    const n = 6;
+    for (const sgn of [-1, 1]) {
+      for (let i = 0; i <= n; i++) {
+        const a = (i / n) * (Math.PI / 3); // 0..60°
+        // 右の弧は左の起点を中心に、左の弧は右の起点を中心に描く
+        const cx = sgn * (-ww / 2 + (ww + 0.09) * Math.cos(a));
+        const cy = ys + (ww + 0.09) * Math.sin(a);
+        const tilt = sgn > 0 ? (a * 180) / Math.PI : 180 - (a * 180) / Math.PI;
+        parts.push(
+          part(slab(cx, cy, 0.03, 0.2, 0.17, t * 0.96, 0, 0, tilt), 'stone', 1.05 + 0.25 * rnd()),
+        );
+      }
+    }
+    // 窓の縦枠（ジャンブ）の石と窓台
+    for (const sgn of [-1, 1]) {
+      let jy = sill;
+      while (jy < ys - 0.05) {
+        const jh = Math.min(ys - jy, 0.3 + 0.12 * rnd());
+        parts.push(
+          part(
+            slab(sgn * (ww / 2 + 0.09), jy + jh / 2, 0.03, 0.2, jh - 0.02, t * 0.97),
+            'stone',
+            1.1,
+          ),
+        );
+        jy += jh;
+      }
+    }
+    parts.push(part(slab(0, sill - 0.05, 0.07, ww + 0.34, 0.11, t * 1.08), 'stone', 1.2));
+    // 窓の下の割れた石（外へ張り出す）
+    parts.push(part(slab(ww * 0.28, sill - 0.2, 0.2, 0.34, 0.22, 0.2, 14, 0, 6), 'stone', 0.9));
+  }
+
+  // 蔦（壁面を這う緑の筋）と、壁の根元・段の上に付く苔の塊
+  const ivyCount = 2 + Math.floor(rnd() * 3);
+  for (let i = 0; i < ivyCount; i++) {
+    const ix = (rnd() - 0.5) * (len - 0.3);
+    if (window && Math.abs(ix) < ww / 2 + 0.2) continue;
+    const ih = Math.min(topAt(ix) - 0.2, 0.7 + h * 0.5 * rnd());
+    const side = rnd() < 0.5 ? 1 : -1;
+    parts.push(
+      part(
+        slab(
+          ix,
+          ih / 2 + 0.05,
+          side * t * 0.5,
+          0.1 + 0.1 * rnd(),
+          ih,
+          0.045,
+          0,
+          (rnd() - 0.5) * 6,
+          (rnd() - 0.5) * 18,
+        ),
+        'ivy',
+        0.7 + 0.6 * rnd(),
+      ),
+    );
+    for (let k = 0; k < 2; k++) {
+      const ky = 0.15 + (ih - 0.3) * rnd();
+      parts.push(
+        part(
+          rock(
+            ix + (rnd() - 0.5) * 0.25,
+            ky,
+            side * (t * 0.5 + 0.01),
+            0.12 + 0.1 * rnd(),
+            0.12,
+            0.05,
+            seed * 13 + i * 3 + k,
+            5,
+          ),
+          'ivy',
+          0.8 + 0.5 * rnd(),
+        ),
+      );
+    }
+  }
+  for (let i = 0; i < 2; i++) {
+    const mx = (rnd() - 0.5) * len;
+    if (window && Math.abs(mx) < ww / 2 + 0.2) continue;
+    parts.push(
+      part(
+        rock(
+          mx,
+          -0.04,
+          (rnd() < 0.5 ? 1 : -1) * t * 0.5,
+          0.28 + 0.15 * rnd(),
+          0.2,
+          0.14,
+          seed * 29 + i,
+          6,
+        ),
+        'ivy',
+        0.9,
+      ),
+    );
+  }
+
+  if (beams) {
+    // 崩れた屋根の梁: 壁を貫く水平の梁（片側が折れて突き出す）と、斜めに折れた垂木
+    const by = h * (0.8 - 0.1 * rnd());
+    const bx = (rnd() - 0.5) * 0.7;
+    const d = rnd() < 0.5 ? 1 : -1;
+    parts.push(
+      part(
+        limb(
+          [bx, by, -d * 0.18],
+          [bx + 0.05, by + 0.02, d * (t * 0.5 + 0.9 + 0.5 * rnd())],
+          0.115,
+          0.1,
+          4,
+        ),
+        'wood',
+        1,
+      ),
+    );
+    parts.push(
+      part(
+        limb([bx, by - 0.01, -d * t], [bx + 0.04, by - 0.02, -d * (t * 0.5 + 0.3)], 0.12, 0.11, 4),
+        'wood',
+        0.9,
+      ),
+    );
+    const rx = bx + (rnd() < 0.5 ? 0.6 : -0.6);
+    parts.push(
+      part(
+        limb(
+          [rx, by + 0.12, d * (t * 0.5 + 0.02)],
+          [rx + 0.1, by + 1.05 + 0.35 * rnd(), d * (t * 0.5 + 0.9)],
+          0.07,
+          0.05,
+          4,
+        ),
+        'wood',
+        1.1,
+      ),
+    );
   }
   return parts;
 }
@@ -1113,6 +1310,9 @@ export const ENV_ITEMS = {
   WallFullB: { build: () => wallModule({ h: wallHeights.Full, seed: 2, ruin: 0.3 }) },
   WallFullWindow: {
     build: () => wallModule({ h: wallHeights.Full, seed: 3, ruin: 0.12, window: true }),
+  },
+  WallFullBeam: {
+    build: () => wallModule({ h: wallHeights.Full, seed: 6, ruin: 0.22, beams: true }),
   },
   WallMid: { build: () => wallModule({ h: wallHeights.Mid, seed: 4, ruin: 0.4 }) },
   WallLow: { build: () => wallModule({ h: wallHeights.Low, seed: 5, ruin: 0.35 }) },
