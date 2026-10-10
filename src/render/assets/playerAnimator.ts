@@ -19,6 +19,15 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     fall: { clip: 'Jump_Loop', loop: true, delayFrames: 8, fadeIn: 0.12, fadeOut: 0.08 },
     // 着地硬直（10F / 22F）に、着地クリップの衝撃〜立ち上がりを合わせる
     land: { clip: 'Jump_Land', range: [0, 1.0], fadeIn: 0.04, fadeOut: 0.12, fallbackFrames: 10 },
+    // 強攻撃の溜め（#52）: Sword_Heavy_Combo の「剣を引いて低く構える」部分（クリップ f58–f66）を 14F で再生し、
+    // 構えのまま保持する（再生範囲を超えたら終端で止まる）。離すと `heavy` / `heavyCharged` が f66 から続きを振る。
+    heavyCharge: {
+      clip: 'Sword_Heavy_Combo',
+      range: [58 / 30, 66 / 30],
+      fadeIn: 0.08,
+      fadeOut: 0.1,
+      fallbackFrames: 14,
+    },
     // 被弾（#50）: 仰け反り 24F に Hit_Chest（0.33s）、転倒 48F に Hit_Knockback（0.83s）を引き伸ばして合わせる
     flinch: { clip: 'Hit_Chest', fadeIn: 0.03, fadeOut: 0.1, fallbackFrames: 24 },
     knockdown: { clip: 'Hit_Knockback', fadeIn: 0.03, fadeOut: 0.12, fallbackFrames: 48 },
@@ -33,6 +42,11 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     backstep: { fadeIn: 0.04, fadeOut: 0.1 },
     // ガードカウンター（盾の打撃。マーカー表 player.guardCounter）
     guardCounter: { fadeIn: 0.04, fadeOut: 0.12 },
+    // 強攻撃（#52）: 溜めの構えから続けて振るので入りは短く、振り下ろしの後はゆっくり構えを戻す
+    heavy: { fadeIn: 0.03, fadeOut: 0.15 },
+    heavyCharged: { fadeIn: 0.03, fadeOut: 0.15 },
+    // 走り攻撃（#52）: 走りからすぐ踏み込む
+    runAttack: { fadeIn: 0.05, fadeOut: 0.12 },
   },
   combatIdle: 'Sword_Idle',
   preload: [
@@ -45,6 +59,10 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     'light1',
     'light2',
     'light3',
+    'heavyCharge',
+    'heavy',
+    'heavyCharged',
+    'runAttack',
     'guardBreak',
     'guardCounter',
     'heal',

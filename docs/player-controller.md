@@ -162,6 +162,26 @@ lightAttackCapsule(id, feet, yaw, p, out)   // 各段の武器カプセルの軌
 - **アニメーション**: `Sword_Regular_A/B/C` を `clipHitFrame`（実測 8 / 8 / 20）で発生に合わせて再生し、振り終わり以降は `tail`（`Sword_Regular_A_Rec` / `_B_Rec`）を残りのフレームに合わせて再生する（軽 3 は C の全長が全体 52F にほぼ一致するので tail なし）。
 - **ヒットストップ・火花・被弾リアクション**: 命中（`HitEvent.attackId` が `light1〜3`）は #49 / #50 が購読する（`hitStop` イベント → `GameView` が火花）。
 
+## 強攻撃（溜め・スーパーアーマー）と走り攻撃（#52）
+
+仕様は vertical-slice.md の 2.3 節（強攻撃・走り攻撃・コンボ補足）・2.4 節（入力）。数値は `PLAYER_ACTIONS.heavy` / `heavyCharged` / `runAttack`、クリップとマーカーは `player.heavy` / `player.heavyCharged` / `player.runAttack`。
+
+```ts
+player.state          // 'heavyCharge'（溜め。ボタン保持中）→ 'heavy'（溜めなし）| 'heavyCharged'（フル溜め）/ 'runAttack'
+player.chargeFrames   // 溜め中の経過ステップ（溜め中でなければ 0。デバッグ・テスト用）
+player.reactor.poise.bonus   // スーパーアーマー中は 40 から削られる（`sim.player.poiseBonus`）
+heavyAttackCapsule / runAttackCapsule(feet, yaw, p, out)   // 武器カプセルの軌道（`playerAttack.ts`）
+```
+
+- **入力**: 右クリック / R2 / 強攻撃ボタン（`heavyAttack`。先行入力 10F）。ボタンを押したステップが `heavyCharge` の F1（地上・軽攻撃の窓・ロール F26 / バックステップ F18 / 回復 F36 のキャンセルから入れる）。ボタンを離したステップが `heavy` / `heavyCharged` の F1。
+- **溜め**: 保持したステップ数 N（離したステップは数えない）が 30 未満なら `heavy`、30 以上なら `heavyCharged`。30F を超えて保持しても最大のまま（補間なし）。溜め中は入力方向へ 1.0 m/s（`HEAVY_CHARGE_MOVE_SPEED`）。全体は溜め N + 66F（フル溜めは 30 + 66F）。溜め中もロール / バックステップで抜けられる（スタミナは消費済み）。
+- **スタミナ**: 溜め開始時に 28（溜めなしの値）を消費し、溜めが 30F に達した時点で差分 6 を消費する（フル溜めの合計は 34。29F で離せば 28 のまま）。0 のときは開始できない。0 へクランプされる消費は仕様どおり開始できる。
+- **スーパーアーマー**: `heavy` / `heavyCharged` の F6 から持続終了（F28）まで、`Poise.grant(40)`（窓の頭で 1 回）→ 窓を出たら `clearBonus`（`Player.applySuperArmor`）。加算分が先に削られるので、崩れない限り仰け反らない（`HitReactor`）。溜め中・硬直中は持たない。
+- **ロールへのキャンセル**: F44（持続終了 + 16F）から（先行入力あり）。強攻撃の後は軽攻撃 1（コンボ窓なし）。軽 1 / 2 / 3 の窓（F20 / F18 / F26 から）で強攻撃（溜め）へ移れる。
+- **走り攻撃**: ダッシュ中（`dash`）、または走り最高速の 75% 以上（`RUN_ATTACK_MIN_SPEED_RATIO`）で動いている `move` 中の軽攻撃入力。前の軽攻撃のコンボ窓が残っていれば次段が優先。前進 2.0m・キャンセル窓なし。
+- **アニメーション**: 溜めは `Sword_Heavy_Combo` の f58–f66（剣を引いて低く構える）を 14F で再生して保持（`states.heavyCharge`）。`heavy` / `heavyCharged` は f66 → f80（`clipHitFrame` 77 = 振り下ろし）の後、`tail` で f90–f121（剣を地面から戻す）を残りの硬直に合わせる。走り攻撃は `Sword_Dash` の f2–f13（`clipHitFrame` 10）+ tail f13–f46。
+- **ヒットストップ・画面振動**: `hitStop.ts` が `attackId`（`heavy` = 8F、`heavyCharged` = 12F + 画面振動、`runAttack` は強攻撃と同じ）で決める。
+
 ## 回復瓶（#48）
 
 仕様は vertical-slice.md の 2.1（瓶の数）・2.3 節（回復）・2.4 節（先行入力 6F）。数値は `PLAYER_ACTIONS.heal` / `healEmpty`、クリップとマーカーは `player.heal`（`Consume` 全体を 54F に合わせる。`healApply` F26・`cancelOpen` F30）/ `player.healEmpty`（前半 14F を 20F に）。

@@ -440,6 +440,72 @@ test('left clicks chain the 3-hit light combo and each swing hits the dummy once
   expect(after.player.stamina).toBeLessThan(100); // 3 段で 48 消費（回復待ち 45F のあと戻り始める）
 });
 
+test('holding right click charges the heavy attack and releasing swings it (Sword_Heavy_Combo, super armor, one hit)', async ({
+  page,
+}) => {
+  await boot(page);
+  await teleport(page, 0, -4.5, Math.PI);
+  await expect
+    .poll(() => page.evaluate(() => document.pointerLockElement !== null), { timeout: 10_000 })
+    .toBe(true);
+
+  await page.mouse.move(640, 360);
+  await page.mouse.down({ button: 'right' });
+  await expect
+    .poll(async () => (await sim(page)).player.state, { timeout: 30_000 })
+    .toBe('heavyCharge');
+  await expect
+    .poll(() => page.evaluate(() => window.__game?.playerView?.clip), { timeout: 30_000 })
+    .toBe('Sword_Heavy_Combo');
+  // 溜め 30F を超えても保持している間は溜めのまま（フル溜め）。溜め開始時に 28 消費。
+  await waitSteps(page, 40);
+  expect((await sim(page)).player.state).toBe('heavyCharge');
+  expect((await sim(page)).player.stamina).toBeLessThan(100 - 33);
+
+  await page.mouse.up({ button: 'right' });
+  await expect
+    .poll(async () => (await sim(page)).player.state, { timeout: 30_000 })
+    .toBe('heavyCharged');
+  expect((await sim(page)).events.attackStart).toBe(1);
+  // F6 以降はスーパーアーマー（強靭度 +40）
+  await expect
+    .poll(async () => (await sim(page)).player.stateFrame, { timeout: 30_000 })
+    .toBeGreaterThanOrEqual(8);
+  expect((await sim(page)).player.poiseBonus).toBe(40);
+
+  await expect.poll(async () => (await sim(page)).combat.hits, { timeout: 30_000 }).toBe(1);
+  await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('idle');
+  const after = await sim(page);
+  expect(after.combat.hits).toBe(1);
+  expect(after.combat.lastHitTarget).toBe('dummy-a');
+  expect(after.player.poiseBonus).toBe(0);
+});
+
+test('a left click while running starts the run attack (Sword_Dash)', async ({ page }) => {
+  await boot(page);
+  await teleport(page, 0, -1, Math.PI);
+  await expect
+    .poll(() => page.evaluate(() => document.pointerLockElement !== null), { timeout: 10_000 })
+    .toBe(true);
+
+  await page.keyboard.down('KeyW');
+  try {
+    await expect.poll(async () => (await sim(page)).player.speed).toBeGreaterThan(4);
+    await page.mouse.click(640, 360);
+    await expect
+      .poll(async () => (await sim(page)).player.state, { timeout: 30_000 })
+      .toBe('runAttack');
+    await expect
+      .poll(() => page.evaluate(() => window.__game?.playerView?.clip), { timeout: 30_000 })
+      .toBe('Sword_Dash');
+  } finally {
+    await page.keyboard.up('KeyW');
+  }
+  await expect
+    .poll(async () => (await sim(page)).player.state, { timeout: 30_000 })
+    .not.toBe('runAttack');
+});
+
 test('holding guard blocks a frontal hit (chip damage, stamina cost, 4F hit-stop) but not one from behind', async ({
   page,
 }) => {

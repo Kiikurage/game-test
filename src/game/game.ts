@@ -871,6 +871,7 @@ export class Game {
         grounded: p.grounded,
         stamina: p.stamina.current,
         invulnerable: p.invulnerable,
+        poiseBonus: p.reactor.poise.bonus,
         guard: {
           phase: p.animation.guard.phase,
           frame: p.guardFrame,
@@ -922,6 +923,8 @@ export interface GameDebugState {
     readonly grounded: boolean;
     readonly stamina: number;
     readonly invulnerable: boolean;
+    /** 強靭度の一時加算の残り（強攻撃のスーパーアーマー中は 40 から削られる）。 */
+    readonly poiseBonus: number;
     /** ガードの状態（見た目の段階・構えのフレーム・ガードカウンターの受付中・崩された回数）。 */
     readonly guard: {
       readonly phase: string;

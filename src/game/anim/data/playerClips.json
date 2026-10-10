@@ -70,6 +70,47 @@
       ]
     },
     {
+      "id": "player.heavy",
+      "clip": "Sword_Heavy_Combo",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 66, "endFrame": 80 },
+      "clipHitFrame": 77,
+      "tail": { "clip": "Sword_Heavy_Combo", "startFrame": 90, "endFrame": 121 },
+      "spec": { "startup": 22, "active": 6, "recovery": 38 },
+      "markers": [
+        { "type": "hitStart", "frame": 23 },
+        { "type": "hitEnd", "frame": 28 },
+        { "type": "cancelOpen", "frame": 44 }
+      ]
+    },
+    {
+      "id": "player.heavyCharged",
+      "clip": "Sword_Heavy_Combo",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 66, "endFrame": 80 },
+      "clipHitFrame": 77,
+      "tail": { "clip": "Sword_Heavy_Combo", "startFrame": 90, "endFrame": 121 },
+      "spec": { "startup": 22, "active": 6, "recovery": 38 },
+      "markers": [
+        { "type": "hitStart", "frame": 23 },
+        { "type": "hitEnd", "frame": 28 },
+        { "type": "cancelOpen", "frame": 44 }
+      ]
+    },
+    {
+      "id": "player.runAttack",
+      "clip": "Sword_Dash",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 2, "endFrame": 13 },
+      "clipHitFrame": 10,
+      "tail": { "clip": "Sword_Dash", "startFrame": 13, "endFrame": 46 },
+      "spec": { "startup": 14, "active": 5, "recovery": 30 },
+      "markers": [
+        { "type": "hitStart", "frame": 15 },
+        { "type": "hitEnd", "frame": 19 }
+      ]
+    },
+    {
       "id": "player.guardCounter",
       "clip": "Shield_Dash",
       "clipFps": 30,

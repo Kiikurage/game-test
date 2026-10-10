@@ -1,4 +1,5 @@
 import { PLAYER_ACTIONS, PLAYER_STATS, attackDamage } from '../data';
+import type { PlayerAttackId } from '../player/playerStates';
 import { vec3, type Capsule, type Vec3 } from './geometry';
 import type { ActiveAttack, AttackProfile, HitEvent, HitResolver } from './hitResolver';
 import { capsuleShape } from './shapes';
@@ -7,9 +8,7 @@ import { WEAPON_CAPSULE } from './weaponPose';
 const DEG = Math.PI / 180;
 
 /** 軽攻撃 1 の判定プロファイル（ダメージは基本攻撃力 × 倍率）。 */
-export function playerAttackProfile(
-  id: 'light1' | 'light2' | 'light3' | 'heavy' | 'guardCounter',
-): AttackProfile {
+export function playerAttackProfile(id: PlayerAttackId): AttackProfile {
   const a = PLAYER_ACTIONS[id];
   return {
     id,

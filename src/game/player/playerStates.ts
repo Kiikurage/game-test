@@ -16,6 +16,12 @@ export type PlayerStateId =
   | 'light1'
   | 'light2'
   | 'light3'
+  // 強攻撃（#52）: 溜め（ボタン保持。歩き 1.0 m/s）→ 離すと発生へ。溜め 30F 未満は `heavy`、30F 以上は `heavyCharged`。
+  // 走り攻撃: ダッシュ・走り中の攻撃入力。
+  | 'heavyCharge'
+  | 'heavy'
+  | 'heavyCharged'
+  | 'runAttack'
   // 回復瓶（#48）: 全体 54F（F26 で HP 加算）/ 残数 0 の空振り 20F
   | 'heal'
   | 'healEmpty'
@@ -34,11 +40,24 @@ export type PlayerStateId =
 export const LIGHT_ATTACK_IDS = ['light1', 'light2', 'light3'] as const;
 export type LightAttackId = (typeof LIGHT_ATTACK_IDS)[number];
 
-/** 攻撃判定を出す動作の ID（軽攻撃 + ガードカウンター）。状態 ID・`PLAYER_ACTIONS` のキー・マーカー表が一致する。 */
-export type PlayerAttackId = LightAttackId | 'guardCounter';
+/** 強攻撃の動作 ID（溜めなし / フル溜め）。どちらも発生 22・持続 6・硬直 38 で、F6〜持続終了がスーパーアーマー。 */
+export const HEAVY_ATTACK_IDS = ['heavy', 'heavyCharged'] as const;
+export type HeavyAttackId = (typeof HEAVY_ATTACK_IDS)[number];
+
+/** 攻撃判定を出す動作の ID（軽攻撃・強攻撃・走り攻撃・ガードカウンター）。状態 ID・`PLAYER_ACTIONS` のキー・マーカー表が一致する。 */
+export type PlayerAttackId = LightAttackId | HeavyAttackId | 'runAttack' | 'guardCounter';
 
 export function isAttackState(state: PlayerStateId): state is PlayerAttackId {
-  return isLightAttackState(state) || state === 'guardCounter';
+  return (
+    isLightAttackState(state) ||
+    isHeavyAttackState(state) ||
+    state === 'runAttack' ||
+    state === 'guardCounter'
+  );
+}
+
+export function isHeavyAttackState(state: PlayerStateId): state is HeavyAttackId {
+  return state === 'heavy' || state === 'heavyCharged';
 }
 
 export function isLightAttackState(state: PlayerStateId): state is LightAttackId {
@@ -49,6 +68,8 @@ export function isLightAttackState(state: PlayerStateId): state is LightAttackId
 const REACTIONS = ['flinch', 'knockdown', 'dead'] as const;
 /** 回復瓶の動作（地上・ロール F26 以降から入る）。 */
 const HEALS = ['heal', 'healEmpty'] as const;
+/** 強攻撃の入口（溜め開始）。軽攻撃の窓・ロール/バックステップ/回復のキャンセル窓の `attack` から入れる。 */
+const HEAVY_ENTRY = 'heavyCharge';
 
 /** 遷移グラフ。ここにない遷移は `IllegalTransitionError` になる（状態機械が不正遷移を拒否する）。 */
 export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
@@ -63,6 +84,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       'fall',
       'guard',
       ...LIGHT_ATTACK_IDS,
+      HEAVY_ENTRY,
       ...HEALS,
       ...REACTIONS,
     ],
@@ -77,6 +99,8 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       'fall',
       'guard',
       ...LIGHT_ATTACK_IDS,
+      HEAVY_ENTRY,
+      'runAttack',
       ...HEALS,
       ...REACTIONS,
     ],
@@ -91,6 +115,8 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       'fall',
       'guard',
       ...LIGHT_ATTACK_IDS,
+      HEAVY_ENTRY,
+      'runAttack',
       ...HEALS,
       ...REACTIONS,
     ],
@@ -98,9 +124,9 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   // ロール終了・キャンセル: 移動・ダッシュ（ボタン保持）・停止・落下・攻撃・ガード・回復（F26 以降）
   roll: {
     kind: 'action',
-    to: ['idle', 'move', 'dash', 'fall', 'light1', 'guard', ...HEALS, ...REACTIONS],
+    to: ['idle', 'move', 'dash', 'fall', 'light1', HEAVY_ENTRY, 'guard', ...HEALS, ...REACTIONS],
   },
-  backstep: { kind: 'action', to: ['idle', 'move', 'light1', ...REACTIONS] },
+  backstep: { kind: 'action', to: ['idle', 'move', 'light1', HEAVY_ENTRY, ...REACTIONS] },
   // 小さな段差の乗り降りは着地せず立ち・移動へ戻る
   fall: { kind: 'move', to: ['idle', 'move', 'land', ...REACTIONS] },
   // 着地硬直: 途中からロール系で抜けられる
@@ -108,20 +134,36 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   // 軽攻撃: 次段（キャンセル窓）・ロール/バックステップ（キャンセル窓）・終了で移動系へ
   light1: {
     kind: 'action',
-    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'guard', 'light2', ...REACTIONS],
+    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'guard', 'light2', HEAVY_ENTRY, ...REACTIONS],
   },
   light2: {
     kind: 'action',
-    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'guard', 'light3', ...REACTIONS],
+    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'guard', 'light3', HEAVY_ENTRY, ...REACTIONS],
   },
   light3: {
     kind: 'action',
-    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'guard', ...REACTIONS],
+    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'guard', HEAVY_ENTRY, ...REACTIONS],
   },
+  // 強攻撃の溜め: ボタンを離すと発生へ（溜め 30F 未満 = heavy、以上 = heavyCharged）。溜め中もロールで抜けられる。
+  heavyCharge: {
+    kind: 'action',
+    to: ['heavy', 'heavyCharged', 'roll', 'backstep', 'fall', ...REACTIONS],
+  },
+  // 強攻撃: ロール/バックステップへは F44（持続終了 + 16F）から。終わりで移動系へ（次は軽攻撃 1）
+  heavy: {
+    kind: 'action',
+    to: ['idle', 'move', 'fall', 'roll', 'backstep', ...REACTIONS],
+  },
+  heavyCharged: {
+    kind: 'action',
+    to: ['idle', 'move', 'fall', 'roll', 'backstep', ...REACTIONS],
+  },
+  // 走り攻撃: キャンセル窓なし。終わりで移動系へ
+  runAttack: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   // 回復: F30 からロールへ、F36 から攻撃・ガードへキャンセル可。終了で移動系へ
   heal: {
     kind: 'action',
-    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'light1', 'guard', ...REACTIONS],
+    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'light1', HEAVY_ENTRY, 'guard', ...REACTIONS],
   },
   healEmpty: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   // 被弾の硬直。終了後は移動・待機・落下へ（硬直中は行動不能。再被弾は restart / 転倒への格上げ）
