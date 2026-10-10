@@ -10,5 +10,7 @@ declare module '../../devHooks' {
 }
 
 registerDevHooks('weapon-telegraph', () => ({
-  telegraphPreview: (kind) => setTelegraphPreview(kind),
+  telegraphPreview: (kind) => {
+    setTelegraphPreview(kind);
+  },
 }));
