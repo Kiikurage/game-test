@@ -439,3 +439,36 @@ boss.setEmber(emberAtTransitionFrame(frame));                           // 移�
 - **礼拝堂の壁**（`scripts/assets/environment.mjs` の `wallModule`）: 石を約半分の大きさに細分化し、段の高さ・出入り・傾きにばらつき、土台の大きな石、欠けた上端、蔦と苔の塊を追加。窓は二心アーチ（尖頭）の迫石つき。`WallFullBeam` は崩れた屋根の梁が突き出す区画。壁 1 区画 約 450〜900 tris（#34 では約 200）。
 - **地面**（`levelMaterials.ts`）: 道の轍と砂利、縁の湿り、急斜面の岩肌の地層。
 - 赤カプセルの仮マーカーは #34 以降すでに無い（敵は `?debug` の判定表示のみ）。
+
+### 7.13 環境: 地下墓所・中庭・鉄門 G1（Issue #44）
+
+エリア D（地下墓所）・E（中庭）・鉄門 G1 とレバーの見た目。**すべて自作（コードで生成）**で、外部アセット・テクスチャ・ライセンス上の出典はない（CC0 素材の取り込みは不要だった）。ジオメトリは起動時に `src/render/masonry/buildCrypt.ts` が `Level` のコライダ寸法から組み立てるので、見た目と当たりが一致する。
+
+| 種類 | 内容 |
+| --- | --- |
+| 石積みの構造物 | D の岩盤の壁（`d-*`）、E の外壁・壁の欠片（`e-wall-*`。上辺が欠ける）、折れた柱（`e-column-*`）、瓦礫（`e-rubble-*`）、G1 の路地の壁（`lane-*`。南北とも）。1 つの石積みマテリアル |
+| D の飾り | 台座の代わりに水平の持ち送りの帯、壁龕（2 段。棺の小口が突き出す）、石棺（`d-sarcophagus`。**蓋だけ別メッシュ + ピボット**）、たいまつ 7 本、蜘蛛の巣 6 枚 |
+| E の飾り | 控え壁、台座の帯、崩れた噴水（入口側の縁が崩れた水盤 + 折れた柱 + 淀んだ水面）、たいまつ 8 本 |
+| G1 | 石の門柱 2 本 + 楣、鉄の扉 2 枚（蝶番にピボット）、レバー（石の台 + 鉄の持ち手のピボット） |
+
+- **石積みマテリアル**（`masonry/masonryMaterial.ts`、TSL 1 つ。追加パスなし）: 座標は頂点属性 `mu`（m 単位の面座標。ワールド座標の箱射影を CPU で焼く。同一平面の壁で目地が連続し、傾いた瓦礫でも目地が水平）。互い違いの積み（段の高さ・石の長さが段ごとに違う）、目地は `fwidth` で画素の大きさに合わせて解析的にアンチエイリアス（遠景では平均の暗さへ溶かす）、石ごとの明度・色相のばらつき、面取りのハイライト、角の欠け、粒・汚れ、地面付近の湿り（暗く、苔）。目地と欠けは高さ場にして法線を揺らす（`detail ≥ 1`）。
+  - 品質: `low` は法線の揺らぎと細かいノイズなし、`medium` は全部、`high` は粒ノイズをもう 1 つ。
+  - たいまつの光は**ライトを増やさず**、マテリアルが 8 つまでの点（位置 + 強度）を距離減衰で `emissive` に足す（ゆらぎ付き。影は付かない）。床は光だまりの加算の板（炎と同じ 1 ドローコール）で補う。
+- 炎・光だまり（`masonry/glowMaterials.ts`）: 交差した 2 枚の板に TSL で炎の形（ノイズでゆらぐ）を描く加算マテリアル。蜘蛛の巣は扇形の板に放射状の糸と、たるんだ同心の糸を `fwidth` で描く（ちぎれ付き）。
+- 小物（鉄の金具・格子）は `propBuilder.ts` で頂点カラーのジオメトリへまとめ、`levelMaterials` の metal マテリアルで描く。
+- 通路幅 2.5m を侵さない: 壁の飾りは壁面から 0.4m 以内（`cryptLayout.ts` の `MAX_PROTRUSION`。単体テストで通路の中心線との余白を検証）。コライダは変えていない（既存の簡易形状のまま）。
+- 実測は PR に記載（`npm run perf` の視点 `crypt-*` / `courtyard-*`）。
+
+#### 後続チケット向け API（`src/render/masonry/crypt.view.ts`）
+
+`cryptPropsOf(view)`（`GameView` を渡す）が可動パーツのピボットを返す。**ゲームの状態は持たない**ので、動かすのは各チケットの `view` プラグインの責務。
+
+| パーツ | 使い方 |
+| --- | --- |
+| `sarcophagusLid`（#168 の待ち伏せ） | `pivot` は蓋の中心・下面。`pivot.position` / `pivot.rotation` を動かすと蓋だけが動く。閉じた位置は `closed`。身は固定メッシュ |
+| `gateLeaves`（E4-4c の開閉） | 蝶番の位置にある 2 つの `pivot`。`rotation.y = closedRotationY + openDelta`（±90°、北＝中庭側へ開く）で開く。持ち上げ式なら `position.y` を動かす |
+| `leverHandle` | `pivot.rotation.z` を `closedRotationZ` → `openRotationZ` |
+
+- `window.__game.dev.cryptInfo()` / `dev.poseCrypt({ lid, gate, lever })`（0 = 閉〜1 = 開）で E2E・撮影ができる。
+- `LevelView` は `cryptLayout.isMasonryProp(id)`（`d-*` / `e-*` / `lane-*`）のグレーボックスと、G1 の鉄門・レバーのグレーボックスを描かない。霧の門（E4-4d）のグレーボックスはそのまま。
+- 撮影: `SHOT_TOUR='名前:x,z,yaw,yawOffset[,距離,ピッチ];...' node scripts/shot-tour.mjs shots/tour`（1 回の読み込みで複数地点を撮る。`SHOT_ONLY=pc|mobile`、`SHOT_SKIP_BUILD=1`）。

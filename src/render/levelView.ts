@@ -32,6 +32,7 @@ import {
   createGroundMaterial,
 } from './levelMaterials';
 import type { Bonfire, ParticleSystem } from './particles';
+import { MASONRY_LEVER_ID, isMasonryGate, isMasonryProp } from './masonry/cryptLayout';
 
 const DEG = Math.PI / 180;
 /** 結合したグレーボックスの空間セルの一辺（m）。 */
@@ -221,11 +222,13 @@ export class LevelView {
 
     const materials = new Map<number, MeshStandardNodeMaterial>();
     for (const box of level.boxes) {
+      if (isMasonryProp(box.id)) continue; // 地下墓所・中庭は masonry/crypt.view.ts が描く
       const mesh = boxMesh(box, materials);
       this.grayboxById.set(box.id, mesh);
       this.root.add(mesh);
     }
     for (const cyl of level.cylinders) {
+      if (isMasonryProp(cyl.id)) continue;
       const object = cylinderObject(cyl);
       this.grayboxById.set(cyl.id, object);
       this.root.add(object);
@@ -394,6 +397,7 @@ export class LevelView {
   private addGates(): void {
     for (const g of this.level.gates) {
       const { def } = g;
+      if (isMasonryGate(def.id)) continue; // 鉄門 G1 は masonry/crypt.view.ts が描く
       const gate = new Group();
       gate.name = `gate:${def.id}`;
       gate.position.set(def.x, g.y, def.z);
@@ -425,7 +429,9 @@ export class LevelView {
       }
       this.root.add(gate);
     }
-    for (const lever of this.level.data.interactables.filter((i) => i.kind === 'lever')) {
+    for (const lever of this.level.data.interactables.filter(
+      (i) => i.kind === 'lever' && i.id !== MASONRY_LEVER_ID,
+    )) {
       const y = this.level.heightAt(lever.x, lever.z);
       const post = new Mesh(new BoxGeometry(0.3, 1, 0.3), COLUMN);
       post.position.set(lever.x, y + 0.5, lever.z);

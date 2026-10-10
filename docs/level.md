@@ -38,6 +38,10 @@ A〜C と塔の見た目は `environment.glb`（`docs/assets.md` 7.11 節）。`
 - 門は `LevelData.gates`（`GateDef`）。`Level.gates[].box` が塞ぐコライダで、`levelGameOptions().boxes` に入る。`Game.setBoxEnabled(門の id, bool)` で開閉できる（鉄門 `G1` は有効で開始、霧の門 `fog-gate` は無効で開始）。開閉の演出・レバー操作は別チケット。`interactables` の `G1` / `lever-g1`（80,36）/ `fog-gate` は座標のみ（`area: null` はエリア外の通路）。
 - ショートカット: `extraRoutes[0]`。中庭の西の入口 → 北の道 → G1 (78,32) → (68,8) → (34,-4.5) → A。G1 から A まで約 90m。G1 の南北の両側に壁（`lane-*`）。
 
+## D・E・G1 の見た目（#44）
+
+D の岩盤の壁・E の外壁・柱・噴水・石棺・G1 の鉄門とレバーは `src/render/masonry/` の石積みマテリアルで描く（`docs/assets.md` 7.13 節）。`LevelView` はそれらの id のグレーボックスを描かない（`masonry/cryptLayout.ts` の `isMasonryProp` / `isMasonryGate`）。コライダは変えていない。
+
 ## 外周の封鎖（#176）
 
 道の外側は岩壁（崖）で閉じてあり、D・G1・霧の門は迂回できない。実装は地形データだけ（描画・物理・敵のナビ格子が同じ高さ場を使うので、プレイヤーも敵も同じ崖で止まる。透明壁は使わない）。
