@@ -38,12 +38,15 @@ export function keysToMove(down: ReadonlySet<string>): { x: number; y: number } 
   return { x, y };
 }
 
-/** ロック取得後の最初の mousemove の移動量（px）がこれを超えたら異常値として捨てる。 */
+/** 異常値の判定を行う、ロック取得後の mousemove の数。 */
+export const SPIKE_CHECK_MOVES = 5;
+
+/** ロック取得後の最初の数回の mousemove の移動量（px）がこれを超えたら異常値として捨てる。 */
 export const FIRST_MOVE_SPIKE_PX = 300;
 
 /**
- * Pointer Lock を取得した後の最初の mousemove に、直前のカーソル位置との差が巨大な値（ビューポート半分ほど）で
- * まとめて届くことがある。最初の 1 イベントだけを対象に、異常に大きいものを捨てる（通常のプレイ中の素早い振りは捨てない）。
+ * Pointer Lock を取得した後の最初の数回の mousemove に、直前のカーソル位置との差が巨大な値（ビューポート半分ほど）で
+ * まとめて届くことがある。最初の数イベントだけを対象に、異常に大きいものを捨てる（通常のプレイ中の素早い振りは捨てない）。
  */
 export function isFirstMoveSpike(movementX: number, movementY: number): boolean {
   return Math.abs(movementX) > FIRST_MOVE_SPIKE_PX || Math.abs(movementY) > FIRST_MOVE_SPIKE_PX;
@@ -56,8 +59,8 @@ export function isFirstMoveSpike(movementX: number, movementY: number): boolean 
 export class KeyboardMouseInput {
   private readonly keys = new Set<string>();
   private lastWheelMs = Number.NEGATIVE_INFINITY;
-  /** Pointer Lock を取得してから、まだ mousemove を受けていない。 */
-  private awaitingFirstMove = false;
+  /** Pointer Lock を取得してから受けた mousemove の数（異常値の判定は最初の数イベントだけ）。 */
+  private movesSinceLock = Number.POSITIVE_INFINITY;
   private disposers: (() => void)[] = [];
 
   constructor(
@@ -85,7 +88,7 @@ export class KeyboardMouseInput {
       e.preventDefault();
     });
     this.listen(document, 'pointerlockchange', () => {
-      if (this.pointerLocked) this.awaitingFirstMove = true;
+      if (this.pointerLocked) this.movesSinceLock = 0;
       else this.releaseMouseButtons();
     });
   }
@@ -179,8 +182,8 @@ export class KeyboardMouseInput {
 
   private readonly onMouseMove = (e: MouseEvent): void => {
     if (!this.pointerLocked) return;
-    if (this.awaitingFirstMove) {
-      this.awaitingFirstMove = false;
+    if (this.movesSinceLock < SPIKE_CHECK_MOVES) {
+      this.movesSinceLock++;
       if (isFirstMoveSpike(e.movementX, e.movementY)) return;
     }
     this.onActivity();
