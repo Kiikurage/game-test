@@ -1,4 +1,12 @@
-import { Quaternion, Timer, Vector3, type Mesh, type Scene } from 'three/webgpu';
+import {
+  MeshBasicNodeMaterial,
+  Quaternion,
+  Timer,
+  Vector3,
+  type Mesh,
+  type Scene,
+} from 'three/webgpu';
+import { createLodBuilder } from './assets/characterLod';
 import type { Game } from '../game/game';
 import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
@@ -71,6 +79,12 @@ export class PlayerView {
         triangles += (index ? index.count : (attributes['position']?.count ?? 0)) / 3;
       }
     });
+    // 影は簡略メッシュ（1 ドローコール・約 2k 三角形）に任せ、詳細メッシュは影を落とさない
+    const lodBuilder = await createLodBuilder().catch((e: unknown) => {
+      console.error('character LOD unavailable', e);
+      return undefined;
+    });
+    lodBuilder?.create(character.root, new MeshBasicNodeMaterial());
     scene.add(character.root);
     const animator = new PlayerAnimator(character, loaded);
     const view = new PlayerView(game, character, animator, triangles, cape);

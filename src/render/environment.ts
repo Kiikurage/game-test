@@ -28,6 +28,7 @@ import {
   densityFogFactor,
 } from 'three/tsl';
 import type { QualityPreset } from './quality';
+import { SHADOW_PROXY_LAYER } from './layers';
 
 /** 太陽（シャドウカメラ）をフォーカスからどれだけ離すか（m）。 */
 const SHADOW_LIGHT_DISTANCE = 90;
@@ -150,6 +151,8 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
 
   const sun = new DirectionalLight(ATMOSPHERE.sunColor, ATMOSPHERE.sunIntensity);
   sun.castShadow = true;
+  // シャドウパスだけが描くメッシュ（キャラクターの簡略シャドウ）も拾う
+  sun.shadow.camera.layers.enable(SHADOW_PROXY_LAYER);
   const r = preset.shadowRadius;
   sun.shadow.mapSize.set(preset.shadowMapSize, preset.shadowMapSize);
   sun.shadow.camera.left = -r;

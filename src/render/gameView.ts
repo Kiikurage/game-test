@@ -15,6 +15,7 @@ import { createTestScene, type ColliderCylinder } from './testScene';
 import { ParticleSystem } from './particles';
 import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
 import { CombatDebugView } from './combatDebugView';
+import { profileScene, type RenderProfile } from './renderProfile';
 
 /**
  * Game の状態を three のシーンとして描画する。
@@ -114,6 +115,14 @@ export class GameView {
     this.levelView?.attachEnvironment(assets, this.particles);
   }
 
+  /** 描画負荷の内訳（カテゴリ別のドローコール・三角形、メイン/シャドウ別）。計測・性能テスト用。 */
+  profile(): RenderProfile {
+    return profileScene(this.scene, this.camera, this.environment.sun.shadow.camera, {
+      particles: this.particles.root,
+      telegraph: this.telegraphs.root,
+    });
+  }
+
   /** 任意の視点へカメラを固定する（俯瞰撮影・デバッグ用）。`null` でゲームのカメラへ戻す。 */
   setFreeCamera(view: { position: Vector3; target: Vector3 } | null): void {
     this.useGameCamera = view === null;
@@ -139,6 +148,12 @@ export class GameView {
   /** 敵の描画を登録する（毎フレーム補間・アニメーションを更新する）。 */
   attachEnemies(views: EnemyViews): void {
     this.enemyViews = views;
+    const { preset } = this.gameRenderer.quality;
+    views.lod = {
+      nearDistance: preset.characterLod.nearDistance,
+      // 影のカバー範囲（正方形）の対角まで含めた距離
+      shadowDistance: preset.shadowRadius * 1.4,
+    };
   }
 
   /** コンテナサイズに合わせてレンダラとカメラのアスペクト比を更新する。 */
@@ -153,9 +168,9 @@ export class GameView {
     this.gameRenderer.beginFrame(performance.now());
     if (this.useGameCamera) this.syncCamera(alpha);
     this.playerView?.update(alpha);
-    this.enemyViews?.update(alpha, this.camera);
-    this.playground.update(this.camera);
     const focus = this.shadowFocusTarget?.position ?? this.game.player.feet;
+    this.enemyViews?.update(alpha, this.camera, focus);
+    this.playground.update(this.camera);
     this.environment.followShadowFocus(focus);
     const now = performance.now();
     const dt = this.lastRenderMs > 0 ? (now - this.lastRenderMs) / 1000 : 0;

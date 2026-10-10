@@ -20,6 +20,7 @@ import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
 import { EnvironmentAssets } from './render/assets/environment';
 import { createLevel, levelGameOptions } from './game/world/level';
 import { terrainHeight } from './render/terrain';
+import type { RenderProfile } from './render/renderProfile';
 import { mountOrientationHint, showUnsupportedScreen } from './ui/overlays';
 
 /** E2E / デバッグ用に公開する読み取り専用の状態。 */
@@ -57,6 +58,12 @@ interface DebugState {
     slowMotion(scale: number, frames: number): void;
     /** カメラを任意の視点へ固定する（俯瞰撮影用）。`null` でゲームのカメラへ戻す。 */
     freeCam(position: [number, number, number] | null, target?: [number, number, number]): void;
+  };
+  /** 直近フレームの描画統計（`renderer.info` の実測値。シャドウパス込み）と、カテゴリ別の内訳。 */
+  readonly render: {
+    readonly drawCalls: number;
+    readonly triangles: number;
+    profile(): RenderProfile;
   };
   /** プレイヤーの描画状態（読み込み失敗時は undefined）。 */
   readonly playerView?: PlayerViewState;
@@ -162,6 +169,7 @@ async function bootstrap(): Promise<void> {
       mountDebugHud(gameRenderer.stats, {
         quality: quality.preset.level,
         targetFps: quality.targetFps,
+        profile: () => view.profile(),
       });
       // 操作感の調整値（プレイヤー・カメラ・ロックオン）を実行中に書き換えられる
       mountTuningPanel(tuning, resetTuning);
@@ -272,6 +280,15 @@ async function bootstrap(): Promise<void> {
       },
       get playerView() {
         return playerView?.state;
+      },
+      render: {
+        get drawCalls() {
+          return gameRenderer.stats.drawCalls;
+        },
+        get triangles() {
+          return gameRenderer.stats.triangles;
+        },
+        profile: () => view.profile(),
       },
     };
     root.dataset.state = 'running';
