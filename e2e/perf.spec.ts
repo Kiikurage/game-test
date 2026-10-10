@@ -1,12 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
+import { startGame } from './helpers';
 import { PERF_VIEWPOINTS } from '../scripts/perfViewpoints.mjs';
 import { RENDER_BUDGET } from '../src/render/renderBudget';
 import type { QualityLevel } from '../src/render/quality';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
 
 /** 計測視点へ移動し、数フレーム描いてから直近フレームの draws / tris を読む（解像度は負荷に影響しないので低解像度で動かす）。 */
 async function measure(
@@ -39,9 +35,7 @@ for (const level of ['medium', 'low'] as const satisfies readonly QualityLevel[]
     });
     page.on('pageerror', (err) => errors.push(err.message));
     await page.goto(`./?quality=${level}&scale=0.25`);
-    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', {
-      timeout: 60_000,
-    });
+    await startGame(page);
 
     const budget = RENDER_BUDGET[level];
     const results: string[] = [];
@@ -63,7 +57,7 @@ for (const level of ['medium', 'low'] as const satisfies readonly QualityLevel[]
 // `?debug` の HUD にカテゴリ別の内訳が出る
 test('the debug HUD shows the draw call breakdown', async ({ page }) => {
   await page.goto('./?debug&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 60_000 });
+  await startGame(page);
   await expect(page.locator('.debug-hud')).toContainText('terrain', { timeout: 30_000 });
   await expect(page.locator('.debug-hud')).toContainText('character');
 });

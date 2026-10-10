@@ -6,12 +6,16 @@ import {
   peakSpeedFrame,
   type ClipMeasure,
 } from '../../../scripts/assets/clipMeasure.mjs';
+import { undeadClipEvents } from '../../game/anim/enemyClips';
 import { playerClipEvents } from '../../game/anim/playerClips';
 import {
   GAIT_CLIP_FRAMES,
   GAIT_PHASE_OFFSET,
   GAIT_RIGHT_FOOT_PHASE,
 } from '../../game/anim/locomotion';
+
+/** プレイヤーと亡者兵（敵の攻撃）のマーカー表のエントリ。 */
+const tableEntries = [...playerClipEvents.entries, ...undeadClipEvents.entries];
 
 /**
  * マーカー表・歩行定数の値を、実際の animations.glb（meshopt 圧縮）から実測した値と突き合わせる。
@@ -31,17 +35,17 @@ describe('実クリップとの整合（animations.glb を実測）', () => {
 
   it('キーフレームレートは 30fps で、表の clipFps と一致する', () => {
     expect(CLIP_FPS).toBe(30);
-    for (const e of playerClipEvents.entries) expect(e.clipFps, e.id).toBe(CLIP_FPS);
+    for (const e of tableEntries) expect(e.clipFps, e.id).toBe(CLIP_FPS);
   });
 
   it('マーカー表の再生範囲は、実クリップの長さに収まる', () => {
-    for (const e of playerClipEvents.entries) {
+    for (const e of tableEntries) {
       expect(e.clipRange.endFrame, e.id).toBeLessThanOrEqual(framesOf(e.clip));
     }
   });
 
   it('戻りクリップ（tail）の再生範囲は、実クリップの長さに収まる', () => {
-    const withTail = playerClipEvents.entries.filter((e) => e.tail !== undefined);
+    const withTail = tableEntries.filter((e) => e.tail !== undefined);
     expect(withTail.length).toBeGreaterThan(0);
     for (const e of withTail) {
       expect(e.tail?.endFrame, e.id).toBeLessThanOrEqual(framesOf(e.tail?.clip ?? ''));
@@ -49,7 +53,7 @@ describe('実クリップとの整合（animations.glb を実測）', () => {
   });
 
   it('攻撃の clipHitFrame は、手（剣）の速さが最大になる実測フレームと一致する（±1F）', () => {
-    const attacks = playerClipEvents.entries.filter((e) => e.clipHitFrame !== undefined);
+    const attacks = tableEntries.filter((e) => e.clipHitFrame !== undefined);
     expect(attacks.length).toBeGreaterThan(0);
     for (const e of attacks) {
       const measured = peakSpeedFrame(measure, e.clip, 'hand_r', [

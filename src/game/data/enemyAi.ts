@@ -151,6 +151,15 @@ export const ENEMY_AI = {
   cooldownFrames: [30, 90],
   cooldownFramesDesperate: [30, 60],
 
+  /**
+   * 攻撃トークン（5.1 節）: 同時に Attack 状態に入れる敵の最大数と、持てなかった敵が待機中に
+   * 対象の周りを回る円の半径（m）・最大速度（m/s）。トークンの再試行間隔（F）も。
+   */
+  maxAttackers: 2,
+  orbitRadius: 4,
+  orbitSpeed: 1.5,
+  tokenRetryFrames: 12,
+
   /** Suspicious: 感知源を向く旋回、歩く最大距離、到着後に見回す時間。 */
   suspiciousTurnDegPerSecond: 120,
   suspiciousMaxWalk: 6,

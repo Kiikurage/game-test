@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame } from './helpers';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -20,9 +16,7 @@ for (const view of ['flat', 'slope']) {
     const errors = collectErrors(page);
     await page.goto(`./?telegraph&tview=${view}&tframe=30&quality=low&scale=0.5`);
 
-    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', {
-      timeout: 30_000,
-    });
+    await startGame(page);
     await expect
       .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 60_000 })
       .toBeGreaterThan(5);

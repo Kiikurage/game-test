@@ -323,8 +323,8 @@ export class LevelView {
         const source = mesh.material as MeshStandardNodeMaterial;
         const shared = source !== IRON && source !== WATER;
         const material: Material = shared ? GRAYBOX_MATERIAL : source;
-        const cx = Math.floor(mesh.matrixWorld.elements[12]! / GRAYBOX_CELL);
-        const cz = Math.floor(mesh.matrixWorld.elements[14]! / GRAYBOX_CELL);
+        const cx = Math.floor(mesh.matrixWorld.elements[12] / GRAYBOX_CELL);
+        const cz = Math.floor(mesh.matrixWorld.elements[14] / GRAYBOX_CELL);
         const key = `${cx},${cz}:${material.uuid}:${mesh.castShadow ? 1 : 0}${mesh.receiveShadow ? 1 : 0}`;
         let group = groups.get(key);
         if (!group) {

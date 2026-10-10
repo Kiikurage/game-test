@@ -1,5 +1,5 @@
 import {
-  BufferAttribute,
+  type BufferAttribute,
   type Bone,
   BufferGeometry,
   Float32BufferAttribute,

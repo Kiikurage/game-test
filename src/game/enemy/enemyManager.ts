@@ -1,5 +1,12 @@
 import { ENEMY_AI } from '../data';
-import { Enemy, type AiTarget, type EnemyDebugInfo, type EnemyDeps, type EnemyInit } from './enemy';
+import {
+  Enemy,
+  type AiTarget,
+  type EnemyAttackBehavior,
+  type EnemyDebugInfo,
+  type EnemyDeps,
+  type EnemyInit,
+} from './enemy';
 import type { EnemyBody } from './enemyBody';
 import { directNavigator, type Navigator } from './navigation';
 import { NoiseField, type LineOfSight } from './perception';
@@ -14,6 +21,8 @@ export interface EnemyManagerOptions {
   readonly darkness?: (x: number, z: number) => boolean;
   /** 乱数。省略時は敵の ID から決まる決定的な乱数（再現できるように）。 */
   readonly random?: (id: string) => () => number;
+  /** 敵 1 体の攻撃の実行（`Enemy.attackBehavior`）を作る。省略時は攻撃しない。`random` はその敵の乱数。 */
+  readonly createAttack?: (init: EnemyInit, random: () => number) => EnemyAttackBehavior;
 }
 
 /** 文字列から決まる 0 以上 1 未満の乱数列（mulberry32）。 */
@@ -54,6 +63,8 @@ export class EnemyManager {
       random,
     };
     const enemy = new Enemy(init, this.options.createBody(init), deps);
+    const attack = this.options.createAttack?.(init, random);
+    if (attack) enemy.attackBehavior = attack;
     this.enemies.push(enemy);
     return enemy;
   }

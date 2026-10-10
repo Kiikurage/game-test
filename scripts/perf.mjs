@@ -3,7 +3,6 @@
 import { build, preview } from 'vite';
 import { chromium } from '@playwright/test';
 import { launchOptions } from './chromium.mjs';
-import { webgpuCompatInit } from './webgpuCompat.mjs';
 import { PERF_VIEWPOINTS } from './perfViewpoints.mjs';
 
 const quality = process.argv[2] ?? 'medium';
@@ -15,12 +14,19 @@ const browser = await chromium.launch(launchOptions());
 try {
   const context = await browser.newContext({ viewport: { width: 915, height: 412 } });
   const page = await context.newPage();
-  await page.addInitScript(webgpuCompatInit);
   page.on('console', (m) => {
     if (['error', 'warning'].includes(m.type())) console.error(`[console.${m.type()}]`, m.text());
   });
   page.on('pageerror', (err) => console.error('pageerror', err.message));
   await page.goto(`http://localhost:${port}/game-test/?quality=${quality}&scale=0.25${extra}`);
+  await page.waitForFunction(
+    () => document.getElementById('app')?.dataset.state === 'ready',
+    null,
+    {
+      timeout: 60_000,
+    },
+  );
+  await page.locator('[data-testid=start-screen]').click();
   await page.waitForFunction(
     () => document.getElementById('app')?.dataset.state === 'running',
     null,

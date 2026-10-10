@@ -34,7 +34,7 @@ export function isEnvironmentZone(x: number, z: number): boolean {
   return x < 62 && z < 40;
 }
 
-const BUCKET_SIZE = 24;
+const BUCKET_SIZE = 32;
 const bucketOf = (x: number, z: number): string =>
   `${Math.floor(x / BUCKET_SIZE)},${Math.floor(z / BUCKET_SIZE)}`;
 

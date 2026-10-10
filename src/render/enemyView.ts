@@ -137,7 +137,7 @@ export class EnemyViews {
         variant,
         scale,
         lod,
-        near: true,
+        near: false,
       });
     }
     const views = new EnemyViews(scene, entries);

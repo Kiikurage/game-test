@@ -40,6 +40,8 @@ export interface AiTarget {
   readonly position: Vector3;
   /** 動作の分類（視覚の倍率）。 */
   readonly motion: PlayerMotion;
+  /** ロール中、またはロール終了から 20F 以内（ロール連打を咎める攻撃選択に使う。省略時は false）。 */
+  readonly recentRoll?: boolean;
 }
 
 /** 敵の生成情報（レベルデータの `EnemySpawn` から作る）。 */
@@ -71,10 +73,22 @@ export interface EnemyDeps {
 
 /** 攻撃の実行（#54）の差し込み口。既定は何もしない（Approach で待機するだけ）。 */
 export interface EnemyAttackBehavior {
-  /** Approach で攻撃を選ぶ番になったら呼ばれる。始めるなら true（状態は Attack へ）。 */
+  /**
+   * Approach で攻撃を選ぶ番になったら呼ばれる。始めるなら true（状態は Attack へ）。
+   * 始めるときは `enemy.currentAttackId` に動作 ID（マーカー表・アニメーションの引き当て用）を入れる。
+   */
   tryStart(enemy: Enemy, ctx: EnemyAttackContext): boolean;
-  /** Attack の間、毎ステップ呼ばれる。動作が終わったら true（状態は Recover へ）。 */
+  /**
+   * Attack の間、毎ステップ呼ばれる（ヒットストップ中は呼ばれない）。動作が終わったら true（状態は Recover へ）。
+   * 連続攻撃は `enemy.fsm.restart(動作 ID)` で状態フレームを 0 に戻して false を返し続ければ Attack の中で続けられる。
+   */
   update(enemy: Enemy, dt: number, ctx: EnemyAttackContext): boolean;
+  /** 攻撃が途中で打ち切られた（崩し・撃破・リセット）。判定・強靭度加算・トークンを片付ける。 */
+  cancel?(enemy: Enemy): void;
+  /** 攻撃したいがトークンを持てず待たされている（Approach で対象の周りを回って待つ）。 */
+  isWaiting?(enemy: Enemy): boolean;
+  /** Approach の「間を取る待ち」を飛ばして攻撃を選んでよいか（ロール直後に近距離にいる場合など）。 */
+  skipHold?(enemy: Enemy, ctx: EnemyAttackContext): boolean;
 }
 
 export interface EnemyAttackContext {
@@ -119,6 +133,8 @@ export interface EnemyDebugInfo {
   readonly speed: number;
   readonly homeDistance: number;
   readonly lastKnown: { readonly x: number; readonly z: number } | null;
+  /** 攻撃中の動作 ID（`enemy.undead.a1` など。攻撃中でなければ null）。 */
+  readonly attackId: string | null;
 }
 
 interface Sense {
@@ -158,6 +174,8 @@ export class Enemy implements LockOnTarget {
   /** このステップに発火した足音など（1 ステップごとにクリアされる）。 */
   readonly markerEvents: AnimMarkerEvent[] = [];
   attackBehavior: EnemyAttackBehavior = NO_ATTACK;
+  /** 次に（または今）出す攻撃の動作 ID。`attackBehavior.tryStart` が入れ、Attack 状態の動作 ID になる。 */
+  currentAttackId: string | null = null;
 
   readonly homeX: number;
   readonly homeZ: number;
@@ -186,6 +204,10 @@ export class Enemy implements LockOnTarget {
   private holdFrames = 0;
   private cooldownFrames = 0;
   private staggerFrames = 0;
+  /** 外からの押し戻し・突進などで、次の移動に足す水平変位（m）。 */
+  private readonly pushed = { x: 0, z: 0 };
+  /** トークン待ちで周る向き（1: 反時計回り / -1: 時計回り）。 */
+  private orbitDir: 1 | -1 = 1;
   private lastTarget: AiTarget | null = null;
   // Suspicious
   private suspicionOriginX = 0;
@@ -277,6 +299,7 @@ export class Enemy implements LockOnTarget {
       speed: this.actualSpeed,
       homeDistance: this.homeDistance,
       lastKnown: this.hasLastKnown ? { x: this.lastKnown.x, z: this.lastKnown.z } : null,
+      attackId: this.state === 'attack' ? this.fsm.actionId : null,
     };
   }
 
@@ -296,13 +319,21 @@ export class Enemy implements LockOnTarget {
   /** `frames` ステップ行動不能にする（ひるみ。#50 が呼ぶ）。 */
   stagger(frames: number): void {
     if (!this.alive) return;
+    this.cancelAttack();
     this.staggerFrames = frames;
     this.fsm.transition('staggered');
+  }
+
+  /** 水平に `dx, dz`（m）だけ、次の移動へ足す（被弾の押し戻し・攻撃の突進）。壁・地形には体が従う。 */
+  pushBy(dx: number, dz: number): void {
+    this.pushed.x += dx;
+    this.pushed.z += dz;
   }
 
   /** 倒す（#40 / #50 が呼ぶ）。衝突体を取り除き、ロックオンは対象を失う。 */
   kill(): void {
     if (!this.alive) return;
+    this.cancelAttack();
     this.hp = 0;
     this.fsm.transition('dead');
     this.desiredSpeed = 0;
@@ -315,6 +346,9 @@ export class Enemy implements LockOnTarget {
 
   /** 位置・状態を出発地点へ戻す（リスポーン・デバッグ）。 */
   reset(): void {
+    this.cancelAttack();
+    this.pushed.x = 0;
+    this.pushed.z = 0;
     this.body.teleport(this.homeX, this.position.y, this.homeZ);
     this.yaw = this.homeYaw;
     this.hp = this.maxHp;
@@ -583,23 +617,64 @@ export class Enemy implements LockOnTarget {
       this.enterChase(false);
       return;
     }
-    if (distance > ENEMY_AI.holdRange) {
+    // トークンを持てず待たされている敵は、攻撃している敵の邪魔にならないよう少し離れて待つ
+    const waiting = this.attackBehavior.isWaiting?.(this) ?? false;
+    const stopRange = waiting ? ENEMY_AI.orbitRadius : ENEMY_AI.holdRange;
+    if (distance > stopRange) {
       // 近づく（間合いに入るまで）
       this.steerTo(target.position.x, target.position.z, ENEMY_AI.approachSpeed, dt, this.turnRate);
       return;
     }
     // ペースを止めて旋回し、間を取ってから攻撃を選ぶ
     this.faceToward(target.position.x, target.position.z, dt);
-    if (this.holdFrames > 0) {
+    if (waiting) this.orbit(target, distance, dt);
+    const ctx: EnemyAttackContext = { target, distance };
+    if (this.holdFrames > 0 && !this.attackBehavior.skipHold?.(this, ctx)) {
       this.holdFrames--;
       return;
     }
-    const ctx: EnemyAttackContext = { target, distance };
+    this.currentAttackId = null;
     if (this.attackBehavior.tryStart(this, ctx)) {
-      this.fsm.transition('attack');
+      const actionId = this.readAttackId();
+      this.fsm.transition('attack', actionId ? { actionId } : {});
     } else {
-      this.holdFrames = this.randomFrames(ENEMY_AI.holdFrames);
+      // トークン待ちはすぐ再試行する（空いたらすぐ入る）。それ以外は間を取り直す
+      this.holdFrames = this.attackBehavior.isWaiting?.(this)
+        ? ENEMY_AI.tokenRetryFrames
+        : this.randomFrames(ENEMY_AI.holdFrames);
     }
+  }
+
+  /**
+   * 対象を中心に半径 `orbitRadius` の円周上を、最大 `orbitSpeed` で回って待つ（攻撃トークン待ち）。
+   * 向きは対象へ向けたまま横へ歩く。近すぎれば円周まで下がる。
+   */
+  private orbit(target: AiTarget, distance: number, dt: number): void {
+    if (distance < 1e-3) return;
+    const ax = (this.position.x - target.position.x) / distance; // 対象から自分へ（外向き）
+    const az = (this.position.z - target.position.z) / distance;
+    // 接線（orbitDir = 1 で反時計回り）と、円周への補正
+    let vx = -az * this.orbitDir;
+    let vz = ax * this.orbitDir;
+    const radial = Math.max(-1, Math.min(1, ENEMY_AI.orbitRadius - distance));
+    vx += ax * radial;
+    vz += az * radial;
+    const len = Math.hypot(vx, vz);
+    if (len < 1e-4) return;
+    const speed = Math.min(ENEMY_AI.orbitSpeed, ENEMY_AI.orbitSpeed * len);
+    this.pushBy((vx / len) * speed * dt, (vz / len) * speed * dt);
+    // 乱数で時々向きを変える（同じ向きに全員が回り続けない）
+    if (this.deps.random() < 1 / 240) this.orbitDir = this.orbitDir === 1 ? -1 : 1;
+  }
+
+  /** `tryStart` が決めた動作 ID（なければ null）。 */
+  private readAttackId(): string | null {
+    return this.currentAttackId;
+  }
+
+  /** 攻撃の途中で打ち切られた（崩し・撃破・リセット）ときの後始末。 */
+  private cancelAttack(): void {
+    if (this.state === 'attack') this.attackBehavior.cancel?.(this);
   }
 
   private updateAttack(dt: number, target: AiTarget): void {
@@ -736,14 +811,15 @@ export class Enemy implements LockOnTarget {
     }
     const x0 = this.position.x;
     const z0 = this.position.z;
+    let mx = this.pushed.x;
+    let mz = this.pushed.z;
+    this.pushed.x = 0;
+    this.pushed.z = 0;
     if (this.speedNow > 1e-4) {
-      this.body.moveBy(
-        Math.sin(this.yaw) * this.speedNow * dt,
-        Math.cos(this.yaw) * this.speedNow * dt,
-      );
-    } else {
-      this.body.moveBy(0, 0);
+      mx += Math.sin(this.yaw) * this.speedNow * dt;
+      mz += Math.cos(this.yaw) * this.speedNow * dt;
     }
+    this.body.moveBy(mx, mz);
     // 実際に動けた速度（壁に押し付けても足が空回りしないよう、描画はこちらを読む）
     const vx = (this.position.x - x0) / dt;
     const vz = (this.position.z - z0) / dt;

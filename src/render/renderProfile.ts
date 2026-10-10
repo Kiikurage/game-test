@@ -55,7 +55,7 @@ function emptyProfile(): RenderProfile {
 
 function triangleCount(geometry: BufferGeometry): number {
   const index = geometry.index;
-  return (index ? index.count : (geometry.getAttribute('position')?.count ?? 0)) / 3;
+  return (index ? index.count : geometry.getAttribute('position').count) / 3;
 }
 
 function categoryOf(mesh: Object3D, roots: ProfileRoots): ProfileCategory {
@@ -107,10 +107,10 @@ export function profileScene(
   scene.updateMatrixWorld();
   const visit = (object: Object3D): void => {
     if (!object.visible) return;
-    const mesh = object as Mesh & { count?: number; isInstancedMesh?: boolean };
+    const mesh = object as Mesh & { count: number; isInstancedMesh?: boolean };
     if ((mesh as { isMesh?: boolean }).isMesh === true) {
       const entry = profile[categoryOf(mesh, roots)];
-      const tris = triangleCount(mesh.geometry) * (mesh.isInstancedMesh ? (mesh.count ?? 1) : 1);
+      const tris = triangleCount(mesh.geometry) * (mesh.isInstancedMesh ? mesh.count : 1);
       if (mesh.layers.test(camera.layers) && inFrustum(mesh, mainFrustum)) {
         entry.draws++;
         entry.tris += tris;

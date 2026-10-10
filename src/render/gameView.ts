@@ -163,6 +163,13 @@ export class GameView {
     this.camera.updateProjectionMatrix();
   }
 
+  /**
+   * `?nodraw` のときは描画（GPU への draw）だけ省く。シーン・アニメーション・パーティクルの更新は行う。
+   * ソフトウェア描画（SwiftShader）の E2E は 1 フレームが数秒かかりシミュレーションが実時間に追いつかないため、
+   * 描画の検証が目的でないロジック系の E2E で使う。
+   */
+  private readonly drawEnabled = !new URLSearchParams(location.search).has('nodraw');
+
   /** alpha: 直前ステップ→最新ステップの補間係数。 */
   render(alpha: number): void {
     this.gameRenderer.beginFrame(performance.now());
@@ -180,7 +187,7 @@ export class GameView {
     this.telegraphDemo?.update(Math.min(dt, 0.1));
     this.telegraphs.update(dt);
     this.combatDebug?.update();
-    this.postProcess.render();
+    if (this.drawEnabled) this.postProcess.render();
     this.gameRenderer.endFrame();
   }
 
