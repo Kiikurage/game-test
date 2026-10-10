@@ -202,6 +202,18 @@ export class GameView {
    */
   private readonly drawEnabled = !new URLSearchParams(location.search).has('nodraw');
 
+  /**
+   * 初回のパイプライン / シェーダコンパイル（SwiftShader では数十秒、実機でも数百 ms のカクつき）を
+   * ローディング中に済ませるため、ゲーム開始前に 1 フレーム描画して GPU の完了まで待つ。
+   * 全アセットを取り付けた後に呼ぶこと。`?nodraw` では何もしない。
+   */
+  async warmUp(): Promise<void> {
+    if (!this.drawEnabled) return;
+    this.render(1);
+    const device = (this.gameRenderer.renderer.backend as { device?: GPUDevice }).device;
+    await device?.queue.onSubmittedWorkDone();
+  }
+
   /** alpha: 直前ステップ→最新ステップの補間係数。 */
   render(alpha: number): void {
     this.gameRenderer.beginFrame(performance.now());

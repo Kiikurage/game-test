@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { startGame, tapKey } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で起動する（`?debug` で敵の可視化も確認）。 */
 async function boot(page: Page): Promise<string[]> {
@@ -144,7 +144,7 @@ test('rolling at the right moment dodges a soldier attack (invulnerability frame
   // 発生の 3F 前までは立ったまま。そこで右へロール（無敵 F4–F15 が判定を覆う）
   await advance(page, startup - 3);
   await page.keyboard.down('KeyD');
-  await page.keyboard.press('Space'); // 短押し = 離した時点でロール確定
+  await tapKey(page, 'Space'); // 短押し = 離した時点でロール確定
   await advance(page, 1);
   await page.keyboard.up('KeyD');
   const rolling = await page.evaluate(() => window.__game?.sim);
@@ -161,5 +161,30 @@ test('rolling at the right moment dodges a soldier attack (invulnerability frame
   const after = await page.evaluate(() => window.__game?.sim);
   expect(after?.combat.playerHp).toBe(hp0);
   expect(after?.combat.hits).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('the combat debug scene (?scene=combat) has exactly one soldier that comes to fight', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+  await page.goto('./?scene=combat&quality=low&scale=0.25&nodraw');
+  await startGame(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
+    .toBeGreaterThan(30);
+  await page.evaluate(() => {
+    window.__game?.dev.pause(true);
+  });
+  const ids = await page.evaluate(() => window.__game?.sim.enemies.map((e) => e.id));
+  expect(ids).toEqual(['combat-undead-1']);
+  // 広場で待つと、亡者兵は気付き・接近し、攻撃を出す
+  let attacked = false;
+  for (let i = 0; i < 300 && !attacked; i++) {
+    await advance(page, 10);
+    attacked = (await enemy(page, 'combat-undead-1')).attackId !== null;
+  }
+  expect(attacked).toBe(true);
   expect(errors).toEqual([]);
 });
