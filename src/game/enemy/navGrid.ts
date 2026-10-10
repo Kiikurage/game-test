@@ -438,6 +438,8 @@ function rasterBox(
   solid: Uint8Array,
   stepHeight: number,
 ): void {
+  // 地下水路（#111）は地形の下にあり、敵は入らない。上の床（C・D）のセルを塞がないよう無視する
+  if (box.style === 'waterway') return;
   const top = box.y + box.hy;
   // navSolid: 脇道の足場（岩棚・壁上・霊廟の石段）。低くても敵は上がれない固体にする
   const walkableTop = box.style === 'stairs' && !box.navSolid;

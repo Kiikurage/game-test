@@ -67,7 +67,13 @@ describe('terrain', () => {
     expect(terrain.minX).toBeLessThan(bounds.minX);
     expect(terrain.minX + (terrain.cols - 1) * terrain.cellSize).toBeGreaterThan(bounds.maxX);
     expect(terrain.vertices.length).toBe(terrain.cols * terrain.rows * 3);
-    expect(terrain.indices.length).toBe((terrain.cols - 1) * (terrain.rows - 1) * 6);
+    // 地形の穴（床板の穴・水路の階段の上。`terrainHoles`）のセルは三角形を張らない
+    const full = (terrain.cols - 1) * (terrain.rows - 1) * 6;
+    const holeCells = (ASHEN_FOUNDATION.terrainHoles ?? []).reduce(
+      (n, h) => n + (h.maxX - h.minX) * (h.maxZ - h.minZ),
+      0,
+    );
+    expect(terrain.indices.length).toBe(full - holeCells * 6);
     // 約 150m × 110m
     expect(bounds.maxX - bounds.minX).toBeGreaterThan(140);
     expect(bounds.maxZ - bounds.minZ).toBeGreaterThan(105);
@@ -160,6 +166,15 @@ describe('static colliders', () => {
       const bottom = b.y - b.hy;
       const top = b.y + b.hy;
       expect(top).toBeGreaterThan(bottom);
+      // 地下水路（#111）の板・壁と、腐った床板・鉄格子、水路の通る所をくり抜いた岩盤の破片は、地形の下 / 地形の穴の上にある
+      if (
+        b.style === 'waterway' ||
+        b.style === 'hatch' ||
+        b.style === 'grate' ||
+        b.id.includes('-lintel-') ||
+        b.id.startsWith('d-mass-s')
+      )
+        continue;
       // 底面は足元の地形より下（宙に浮かない）
       expect(bottom).toBeLessThan(level.heightAt(b.x, b.z) - 0.5);
     }
