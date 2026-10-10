@@ -187,7 +187,11 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
     update: (dt) => {
       const boss = system.boss;
       // 撃破後も、灰になって消え切るまで体を見せる（#86）
-      root.visible = boss !== null && (boss.alive || (defeatFx?.visible ?? false));
+      // 遠く離れているときは描かない（影も含む。待機中のボスが他エリアの描画予算を食わないように。#85）
+      const feet = game.player.feet;
+      const far =
+        boss !== null && Math.hypot(boss.position.x - feet.x, boss.position.z - feet.z) > 70;
+      root.visible = boss !== null && !far && (boss.alive || (defeatFx?.visible ?? false));
       bands.visible = root.visible;
       if (model) model.root.visible = root.visible;
       if (!boss) {
