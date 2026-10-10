@@ -28,8 +28,8 @@ export const RAMP_START = 0.5;
 export const PULSE_FRAMES = 6;
 
 export const WEAPON_TELEGRAPH: Readonly<Record<TelegraphKind, WeaponTelegraphProfile>> = {
-  normal: { color: 0xfff0dc, peak: 0.5, fadeFrames: 4, holdThroughActive: false, pulse: 0 },
-  heavy: { color: 0xff4a10, peak: 0.85, fadeFrames: 12, holdThroughActive: true, pulse: 0 },
+  normal: { color: 0xfff0dc, peak: 0.35, fadeFrames: 4, holdThroughActive: false, pulse: 0 },
+  heavy: { color: 0xff3c08, peak: 0.85, fadeFrames: 12, holdThroughActive: true, pulse: 0 },
   unblockable: { color: 0xff3208, peak: 1, fadeFrames: 14, holdThroughActive: true, pulse: 0.25 },
 };
 
@@ -55,12 +55,23 @@ export function weaponTelegraphAmount(
   return Math.min(1, level * p.peak);
 }
 
+let previewKind: TelegraphKind | null = null;
+
+/** 撮影・確認用: 攻撃中の敵の発光を、指定した種別のピーク（立ち上がり後・発生まで）に固定する。null で解除。 */
+export function setTelegraphPreview(kind: TelegraphKind | null): void {
+  previewKind = kind;
+}
+
 /** 攻撃定義と状態フレームから発光量と種別を求める。定義がなければ amount 0。 */
 export function enemyTelegraph(
   def: EnemyAttackDef | undefined,
   frame: number,
 ): { amount: number; kind: TelegraphKind } {
   if (!def) return { amount: 0, kind: 'normal' };
+  if (previewKind) {
+    const f = Math.min(Math.max(frame, 1 + RAMP_FRAMES), def.startup);
+    return { amount: weaponTelegraphAmount(def, previewKind, f), kind: previewKind };
+  }
   const kind = telegraphKindOf(def);
   return { amount: weaponTelegraphAmount(def, kind, frame), kind };
 }

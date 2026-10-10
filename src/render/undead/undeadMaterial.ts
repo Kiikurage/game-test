@@ -15,6 +15,7 @@ import {
   luminance,
   mix,
   mx_noise_float,
+  normalLocal,
   positionLocal,
   positionWorld,
   saturate,
@@ -27,6 +28,7 @@ import {
   vertexColor,
 } from 'three/tsl';
 import {
+  RIM,
   characterLightNode,
   createRimControls,
   isWeaponObject,
@@ -293,6 +295,12 @@ function createUndeadMaterial(
 
   material.colorNode = albedo;
   material.emissiveNode = emissive;
+  // テレグラフ中は刃を少し太らせる（追加の描画なし。頂点位置のオフセットだけ）
+  if (isWeapon) {
+    material.positionNode = positionLocal.add(
+      normalLocal.mul(controls.rim.weapon.mul(RIM.telegraphInflate)),
+    );
+  }
   // 完全に消えた画素を捨てる（ブレンド無し、半透明パスにならない）
   material.opacityNode = n.greaterThan(threshold).select(float(1), float(0));
   material.alphaTest = 0.5;

@@ -48,9 +48,11 @@ export const RIM = {
   /** 暗部の持ち上げ（反射色に対する自己発光の割合）。 */
   lift: 0.07,
   /** 武器のテレグラフ最大時の縁の発光の強さ（太陽・影に関係なく出る加算の光）。 */
-  telegraphGain: 2.4,
+  telegraphGain: 6,
   /** テレグラフ最大時の、縁以外（刃の面）の淡い発光。刃全体がうっすら染まる程度。 */
-  telegraphFill: 0.45,
+  telegraphFill: 1.8,
+  /** テレグラフ最大時に刃を法線方向へ太らせる量（ローカル座標 m）。細い刃が遠目でも線として読める。 */
+  telegraphInflate: 0.035,
 } as const;
 
 const SKY_RIM = new Color(0x9fb4c8);
