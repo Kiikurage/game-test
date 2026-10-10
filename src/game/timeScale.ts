@@ -64,3 +64,12 @@ export class TimeScale {
     this.delay = 0;
   }
 }
+
+/**
+ * 検証ツール用の常時スロー（`scale` < 1 で、解除するまで続く。1 以上で通常速度へ戻す）。
+ * ボス技の検証ツール・戦闘デバッグツールが共有する。ヒットストップ後の演出のスローも `reset` で消えるが、検証用の割り切り。
+ */
+export function setDebugSlow(timeScale: TimeScale, scale: number): void {
+  timeScale.reset();
+  if (scale < 1) timeScale.start(scale, Number.MAX_SAFE_INTEGER);
+}
