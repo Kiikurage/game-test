@@ -66,7 +66,7 @@ async function walkThrough(
         const camYaw = (await sim(page)).camera.yaw;
         const want = Math.atan2(dx, dz);
         const diff = Math.atan2(Math.sin(want - camYaw), Math.cos(want - camYaw));
-        if (Math.abs(diff) > 0.12) await aimCamera(page, want - p.yaw);
+        if (Math.abs(diff) > 0.04) await aimCamera(page, want - p.yaw);
         await waitSteps(page, 4);
       }
     }
@@ -101,11 +101,19 @@ test('the player can run from B up the mausoleum roof, along the cliff ledge to 
   const trail: number[] = [];
   await walkThrough(page, [
     [33, 17],
-    [31.5, 20],
-    [29, 22.5],
-    [29, 19.5],
-    [29, 16],
+    [32, 20.5],
+    [31, 22.5],
   ]);
+  // 石段は幅 1.2m（カプセルは 0.7m）。中央に合わせてから上る
+  await walkThrough(page, [[29, 22.5]], 0.25);
+  await walkThrough(
+    page,
+    [
+      [29, 19.5],
+      [29, 16],
+    ],
+    0.35,
+  );
   let p = (await sim(page)).player;
   trail.push(p.position.y);
   // 屋根の上（高さ 2.2m 付近 = 約 4.96m）に立っている
@@ -114,7 +122,9 @@ test('the player can run from B up the mausoleum roof, along the cliff ledge to 
   expect(p.grounded).toBe(true);
 
   // 屋根から石段を戻り、崖の足元から岩棚へ。北壁の上の回廊まで
-  await walkThrough(page, [[29, 19.5], [29, 22.5], [31.5, 20.5], [34.5, 18], ...LEDGE]);
+  await walkThrough(page, [[29, 19.5]], 0.35);
+  await walkThrough(page, [[29, 22.5]], 0.35);
+  await walkThrough(page, [[31, 22.5], [32, 20.5], [34.5, 18], ...LEDGE]);
   p = (await sim(page)).player;
   expect(Math.hypot(p.position.x - 53, p.position.z - 32)).toBeLessThan(1.2);
   // 回廊の床は礼拝堂の床（3.4m）+ 2.8m

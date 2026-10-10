@@ -270,7 +270,8 @@ describe('walking the side paths (physics)', () => {
 
   const ROOF_ROUTE: [number, number][] = [
     [33, 17],
-    [31.5, 20],
+    [32, 20.5],
+    [31, 22.5],
     [29, 22.5],
     [29, 19.5],
     [29, 16],
