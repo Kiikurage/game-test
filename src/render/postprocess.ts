@@ -9,9 +9,11 @@ import {
   Fn,
   float,
   luminance,
+  min,
   mix,
   pass,
   saturation,
+  screenSize,
   screenUV,
   smoothstep,
   uniform,
@@ -70,6 +72,8 @@ export function createPostProcess(
   const uVignette = uniform(0);
   const uFade = uniform(0);
   const uRim = uniform(0);
+  const uRimBand = uniform(0.075);
+  const uRimAlpha = uniform(0.33);
 
   const graded = Fn(() => {
     let c = color.rgb;
@@ -91,9 +95,16 @@ export function createPostProcess(
     c = mix(c, vec3(luminance(c)), uDesaturate);
     c = c.mul(float(1).sub(uDim));
     c = c.mul(mix(1.0, mix(0.08, 1.0, smoothstep(0.78, 0.2, d)), uVignette));
-    // 画面端の赤い縁取り（咆哮）。周辺ほど赤く、中心は変えない
-    const rimMask = smoothstep(0.4, 0.85, d).mul(uRim).mul(0.75);
-    c = mix(c, c.mul(0.35).add(vec3(0.55, 0.035, 0.02)), rimMask);
+    // 画面端の赤い縁取り（咆哮）。短辺の `uRimBand` 倍の細い帯を、外へ向かってやわらかく赤く・少し暗くする。中心は変えない
+    const edge = min(
+      min(screenUV.x, float(1).sub(screenUV.x)).mul(screenSize.x.div(screenSize.y)),
+      min(screenUV.y, float(1).sub(screenUV.y)),
+    );
+    const band = float(1)
+      .sub(smoothstep(0, uRimBand, edge))
+      .mul(uRim);
+    c = mix(c, c.mul(0.6), band.mul(0.35));
+    c = mix(c, vec3(0.8, 0.05, 0.03), band.mul(uRimAlpha));
     c = c.mul(float(1).sub(uFade));
     return vec4(c, 1.0);
   })();

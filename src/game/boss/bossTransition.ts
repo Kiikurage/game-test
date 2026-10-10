@@ -19,8 +19,22 @@ export const BOSS_TRANSITION = {
   /** フェーズ 2 のレイヤーのクロスフェード（10.2 節: 6 秒）。 */
   bgmLayer: 'bgm.boss-layer',
   bgmLayerFrames: 360,
-  /** 画面端の赤い縁取り（咆哮の頭から 30F）。立ち上がり・保持・減衰の F。 */
-  rim: { start: 60, rise: 6, hold: 12, fall: 12, strength: 1 },
+  /**
+   * 画面端の赤い縁取り（咆哮の頭から 30F）。(F, 強さ) の折れ線: F60 から 6F で立ち上がり、2 回脈打って（F66 / F75 が山）F90 で消える。
+   * `alpha` は縁の最大の不透明度、`band` は縁の幅（画面の短辺に対する割合）。
+   */
+  rim: {
+    keys: [
+      [60, 0],
+      [66, 1],
+      [70, 0.5],
+      [75, 1],
+      [80, 0.5],
+      [90, 0],
+    ],
+    alpha: 0.33,
+    band: 0.075,
+  },
 } as const;
 
 export type BossTransitionCue = 'start' | 'flinchEnd' | 'shieldThrow' | 'roar' | 'roarEnd' | 'end';
@@ -42,12 +56,17 @@ export function cuesBetween(from: number, to: number): BossTransitionCue[] {
   return CUES.filter(([, frame]) => frame > from && frame <= to).map(([cue]) => cue);
 }
 
-/** 移行 F → 画面端の赤い縁取りの強さ（0〜1）。F60 から 30F（立ち上がり 6F・保持 12F・減衰 12F）。 */
+/** 移行 F → 画面端の赤い縁取りの強さ（0〜1）。F60 から 30F、2 回脈打つ。 */
 export function rimAtTransitionFrame(frame: number): number {
-  const { start, rise, hold, fall, strength } = BOSS_TRANSITION.rim;
-  const t = frame - start;
-  if (t < 0 || t >= rise + hold + fall) return 0;
-  if (t < rise) return (t / rise) * strength;
-  if (t < rise + hold) return strength;
-  return (1 - (t - rise - hold) / fall) * strength;
+  const keys: readonly (readonly [number, number])[] = BOSS_TRANSITION.rim.keys;
+  const first = keys[0];
+  const last = keys[keys.length - 1];
+  if (!first || !last || frame <= first[0] || frame >= last[0]) return 0;
+  for (let i = 1; i < keys.length; i++) {
+    const a = keys[i - 1];
+    const b = keys[i];
+    if (!a || !b || frame > b[0]) continue;
+    return a[1] + ((b[1] - a[1]) * (frame - a[0])) / (b[0] - a[0]);
+  }
+  return 0;
 }

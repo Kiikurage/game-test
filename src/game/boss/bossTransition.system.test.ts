@@ -175,4 +175,19 @@ describe('boss phase transition cutscene (Rapier)', () => {
     const moved = Math.hypot(game.player.feet.x - before.x, game.player.feet.z - before.z);
     expect(moved).toBeGreaterThan(1);
   });
+
+  it('keeps the lock-on target on the boss through the whole transition and after it', async () => {
+    const { game, boss, run, untilTransition } = await setup();
+    expect(game.lockOnTo(BOSS_ID)).toBe(true);
+    run(1);
+    expect(game.lockOn.target?.id).toBe(BOSS_ID);
+    untilTransition();
+    for (let f = 0; f < 125; f++) {
+      expect(game.lockOn.target?.id).toBe(BOSS_ID);
+      run(1);
+    }
+    expect(boss.phase).toBe(2);
+    run(60);
+    expect(game.lockOn.target?.id).toBe(BOSS_ID);
+  });
 });

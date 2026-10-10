@@ -24,14 +24,19 @@ describe('boss transition timeline', () => {
     expect(cuesBetween(100, 120)).toEqual(['end']);
   });
 
-  it('shows the red rim for 30F from the roar', () => {
-    expect(rimAtTransitionFrame(59)).toBe(0);
+  it('pulses the red rim twice between F60 and F90', () => {
     expect(rimAtTransitionFrame(60)).toBe(0);
     expect(rimAtTransitionFrame(66)).toBe(1);
-    expect(rimAtTransitionFrame(77)).toBe(1);
-    expect(rimAtTransitionFrame(84)).toBeCloseTo(0.5, 5);
+    expect(rimAtTransitionFrame(70)).toBe(0.5);
+    expect(rimAtTransitionFrame(75)).toBe(1);
     expect(rimAtTransitionFrame(90)).toBe(0);
-    const lit = Array.from({ length: 121 }, (_, f) => rimAtTransitionFrame(f)).filter((v) => v > 0);
-    expect(lit.length).toBe(29); // F61–F89
+    expect(rimAtTransitionFrame(120)).toBe(0);
+    const v = Array.from({ length: 31 }, (_, i) => rimAtTransitionFrame(60 + i));
+    let peaks = 0;
+    for (let i = 1; i < v.length - 1; i++) {
+      if ((v[i] ?? 0) > (v[i - 1] ?? 0) && (v[i] ?? 0) >= (v[i + 1] ?? 0)) peaks++;
+    }
+    expect(peaks).toBe(2);
+    expect(BOSS_TRANSITION.rim.alpha).toBeLessThanOrEqual(0.35);
   });
 });
