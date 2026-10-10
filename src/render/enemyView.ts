@@ -6,6 +6,8 @@ import { CharacterAssets } from './assets/characterAssets';
 import { EnemyAnimator } from './assets/enemyAnimator';
 import { EquipmentAssets } from './assets/equipment';
 import { EnemyDebugView } from './enemyDebugView';
+import { enemyAttackByAction } from '../game/data';
+import { WEAPON_TELEGRAPH, enemyTelegraph } from './telegraph/weaponTelegraph';
 import { applyUndeadLook, type UndeadLook } from './undead/undeadMaterial';
 import {
   UNDEAD_VARIANTS,
@@ -115,6 +117,16 @@ export class EnemyViews {
       character.root.position.copy(this.position);
       character.root.quaternion.copy(this.orientation).multiply(this.offset);
       animator.applyTwist();
+      // 攻撃の予備動作の間だけ武器の縁を光らせる（インスタンス単位のユニフォームを書き換えるだけ）
+      const tg =
+        enemy.state === 'attack' && enemy.alive
+          ? enemyTelegraph(enemyAttackByAction(enemy.fsm.actionId), enemy.fsm.stateFrame)
+          : null;
+      if (tg && tg.amount > 0) {
+        e.look.setWeaponTelegraph(tg.amount, WEAPON_TELEGRAPH[tg.kind].color);
+      } else if (e.look.weaponTelegraph !== 0) {
+        e.look.setWeaponTelegraph(0);
+      }
       if (!enemy.alive) {
         e.look.setDissolve(
           dissolveProgress(enemy.deadFrames - DISSOLVE_DELAY_FRAMES, DISSOLVE_FRAMES.soldier),

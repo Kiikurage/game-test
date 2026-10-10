@@ -1,6 +1,7 @@
 import {
   Color,
   MeshStandardNodeMaterial,
+  type ColorRepresentation,
   type Material,
   type Mesh,
   type MeshStandardMaterial,
@@ -67,10 +68,10 @@ export interface UndeadLook {
   setEmber(amount: number): void;
   readonly ember: number;
   /**
-   * 武器のリムライトを強める（0..1）。敵の攻撃予備動作（テレグラフ演出, #62）用。
-   * 縁の光だけが強まり、世界のライティングには影響しない。
+   * 武器の縁を光らせる（強さ 0..1、色は省略時は直前の色）。敵の攻撃予備動作（テレグラフ演出, #62）用。
+   * 縁の加算の光だけで、世界のライティングには影響しない。このインスタンスの武器だけが光る。
    */
-  setWeaponTelegraph(amount: number): void;
+  setWeaponTelegraph(amount: number, color?: ColorRepresentation): void;
   readonly weaponTelegraph: number;
   /** 生成したマテリアルを解放する。 */
   dispose(): void;
@@ -145,9 +146,10 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
     get weaponTelegraph() {
       return telegraph;
     },
-    setWeaponTelegraph(amount) {
+    setWeaponTelegraph(amount, color) {
       telegraph = clampProgress(amount);
       controls.rim.weapon.value = telegraph;
+      if (color !== undefined) controls.rim.weaponColor.value.set(color);
     },
     dispose() {
       for (const m of created) m.dispose();

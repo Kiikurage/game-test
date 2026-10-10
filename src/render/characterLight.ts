@@ -1,6 +1,7 @@
 import {
   Color,
   MeshStandardNodeMaterial,
+  type ColorRepresentation,
   type Material,
   type Mesh,
   type Node,
@@ -46,8 +47,10 @@ export const RIM = {
   skyGain: 0.18,
   /** 暗部の持ち上げ（反射色に対する自己発光の割合）。 */
   lift: 0.07,
-  /** 武器のテレグラフ最大時の追加ゲイン。 */
-  telegraphGain: 3.2,
+  /** 武器のテレグラフ最大時の縁の発光の強さ（太陽・影に関係なく出る加算の光）。 */
+  telegraphGain: 2.4,
+  /** テレグラフ最大時の、縁以外（刃の面）の淡い発光。刃全体がうっすら染まる程度。 */
+  telegraphFill: 0.45,
 } as const;
 
 const SKY_RIM = new Color(0x9fb4c8);
@@ -68,15 +71,17 @@ export function setCharacterLightEnabled(enabled: boolean): void {
 export interface RimControls {
   /** 武器のリムの追加強度（0..1）。 */
   readonly weapon: UniformNode<'float', number>;
+  /** 武器のテレグラフの発光色（攻撃種別で変える）。 */
+  readonly weaponColor: UniformNode<'color', Color>;
 }
 
 export function createRimControls(): RimControls {
-  return { weapon: uniform(0) };
+  return { weapon: uniform(0), weaponColor: uniform(new Color(0xffffff)) };
 }
 
 /**
  * 発光ノード（加算）を作る。albedo はそのマテリアルの反射色（暗部の持ち上げに使う）。
- * `isWeapon` が true のときは `controls.weapon` で強められる。
+ * `isWeapon` が true のときは `controls.weapon`（強さ）と `controls.weaponColor`（色）の発光が足される。
  */
 export function characterLightNode(
   albedo: Node<'vec3'>,
@@ -100,7 +105,12 @@ export function characterLightNode(
     .mul(float(1).sub(sunSide.mul(backlit)))
     .mul(RIM.skyGain);
   let rim: Node<'vec3'> = gold.add(sky);
-  if (isWeapon) rim = rim.mul(controls.weapon.mul(RIM.telegraphGain).add(1));
+  if (isWeapon) {
+    // テレグラフ: 世界のライトとは無関係な加算の光。刃は細いのでフレネル（縁）が刃に沿った輪郭になる。
+    // 追加のメッシュ・パスは無く、既存の emissive に数命令足すだけ。
+    const edge = fresnel.mul(RIM.telegraphGain).add(RIM.telegraphFill);
+    rim = rim.add(controls.weaponColor.mul(controls.weapon).mul(edge));
+  }
   // 暗部の持ち上げ: 暗い色ほど効く（明るい面は十分明るいので元の色をほぼ保つ）
   const luma = dot(albedo, vec3(0.299, 0.587, 0.114));
   const dark = float(1).sub(smoothstep(0.0, 0.5, luma).mul(0.6));
@@ -113,8 +123,8 @@ export function characterLightNode(
 
 /** `applyCharacterLight` が返すハンドル。 */
 export interface CharacterLight {
-  /** 武器のリムを強める（0..1）。敵の攻撃予備動作（テレグラフ）演出用。 */
-  setWeaponTelegraph(amount: number): void;
+  /** 武器の縁を光らせる（強さ 0..1、色は省略時は直前の色）。敵の攻撃予備動作（テレグラフ）演出用。 */
+  setWeaponTelegraph(amount: number, color?: ColorRepresentation): void;
   readonly weaponTelegraph: number;
   dispose(): void;
 }
@@ -148,9 +158,10 @@ export function applyCharacterLight(root: Object3D): CharacterLight {
   });
   let amount = 0;
   return {
-    setWeaponTelegraph(a) {
+    setWeaponTelegraph(a, color) {
       amount = Math.min(1, Math.max(0, a));
       controls.weapon.value = amount;
+      if (color !== undefined) controls.weaponColor.value.set(color);
     },
     get weaponTelegraph() {
       return amount;
