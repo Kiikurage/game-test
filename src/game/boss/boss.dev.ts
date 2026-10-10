@@ -34,7 +34,13 @@ registerDevHooks('boss', ({ game }) => {
     });
   };
   // `?boss` で起動すると、開始時にボスを出す（`?scene=test&boss` がボスの確認シーン）
-  if (new URLSearchParams(location.search).has('boss')) spawn();
+  if (new URLSearchParams(location.search).has('boss')) {
+    spawn();
+    // プレイヤーの死亡でボスは待機へ戻る（`BossSystem`）。確認シーンは入場演出がないので、復活の時点で再び交戦させる
+    game.events.on('death', (e) => {
+      if (e.phase === 'respawn') bossSystemOf(game).boss?.engage();
+    });
+  }
   return {
     bossSpawn: spawn,
     bossRemove: () => {

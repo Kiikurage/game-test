@@ -21,9 +21,9 @@ test('the boss showcase spawns the boss, which beats, picks moves and shows the 
   expect(initial?.phase).toBe(1);
   expect(initial?.hp).toBe(2400);
 
-  // 約 40 秒分進めると、ビートと技を何度か繰り返す
+  // 約 15 秒分進めると、ビートと技を何度か繰り返す（プレイヤーが死ぬとボスは待機へ戻って履歴が消えるので、死ぬ前に確認する）
   await page.evaluate(() => {
-    window.__game?.dev.advance(2400);
+    window.__game?.dev.advance(900);
   });
   const later = await page.evaluate(() => window.__game?.dev.bossDebug() ?? null);
   expect(later?.history.length).toBeGreaterThan(3);
