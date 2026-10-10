@@ -120,7 +120,9 @@ test('the player can step on the rotten floorboard, drop into the waterway, run 
 
   // 開通前は鉄格子が塞ぐ
   await walkThrough(page, [[72, 44.5]], 0.3);
-  await aimCamera(page, 0);
+  // 北（+z）へ押し当てる。aimCamera はプレイヤー相対なので、絶対方位 0 にするには自分の向きを引く
+  // （遅い CI ではプレイヤーが水路側を向いていることがあり、相対 0 で W を押すと階段を戻って壁際に嵌まる）
+  await aimCamera(page, 0 - (await sim(page)).player.yaw);
   await holdKey(page, 'KeyW', 90);
   p = (await sim(page)).player;
   expect(p.position.z).toBeLessThan(45);
