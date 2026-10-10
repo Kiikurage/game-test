@@ -187,6 +187,18 @@ def _heal_glow(rng):
     return fade(out, 0.002, 0.2)
 
 
+@sound("sfx.player-heavy-charge-full", "se", 80, G, lufs_offset=-3)
+def _heavy_charge_full(rng):
+    # 強攻撃のフル溜め到達（#200）: 刃が鳴る短い金属の「キン」。高い基音 + 非調和の倍音を短く減衰させ、控えめな残響を足す
+    dur = 0.5
+    ping = metal_hit(2350.0, dur, rng, brightness=0.8, damp=0.9)
+    t = tt(dur)
+    # 立ち上がりの一瞬だけ高域が閃く（ごく短い 5.2kHz）
+    glint = np.sin(2 * np.pi * 5200.0 * t) * np.exp(-t / 0.018) * 0.35
+    out = reverb(ping + glint, 0.35, 0.18, rng, damp_hz=7000)
+    return fade(out[: int(dur * SR)], 0.0008, 0.12)
+
+
 @sound("sfx.breathless", "se", 85, G, lufs_offset=-1)
 def _breathless(rng):
     # 息切れ: 声ではなく空気の音。口の形（フォルマント）が 2 度開いて閉じる
