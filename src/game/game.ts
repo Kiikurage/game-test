@@ -681,7 +681,6 @@ export class Game {
       // ヒットストップが明けてから、シミュレーションの 30F（ボスは 60F）の間スロー
       this.timeScale.start(decision.slowMotion.scale, decision.slowMotion.frames, decision.frames);
     }
-    if (decision.shake) this.camera.addShake(decision.shake.amplitudeDeg, decision.shake.frames);
 
     // 飛び散る向き: 攻撃側 → 被弾側の水平方向 + わずかに上
     let nx = e.position.x - e.attackerPosition.x;

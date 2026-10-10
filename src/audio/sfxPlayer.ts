@@ -20,6 +20,8 @@ export interface PlayRequest {
   readonly volume?: number;
   /** マニフェストの優先度を上書きする（0〜100）。 */
   readonly priority?: number;
+  /** 再生レート（音程）の追加倍率（既定 1。±4% の揺らぎに掛かる）。 */
+  readonly rate?: number;
 }
 
 export interface LoopOptions {
@@ -130,6 +132,7 @@ export class SfxPlayer {
       loop: false,
       position: req.position,
       volume: req.volume,
+      rate: req.rate,
     });
     return voice && this.handleFor(voice);
   }
@@ -223,6 +226,7 @@ export class SfxPlayer {
       loop: boolean;
       position?: Vec3Like | undefined;
       volume?: number | undefined;
+      rate?: number | undefined;
       fadeInSeconds?: number | undefined;
       onEnded?: () => void;
     },
@@ -250,7 +254,7 @@ export class SfxPlayer {
       source.loopEnd = entry.loopEnd ?? buffer.duration;
     } else {
       // ループは揺らがせない（ループ点がずれる）。ワンショットだけピッチを ±4% 揺らす。
-      source.playbackRate.value = randomPlaybackRate(this.rng);
+      source.playbackRate.value = randomPlaybackRate(this.rng) * (o.rate ?? 1);
     }
     const gain = ctx.createGain();
     const level = entry.gain * (o.volume ?? 1) * (o.loop ? 1 : randomGain(this.rng));

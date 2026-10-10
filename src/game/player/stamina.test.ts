@@ -129,6 +129,16 @@ describe('Stamina', () => {
       expect(s.current).toBeCloseTo(50 + PER_FRAME, 6);
     });
 
+    it('does not regenerate while charging a heavy attack, but the wait still elapses', () => {
+      const s = new Stamina();
+      s.consume(50);
+      step(s, 200, { charging: true });
+      expect(s.current).toBe(50);
+      expect(s.regenDelayRemaining).toBe(0);
+      s.update(DT);
+      expect(s.current).toBeCloseTo(50 + PER_FRAME, 6);
+    });
+
     it('never exceeds the maximum', () => {
       const s = new Stamina();
       s.consume(1);
