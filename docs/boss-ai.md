@@ -130,6 +130,29 @@ registerBossMove({
 攻撃判定は地形で遮られない（`HitResolver` は壁・柱の遮蔽を見ない）ので、柱を挟んでも当たる。`BossDeps.pillars`（円の配列）があるとき、扇形の判定が始まる F に柱へ触れていれば
 `bossPillarHit` を発行する（破片は E4-2c の演出がこれを購読する）。`hooks.shape` を持つ技（円・線）は対象外。アリーナ・柱の実座標を渡すのは E5-6 のアリーナ生成。
 
+### フェーズ移行の演出（E5-6 / #84）
+
+仕様は vertical-slice.md の 6.5 節。ボスは 120F 固定で進む（上記）ので、演出はボスの移行 F（`Boss.transitionFrame`。`bossPhaseBoundary` の瞬間が F0）に同期させる。
+タイムラインの数値は `src/game/boss/bossTransition.ts`（`BOSS_TRANSITION`）。
+
+| F | 内容 | 担当 |
+| --- | --- | --- |
+| 0 | `bossTransition` `start`（HP バーの境界の光 20F の起点）・カメラクリップ `PHASE_TRANSITION_CLIP`（120F） | `bossTransition.system.ts` |
+| 1–12 | 仰け反り（無敵は 120F 通してボス側）。胸を反らして頭が跳ねる手続きの姿勢 | `bossTransitionPose.ts` |
+| 13 | `shieldThrow`: 盾が手を離れて飛び、地面に刺さる（着地で破片・`sfx.boss.slam2`・小さな振動）。`bgmLayer`（`bgm.boss-layer` を 360F で重ねる） | `bossTransitionFx.ts` / system |
+| 27 以降 | 斧を両手持ちへ（`setGrip('twoHand')`） | fx |
+| 60 | `roar`: 眼窩・武器が橙に発光（60→100 で `emberAtTransitionFrame`）・熾火が舞う・`bgmDuck` −6dB / 30F・`sfx.boss.roar`・赤い縁取り（F60–F90 の 30F） | fx / system |
+| 100 | `roarEnd`: `bgmDuck` 解除（30F）。カメラが戻り始める | system |
+| 120 | `end`: 戦闘再開（ボスは `setPhase(2)`。最初の技は遠距離帯の跳躍か灰の波） | `Boss` |
+
+- カメラ（`cameraClips.ts`）は仕様どおり（F60 までに +1.5m・FOV +6°・振動 0.8° を 60F、F100–F120 で戻す）なので調整なし。再生は `start` の瞬間から（クリップの F60 が咆哮に合う）。
+- 赤い縁取りは `postprocess.ts` の `ScreenEffect.rim`（死亡演出の `setScreenEffect` と同じ口。追加パスなし）。強さは `rimAtTransitionFrame`（立ち上がり 6F・保持 12F・減衰 12F）。
+- プレイヤーは移行中も操作できる（移動・ロール・回復。ボスの無敵は `UprightTarget.invulnerable`）。ロックオンも維持される。
+- 途中でボスがリセットされたら（死亡・篝火）、カメラ演出・ダッキングを止めて `bossTransition` `end`（`aborted: true`）を発行し、描画は盾と熾火をフェーズ 1 の見た目へ戻す。
+- 一時停止・スローでも合うよう、描画は `bossTransitionOf(game).frame`（移行 F。演出中でなければ -1）を読んで進める（盾の飛行も F から進める）。
+- 確認: `?debug&scene=boss` で `bossTool().set('ai', true)` → `window.__game.dev.bossHp(1200)`（次の硬直で移行）。`bossTransitionFrame()` で F を読める。
+- 未対応: ヒットストップ 12F（ボスの移行の進行を止めてしまうので、仰け反りの姿勢の勢いで代用）、`Spell_Simple_*` クリップ（アニメーションに未収録のため手続きの姿勢のみ）、BGM / HP バーの購読（E7-4b / E6-3a）。
+
 ## 確認用
 
 - `?scene=test&boss`（`?debug` 併用で距離帯の円と状態・距離帯・直前の技・選択重みの表示）。プレイヤーの北 7m にボスが出て、スタブ技を繰り返す。

@@ -32,6 +32,8 @@ export interface ScreenEffect {
   vignette: number;
   /** 黒へのフェード（1 で真っ黒）。 */
   fade: number;
+  /** 画面端の赤い縁取り（ボスのフェーズ移行の咆哮。1 で縁がはっきり赤い）。 */
+  rim: number;
 }
 
 export interface PostProcess {
@@ -67,6 +69,7 @@ export function createPostProcess(
   const uDim = uniform(0);
   const uVignette = uniform(0);
   const uFade = uniform(0);
+  const uRim = uniform(0);
 
   const graded = Fn(() => {
     let c = color.rgb;
@@ -88,6 +91,9 @@ export function createPostProcess(
     c = mix(c, vec3(luminance(c)), uDesaturate);
     c = c.mul(float(1).sub(uDim));
     c = c.mul(mix(1.0, mix(0.08, 1.0, smoothstep(0.78, 0.2, d)), uVignette));
+    // 画面端の赤い縁取り（咆哮）。周辺ほど赤く、中心は変えない
+    const rimMask = smoothstep(0.4, 0.85, d).mul(uRim).mul(0.75);
+    c = mix(c, c.mul(0.35).add(vec3(0.55, 0.035, 0.02)), rimMask);
     c = c.mul(float(1).sub(uFade));
     return vec4(c, 1.0);
   })();
@@ -101,6 +107,7 @@ export function createPostProcess(
       if (effect.dim !== undefined) uDim.value = effect.dim;
       if (effect.vignette !== undefined) uVignette.value = effect.vignette;
       if (effect.fade !== undefined) uFade.value = effect.fade;
+      if (effect.rim !== undefined) uRim.value = effect.rim;
     },
     render: () => {
       pipeline.render();
