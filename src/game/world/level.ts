@@ -202,6 +202,8 @@ export interface InteractableSpawn {
   readonly area: AreaId | null;
   readonly x: number;
   readonly z: number;
+  /** 移動先（霧の門: 闘技場の入場位置。`yaw` はそこで向く方角 = 闘技場の中心）。 */
+  readonly target?: { readonly x: number; readonly z: number; readonly yaw: number };
 }
 
 /** 門（鉄門 G1・霧の門）。開閉の演出・操作は別チケット。ここでは位置と、塞ぐコライダのオン/オフ口だけを持つ。 */

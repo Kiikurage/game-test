@@ -45,6 +45,7 @@ import {
   type Vec2Like,
 } from './movement';
 import { Flask } from './flask';
+import { ForcedWalkInput } from './forcedWalk';
 import {
   DEFAULT_GUARD_PARAMS,
   GuardCounterWindow,
@@ -295,6 +296,9 @@ export class Player {
   /** 状況アクションの長さ（フレーム）と、向ける先（`beginScripted`）。 */
   private scriptedFrames = 0;
   private scriptedFaceYaw: number | null = null;
+  /** 演出による強制歩行（`beginForcedWalk`）。 */
+  private forcedWalk: { frames: number; yaw: () => number } | null = null;
+  private readonly forcedInput = new ForcedWalkInput();
 
   /** ガードのフレーム・窓（入力補助 11.2 節で差し替えられる。実際の差し替えは E10-1）。 */
   guardParams: GuardParams = DEFAULT_GUARD_PARAMS;
@@ -558,6 +562,39 @@ export class Player {
     return true;
   }
 
+  /**
+   * 入力を奪って `frames` ステップだけ歩かせる（演出。霧の門の入場）。`yaw` は毎ステップ呼ばれ、歩く向き（ワールドのヨー）を返す。
+   * 歩いている間は実入力（ボタン・先行入力）を読まない。死亡・`teleport`・`cancelForcedWalk` で終わる。
+   */
+  beginForcedWalk(frames: number, yaw: () => number): void {
+    this.forcedWalk = { frames: Math.max(1, Math.floor(frames)), yaw };
+  }
+
+  cancelForcedWalk(): void {
+    this.forcedWalk = null;
+  }
+
+  /** 強制歩行中か。 */
+  get forcedWalking(): boolean {
+    return this.forcedWalk !== null;
+  }
+
+  private applyForcedWalk(frame: PlayerFrame): PlayerFrame {
+    const forced = this.forcedWalk;
+    if (!forced) return frame;
+    if (this.dead || forced.frames <= 0) {
+      this.forcedWalk = null;
+      return frame;
+    }
+    forced.frames--;
+    frame.input.clearBuffer();
+    return {
+      input: this.forcedInput.aim(forced.yaw(), frame.cameraYaw),
+      cameraYaw: frame.cameraYaw,
+      lockTarget: null,
+    };
+  }
+
   /** 状況アクションの入力を受け付けられるか（地上の移動系、または篝火に座って保持している間）。 */
   get canInteract(): boolean {
     switch (this.state) {
@@ -611,6 +648,7 @@ export class Player {
     this.fsm.reset('idle');
     this.scriptedFrames = 0;
     this.scriptedFaceYaw = null;
+    this.forcedWalk = null;
     this.guardStun = 0;
     this.guardAge = 0;
     this.guardResume = false;
@@ -633,7 +671,8 @@ export class Player {
   }
 
   /** 1 固定ステップ進める。物理ステップ（`physics.step`）の前に呼ぶ。 */
-  update(dt: number, frame: PlayerFrame): void {
+  update(dt: number, inputFrame: PlayerFrame): void {
+    const frame = this.applyForcedWalk(inputFrame);
     this.transform.beginStep();
     this.events.length = 0;
     this.markerEvents.length = 0;

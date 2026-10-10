@@ -143,6 +143,8 @@ export interface Environment {
    * uniform / ライトの値を書き換えるだけでシェーダは変わらない（毎フレーム呼んでよい）。
    */
   setMood(mood: Mood, t: number): void;
+  /** 距離フォグの密度に掛ける倍率（1 = そのまま）。霧の門の周辺だけ濃くする（仕様 7.2 節）。ムードの切り替えとは独立。 */
+  setFogBoost(factor: number): void;
   /** 視線方向（ワールド）に対する空の色。背景と同じ式・同じ uniform（闘技場の背景の幕が使う）。 */
   skyAt(dir: Node<'vec3'>): Node<'vec3'>;
 }
@@ -288,6 +290,8 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   const lerpColor = (out: Color, a: number, b: number, t: number): Color =>
     out.copy(tmpA.set(a)).lerp(tmpB.set(b), t);
   let lastT = 0;
+  let fogBase = from.fogDensity;
+  let fogBoost = 1;
   const setMood = (mood: Mood, t: number): void => {
     const k = Math.min(1, Math.max(0, t));
     if (k === lastT && (k === 0 || k === 1)) return;
@@ -306,9 +310,16 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
     lerpColor(hazeFar.value, from.hazeFar, mood.hazeFar, k);
     lerpColor(hazeSun.value, from.hazeSun, mood.hazeSun, k);
     lerpColor(sunTint.value, from.skyTint, mood.skyTint, k);
-    fogDensity.value = num(from.fogDensity, mood.fogDensity);
+    fogBase = num(from.fogDensity, mood.fogDensity);
+    fogDensity.value = fogBase * fogBoost;
     starAmount.value = num(from.stars, mood.stars);
   };
 
-  return { sun, hemisphere, followShadowFocus, setMood, skyAt };
+  const setFogBoost = (factor: number): void => {
+    if (factor === fogBoost) return;
+    fogBoost = factor;
+    fogDensity.value = fogBase * fogBoost;
+  };
+
+  return { sun, hemisphere, followShadowFocus, setMood, setFogBoost, skyAt };
 }

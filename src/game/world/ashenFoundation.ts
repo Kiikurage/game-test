@@ -892,13 +892,22 @@ const enemies: EnemySpawn[] = [
 
 const items: ItemSpawn[] = [{ id: 'flask-c', kind: 'flask_up', area: 'C', x: 54, z: 26.8 }];
 
+const FOG_GATE_TARGET = (() => {
+  const a = (F_ENTRY_DEG * Math.PI) / 180;
+  const r = F_RING_R - 3;
+  const x = F_CENTER.x + Math.cos(a) * r;
+  const z = F_CENTER.z + Math.sin(a) * r;
+  return { x, z, yaw: Math.atan2(F_CENTER.x - x, F_CENTER.z - z) };
+})();
+
 const interactables: InteractableSpawn[] = [
   { id: 'bonfire', kind: 'bonfire', area: 'A', x: 0, z: 0 },
   { id: 'stele-a', kind: 'tablet', area: 'A', x: -4.6, z: 3.4 },
   // 鉄門 G1（78,32）とレバー（80,36）は中庭の外の通路上、霧の門（104,68）は中庭の北東の角
   { id: 'G1', kind: 'gate', area: null, x: 78, z: 32 },
   { id: 'lever-g1', kind: 'lever', area: null, x: 80, z: 36 },
-  { id: 'fog-gate', kind: 'gate', area: 'E', x: 104, z: 68 },
+  // 霧の門: 入場演出のあと、闘技場の口（外周の切れ目）から 3m 内側へ。闘技場の中心を向く
+  { id: 'fog-gate', kind: 'gate', area: 'E', x: 104, z: 68, target: FOG_GATE_TARGET },
   // 脇道 side_waterway: 腐った床板（C）と水路の鉄格子（D の側面。内側から押して開く）
   { id: 'hatch-waterway', kind: 'hatch', area: 'C', x: HATCH.x, z: HATCH.z },
   { id: 'grate-waterway', kind: 'grate', area: 'D', x: GRATE.x, z: GRATE.z },
