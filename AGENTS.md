@@ -152,3 +152,19 @@ src/
 - 依存方向: `main` → `render` / `game` / `input` / `ui` / `audio` → `core`。`game` は `render` / `input` / `ui` / `audio` を import しない（game は音のイベントを出し、main が audio へ繋ぐ）。
 - シミュレーションは 60Hz 固定ステップ（`Game.update(dt)`）、描画はフレームごとに `alpha` で補間（`InterpolatedTransform`）。
   描画対象の位置・回転は `InterpolatedTransform` として game 側に持たせ、render 側は `sample(alpha, ...)` で読む。
+
+### 新しいサブシステムの追加手順（共有ファイルを編集しない）
+
+`src/main.ts` / `src/game/game.ts` / `src/render/gameView.ts` は、新機能のために既存行を編集しない（並行 PR の競合を避ける）。
+自分のファイルを作り、次の登録口に登録する。`*.dev.ts` / `*.system.ts` / `*.view.ts` は各ファイルが自動で読み込まれる。
+
+| 足すもの | 作るファイル | 呼ぶ API |
+| --- | --- | --- |
+| ゲームロジック（毎ステップの更新・命中時の処理） | `src/game/<feature>/<feature>.system.ts` | `registerGameSystem(id, (game) => ({ update?(dt), onHit?(e) }))`（`src/game/systems.ts`） |
+| 描画（シーンへの追加・毎フレーム更新・アセット読み込み） | `src/render/<feature>/<feature>.view.ts` | `registerViewPlugin(id, ({ game, view, gameRenderer, level }) => ({ load?(), update?(dt) }))`（`src/render/viewPlugins.ts`） |
+| E2E・撮影用のデバッグフック（`window.__game.dev.*`） | `<feature>.dev.ts`（任意のディレクトリ） | `registerDevHooks(name, (ctx) => ({ ... }))` ＋ `declare module` で `DevHooks` に型を足す（`src/devHooks.ts`） |
+| `?xxx=` で起動する showcase（キャラクター確認表示） | `<feature>.dev.ts` | `registerShowcaseParams('xxx')`（`src/devHooks.ts`） |
+
+- 登録式にしていない既存の機能（プレイヤー・敵・被弾処理など）を変更するときは、従来どおり各ファイルを編集する。
+- システムの `update` は、プレイヤー・敵の更新後・`combat.step()` の前に呼ばれる。`onHit` は標準の命中処理（強靭度・敵への反映・ヒットストップ・SE）の後に呼ばれる。登録順はファイル名順。
+- `game` から `render` を import しない規則は `*.system.ts` にも適用される。`*.dev.ts` だけは `Game` / `GameView` の型を import してよい（type import のみ）。

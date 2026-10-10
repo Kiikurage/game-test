@@ -37,6 +37,7 @@ import {
 } from './combat';
 import { PLAYER_STATS } from './data';
 import { TimeScale } from './timeScale';
+import { createGameSystems, type GameSystem } from './systems';
 import { tuning } from './tuning';
 import {
   CAMERA_QUERY_GROUPS,
@@ -52,6 +53,9 @@ import {
   type BoxSpec,
   type DummySpec,
 } from './world/playground';
+
+// `*.system.ts`（登録式のゲームシステム。systems.ts 参照）を自動で読み込む。新機能は game.ts を編集しない。
+import.meta.glob('./**/*.system.ts', { eager: true });
 
 /** 何も入力しない InputReader（入力システムなしで Game を作るテスト・起動時用）。 */
 export const NULL_INPUT: InputReader = (() => {
@@ -212,6 +216,8 @@ export class Game {
   private readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
   private readonly boxColliders = new Map<string, RAPIER.Collider>();
+  /** 登録式のシステム（`systems.ts`）。コンストラクタの最後に生成する。 */
+  private systems: readonly GameSystem[] = [];
 
   private constructor(
     private readonly physics: Physics,
@@ -310,6 +316,7 @@ export class Game {
         source: e.attackerId === 'player' ? 'player' : 'enemy',
         position: e.position,
       });
+      for (const system of this.systems) system.onHit?.(e);
     });
 
     // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
@@ -345,6 +352,7 @@ export class Game {
     this.events.on('hit', (e) => {
       if (e.position) this.enemies.noises.emit(e.position, 'combat');
     });
+    this.systems = createGameSystems(this);
   }
 
   /** 敵をロックオン対象・被弾側（ハートボックスと強靭度）として登録する。 */
@@ -489,6 +497,7 @@ export class Game {
     this.attackDriver.update(player);
     // 攻撃側（プレイヤー）が凍結中は、仮の攻撃のフレームも進めない
     if (!player.fsm.isFrozenStep) this.debugSwing.update(player.feet, player.yaw);
+    for (const system of this.systems) system.update?.(dt);
     this.combat.step();
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);

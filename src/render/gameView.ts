@@ -17,6 +17,10 @@ import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
 import { CombatDebugView } from './combatDebugView';
 import { NavDebugView } from './navDebugView';
 import { GridNavigator } from '../game/enemy/gridNavigator';
+import { createViewPlugins, type ViewPlugin } from './viewPlugins';
+
+// `*.view.ts`（登録式の描画機能。viewPlugins.ts 参照）を自動で読み込む。新機能は gameView.ts を編集しない。
+import.meta.glob('./**/*.view.ts', { eager: true });
 
 /**
  * Game の状態を three のシーンとして描画する。
@@ -58,6 +62,8 @@ export class GameView {
   private readonly combatDebug: CombatDebugView | null = null;
   /** ?debug のときだけ作る敵のナビゲーション（歩ける範囲・経路）の可視化。 */
   private readonly navDebug: NavDebugView | null = null;
+  /** 登録式の描画機能（`viewPlugins.ts`）。 */
+  private readonly plugins: readonly ViewPlugin[];
 
   constructor(
     private readonly game: Game,
@@ -127,7 +133,22 @@ export class GameView {
 
     this.postProcess = createPostProcess(gameRenderer.renderer, this.scene, this.camera, preset);
 
+    this.plugins = createViewPlugins({ game, view: this, gameRenderer, level });
+
     this.resize();
+  }
+
+  /** 登録式の描画機能のアセットを読み込む（失敗してもゲームは続行する）。起動時に 1 度呼ぶ。 */
+  async loadPlugins(): Promise<void> {
+    await Promise.all(
+      this.plugins.map(async (p) => {
+        try {
+          await p.load?.();
+        } catch (e) {
+          console.error('view plugin failed to load', e);
+        }
+      }),
+    );
   }
 
   /** 環境メッシュ（A〜C の墓石・枯れ木・石壁など）と篝火のパーティクルを置く。読み込み後に 1 度呼ぶ。 */
@@ -192,6 +213,7 @@ export class GameView {
     this.particles.update(dt, focus);
     this.telegraphDemo?.update(Math.min(dt, 0.1));
     this.telegraphs.update(dt);
+    for (const plugin of this.plugins) plugin.update?.(dt);
     this.combatDebug?.update();
     this.navDebug?.update();
     if (this.drawEnabled) this.postProcess.render();
