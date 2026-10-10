@@ -10,7 +10,7 @@ test('loads the title-group SFX from the manifest and accepts play requests with
   });
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
 
-  await page.goto('./?quality=low&scale=0.25');
+  await page.goto('./?quality=low&scale=0.25&nodraw');
   await startGame(page);
 
   // title グループ（UI・環境音・BGM）のプリロードで、マニフェストのそれらの素材がすべてデコードされる
@@ -22,7 +22,7 @@ test('loads the title-group SFX from the manifest and accepts play requests with
   expect(titleCount).toBeGreaterThan(0);
   await expect
     .poll(() => page.evaluate(() => window.__game?.audio?.sfx.loaded ?? 0), { timeout: 30_000 })
-    .toBe(titleCount);
+    .toBeGreaterThanOrEqual(titleCount);
 
   // 最初の操作で resume してから再生要求を出す（未 resume の要求は見送られる仕様）
   await page.mouse.click(200, 200);

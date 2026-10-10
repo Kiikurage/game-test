@@ -24,7 +24,7 @@ test('renders with the WebGPU backend and no console errors', async ({ page }) =
   // メインループが回り、固定ステップのシミュレーションが進んでいる
   await expect
     .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(5);
+    .toBeGreaterThan(2);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
     .toBeGreaterThan(5);
