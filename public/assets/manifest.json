@@ -243,7 +243,7 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 1929360,
+  "totalBytes": 2032740,
   "equipment": {
     "file": "equipment.glb",
     "bytes": 109208,
@@ -480,8 +480,8 @@
   },
   "environment": {
     "file": "environment.glb",
-    "bytes": 399692,
-    "triangles": 12557,
+    "bytes": 503072,
+    "triangles": 15697,
     "textureMemoryBytes": 0,
     "items": {
       "GraveRound": {
@@ -515,19 +515,22 @@
         "triangles": 184
       },
       "WallFullA": {
-        "triangles": 192
+        "triangles": 716
       },
       "WallFullB": {
-        "triangles": 204
+        "triangles": 596
       },
       "WallFullWindow": {
-        "triangles": 216
+        "triangles": 910
+      },
+      "WallFullBeam": {
+        "triangles": 830
       },
       "WallMid": {
-        "triangles": 156
+        "triangles": 500
       },
       "WallLow": {
-        "triangles": 120
+        "triangles": 476
       },
       "WallRubble": {
         "triangles": 570
