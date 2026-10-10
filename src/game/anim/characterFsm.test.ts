@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, type CancelWindow } from '../data';
-import { PLAYER_STATE_GRAPH, type PlayerStateId } from '../player/playerStates';
+import { PLAYER_STATE_GRAPH, isScriptedState, type PlayerStateId } from '../player/playerStates';
 import {
   CharacterFsm,
   IllegalTransitionError,
@@ -207,13 +207,16 @@ describe('プレイヤーの状態グラフ', () => {
     expect(validateStateGraph(PLAYER_STATE_GRAPH)).toEqual([]);
   });
 
-  it('Action 状態の動作 ID は PLAYER_ACTIONS のキーか、フレームデータを持たない着地・強攻撃の溜め（長さが可変）', () => {
+  it('Action 状態の動作 ID は PLAYER_ACTIONS のキーか、フレームデータを持たない着地・強攻撃の溜め・状況アクション', () => {
     for (const [id, spec] of Object.entries(PLAYER_STATE_GRAPH) as [
       PlayerStateId,
       (typeof PLAYER_STATE_GRAPH)[PlayerStateId],
     ][]) {
       if (spec.kind !== 'action') continue;
-      expect(id in PLAYER_ACTIONS || id === 'land' || id === 'heavyCharge', id).toBe(true);
+      expect(
+        id in PLAYER_ACTIONS || id === 'land' || id === 'heavyCharge' || isScriptedState(id),
+        id,
+      ).toBe(true);
     }
   });
 

@@ -33,6 +33,13 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     knockdown: { clip: 'Hit_Knockback', fadeIn: 0.03, fadeOut: 0.12, fallbackFrames: 48 },
     // ガード崩し（#53）: 54F に Idle_Shield_Break（1.07s）を合わせる
     guardBreak: { clip: 'Idle_Shield_Break', fadeIn: 0.04, fadeOut: 0.15, fallbackFrames: 54 },
+    // 状況アクション（#55）: 調べる動作（篝火の点火。120F に Interact 2.0s を合わせる）、座り込み（Sitting_Enter 1.3s を
+    // 120F へ）、座って保持（Sitting_Idle_Loop のループ）、立ち上がり（Sitting_Exit 1.03s を 120F へ）。
+    // 長さは `Player.animation.totalFrames`（`beginScripted` の frames）が優先される。
+    interact: { clip: 'Interact', fadeIn: 0.15, fadeOut: 0.2, fallbackFrames: 120 },
+    sitDown: { clip: 'Sitting_Enter', fadeIn: 0.15, fadeOut: 0.05, fallbackFrames: 120 },
+    rest: { clip: 'Sitting_Idle_Loop', loop: true, fadeIn: 0.05, fadeOut: 0.15 },
+    standUp: { clip: 'Sitting_Exit', fadeIn: 0.05, fadeOut: 0.2, fallbackFrames: 120 },
     // 死亡（HP 0）: 倒れて動かない（演出・UI は別チケット）
     dead: { clip: 'Death01', fadeIn: 0.08, fadeOut: 0.1, fallbackFrames: 90 },
   },
@@ -67,6 +74,10 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     'guardCounter',
     'heal',
     'healEmpty',
+    'interact',
+    'sitDown',
+    'rest',
+    'standUp',
   ],
 };
 

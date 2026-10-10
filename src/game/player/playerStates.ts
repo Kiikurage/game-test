@@ -33,6 +33,12 @@ export type PlayerStateId =
   | 'guardRelease'
   | 'guardBreak'
   | 'guardCounter'
+  // 状況アクション（#55）: 調べる動作（`interact`。篝火の点火など）、座り込み（`sitDown`）、座って保持（`rest`）、
+  // 立ち上がり（`standUp`。リスポーンはここから始まる）。長さは `Player.beginScripted` が決める。
+  | 'interact'
+  | 'sitDown'
+  | 'rest'
+  | 'standUp'
   // 死亡（HP 0）。どの状態からも入り、リスポーン（`Player.teleport`）でしか出られない。演出・UI は別チケット。
   | 'dead';
 
@@ -70,6 +76,8 @@ const REACTIONS = ['flinch', 'knockdown', 'dead'] as const;
 const HEALS = ['heal', 'healEmpty'] as const;
 /** 強攻撃の入口（溜め開始）。軽攻撃の窓・ロール/バックステップ/回復のキャンセル窓の `attack` から入れる。 */
 const HEAVY_ENTRY = 'heavyCharge';
+/** 状況アクション（地上から入る。`Player.beginScripted`）。 */
+const SCRIPTED = ['interact', 'sitDown', 'standUp'] as const;
 
 /** 遷移グラフ。ここにない遷移は `IllegalTransitionError` になる（状態機械が不正遷移を拒否する）。 */
 export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
@@ -86,6 +94,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       ...LIGHT_ATTACK_IDS,
       HEAVY_ENTRY,
       ...HEALS,
+      ...SCRIPTED,
       ...REACTIONS,
     ],
   },
@@ -102,6 +111,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       HEAVY_ENTRY,
       'runAttack',
       ...HEALS,
+      ...SCRIPTED,
       ...REACTIONS,
     ],
   },
@@ -118,6 +128,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       HEAVY_ENTRY,
       'runAttack',
       ...HEALS,
+      ...SCRIPTED,
       ...REACTIONS,
     ],
   },
@@ -194,6 +205,11 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   guardBreak: { kind: 'stagger', to: ['idle', 'move', 'fall', 'dead'] },
   // ガードカウンター: 盾の打撃。終わりで移動系へ。
   guardCounter: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
+  // 状況アクション: 終わりで移動系へ（座り込みは `rest` へ。`rest` は `standUp` まで保持）。被弾・死亡は割り込める。
+  interact: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
+  sitDown: { kind: 'action', to: ['rest', ...REACTIONS] },
+  rest: { kind: 'action', to: ['standUp', ...REACTIONS] },
+  standUp: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   dead: { kind: 'dead', to: [] },
 };
 
@@ -215,4 +231,14 @@ export function isHealState(state: PlayerStateId): state is 'heal' | 'healEmpty'
 /** ロール・バックステップ中のように、入力による通常移動を受け付けない状態。 */
 export function isDodgeState(state: PlayerStateId): boolean {
   return state === 'roll' || state === 'backstep';
+}
+
+/** 状況アクション（調べる・座り込み・休憩の保持・立ち上がり）の最中。入力で移動・攻撃などはできない。 */
+export function isScriptedState(state: PlayerStateId): boolean {
+  return state === 'interact' || state === 'sitDown' || state === 'rest' || state === 'standUp';
+}
+
+/** 座っている間（座り込み・保持・立ち上がり）。篝火の安全を表し、被弾しない。 */
+export function isSeatedState(state: PlayerStateId): boolean {
+  return state === 'sitDown' || state === 'rest' || state === 'standUp';
 }

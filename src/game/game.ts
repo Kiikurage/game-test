@@ -45,7 +45,8 @@ import {
   TARGET_GROUPS,
   WORLD_GROUPS,
 } from './world/groups';
-import type { EnemySpawn } from './world/level';
+import type { EnemySpawn, InteractableSpawn } from './world/level';
+import { SaveStore, type SaveGateway } from '../core/persistence';
 import {
   DUMMIES,
   PLAYER_SPAWN,
@@ -105,6 +106,10 @@ export interface GameOptions {
   readonly enemies?: readonly EnemySpawn[];
   /** 敵の経路問い合わせ。省略時は直線。レベルでは `levelGameOptions` が格子ナビゲータを渡す。 */
   readonly enemyNavigator?: Navigator;
+  /** 調べる対象の配置（レベルデータの `interactables`。篝火など）。省略時はなし。登録式のシステムが読む。 */
+  readonly interactables?: readonly InteractableSpawn[];
+  /** セーブ（篝火の点火・休憩の保存先）。省略時はメモリのみ（保存されない）。本番は main.ts が `SaveStore` を渡す。 */
+  readonly save?: SaveGateway;
   /** プレイヤーの開始位置と向き（ヨー）。省略時はテストシーンの広場。 */
   readonly spawn?: { readonly x: number; readonly z: number; readonly yaw: number };
 }
@@ -139,6 +144,10 @@ export class Game {
   readonly events = new EventBus<GameEventMap>();
 
   readonly player: Player;
+  /** セーブの窓口（篝火の点火・休憩など。`core/persistence`）。 */
+  readonly save: SaveGateway;
+  /** 調べる対象の配置（篝火・レバー・門など。`src/game/interaction` と各機能のシステムが読む）。 */
+  readonly interactableSpawns: readonly InteractableSpawn[];
   /** 雑魚敵（生成・AI・音の受け口）。敵は `lockOnTargets` にも登録される。 */
   readonly enemies: EnemyManager;
   /** 攻撃トークン（同時に攻撃できる敵の数。5.1 節）。 */
@@ -213,7 +222,8 @@ export class Game {
   private readonly cameraCollision: CameraCollision;
   private readonly spawnPosition = new Vector3();
   private readonly spawnYaw: number;
-  private readonly heightAt: (x: number, z: number) => number;
+  /** 地形の高さ（足元の y の基準）。 */
+  readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
   private readonly boxColliders = new Map<string, RAPIER.Collider>();
   /** 登録式のシステム（`systems.ts`）。コンストラクタの最後に生成する。 */
@@ -224,6 +234,8 @@ export class Game {
     options: GameOptions,
   ) {
     this.input = options.input ?? NULL_INPUT;
+    this.save = options.save ?? new SaveStore(null);
+    this.interactableSpawns = options.interactables ?? [];
     const { rapier, world } = physics;
 
     // 地形
@@ -357,7 +369,7 @@ export class Game {
 
   /** 敵をロックオン対象・被弾側（ハートボックスと強靭度）として登録する。 */
   private registerEnemy(enemy: Enemy): void {
-    this.lockOnTargets.push(enemy);
+    if (!this.lockOnTargets.includes(enemy)) this.lockOnTargets.push(enemy);
     const stats = ENEMY_STATS[enemy.type];
     const heart = new UprightTarget(enemy.id, 'enemy', enemy.maxHp, [
       uprightHeartbox(stats.radius, stats.height),
@@ -399,6 +411,28 @@ export class Game {
 
   static async create(options: GameOptions = {}): Promise<Game> {
     return new Game(await createPhysics(), options);
+  }
+
+  /** 最新ステップの入力スナップショット（登録式のシステムが「調べる」などのボタンを読む）。 */
+  get inputSnapshot(): InputSnapshot {
+    return this.input.snapshot;
+  }
+
+  /**
+   * 全敵を出発地点へ戻して復活させる（篝火の休憩・死亡後のリスポーン。通常敵の復活）。倒れていた敵は被弾側・強靭度を
+   * 登録し直す。ボスは敵とは別（`rest` イベントを購読して自分で戻る）。
+   */
+  respawnEnemies(): void {
+    const revived = new Set(this.enemies.respawnAll());
+    for (const enemy of this.enemies.enemies) {
+      if (revived.has(enemy)) {
+        this.registerEnemy(enemy);
+      } else {
+        this.enemyHearts.get(enemy.id)?.heart.health.refill();
+        this.reactors.get(enemy.id)?.reset();
+      }
+    }
+    this.syncEnemyHearts();
   }
 
   /** 入力を差し替える。 */
