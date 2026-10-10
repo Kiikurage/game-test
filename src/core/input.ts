@@ -73,4 +73,9 @@ export interface InputReader {
   hasBuffered(action: Action): boolean;
   /** バッファを破棄する（行動不能になった等）。省略時は全アクション。 */
   clearBuffer(action?: Action): void;
+  /**
+   * 1 ステップ分、先行入力バッファの経過時間を止める（ヒットストップ中に呼ぶ。仕様書 4.1 節）。
+   * 保持中の入力の期限を `dt` 秒延ばすので、凍結したステップ数だけ期限が延びる。
+   */
+  holdBuffer?(dt: number): void;
 }

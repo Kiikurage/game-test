@@ -34,6 +34,11 @@ export class InputBuffer {
     return true;
   }
 
+  /** 保持中のすべての入力の期限を `seconds` 延ばす（凍結中の時間経過を相殺する）。 */
+  extend(seconds: number): void {
+    for (const [action, t] of this.expiresAt) this.expiresAt.set(action, t + seconds);
+  }
+
   clear(action?: Action): void {
     if (action === undefined) this.expiresAt.clear();
     else this.expiresAt.delete(action);
