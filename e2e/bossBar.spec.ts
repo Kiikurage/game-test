@@ -28,9 +28,7 @@ const advance = (page: Page, steps: number) =>
     window.__game?.dev.advance(n);
   }, steps);
 
-test('boss HP bar appears on engage, drops on damage and the ghost follows', async ({
-  page,
-}) => {
+test('boss HP bar appears on engage, drops on damage and the ghost follows', async ({ page }) => {
   const errors = await boot(page);
   await advance(page, 40);
   const bar = page.getByTestId('boss-bar');
