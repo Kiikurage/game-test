@@ -37,6 +37,9 @@ export function captureUndeadSources(root: Object3D): Map<Mesh, UndeadPartSource
   return sources;
 }
 
+/** 簡略メッシュの色の底上げ（近景のリム・暗部リフトの代わり）。 */
+const LIFT = 1.4;
+
 const luminance = (r: number, g: number, b: number): number => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 const smooth = (a: number, b: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -106,9 +109,10 @@ export function createUndeadColorizer(
         }
       }
       const o = (offset + i) * 3;
-      colors[o] = or;
-      colors[o + 1] = og;
-      colors[o + 2] = ob;
+      // 近景はリムライト・暗部の持ち上げ（characterLight）で明るく見えるので、その分を底上げする
+      colors[o] = or * LIFT;
+      colors[o + 1] = og * LIFT;
+      colors[o + 2] = ob * LIFT;
     }
   };
 }

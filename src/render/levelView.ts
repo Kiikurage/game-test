@@ -35,7 +35,7 @@ import type { Bonfire, ParticleSystem } from './particles';
 
 const DEG = Math.PI / 180;
 /** 結合したグレーボックスの空間セルの一辺（m）。 */
-const GRAYBOX_CELL = 32;
+const GRAYBOX_CELL = 48;
 
 /** 地表の素材ごとの色（リニア）。黄昏の墓地: 彩度を抑えた枯れ草・乾いた土・冷たい石。 */
 const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
