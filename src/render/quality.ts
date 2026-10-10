@@ -1,3 +1,4 @@
+import { applyPerfToggles, parsePerfToggles, type PerfToggles } from './perfToggles';
 import type { ResolutionLimits } from './resolution';
 
 export type QualityLevel = 'low' | 'medium' | 'high';
@@ -80,9 +81,11 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
   },
   medium: {
     level: 'medium',
-    shadowMapSize: 2048,
+    // #231: モバイル GPU のフィルレート対策。MSAA を切り、影マップを 2048 → 1536、
+    // 内部ピクセル上限を 1.8M → 1.1M にした（理由は docs/performance.md）。
+    shadowMapSize: 1536,
     shadowRadius: 24,
-    msaa: true,
+    msaa: false,
     bloom: true,
     bloomStrength: 0.35,
     detailOctaves: 2,
@@ -98,7 +101,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     },
     characterLod: { nearDistance: 12 },
     cliffDetail: 0.5,
-    resolution: { maxPixelRatio: 2, maxPixels: 1_800_000 },
+    resolution: { maxPixelRatio: 2, maxPixels: 1_100_000 },
   },
   high: {
     level: 'high',
@@ -187,13 +190,17 @@ export interface QualitySelection {
   readonly fixedScale: number | null;
   readonly isMobile: boolean;
   readonly targetFps: number;
+  /** 実機での切り分け用トグル（`?perf` `?noshadow` など）。 */
+  readonly toggles: PerfToggles;
 }
 
 /** URL パラメータ（上書き）と端末判定から最終的な品質設定を決める。 */
 export function selectQuality(search: string, hints: DeviceHints): QualitySelection {
   const level = parseQualityParam(search) ?? detectQuality(hints);
+  const toggles = parsePerfToggles(search);
   return {
-    preset: QUALITY_PRESETS[level],
+    preset: applyPerfToggles(QUALITY_PRESETS[level], toggles),
+    toggles,
     fixedScale: parseFixedScale(search),
     isMobile: hints.isMobile,
     targetFps: targetFpsFor(hints.isMobile),
