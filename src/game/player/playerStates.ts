@@ -16,6 +16,9 @@ export type PlayerStateId =
   | 'light1'
   | 'light2'
   | 'light3'
+  // 回復瓶（#48）: 全体 54F（F26 で HP 加算）/ 残数 0 の空振り 20F
+  | 'heal'
+  | 'healEmpty'
   // 被弾（#50）: 仰け反り 24F（Hit_Chest）/ 転倒 48F（Hit_Knockback）。どの状態からも入る。
   | 'flinch'
   | 'knockdown'
@@ -32,24 +35,29 @@ export function isLightAttackState(state: PlayerStateId): state is LightAttackId
 
 /** 被弾で入る状態（どの状態からも遷移できる）。 */
 const REACTIONS = ['flinch', 'knockdown', 'dead'] as const;
+/** 回復瓶の動作（地上・ロール F26 以降から入る）。 */
+const HEALS = ['heal', 'healEmpty'] as const;
 
 /** 遷移グラフ。ここにない遷移は `IllegalTransitionError` になる（状態機械が不正遷移を拒否する）。 */
 export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   // 移動系からは、コンボ窓（全体 + 12F）が残っていれば軽 2・軽 3 へも入れる
   idle: {
     kind: 'idle',
-    to: ['move', 'dash', 'roll', 'backstep', 'fall', ...LIGHT_ATTACK_IDS, ...REACTIONS],
+    to: ['move', 'dash', 'roll', 'backstep', 'fall', ...LIGHT_ATTACK_IDS, ...HEALS, ...REACTIONS],
   },
   move: {
     kind: 'move',
-    to: ['idle', 'dash', 'roll', 'backstep', 'fall', ...LIGHT_ATTACK_IDS, ...REACTIONS],
+    to: ['idle', 'dash', 'roll', 'backstep', 'fall', ...LIGHT_ATTACK_IDS, ...HEALS, ...REACTIONS],
   },
   dash: {
     kind: 'move',
-    to: ['idle', 'move', 'roll', 'backstep', 'fall', ...LIGHT_ATTACK_IDS, ...REACTIONS],
+    to: ['idle', 'move', 'roll', 'backstep', 'fall', ...LIGHT_ATTACK_IDS, ...HEALS, ...REACTIONS],
   },
   // ロール終了・キャンセル: 移動・ダッシュ（ボタン保持）・停止・落下・攻撃（F26 以降）
-  roll: { kind: 'action', to: ['idle', 'move', 'dash', 'fall', 'light1', ...REACTIONS] },
+  roll: {
+    kind: 'action',
+    to: ['idle', 'move', 'dash', 'fall', 'light1', ...HEALS, ...REACTIONS],
+  },
   backstep: { kind: 'action', to: ['idle', 'move', 'light1', ...REACTIONS] },
   // 小さな段差の乗り降りは着地せず立ち・移動へ戻る
   fall: { kind: 'move', to: ['idle', 'move', 'land', ...REACTIONS] },
@@ -65,6 +73,12 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
     to: ['idle', 'move', 'fall', 'roll', 'backstep', 'light3', ...REACTIONS],
   },
   light3: { kind: 'action', to: ['idle', 'move', 'fall', 'roll', 'backstep', ...REACTIONS] },
+  // 回復: F30 からロールへ、F36 から攻撃へキャンセル可（ガードは #53 が窓を使って足す）。終了で移動系へ
+  heal: {
+    kind: 'action',
+    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'light1', ...REACTIONS],
+  },
+  healEmpty: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   // 被弾の硬直。終了後は移動・待機・落下へ（硬直中は行動不能。再被弾は restart / 転倒への格上げ）
   flinch: { kind: 'stagger', to: ['idle', 'move', 'fall', 'knockdown', 'dead'] },
   knockdown: { kind: 'stagger', to: ['idle', 'move', 'fall', 'flinch', 'dead'] },
@@ -74,6 +88,11 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
 /** 被弾の硬直中（仰け反り・転倒）。 */
 export function isReactionState(state: PlayerStateId): boolean {
   return state === 'flinch' || state === 'knockdown';
+}
+
+/** 回復瓶の動作中（回復・空振り）。 */
+export function isHealState(state: PlayerStateId): state is 'heal' | 'healEmpty' {
+  return state === 'heal' || state === 'healEmpty';
 }
 
 /** ロール・バックステップ中のように、入力による通常移動を受け付けない状態。 */

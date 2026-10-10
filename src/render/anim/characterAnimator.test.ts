@@ -341,4 +341,21 @@ describe('CharacterAnimator（プレイヤー設定）', () => {
     animator.update(1 / 60, state(), 1);
     expect(bone(character, 'thigh_l').position.x).toBeCloseTo(0.9, 5);
   });
+
+  it('回復（54F）は Consume 全体を状態フレームに合わせて再生し、空振り（20F）は前半だけを使う', () => {
+    const { character, animator } = make();
+    const heal = getPlayerClipEvents('player.heal');
+    tick(
+      animator,
+      40,
+      state({ state: 'heal', kind: 'action', actionId: 'heal', stateFrame: 26 }),
+      1,
+    );
+    expect(animator.dominantClip).toBe('Consume');
+    // F26（HP 加算）の時刻 = 25F 分の経過
+    expect(bone(character, 'thigh_l').position.x).toBeCloseTo(simFrameToClipTime(heal, 26), 5);
+    expect(simFrameToClipTime(heal, 26)).toBeCloseTo((25 / 60) * (40 / 30 / (54 / 60)), 5);
+    const empty = getPlayerClipEvents('player.healEmpty');
+    expect(simFrameToClipTime(empty, 21)).toBeLessThanOrEqual(14 / 30 + 1e-9);
+  });
 });

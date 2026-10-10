@@ -47,6 +47,8 @@ interface DebugState {
     view(yawOffset: number, distance?: number, pitchDeg?: number): void;
     /** プレイヤーのアニメーションレイヤーを時刻で固定表示する（撮影用）。 */
     pose(layer: PlayerAnimLayer | null, time?: number): void;
+    /** プレイヤーの HP を減らす（回復瓶の確認・撮影用）。 */
+    damage(amount: number): void;
     /** ?debug 用の仮の攻撃（軽攻撃 1 の判定）を 1 回出す。判定の動作確認・撮影用。 */
     swing(): void;
     /** プレイヤーを `frames` ステップ凍結する（ヒットストップの確認用）。 */
@@ -257,6 +259,9 @@ async function bootstrap(): Promise<void> {
         },
         swing: () => {
           game.debugSwing.start();
+        },
+        damage: (amount) => {
+          game.playerTarget.health.damage(amount);
         },
         hitStop: (frames) => {
           game.player.hitStop(frames);
