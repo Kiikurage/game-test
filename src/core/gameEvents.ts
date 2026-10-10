@@ -15,6 +15,17 @@ export type HitKind = 'light' | 'heavy' | 'guard' | 'guardBreak';
 /** 音の発生源。優先度と空間化（敵・ボスは位置つき）の判断に使う。 */
 export type SoundSource = 'player' | 'boss' | 'enemy' | 'world';
 
+/** 死亡演出の節目（仕様書 8.1 節。`DEATH` のフレーム表）。 */
+export type DeathPhase =
+  | 'start' // F0: HP 0・ヒットストップ・入力無効・BGM ダッキング
+  | 'anim' // F12: 死亡アニメ・カメラの引き・FOV 縮小
+  | 'grade' // F30: 彩度・明度・周辺減光へ
+  | 'text' // F60: 「倒れた」表示（60F フェードイン）
+  | 'skippable' // F90: ボタン入力でスキップ可能
+  | 'hold' // F120: 保持（鐘の SE）
+  | 'fadeOut' // F240（スキップ時は入力後）: 黒へフェードアウト
+  | 'respawn'; // F300: 篝火で再開（リセット済み）
+
 export interface GameEventMap {
   /** 足音。 */
   footstep: {
@@ -110,6 +121,23 @@ export interface GameEventMap {
     readonly position: Vec3Like;
     /** 撃破済みボスの ID（セーブ由来）。 */
     readonly defeatedBosses: readonly string[];
+  };
+  /**
+   * プレイヤーの死亡演出の節目（8.1 節。死亡処理 `death.system.ts` が発行する）。`frame` は死亡（F0）からのフレーム。
+   * 「倒れた」テキスト（E6-3b）は `text` で表示を始め `fadeOut` / `respawn` で消す。ボスなどの戦闘のリセットは
+   * `respawn` の直前に発行される `rest`（`cause: 'respawn'`）を購読する（死亡開始時の処理は `start` を購読する）。
+   */
+  death: {
+    readonly phase: DeathPhase;
+    readonly frame: number;
+    /** スキップ入力で短縮された演出か。 */
+    readonly skipped: boolean;
+    readonly position: Vec3Like;
+  };
+  /** BGM のダッキング指示。`db` が 0 なら解除（`frames` かけて戻す）。音量の実処理は audio 層。 */
+  bgmDuck: {
+    readonly db: number;
+    readonly frames: number;
   };
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {

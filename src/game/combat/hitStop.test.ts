@@ -113,11 +113,11 @@ describe('decideHitStop（4.1 節の表）', () => {
     ).toBe(12);
   });
 
-  it('プレイヤーが倒されても自動ではスローにしない（死亡演出が TimeScale を使う）', () => {
+  it('プレイヤーが倒されたらヒットストップ 12F（スローにはしない。8.1 節 F0）', () => {
     const c = cfg();
     const d = decideHitStop({ event: event('swing', 'none', true), ...ENEMY_ATTACKS }, c);
     expect(d.slowMotion).toBeNull();
-    expect(d.frames).toBe(6);
+    expect(d.frames).toBe(c.kill);
   });
 
   it('enabled = false なら何も起きない', () => {

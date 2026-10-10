@@ -54,7 +54,8 @@ export class GameView {
   private playerView: PlayerView | null = null;
   private enemyViews: EnemyViews | null = null;
   private readonly playground: PlaygroundView;
-  private readonly postProcess: PostProcess;
+  /** ポストエフェクト（死亡演出などが `setScreenEffect` を呼ぶ）。 */
+  readonly postProcess: PostProcess;
   private readonly tmpPosition = new Vector3();
   private readonly tmpNormal = new Vector3();
   private readonly tmpQuaternion = new Quaternion();
