@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で `?debug`（ナビゲーションの可視化つき）で起動する。 */
 async function boot(page: Page): Promise<string[]> {
@@ -13,7 +9,7 @@ async function boot(page: Page): Promise<string[]> {
   });
   page.on('pageerror', (err) => errors.push(err.message));
   await page.goto('./?debug&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   // シミュレーションは dev.advance で手動で進めるので、描画ループが回るのは待たない（SwiftShader は遅い）
   await page.waitForFunction(() => window.__game !== undefined, undefined, { timeout: 30_000 });
   return errors;
