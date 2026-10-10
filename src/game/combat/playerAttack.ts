@@ -66,12 +66,26 @@ export function lightAttackCapsule(
   const bearing = id === 'light1' ? arc / 2 - arc * p : -arc / 2 + arc * p;
   const elevation = (id === 'light1' ? -25 + 60 * p : 10 - 25 * p) * DEG;
   const height = id === 'light1' ? 1.15 : 1.3;
+  return slashCapsule(feet, yaw, bearing, elevation, height, out);
+}
+
+/** 剣を `bearing`（右が正）・`elevation`（仰角）の向きへ、手元の高さ `height` から伸ばした武器カプセル。 */
+function slashCapsule(
+  feet: Vec3,
+  yaw: number,
+  bearing: number,
+  elevation: number,
+  height: number,
+  out: Capsule,
+): Capsule {
   const dir = yaw + bearing;
   const ce = Math.cos(elevation);
   const dx = Math.sin(dir) * ce;
   const dz = Math.cos(dir) * ce;
   const dy = Math.sin(elevation);
   const grip = 0.35;
+  const len = WEAPON_CAPSULE.length;
+  out.radius = WEAPON_CAPSULE.radius;
   set(out.a, feet.x + dx * grip, feet.y + height + dy * grip, feet.z + dz * grip);
   set(
     out.b,
@@ -79,6 +93,50 @@ export function lightAttackCapsule(
     feet.y + height + dy * (grip + len),
     feet.z + dz * (grip + len),
   );
+  return out;
+}
+
+/** 走り攻撃の弧（度）。ダッシュしながら体の右から左へ水平に薙ぐ（Sword_Dash の振り抜き）。 */
+const RUN_ATTACK_ARC_DEG = 100;
+
+/**
+ * 走り攻撃（Sword_Dash）: 低い姿勢で踏み込み、右下から左へ水平に薙ぐ（仰角 −15° → +10°、手元の高さ 1.0m）。
+ * `p` は持続中の進行（0 = 判定開始直前、1 = 持続の最終フレーム）。前進 2.0m と合わせて、体の前 2m 超まで届く。
+ */
+export function runAttackCapsule(feet: Vec3, yaw: number, p: number, out: Capsule): Capsule {
+  const arc = RUN_ATTACK_ARC_DEG * DEG;
+  return slashCapsule(feet, yaw, arc / 2 - arc * p, (-15 + 25 * p) * DEG, 1.0, out);
+}
+
+/**
+ * 強攻撃（溜めなし / フル溜め共通。Sword_Heavy_Combo の振り下ろし）: 頭上に構えた剣を、正面の鉛直面で
+ * 仰角 +80°（真上近く）→ −45°（前下）へ振り下ろす。手元の高さ 1.5m、体の前 0.6m（実クリップの振り下ろしは手が体の前 1m ほどを通る）。
+ * `p` は持続中の進行（0 = 判定開始直前の姿勢 = 振りかぶり、1 = 持続の最終フレーム = 地面近く）。
+ * 剣先は p = 0.64 で水平（高さ 1.5m・前 2.05m）を通り、前進 0.8〜1.0m と合わせて体の前 2.8m 近くまで届く。
+ */
+export function heavyAttackCapsule(feet: Vec3, yaw: number, p: number, out: Capsule): Capsule {
+  const len = WEAPON_CAPSULE.length;
+  const elevation = (80 - 125 * p) * DEG;
+  const ce = Math.cos(elevation);
+  const se = Math.sin(elevation);
+  const sx = Math.sin(yaw);
+  const sz = Math.cos(yaw);
+  const height = 1.5;
+  const forward = 0.6;
+  const grip = 0.35;
+  set(
+    out.a,
+    feet.x + sx * (forward + ce * grip),
+    feet.y + height + se * grip,
+    feet.z + sz * (forward + ce * grip),
+  );
+  set(
+    out.b,
+    feet.x + sx * (forward + ce * (grip + len)),
+    feet.y + height + se * (grip + len),
+    feet.z + sz * (forward + ce * (grip + len)),
+  );
+  out.radius = WEAPON_CAPSULE.radius;
   return out;
 }
 
@@ -149,10 +207,19 @@ export class PlayerAttackDriver {
   }
 
   private shape(id: PlayerAttackId, source: AttackSource, p: number): CapsuleShape {
-    if (id === 'guardCounter') {
-      guardCounterCapsule(source.feet, source.yaw, p, this.scratch);
-    } else {
-      lightAttackCapsule(id, source.feet, source.yaw, p, this.scratch);
+    switch (id) {
+      case 'guardCounter':
+        guardCounterCapsule(source.feet, source.yaw, p, this.scratch);
+        break;
+      case 'heavy':
+      case 'heavyCharged':
+        heavyAttackCapsule(source.feet, source.yaw, p, this.scratch);
+        break;
+      case 'runAttack':
+        runAttackCapsule(source.feet, source.yaw, p, this.scratch);
+        break;
+      default:
+        lightAttackCapsule(id, source.feet, source.yaw, p, this.scratch);
     }
     return capsuleShape(this.scratch, source.feet);
   }
