@@ -231,6 +231,7 @@ Rogue / Mage も同系統。**KayKit はキャラクター間でリグとクリ�
 
 - 元の 3 パックの `*-license.txt` はいずれも「CC0 1.0 Universal」であることを取得時に実物で確認し、`assets-src/LICENSES/` に控えを保存している（`npm run assets:fetch` が CC0 の文言を検証し、違えば停止する）。
 - クリップ一覧は `src/render/assets/clips.ts`（`CLIP_NAMES`）。待機/歩き/ジョグ/スプリント（`Idle_Loop` `Walk_Loop` `Jog_Fwd_Loop` `Sprint_Loop`）、`Roll`、剣攻撃（`Sword_Regular_A/B/C` と `_Rec`、`Sword_Regular_Combo`、`Sword_Heavy_Combo`、`Sword_Attack`、`Melee_Hook`）、ガード（`Sword_Block`、`Idle_Shield_Loop`、`Idle_Shield_Break`、`Shield_OneShot`）、被弾（`Hit_Chest` `Hit_Head` `Hit_Knockback`）、`Death01`、ジャンプ、篝火休憩（`Sitting_*`）、回復（`Consume`）ほか。
+- 派生クリップ（`DERIVED_CLIP_NAMES`、読み込み時に既存クリップから作る）: `Sword_Thrust`（軽 3 の突き。UAL / UAL2 に突きが無く、`Sword_Regular_C` は跳び上がって叩きつける動きだったため、両端の姿勢だけを使い直した `src/render/anim/thrustClip.ts`）。腕の突き出し・体幹・踏み込みは `src/render/player/lightThrust.view.ts` が IK で補正する。回復の瓶（自作メッシュ `flaskMesh.ts`、琥珀色に発光する液体）と飲む動作（頭の反らし・左手の IK）は `healFlask.view.ts`（#173）。
 - UAL にはバックステップ・左右ストレイフ・ロックオン歩行のクリップが無い。ロックオン中の移動は #8 以降で前進クリップの流用や手続き的な処理で補う必要がある。
 - 全クリップは同一の 65 ボーン共通リグ（Quaternius Universal リグ）用で、ボーン名で自動的にバインドされる。クリップのリグとキャラクターの待機姿勢には最大 0.15（クォータニオン距離）程度の差があるが、見た目の破綻は確認されなかったため、リターゲットは行わない。
 
