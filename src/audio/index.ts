@@ -8,6 +8,7 @@ export * from './voiceLimiter';
 export * from './playbackTypes';
 export * from './soundLibrary';
 export * from './sfxPlayer';
+export * from './footstep';
 export * from './sfxEvents';
 export * from './listener';
 export * from './sfxSystem';

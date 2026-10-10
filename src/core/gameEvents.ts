@@ -26,6 +26,57 @@ export type DeathPhase =
   | 'fadeOut' // F240（スキップ時は入力後）: 黒へフェードアウト
   | 'respawn'; // F300: 篝火で再開（リセット済み）
 
+/** ボス戦のイベントのペイロード（`GameEventMap` の `boss*`）。 */
+export interface BossBattleEvents {
+  /** 交戦開始（`Boss.engage()`。HP バーを出す）。`boundaries` はフェーズ境界の HP（目盛りの位置）。 */
+  bossEngaged: {
+    readonly id: string;
+    readonly hp: number;
+    readonly maxHp: number;
+    readonly phase: 1 | 2;
+    readonly boundaries: readonly number[];
+  };
+  /** HP の変化。`damage` は減少量（0 以上。回復・リセットでは 0）。HP バーの白い残像の長さに使う。 */
+  bossHpChanged: {
+    readonly id: string;
+    readonly hp: number;
+    readonly maxHp: number;
+    readonly damage: number;
+    readonly phase: 1 | 2;
+  };
+  /**
+   * フェーズ境界に到達した（HP が閾値以下になったあとの最初の硬直で、移行が始まった瞬間）。
+   * ボスは `transitionFrames` の間、無敵で行動しない。その後 `to` のフェーズで戦闘を再開する。演出（咆哮・BGM 切替・バーの発光）はこれで始める。
+   */
+  bossPhaseBoundary: {
+    readonly id: string;
+    readonly from: 1 | 2;
+    readonly to: 1 | 2;
+    readonly hp: number;
+    readonly transitionFrames: number;
+  };
+  /** 撃破（HP 0）。 */
+  bossDefeated: {
+    readonly id: string;
+    readonly position: Vec3Like;
+  };
+  /** リセット（HP 満タン・フェーズ 1・待機位置へ。HP バーを消す）。`death` = プレイヤーの死亡、`rest` = 篝火の休憩、`removed` = 取り除いた。 */
+  bossReset: {
+    readonly id: string;
+    readonly cause: 'death' | 'rest' | 'removed';
+    readonly hp: number;
+    readonly maxHp: number;
+  };
+  /** 技の判定が柱に触れた（破片の演出用フック。攻撃は柱で遮られない）。 */
+  bossPillarHit: {
+    readonly id: string;
+    /** `BossDeps.pillars` の添字。 */
+    readonly pillar: number;
+    readonly position: Vec3Like;
+    readonly moveId: string;
+  };
+}
+
 export interface GameEventMap {
   /** 足音。 */
   footstep: {
@@ -139,6 +190,16 @@ export interface GameEventMap {
     readonly db: number;
     readonly frames: number;
   };
+  /**
+   * ボス戦のイベント（#78 / 6.5・9.1 節）。ボス HP バー（E6-3a）・フェーズ移行の演出（E5-6）・BGM が購読する。
+   * 型は `BossBattleEvents`。`id` はボスの ID（`'boss'`）。
+   */
+  bossEngaged: BossBattleEvents['bossEngaged'];
+  bossHpChanged: BossBattleEvents['bossHpChanged'];
+  bossPhaseBoundary: BossBattleEvents['bossPhaseBoundary'];
+  bossDefeated: BossBattleEvents['bossDefeated'];
+  bossReset: BossBattleEvents['bossReset'];
+  bossPillarHit: BossBattleEvents['bossPillarHit'];
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {
     readonly cue: string;
