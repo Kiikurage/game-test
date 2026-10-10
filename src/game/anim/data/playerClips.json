@@ -79,6 +79,25 @@
         { "type": "hitStart", "frame": 15 },
         { "type": "hitEnd", "frame": 19 }
       ]
+    },
+    {
+      "id": "player.heal",
+      "clip": "Consume",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 40 },
+      "spec": { "startup": 25, "active": 0, "recovery": 29 },
+      "markers": [
+        { "type": "healApply", "frame": 26 },
+        { "type": "cancelOpen", "frame": 30 }
+      ]
+    },
+    {
+      "id": "player.healEmpty",
+      "clip": "Consume",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 14 },
+      "spec": { "startup": 20, "active": 0, "recovery": 0 },
+      "markers": []
     }
   ]
 }

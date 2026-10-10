@@ -45,6 +45,8 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     'light3',
     'guardBreak',
     'guardCounter',
+    'heal',
+    'healEmpty',
   ],
 };
 

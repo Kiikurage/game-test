@@ -12,6 +12,7 @@ import {
   type CancelWindow,
 } from '../data';
 import {
+  Health,
   HitReactor,
   PLAYER_REACTOR,
   knockdownInvulnerable,
@@ -40,6 +41,7 @@ import {
   yawOf,
   type Vec2Like,
 } from './movement';
+import { Flask } from './flask';
 import {
   DEFAULT_GUARD_PARAMS,
   GuardCounterWindow,
@@ -52,6 +54,7 @@ import {
   isAttackState,
   isDodgeState,
   isGuardState,
+  isHealState,
   isLightAttackState,
   isReactionState,
   type LightAttackId,
@@ -65,6 +68,7 @@ export {
   isAttackState,
   isDodgeState,
   isGuardState,
+  isHealState,
   isLightAttackState,
   isReactionState,
   type LightAttackId,
@@ -85,6 +89,12 @@ export interface PlayerFrame {
 export type PlayerEvent =
   | { readonly type: 'rollStart' }
   | { readonly type: 'backstepStart' }
+  /** 回復瓶を飲み始めた（F1。瓶 1 本消費済み）。 */
+  | { readonly type: 'healStart' }
+  /** HP が加算された（F26）。`amount` は実際に増えた HP（最大 HP でクランプ後）。 */
+  | { readonly type: 'healApply'; readonly amount: number }
+  /** 瓶 0 本での空振り（回復なし・SE のみ）。 */
+  | { readonly type: 'healEmpty' }
   | { readonly type: 'attackStart'; readonly id: PlayerAttackId }
   | { readonly type: 'land'; readonly fallHeight: number }
   | { readonly type: 'staminaEmpty' };
@@ -196,6 +206,8 @@ export class Player {
   /** 足元の位置と向き（補間描画用）。 */
   readonly transform = new InterpolatedTransform();
   readonly stamina = new Stamina();
+  /** 回復瓶の残数（#48）。 */
+  readonly flask = new Flask();
   /** 強靭度・被弾後無敵・押し戻し（#50）。敵と共通の `HitReactor`。 */
   readonly reactor = new HitReactor(PLAYER_REACTOR);
 
@@ -269,7 +281,13 @@ export class Player {
   /** ガードを崩された回数の累計（Game がガード崩しの SE を出す判定に使う）。 */
   guardBreakCount = 0;
 
-  constructor(physics: Physics, spawn: Vector3, yaw: number) {
+  constructor(
+    physics: Physics,
+    spawn: Vector3,
+    yaw: number,
+    /** HP（回復の加算先）。Game は被弾側（`playerTarget`）の Health を渡す。 */
+    readonly health: Health = new Health(PLAYER_STATS.hp),
+  ) {
     const { rapier, world } = physics;
     this.position.copy(spawn);
     this.yaw = yaw;
@@ -547,6 +565,7 @@ export class Player {
     }
     // イベントマーカーは、最終的に落ち着いた状態のフレームで発火する（途中で捨てた状態の分は出さない）
     this.markers.advance(this.fsm.stateFrame, this.markerEvents);
+    this.applyHealMarkers();
     this.stampFootstepGait();
 
     this.applyFacing(frame, dt);
@@ -577,6 +596,9 @@ export class Player {
       case 'light3':
       case 'guardCounter':
         return this.updateAttack(this.state, frame);
+      case 'heal':
+      case 'healEmpty':
+        return this.updateDrinking(this.state, dt, frame);
       case 'flinch':
       case 'knockdown':
         return this.updateReaction();
@@ -611,6 +633,15 @@ export class Player {
         break;
       case 'fall':
         this.fallStartY = this.lastGroundY;
+        break;
+      case 'heal':
+        this.lastAttack = null;
+        // 消費は動作開始（F1）。F26 より前に仰け反ると HP は増えず、瓶だけ失われる。
+        this.flask.use();
+        this.events.push({ type: 'healStart' });
+        break;
+      case 'healEmpty':
+        this.events.push({ type: 'healEmpty' });
         break;
       case 'light1':
       case 'light2':
@@ -661,6 +692,9 @@ export class Player {
     // ガード（保持入力。行動不能中に押していても、動作可能になった瞬間に構える）
     const guard = this.tryGuard(frame, snap);
     if (guard) return guard;
+
+    const heal = this.tryHeal(frame);
+    if (heal) return heal;
 
     this.computeLocomotion(dt, snap, frame, 1);
     return null;
@@ -745,6 +779,65 @@ export class Player {
   /** 直近のステップがヒットストップで凍結されたか。 */
   get frozen(): boolean {
     return this.fsm.isFrozenStep;
+  }
+
+  /**
+   * 回復瓶（先行入力 6F）。HP が満タンなら入力だけ消費して何もしない（瓶は減らない）。
+   * 残数 0 なら空振り動作（20F）。スタミナは不要。
+   */
+  private tryHeal(frame: PlayerFrame): 'heal' | 'healEmpty' | null {
+    if (!frame.input.hasBuffered('item')) return null;
+    frame.input.consumeBuffered('item');
+    if (this.health.current >= this.health.max || this.health.dead) return null;
+    return this.flask.available ? 'heal' : 'healEmpty';
+  }
+
+  /** `healApply` マーカー（F26）で HP を加算する。最大 HP でクランプ。 */
+  private applyHealMarkers(): void {
+    for (const e of this.markerEvents) {
+      if (e.type !== 'healApply' || e.actionId !== 'player.heal') continue;
+      const before = this.health.current;
+      this.health.heal(PLAYER_ACTIONS.heal.healAmount);
+      this.events.push({ type: 'healApply', amount: this.health.current - before });
+    }
+  }
+
+  /**
+   * 回復（54F）/ 空振り（20F）。移動 1.0 m/s・向きは通常どおり。回復は F30 からロール、F36 から攻撃へ
+   * キャンセル可（F1–F25 はロール・攻撃・ガードへ不可）。F36 からはガードへもキャンセル可。
+   */
+  private updateDrinking(
+    id: 'heal' | 'healEmpty',
+    dt: number,
+    frame: PlayerFrame,
+  ): PlayerStateId | null {
+    if (this.fsm.canCancelTo('dodge')) {
+      const dodge = this.tryDodge(frame);
+      if (dodge) return dodge;
+    }
+    if (this.fsm.canCancelTo('lightAttack')) {
+      const attack = this.tryLightAttack(frame, 'light1');
+      if (attack) return attack;
+    }
+    // F36 からガードへキャンセル可（ボタン保持）
+    if (this.fsm.canCancelTo('guard')) {
+      const guard = this.tryGuard(frame, frame.input.snapshot);
+      if (guard) return guard;
+    }
+    if (this.stateFrame > totalFrames(PLAYER_ACTIONS[id])) return this.afterAttackState();
+    this.driftVelocity(dt);
+    return null;
+  }
+
+  /** 回復中の移動: 入力方向へ 1.0 m/s（強さに比例）。ロックオン中も同じ（ストレイフはしない）。 */
+  private driftVelocity(dt: number): void {
+    const m = this.moveMagnitude;
+    const speed = MOVEMENT.heal * Math.min(1, m / 0.6);
+    this.tmpVelocity.x = m > 0 ? (this.worldMove.x / m) * speed : 0;
+    this.tmpVelocity.y = m > 0 ? (this.worldMove.y / m) * speed : 0;
+    const accel = tuning.player.run / (tuning.player.accelFrames / 60);
+    const decel = tuning.player.run / (tuning.player.stopFrames / 60);
+    approachVelocity(this.velocity, this.tmpVelocity, accel, decel, dt);
   }
 
   private tryDodge(frame: PlayerFrame): PlayerStateId | null {
@@ -891,6 +984,11 @@ export class Player {
     if (this.fsm.canCancelTo('guard')) {
       const guard = this.tryGuard(frame, snap);
       if (guard) return guard;
+    }
+    // F26 から回復へキャンセル可（先行入力 6F）。
+    if (this.fsm.canCancelTo('heal')) {
+      const heal = this.tryHeal(frame);
+      if (heal) return heal;
     }
 
     // F26 から移動へキャンセル可（移動入力があるとき）。入力がなければ F32 まで硬直。
@@ -1182,6 +1280,7 @@ export class Player {
       !isAttackState(this.state) &&
       this.state !== 'guardRelease' &&
       this.state !== 'guardBreak' &&
+      !isHealState(this.state) &&
       !isReactionState(this.state)
     );
   }
