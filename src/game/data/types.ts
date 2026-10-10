@@ -49,6 +49,12 @@ export interface AttackDef extends FrameData {
 }
 
 /** 敵の攻撃定義（ダメージ・ガード時スタミナ・判定が必須）。 */
+/**
+ * テレグラフ（予備動作の武器の発光）の種別。通常 = 白、強攻撃 = 赤橙、ガード不能 = 赤橙（強攻撃より強く長い）。
+ * 色だけでなく発光の強さ・持続でも見分けられる（色覚配慮。5.1 節）。
+ */
+export type TelegraphKind = 'normal' | 'heavy' | 'unblockable';
+
 export interface EnemyAttackDef extends AttackDef {
   readonly damage: number;
   readonly guardStaminaCost: number;
@@ -56,6 +62,8 @@ export interface EnemyAttackDef extends AttackDef {
   readonly range: number;
   /** 強い攻撃（予備動作 34F 以上が必要。5.1 節）。 */
   readonly heavy?: boolean;
+  /** テレグラフ種別。省略時は `heavy` なら 'heavy'、そうでなければ 'normal'（`telegraphKindOf`）。 */
+  readonly telegraph?: TelegraphKind;
   /**
    * 連続攻撃の 2 発目（A1 の連続など）。直前の攻撃の動きでプレイヤーは身構えているので、
    * 予備動作の下限だけ緩める（`ENEMY_ATTACK_RULES.minFollowUpStartup`）。
