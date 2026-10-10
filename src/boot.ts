@@ -37,6 +37,8 @@ function createImmersiveEnv(): ImmersiveEnv {
 
 let orientationHint: OrientationHint | undefined;
 let lastImmersive: ImmersiveResult | undefined;
+/** 開始 / 再開画面が出ている間だけ入る。縦持ちの案内のタップから、横向き化と同時に開始・再開するために使う。 */
+let promptActivate: (() => void) | undefined;
 let pendingImmersive: Promise<ImmersiveResult> | undefined;
 
 /**
@@ -89,6 +91,9 @@ function runLaunchFlow(root: HTMLElement, app: GameApp): void {
     prompt = createPromptScreen({ kind, text }, () => {
       void activate();
     });
+    promptActivate = () => {
+      void activate();
+    };
     state = 'waiting';
     root.dataset.state = kind === 'start' ? 'ready' : 'paused';
   };
@@ -124,6 +129,7 @@ function runLaunchFlow(root: HTMLElement, app: GameApp): void {
 
   /** ユーザー操作（タップ・クリック・キー）のハンドラから呼ぶ。同期部分でジェスチャーを使い切る。 */
   const activate = async (): Promise<void> => {
+    promptActivate = undefined; // 二重起動を防ぐ（以降のタップは没入化のみ・重複なら何もしない）
     app.resumeAudio();
     const portraitAtActivate = portraitQuery.matches;
     // PC: Pointer Lock（モバイルでは不要）。フルスクリーンは PC では強制しない。
@@ -156,6 +162,11 @@ async function boot(): Promise<void> {
   if (!root) throw new Error('#app not found');
 
   orientationHint = mountOrientationHint(() => {
+    // 開始 / 再開画面が出ていれば、1 タップで横向き化と開始・再開まで行う（ローディング中は横向き化のみ）
+    if (promptActivate) {
+      promptActivate();
+      return;
+    }
     void enterLandscape().then(() => {
       // ロックが通っても端末が回らなかった場合は「回してください」に切り替え、タップを透過して縦のまま始められるようにする
       setTimeout(() => {
