@@ -243,6 +243,22 @@ export interface GameEventMap {
   bossTransition: BossBattleEvents['bossTransition'];
   bossDefeated: BossBattleEvents['bossDefeated'];
   bossDefeatCue: BossBattleEvents['bossDefeatCue'];
+  /**
+   * ボス入場演出の開始（#85 / 6.2 節）。霧の門の入場演出が終わって闘技場へ着いた瞬間に発行する。`frames` の間ボスは無敵で身構え、
+   * 終わると `bossEngaged`（HP バー）で戦闘が始まる。描画（兜を上げて身構える）は `Boss.introFrame` を読む。
+   */
+  bossIntro: {
+    readonly id: string;
+    readonly frames: number;
+  };
+  /**
+   * BGM の曲の切替指示（#85）。闘技場への入場で `bgm.boss`、プレイヤーの死亡・休憩で `bgm.area`（エリアの曲へ戻す）。
+   * 実処理は audio 層（購読は E7-4b）。
+   */
+  bgmChange: {
+    readonly track: 'bgm.boss' | 'bgm.area';
+    readonly frames: number;
+  };
   /** BGM をフェードアウトする指示（ボス撃破の崩壊 F72 から 90F。再生の実処理は audio 層。購読は E7-4b）。 */
   bgmFadeOut: {
     readonly frames: number;

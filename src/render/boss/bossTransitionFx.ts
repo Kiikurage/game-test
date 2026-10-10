@@ -7,6 +7,7 @@ import type { Boss } from '../../game/boss/boss';
 import type { BossCharacter } from '../assets/bossCharacter';
 import type { GameView } from '../gameView';
 import { emberAtTransitionFrame, shieldReleased } from './bossLook';
+import { bossIntroPose } from './bossIntroPose';
 import { bossTransitionPose } from './bossTransitionPose';
 import { ThrownShield } from './thrownShield';
 
@@ -41,6 +42,7 @@ export class BossTransitionFx {
   private roared = false;
   private lastRim = 0;
   private lastFrame = -1;
+  private introFrame = -1;
   private thrown: ThrownShield | null = null;
   private readonly rq = new Quaternion();
   private readonly pq = new Quaternion();
@@ -57,6 +59,7 @@ export class BossTransitionFx {
 
   /** 毎フレーム（フェーズの同期より前）。盾・熾火・画面の縁取りを進める。 */
   update(dt: number, boss: Boss): void {
+    this.introFrame = boss.introFrame; // 入場演出（#85）の姿勢は applyPose が重ねる
     const frame = bossTransitionOf(this.game).frame;
     if (frame >= 0) {
       this.touched = true;
@@ -94,9 +97,10 @@ export class BossTransitionFx {
 
   /** アニメーションの更新の後、`lateUpdate` の前に呼ぶ。手続きの姿勢を重ねる。 */
   applyPose(): void {
-    const frame = bossTransitionOf(this.game).frame;
+    const transition = bossTransitionOf(this.game).frame;
+    const frame = transition >= 0 ? transition : this.introFrame;
     if (frame < 0) return;
-    const pose = bossTransitionPose(frame);
+    const pose = transition >= 0 ? bossTransitionPose(frame) : bossIntroPose(frame);
     const shake = Math.sin(frame * 2.1) * pose.tremor;
     const { root } = this.model;
     root.updateMatrixWorld(true);
