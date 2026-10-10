@@ -254,7 +254,9 @@ export class HitReactor implements Freezable {
     if (profile.isPlayer) {
       if (armored && !hit.broke) return { ...NO_REACTION, heavy };
       const kind: ReactionKind = heavy ? 'knockdown' : 'flinch';
-      const distance = heavy ? KNOCKBACK.player.heavy.distance : KNOCKBACK.player.light.distance;
+      const distance = heavy
+        ? (event.knockback ?? KNOCKBACK.player.heavy.distance)
+        : KNOCKBACK.player.light.distance;
       const frames = heavy
         ? KNOCKBACK.player.heavy.downFrames
         : KNOCKBACK.player.light.flinchFrames;

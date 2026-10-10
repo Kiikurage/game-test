@@ -290,6 +290,116 @@
           "frame": 38
         }
       ]
+    },
+    {
+      "id": "boss.shieldBash.1.p1",
+      "clip": "Shield_Dash",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 33
+      },
+      "clipHitFrame": 15,
+      "spec": {
+        "startup": 26,
+        "active": 5,
+        "recovery": 12
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 27
+        },
+        {
+          "type": "hitEnd",
+          "frame": 31
+        }
+      ]
+    },
+    {
+      "id": "boss.shieldBash.2.p1",
+      "clip": "Sword_Heavy_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 6,
+        "endFrame": 52
+      },
+      "clipHitFrame": 28,
+      "spec": {
+        "startup": 36,
+        "active": 6,
+        "recovery": 50
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 37
+        },
+        {
+          "type": "hitEnd",
+          "frame": 42
+        }
+      ]
+    },
+    {
+      "id": "boss.leap.1.p1",
+      "clip": "Jump_Start",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 40
+      },
+      "clipHitFrame": 40,
+      "tail": {
+        "clip": "Jump_Land",
+        "startFrame": 0,
+        "endFrame": 38
+      },
+      "spec": {
+        "startup": 72,
+        "active": 6,
+        "recovery": 56
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 73
+        },
+        {
+          "type": "hitEnd",
+          "frame": 78
+        }
+      ]
+    },
+    {
+      "id": "boss.leap.1.p2",
+      "clip": "Jump_Start",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 40
+      },
+      "clipHitFrame": 40,
+      "tail": {
+        "clip": "Jump_Land",
+        "startFrame": 0,
+        "endFrame": 38
+      },
+      "spec": {
+        "startup": 72,
+        "active": 6,
+        "recovery": 46
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 73
+        },
+        {
+          "type": "hitEnd",
+          "frame": 78
+        }
+      ]
     }
   ]
 }

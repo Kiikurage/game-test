@@ -210,6 +210,15 @@ export interface GameEventMap {
     readonly frames: number;
   };
   /**
+   * ボスの叩きつけ（跳躍叩きつけの着地など）。着地の衝撃の演出（パーティクル・破片）が購読する。
+   * 画面振動は game 側が `slamAt`（カメラ演出）で出すので、ここでは出さない。
+   */
+  bossSlam: {
+    readonly position: Vec3Like;
+    /** 衝撃の円の半径（m）。 */
+    readonly radius: number;
+  };
+  /**
    * ボス戦のイベント（#78 / 6.5・9.1 節）。ボス HP バー（E6-3a）・フェーズ移行の演出（E5-6）・BGM が購読する。
    * 型は `BossBattleEvents`。`id` はボスの ID（`'boss'`）。
    */

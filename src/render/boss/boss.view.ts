@@ -10,8 +10,12 @@ import {
   MeshStandardNodeMaterial,
   Vector3,
 } from 'three/webgpu';
+import type { CharacterAnimState } from '../anim/characterAnimator';
 import { GaitClock } from '../../game/anim/locomotion';
 import { BossCharacter } from '../assets/bossCharacter';
+import { findBossClipEvents } from '../../game/anim/bossClips';
+import { leapStateOf } from '../../game/boss/moves/leap.move';
+import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import { BossAnimator, bossMoveState } from './bossAnimator';
 import { BossTransitionFx } from './bossTransitionFx';
 import { toModelSpeed, BOSS_LOCOMOTION } from './bossGait';
@@ -43,6 +47,32 @@ function ring(radius: number, steps = 64): BufferGeometry {
  * 移動のアニメーションは位置の変化から速度を求めて再生する（技のモーションは E5-2 以降）。
  * `?debug` では距離帯（3.5m / 8m）の円と、状態・距離帯・直前の技・選択重みの表示を出す。
  */
+/**
+ * アニメーションの状態。技の実行中は、マーカー表（`bossClips.json`）に動作 ID（`boss.<段 ID>.p1|p2`）があればその動作を
+ * 段のフレームに合わせて再生する（表のない技・スタブは移動のまま）。
+ */
+function bossAnimState(
+  boss: Boss,
+  speed: number,
+  gait: { readonly phase: number; readonly lastDelta: number },
+): CharacterAnimState {
+  const base = bossMoveState(speed, gait);
+  const info = boss.debugInfo;
+  if (boss.state !== 'attack' || !info.move) return base;
+  const def = BOSS_MOVES.get(info.move);
+  const stage = def ? stagesOf(def, boss.phase)[info.stage - 1] : undefined;
+  if (!stage) return base;
+  const actionId = `boss.${stage.id}.p${boss.phase}`;
+  if (!findBossClipEvents(actionId)) return base;
+  return {
+    ...base,
+    state: 'attack',
+    kind: 'action',
+    actionId,
+    stateFrame: Math.max(1, info.stageFrame),
+  };
+}
+
 registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
   const system = bossSystemOf(game);
   const debug = isDebugEnabled(location.search);
@@ -163,10 +193,14 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
       root.rotation.y = boss.yaw;
       bands.position.copy(p);
       if (model && animator && root.visible) {
-        const speed = lastValid && dt > 0 ? Math.hypot(p.x - last.x, p.z - last.z) / dt : 0;
+        // 跳躍（技 5）の滞空中は位置が飛ぶので、歩行の速度としては数えない
+        const leap = leapStateOf(boss);
+        const speed =
+          lastValid && dt > 0 && !leap?.airborne ? Math.hypot(p.x - last.x, p.z - last.z) / dt : 0;
         last.copy(p);
         lastValid = true;
         model.root.position.copy(p);
+        model.root.position.y += leap?.height ?? 0;
         model.root.rotation.y = boss.yaw;
         const visible = model.updateLod(
           view.camera,
@@ -176,7 +210,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
         if (model.phase !== boss.phase) model.setPhase(boss.phase);
         gait.advance(toModelSpeed(speed), dt, { profile: BOSS_LOCOMOTION });
         // 画面にも影にも出ないときはアニメーションを省く
-        if (visible) animator.update(dt, bossMoveState(speed, gait));
+        if (visible) animator.update(dt, bossAnimState(boss, speed, gait));
         transitionFx?.applyPose();
         model.lateUpdate(dt);
       }

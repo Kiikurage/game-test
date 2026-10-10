@@ -75,6 +75,11 @@ export interface AttackProfile {
   readonly guardStaminaCost?: number;
   /** ガード不能（落下攻撃・強い攻撃など）。 */
   readonly unblockable?: boolean;
+  /**
+   * 未ガードで命中したときの後退距離（m）の上書き（ボスの盾打ち 3m など）。省略すると被弾側のリアクションの既定
+   * （`KNOCKBACK`）。重い被弾（強靭度削り 50 以上）のプレイヤーの転倒にだけ効く。
+   */
+  readonly knockback?: number;
 }
 
 /** 攻撃インスタンス（1 スイング）。命中済み集合と前フレームの姿勢を持つ。 */
@@ -110,6 +115,8 @@ export interface HitEvent {
   readonly attackPoiseDamage: number;
   /** 攻撃側の位置（足元。扇形・カプセルの原点）。ノックバックの方向（攻撃側から被弾側へ）の計算に使う。 */
   readonly attackerPosition: Vec3;
+  /** 攻撃定義の後退距離の上書き（`AttackProfile.knockback`）。なければ既定。 */
+  readonly knockback?: number;
   readonly guard: GuardOutcome;
   /** ガード成功時に防御側が失うスタミナ（ジャストガードは 50%）。ガードされなければ 0。E2-6 が消費する。 */
   readonly guardStaminaCost: number;
@@ -294,6 +301,7 @@ export class HitResolver {
       poiseDamage,
       attackPoiseDamage: profile.poiseDamage,
       attackerPosition: { x: shape.origin.x, y: shape.origin.y, z: shape.origin.z },
+      ...(profile.knockback !== undefined && { knockback: profile.knockback }),
       guard,
       guardStaminaCost,
       position,

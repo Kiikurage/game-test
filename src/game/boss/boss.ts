@@ -564,6 +564,7 @@ export class Boss implements BossMoveActor {
           },
           behind: tracker.behind,
           rollStreak: tracker.rollStreakReached,
+          retreated: tracker.retreated,
         },
         this.deps.random,
       );
@@ -688,6 +689,7 @@ export class Boss implements BossMoveActor {
       damage: stage.damage,
       poiseDamage: stage.poiseDamage,
       guardStaminaCost: stage.guardStaminaCost,
+      ...(stage.knockback !== undefined && { knockback: stage.knockback }),
     });
     this.enter('attack');
     this.stateFrames = 0;
@@ -764,11 +766,16 @@ export class Boss implements BossMoveActor {
   /** 判定の開始時に、扇形が柱に触れていれば `bossPillarHit` を発行する（攻撃は柱で遮られない。破片の演出のフック）。 */
   private emitPillarHits(run: MoveRun, stage: BossStageDef): void {
     const { pillars, events } = this.deps;
-    if (!pillars || !events || run.move.hooks?.shape) return;
+    // `hooks.shape` を持つ技は対象外。ただし着地の円（`hooks.impactCircle`）を返す技はその円で見る（跳躍叩きつけ）
+    const circle = run.move.hooks?.impactCircle?.(this.moveContext());
+    if (!pillars || !events || (run.move.hooks?.shape && !circle)) return;
+    const origin = circle ?? this.position;
+    const arcDeg = circle ? 360 : stage.arcDeg;
+    const range = circle ? circle.radius : stage.range;
     pillars.forEach((pillar, index) => {
-      if (!sectorTouchesCircle(this.position, this.yaw, stage.arcDeg, stage.range, pillar)) return;
-      const dx = pillar.x - this.position.x;
-      const dz = pillar.z - this.position.z;
+      if (!sectorTouchesCircle(origin, this.yaw, arcDeg, range, pillar)) return;
+      const dx = pillar.x - origin.x;
+      const dz = pillar.z - origin.z;
       const len = Math.hypot(dx, dz) || 1;
       events.emit('bossPillarHit', {
         id: this.id,
