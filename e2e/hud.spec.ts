@@ -35,13 +35,20 @@ test.describe('mobile landscape 915x412 (Xperia 1 V)', () => {
 
   test('HUD sits at the spec positions', async ({ page }) => {
     await boot(page);
+    // モバイルは HUD を 0.82 倍（余白は 16px のまま）
+    const k = 0.82;
     const hp = await rect(page, 'hud-hp');
-    expect(hp).toMatchObject({ x: 16, y: 16, w: 240, h: 12 });
+    expect(hp.x).toBe(16);
+    expect(hp.y).toBe(16);
+    expect(hp.w).toBeCloseTo(240 * k, 1);
+    expect(hp.h).toBeCloseTo(9 * k, 1);
     const st = await rect(page, 'hud-stamina');
-    expect(st).toMatchObject({ x: 16, y: 16 + 12 + 6, w: 180, h: 8 });
+    expect(st.x).toBe(16);
+    expect(st.y).toBeCloseTo(16 + 9 * k + 6 * k, 1);
+    expect(st.w).toBeCloseTo(180 * k, 1);
     const flask = await rect(page, 'hud-flask');
     expect(flask.x).toBe(16);
-    expect(flask.y).toBe(st.y + 8 + 8);
+    expect(flask.y).toBeCloseTo(st.y + 7 * k + 7 * k, 1);
     await expect(page.getByTestId('hud-flask')).toContainText('×3');
   });
 
@@ -77,7 +84,7 @@ test.describe('PC 1280x720', () => {
     expect(hp.x).toBeCloseTo(16 * 1.3, 1);
     expect(hp.y).toBeCloseTo(16 * 1.3, 1);
     expect(hp.w).toBeCloseTo(240 * 1.3, 1);
-    expect(hp.h).toBeCloseTo(10 * 1.3, 1);
+    expect(hp.h).toBeCloseTo(6.5 * 1.3, 1);
     expect((await rect(page, 'hud-stamina')).w).toBeCloseTo(180 * 1.3, 1);
 
     expect(await scaleX(page, 'hud-hp', 'main')).toBe(1);

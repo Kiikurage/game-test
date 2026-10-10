@@ -13,16 +13,17 @@
   --font-ui:
     'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', system-ui, sans-serif;
   --font-serif: 'Hiragino Mincho ProN', 'Noto Serif JP', 'Yu Mincho', 'Times New Roman', serif;
-  --hud-hp: #c0392b;
-  --hud-hp-ghost: #d8b240;
-  --hud-stamina: #4fa65a;
-  --hud-stamina-bright: #6bc477;
-  --hud-alert: #e0463a;
+  --hud-hp-top: #a3221f;
+  --hud-hp-bottom: #7a1414;
+  --hud-hp-ghost: rgb(201 164 84 / 0.7);
+  --hud-stamina-top: #4d7d40;
+  --hud-stamina-bottom: #3f6b34;
 }
 
 .hud {
   --s: var(--ui-scale);
-  --bar-h: calc(10px * var(--s));
+  --hp-h: calc(6.5px * var(--s));
+  --st-h: calc(5px * var(--s));
   position: fixed;
   inset: 0;
   z-index: 4;
@@ -32,43 +33,39 @@
   will-change: opacity;
 }
 
+/* モバイルは画面が小さいので HUD 全体を一回り小さくする（余白は --ui-scale のまま 16px 以上を保つ） */
 @media (pointer: coarse) {
   .hud {
-    --bar-h: calc(12px * var(--s));
+    --s: calc(var(--ui-scale) * 0.82);
+    --hp-h: calc(9px * var(--s));
+    --st-h: calc(7px * var(--s));
   }
 }
 
 .hud-stack {
   position: absolute;
-  left: calc(var(--safe-l) + 16px * var(--s));
-  top: calc(var(--safe-t) + 16px * var(--s));
+  left: calc(var(--safe-l) + 16px * var(--ui-scale));
+  top: calc(var(--safe-t) + 16px * var(--ui-scale));
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 }
 
+/* 器: 暗い半透明の地 + くすんだ真鍮色の 1px 枠 + 内側 1px の暗線（::after） */
 .hud-bar {
   position: relative;
   box-sizing: border-box;
   overflow: hidden;
-  background: rgb(8 8 10 / 0.55);
-  /* 暗い縁取り + 細い明縁（明るい場面でも輪郭が読める） */
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 0.8),
-    0 0 0 2px rgb(232 230 225 / 0.2);
+  background: rgb(0 0 0 / 0.45);
+  border: 1px solid rgb(138 122 85 / 0.6);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45);
 }
 
 .hud-bar::after {
-  /* ガラス質のハイライト。バー全体に重ねるだけで fill とは独立（transform の対象外） */
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgb(255 255 255 / 0.2),
-    rgb(255 255 255 / 0) 45%,
-    rgb(0 0 0 / 0.28)
-  );
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.55);
 }
 
 .hud-fill {
@@ -79,38 +76,51 @@
   will-change: transform;
 }
 
+/* 中身は縦グラデ + 上端の細いハイライト（scaleX しても縦の質感は変わらない） */
+.hud-fill::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: rgb(255 255 255 / 0.22);
+}
+
 .hud-bar--hp {
   width: calc(var(--hp-max, 300) * 0.8px * var(--s));
-  height: var(--bar-h);
+  height: var(--hp-h);
 }
 
 .hud-bar--hp .hud-fill--main {
-  background: var(--hud-hp);
+  background: linear-gradient(to bottom, var(--hud-hp-top), var(--hud-hp-bottom));
 }
 
 .hud-bar--hp .hud-fill--ghost {
   background: var(--hud-hp-ghost);
 }
 
+.hud-bar--hp .hud-fill--ghost::before {
+  display: none;
+}
+
 .hud-bar--stamina {
   width: calc(180px * var(--s));
-  height: calc(8px * var(--s));
+  height: var(--st-h);
   margin-top: calc(6px * var(--s));
 }
 
 .hud-bar--stamina .hud-fill {
-  background: var(--hud-stamina);
+  background: linear-gradient(to bottom, var(--hud-stamina-top), var(--hud-stamina-bottom));
 }
 
 .hud-bar--stamina.is-regen .hud-fill {
-  background: var(--hud-stamina-bright);
+  filter: brightness(1.25);
 }
 
 .hud-bar--stamina.is-alert {
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 0.8),
-    0 0 0 2px var(--hud-alert);
-  background: rgb(120 20 16 / 0.7);
+  border-color: rgb(190 70 60 / 0.85);
+  background: rgb(110 22 18 / 0.6);
 }
 
 .hud-flask {
@@ -118,14 +128,14 @@
   display: flex;
   align-items: center;
   gap: calc(6px * var(--s));
-  margin-top: calc(8px * var(--s));
-  height: calc(32px * var(--s));
+  margin-top: calc(7px * var(--s));
+  height: calc(24px * var(--s));
 }
 
 .hud-flask-icon {
   position: relative;
-  width: calc(32px * var(--s));
-  height: calc(32px * var(--s));
+  width: calc(24px * var(--s));
+  height: calc(24px * var(--s));
 }
 
 .hud-flask-glow {
@@ -147,12 +157,12 @@
 
 .hud-flask-glass {
   fill: rgb(232 230 225 / 0.28);
-  stroke: rgb(232 230 225 / 0.85);
+  stroke: rgb(214 205 180 / 0.7);
   stroke-width: 1.4;
 }
 
 .hud-flask-liquid {
-  fill: #e8a23c;
+  fill: #b98a3e;
 }
 
 .hud-flask-cork {
@@ -173,8 +183,9 @@
 }
 
 .hud-flask-count {
-  color: #f2efe8;
-  font-size: calc(15px * var(--s));
+  color: #e6e0cf;
+  font-family: var(--font-serif);
+  font-size: calc(14px * var(--s));
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
   text-shadow:
