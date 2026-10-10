@@ -51,8 +51,6 @@ export interface HitStopConfig {
   readonly killSlowmoScale: number;
   readonly killSlowmoFrames: number;
   readonly bossKillSlowmoFrames: number;
-  readonly chargedShakeDeg: number;
-  readonly chargedShakeFrames: number;
   readonly redFlashFrames: number;
   readonly whiteFlashFrames: number;
 }
@@ -70,13 +68,11 @@ export interface HitStopDecision {
   readonly frames: number;
   /** 撃破スロー（プレイヤー以外が倒れたとき）。ヒットストップが明けてから `frames` ステップ続く。 */
   readonly slowMotion: { readonly scale: number; readonly frames: number } | null;
-  /** 画面振動（フル溜め強攻撃）。 */
-  readonly shake: { readonly amplitudeDeg: number; readonly frames: number } | null;
   /** 画面の閃光。 */
   readonly flash: { readonly kind: 'red' | 'white'; readonly frames: number } | null;
 }
 
-const NONE: HitStopDecision = { frames: 0, slowMotion: null, shake: null, flash: null };
+const NONE: HitStopDecision = { frames: 0, slowMotion: null, flash: null };
 
 /**
  * プレイヤーの攻撃動作 → ヒットストップ。軽攻撃 3 段は軽、`heavy`（溜めなし）は強、`heavyCharged`（フル溜め）は最長。
@@ -101,7 +97,6 @@ export function decideHitStop(input: HitStopInput, config: HitStopConfig): HitSt
 
   let frames = 0;
   let flash: HitStopDecision['flash'] = null;
-  let shake: HitStopDecision['shake'] = null;
   if (event.guard === 'just') {
     frames = config.justGuard;
     flash = { kind: 'white', frames: config.whiteFlashFrames };
@@ -113,9 +108,6 @@ export function decideHitStop(input: HitStopInput, config: HitStopConfig): HitSt
     flash = { kind: 'red', frames: config.redFlashFrames };
   } else if (input.attackerIsPlayer) {
     frames = playerAttackFrames(event.attackId, config);
-    if (event.attackId === 'heavyCharged') {
-      shake = { amplitudeDeg: config.chargedShakeDeg, frames: config.chargedShakeFrames };
-    }
   }
 
   // プレイヤーの死亡も 12F（8.1 節 F0。スローは入れない）
@@ -131,5 +123,5 @@ export function decideHitStop(input: HitStopInput, config: HitStopConfig): HitSt
     };
   }
 
-  return { frames, slowMotion, shake, flash };
+  return { frames, slowMotion, flash };
 }

@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { GameEventMap } from '../core/gameEvents';
 import {
   FreezeCounter,
@@ -275,10 +275,8 @@ describe('hit-stop (Game)', () => {
     expect(Math.hypot(n?.x ?? 0, n?.y ?? 0, n?.z ?? 0)).toBeCloseTo(1, 6);
   });
 
-  it('フル溜め強攻撃の命中で画面振動 0.4° を加える', () => {
-    const addShake = vi.spyOn(game.camera, 'addShake');
+  it('フル溜め強攻撃の命中でヒットストップ 12F（画面振動は camera/cameraEffects.system.test.ts）', () => {
     playerHits('dummy-a', 'heavyCharged');
-    expect(addShake).toHaveBeenCalledWith(0.4, tuning.hitStop.chargedShakeFrames);
     expect(game.player.fsm.freezeRemaining).toBe(12);
   });
 
