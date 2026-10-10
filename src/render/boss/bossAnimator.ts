@@ -4,6 +4,7 @@ import type { BossCharacter } from '../assets/bossCharacter';
 import type { CharacterAssets } from '../assets/characterAssets';
 import { findBossClipEvents } from '../../game/anim/bossClips';
 import { BOSS_LOCOMOTION, toModelSpeed } from './bossGait';
+import { approachAxeGrip, axeGripOf } from './bossAxeGrip';
 
 /**
  * ボスのアニメーションコントローラ（本体は `CharacterAnimator`、雑魚・プレイヤーと同じ）。
@@ -24,8 +25,38 @@ export const BOSS_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
 };
 
 export class BossAnimator extends CharacterAnimator {
-  constructor(boss: BossCharacter, assets: CharacterAssets) {
+  /** 撮影・計測用: 動作に関わらず斧の握りをこの値（0..1）に固定する。 */
+  gripOverride: number | undefined;
+
+  constructor(
+    private readonly boss: BossCharacter,
+    assets: CharacterAssets,
+  ) {
     super(boss.character, (name) => assets.getClip(name), BOSS_ANIMATOR_CONFIG);
+  }
+
+  private oneHanded = 0;
+
+  /** 握りを構えへ戻す（撮影・計測用）。 */
+  resetGrip(): void {
+    this.oneHanded = 0;
+    this.boss.setAxeGrip(0, 0);
+  }
+
+  /**
+   * 動作ごとの斧の握りの向き（`bossAxeGrip.ts`）を追従させてから、通常の更新。
+   * 動作中は右手だけで振る（フェーズ 2 の両手持ちは待機・移動のとき）。
+   */
+  override update(dt: number, s: CharacterAnimState, alpha = 1): void {
+    const action = s.kind === 'action' ? s.actionId : null;
+    const target = this.gripOverride ?? axeGripOf(action);
+    this.oneHanded = approachAxeGrip(this.oneHanded, action === null ? 0 : 1, dt);
+    const next =
+      Math.abs(target - this.boss.axeGrip) < 0.001
+        ? target
+        : approachAxeGrip(this.boss.axeGrip, target, dt);
+    this.boss.setAxeGrip(next, this.oneHanded);
+    super.update(dt, s, alpha);
   }
 }
 

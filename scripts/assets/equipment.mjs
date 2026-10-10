@@ -329,22 +329,28 @@ function axeRusty() {
   };
 }
 
+/** 大斧の柄の延長（モデル空間の m。ボスは 2.2 倍）。判定の射程（4.5〜5.0m）に刃が届くようにした長柄（#225）。 */
+const GREAT_AXE_REACH = 0.95;
+
 function greatAxe() {
-  // 全長約 1.5m の両手大斧。握りは原点（柄の下 1/3 付近）。ボスは 2.2 倍されるので細部は大きめに作る。
+  // 長柄の両手大斧（ポールアックス）。全長 約 2.0m（ボスは 2.2 倍されて約 4.4m）。握りは原点（柄の下 1/4 付近）。
+  // 判定の射程（大上段 4.5m・薙ぎ払い 5.0m）に対して UAL の人間サイズのクリップでは刃先が体の近くを通るので、
+  // 柄を GREAT_AXE_REACH だけ伸ばして刃を遠くへ出す。ボスは 2.2 倍されるので細部は大きめに作る。
+  const L = GREAT_AXE_REACH;
   const haft = lathe(
     [
       [
-        [0.024, -0.55],
-        [0.021, 0.2],
-        [0.022, 0.9],
+        [0.026, -0.3],
+        [0.023, 0.2],
+        [0.024, 0.9 + L],
       ],
       [
-        [0.022, 0.9],
-        [0, 0.92],
+        [0.024, 0.9 + L],
+        [0, 0.92 + L],
       ],
       [
-        [0, -0.55],
-        [0.024, -0.55],
+        [0, -0.3],
+        [0.026, -0.3],
       ],
     ],
     10,
@@ -352,33 +358,41 @@ function greatAxe() {
   const grip = lathe(
     [
       [
-        [0.03, -0.12],
-        [0.03, 0.14],
+        [0.032, -0.12],
+        [0.032, 0.14],
       ],
     ],
     10,
   );
-  // 三日月形の刃（+X）と、反対側の返しの爪（-X）
-  const head = axeHead(
-    [
-      [0.03, 0.9],
-      [0.12, 0.98],
-      [0.28, 1.04],
-      [0.4, 0.98],
-      [0.44, 0.84],
-      [0.4, 0.68],
-      [0.32, 0.58],
-      [0.2, 0.66],
-      [0.08, 0.7],
-      [0.03, 0.7],
-      [-0.12, 0.74],
-      [-0.26, 0.8],
-      [-0.12, 0.88],
-    ],
-    0.04,
+  // 三日月形の刃（+X）と、反対側の返しの爪（-X）。柄の先へ平行移動する
+  const head = transform(
+    axeHead(
+      [
+        [0.03, 0.9],
+        [0.12, 0.98],
+        [0.28, 1.04],
+        [0.4, 0.98],
+        [0.44, 0.84],
+        [0.4, 0.68],
+        [0.32, 0.58],
+        [0.2, 0.66],
+        [0.08, 0.7],
+        [0.03, 0.7],
+        [-0.12, 0.74],
+        [-0.26, 0.8],
+        [-0.12, 0.88],
+      ],
+      0.04,
+    ),
+    move(0, L, 0),
   );
-  const spike = merge(box(0, 0.97, 0, 0.05, 0.1, 0.05), box(0, -0.58, 0, 0.044, 0.06, 0.044));
-  const bands = merge(box(0, 0.76, 0, 0.06, 0.07, 0.06), box(0, 0.86, 0, 0.06, 0.05, 0.06));
+  const spike = merge(box(0, 0.97 + L, 0, 0.05, 0.1, 0.05), box(0, -0.32, 0, 0.044, 0.06, 0.044));
+  // 柄の補強の金具（刃の根元 2 本と、握りの上下の石突き側 1 本）
+  const bands = merge(
+    box(0, 0.76 + L, 0, 0.06, 0.07, 0.06),
+    box(0, 0.86 + L, 0, 0.06, 0.05, 0.06),
+    box(0, 0.34 + L * 0.5, 0, 0.05, 0.04, 0.05),
+  );
   return {
     parts: [
       { geo: merge(head, spike, bands), kind: 'iron' },
@@ -952,7 +966,12 @@ export function edgeness(geo) {
  * @returns {{ document: Document, triangles: number, items: Record<string, { triangles: number, bone: string }> }}
  */
 export function buildEquipmentDocument(boneWorldMatrices) {
-  return buildItemsDocument({ defs: ITEMS, sceneName: 'Equipment', boneWorldMatrices });
+  return buildItemsDocument({
+    defs: ITEMS,
+    sceneName: 'Equipment',
+    boneWorldMatrices,
+    edgeAttribute: true,
+  });
 }
 
 /**
@@ -968,6 +987,7 @@ export function buildItemsDocument({
   colors = COLORS,
   metalKinds = new Set(['iron']),
   metal: metalParams = { metallic: 0.4, roughness: 0.82 },
+  edgeAttribute = false,
 }) {
   const doc = new Document();
   const buffer = doc.createBuffer();
@@ -1007,6 +1027,7 @@ export function buildItemsDocument({
     // 金属と柔らかい素材ごとに 1 プリミティブへまとめる
     const groups = { iron: emptyGeo(), soft: emptyGeo() };
     const colorsOf = { iron: [], soft: [] };
+    const edgesOf = { iron: [], soft: [] };
     for (const { geo, kind } of parts) {
       const key = metalKinds.has(kind) ? 'iron' : 'soft';
       const g = groups[key];
@@ -1015,6 +1036,7 @@ export function buildItemsDocument({
       g.normals.push(...geo.normals);
       for (const i of geo.indices) g.indices.push(i + base);
       const edge = edgeness(geo);
+      edgesOf[key].push(...edge);
       for (let i = 0; i < geo.positions.length; i += 3) {
         const c = colors[kind](
           [geo.positions[i], geo.positions[i + 1], geo.positions[i + 2]],
@@ -1036,6 +1058,14 @@ export function buildItemsDocument({
         .setAttribute('NORMAL', accessor('VEC3', new Float32Array(g.normals)))
         .setAttribute('COLOR_0', accessor('VEC4', new Float32Array(colorsOf[key])))
         .setIndices(accessor('SCALAR', new Uint32Array(g.indices)));
+      // 縁の近さ（x: 0 = 面の中、1 = 輪郭・硬いエッジ。面の中は重心から輪郭へ線形に補間される）。
+      // 予兆の発光（ボスの斧・盾）が「刃の縁だけ」を光らせるマスクに使う（#225）。
+      // 1 成分の 16bit 頂点属性は WebGPU に無い（meshopt の量子化で落ちる）ので VEC2（y は 0）で持つ
+      if (edgeAttribute) {
+        const pairs = new Float32Array(edgesOf[key].length * 2);
+        edgesOf[key].forEach((e, i) => (pairs[i * 2] = e));
+        prim.setAttribute('_EDGE', accessor('VEC2', pairs));
+      }
       mesh.addPrimitive(prim);
       itemTris += g.indices.length / 3;
     }

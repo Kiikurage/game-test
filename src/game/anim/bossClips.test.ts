@@ -12,7 +12,7 @@ const CONTACT: Readonly<Record<string, number>> = {
   'boss.overhead.1': 28,
   // 薙ぎ払い: Sword_Regular_B（右から左へ体の前を通る最速点）と Melee_Hook（戻りの振り抜き）
   'boss.sweep.1': 8,
-  'boss.sweep.2': 7,
+  'boss.sweep.2': 8, // #225: 長柄の斧の刃先が射程に最も近づくのは 8F（7F だと 2F ほど手前）
   // 三連撃: Sword_Regular_Combo の 斬り上げ（34）→ 斬り下ろし（7）→ 突き（48）
   'boss.combo3.1': 34,
   'boss.combo3.2': 7,

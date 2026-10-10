@@ -54,6 +54,12 @@ export const RIM = {
   telegraphFill: 1.8,
   /** テレグラフ最大時に刃を法線方向へ太らせる量（ローカル座標 m）。細い刃が遠目でも線として読める。 */
   telegraphInflate: 0.035,
+  /** 縁マスク（`_edge`）の発光: 帯の立ち上がり（0 = 面の中心、1 = 輪郭）。 */
+  edgeBand: { from: 0.8, to: 0.96 },
+  /** 縁マスクの帯の発光の強さ。 */
+  telegraphEdgeGain: 1.7,
+  /** 縁マスクのにじみ（輪郭から面へ染みる淡い光）の、`fill` = 1 のときの強さ。 */
+  telegraphBleed: 0.5,
 } as const;
 
 const SKY_RIM = new Color(0x9fb4c8);
@@ -82,6 +88,11 @@ export interface RimControls {
   readonly weaponRim: UniformNode<'float', number>;
   /** 縁の鋭さへの加算（0 = 既定）。大きいほど正面を向いた面が暗くなり、斜めの面・丸い柄の縁だけが光る。 */
   readonly weaponSharp: UniformNode<'float', number>;
+  /**
+   * 縁マスク（頂点属性 `_edge`）で光らせる割合（0 = フレネル、1 = 輪郭だけ）。1 のとき刃の面は暗い金属のまま、
+   * 輪郭に沿った細い帯だけが光る。`_edge` を持たないメッシュでは無効。
+   */
+  readonly weaponEdge: UniformNode<'float', number>;
 }
 
 /** `setWeaponTelegraph` の見た目の調整（省略 = 既定）。 */
@@ -92,6 +103,11 @@ export interface WeaponTelegraphStyle {
   readonly rim?: number;
   /** 縁の鋭さへの加算（フレネルの指数に足す）。 */
   readonly sharp?: number;
+  /**
+   * 縁マスクで光らせる割合（0..1、既定 0）。1 なら輪郭に沿った帯だけが光り、面は暗いまま（#225）。
+   * このとき `fill` は輪郭からのにじみ（淡い光が面へ染みる量）の倍率になる。
+   */
+  readonly edge?: number;
 }
 
 export function createRimControls(): RimControls {
@@ -101,6 +117,7 @@ export function createRimControls(): RimControls {
     weaponFill: uniform(1),
     weaponRim: uniform(1),
     weaponSharp: uniform(0),
+    weaponEdge: uniform(0),
   };
 }
 
@@ -112,6 +129,8 @@ export function characterLightNode(
   albedo: Node<'vec3'>,
   controls: RimControls,
   isWeapon: boolean,
+  /** 縁の近さ（頂点属性 `_edge`。0 = 面の中、1 = 輪郭）。あれば `controls.weaponEdge` で縁マスクの発光に切り替えられる。 */
+  edgeMask?: Node<'float'>,
 ): Node<'vec3'> {
   const n = normalize(normalWorld);
   const v = normalize(cameraPosition.sub(positionWorld));
@@ -133,10 +152,20 @@ export function characterLightNode(
   if (isWeapon) {
     // テレグラフ: 世界のライトとは無関係な加算の光。刃は細いのでフレネル（縁）が刃に沿った輪郭になる。
     // 追加のメッシュ・パスは無く、既存の emissive に数命令足すだけ。
-    const edge = pow(float(1).sub(abs(dot(n, v))), controls.weaponSharp.add(RIM.power))
+    const fresnelGlow = pow(float(1).sub(abs(dot(n, v))), controls.weaponSharp.add(RIM.power))
       .mul(controls.weaponRim.mul(RIM.telegraphGain))
       .add(controls.weaponFill.mul(RIM.telegraphFill));
-    rim = rim.add(controls.weaponColor.mul(controls.weapon).mul(edge));
+    let glow: Node<'float'> = fresnelGlow;
+    if (edgeMask) {
+      // 輪郭の帯（面の中では 0）と、そこから面へ染みる淡いにじみ。視線の向きに依らず、刃の面は暗い金属のまま
+      const band = smoothstep(RIM.edgeBand.from, RIM.edgeBand.to, edgeMask);
+      const bleed = smoothstep(0.35, 1.0, edgeMask).pow(2);
+      const maskGlow = band
+        .mul(controls.weaponRim.mul(RIM.telegraphEdgeGain))
+        .add(bleed.mul(controls.weaponFill.mul(RIM.telegraphBleed)));
+      glow = mix(fresnelGlow, maskGlow, controls.weaponEdge);
+    }
+    rim = rim.add(controls.weaponColor.mul(controls.weapon).mul(glow));
   }
   // 暗部の持ち上げ: 暗い色ほど効く（明るい面は十分明るいので元の色をほぼ保つ）
   const luma = dot(albedo, vec3(0.299, 0.587, 0.114));
@@ -196,6 +225,7 @@ export function applyCharacterLight(root: Object3D): CharacterLight {
       controls.weaponFill.value = style?.fill ?? 1;
       controls.weaponRim.value = style?.rim ?? 1;
       controls.weaponSharp.value = style?.sharp ?? 0;
+      controls.weaponEdge.value = style?.edge ?? 0;
     },
     get weaponTelegraph() {
       return amount;
@@ -227,6 +257,14 @@ function withCharacterLight(src: Material, controls: RimControls, isWeapon: bool
 export function isWeaponObject(mesh: Object3D): boolean {
   for (let o: Object3D | null = mesh; o; o = o.parent) {
     if (o.name === 'attach:sword' || /^equip:(Sword_|Axe_|GreatAxe)/.test(o.name)) return true;
+  }
+  return false;
+}
+
+/** メッシュが盾（`equip:GreatShield`）の一部か。ボスは盾打ちの予兆で盾を光らせる（#225）。 */
+export function isShieldObject(mesh: Object3D): boolean {
+  for (let o: Object3D | null = mesh; o; o = o.parent) {
+    if (o.name === 'equip:GreatShield') return true;
   }
   return false;
 }

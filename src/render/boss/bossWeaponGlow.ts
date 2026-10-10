@@ -3,6 +3,7 @@ import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import { bossTelegraphOf } from '../../game/boss/bossTelegraph.system';
 import type { BossPhase } from '../../game/boss/bossData';
 import { weaponTelegraphAmount, type WeaponTelegraphProfile } from '../telegraph/weaponTelegraph';
+import type { WeaponTelegraphStyle } from '../characterLight';
 
 /**
  * ボスの予兆（予備動作）中の斧の発光（#214）。種別は `bossTelegraphOf`（段の `telegraph`）で、描画側が引く。
@@ -31,19 +32,40 @@ export const BOSS_WEAPON_TELEGRAPH: Readonly<Record<TelegraphKind, WeaponTelegra
 };
 
 /**
- * 刃の面の淡い発光の倍率。0 に近づけて **縁（フレネル）だけを光らせ**、刃の暗い芯と形が読めるようにする
- * （既定の 1 は刃全体がべったり染まる。仕様書 5.1 節の「リムライト」）。
+ * 発光の見た目（`WeaponTelegraphStyle`。#225）。刃の面は暗い金属のまま、輪郭（刃先・縁）の細い帯だけが冷たい青に光る
+ * （頂点属性 `_edge` のマスク。`edge: 1`）。面を染めると斧頭が一様な薄紫のプラスチックに見えるので、面は光らせない。
+ *   - `rim`: 輪郭の帯の強さ。
+ *   - `fill`: 輪郭から面へ染みる淡いにじみ（bloom）。強攻撃のピークだけ、輪郭の近くが淡く明るむ程度。
  */
-export const BOSS_GLOW_STYLE = { fill: 0, rim: 0.55, sharp: 3 } as const;
+export const BOSS_GLOW_STYLE: Readonly<Record<TelegraphKind, WeaponTelegraphStyle>> = {
+  normal: { edge: 1, rim: 0.7, fill: 0 },
+  heavy: { edge: 1, rim: 1, fill: 0.55 },
+  unblockable: { edge: 1, rim: 1, fill: 0.55 },
+};
+
+/** どこが光るか。盾打ち 1 段目（盾で打つ）は盾、それ以外は斧。 */
+export type BossGlowTarget = 'axe' | 'shield';
+
+/** 盾が光る段（盾打ち 1 段目）。 */
+const SHIELD_GLOW_STAGE = 'shieldBash.1';
 
 export interface BossWeaponGlow {
   /** 発光の強さ（0..1）。 */
   readonly amount: number;
   /** 発光色（sRGB 0xRRGGBB）。 */
   readonly color: number;
+  /** 見た目の調整（種別ごと）。 */
+  readonly style: WeaponTelegraphStyle;
+  /** 光る物。 */
+  readonly target: BossGlowTarget;
 }
 
-const OFF: BossWeaponGlow = { amount: 0, color: BOSS_WEAPON_TELEGRAPH.normal.color };
+const OFF: BossWeaponGlow = {
+  amount: 0,
+  color: BOSS_WEAPON_TELEGRAPH.normal.color,
+  style: BOSS_GLOW_STYLE.normal,
+  target: 'axe',
+};
 
 /**
  * 実行中の技の段（`info.move` / `info.stage` / `info.stageFrame`）の斧の発光。技の最中でなければ amount 0。
@@ -59,5 +81,10 @@ export function bossWeaponGlow(
   const stage = def ? stagesOf(def, phase)[info.stage - 1] : undefined;
   if (!stage) return OFF;
   const amount = weaponTelegraphAmount(stage, kind, info.stageFrame, BOSS_WEAPON_TELEGRAPH);
-  return { amount, color: BOSS_WEAPON_TELEGRAPH[kind].color };
+  return {
+    amount,
+    color: BOSS_WEAPON_TELEGRAPH[kind].color,
+    style: BOSS_GLOW_STYLE[kind],
+    target: stage.id === SHIELD_GLOW_STAGE ? 'shield' : 'axe',
+  };
 }

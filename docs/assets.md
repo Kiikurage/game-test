@@ -314,7 +314,7 @@ look.setEmber(1);                                                    // ボス�
 | --- | --- | --- |
 | `Sword_Rusty` | `hand_r` | 欠けて先端が折れた片手剣（亡者兵） |
 | `Axe_Rusty` | `hand_r` | 片手斧（盾持ち） |
-| `GreatAxe` | `hand_r` | 全長約 1.5m の大斧（ボス。握りは柄の下 1/3） |
+| `GreatAxe` | `hand_r` | 全長約 2.2m の長柄の大斧（ボス。握りは石突きから 0.3m。#225。縁マスク `_EDGE` を持つ） |
 | `GreatShield` | `lowerarm_l` | ヒーターシールド型の大盾（ボス・盾持ちで共用） |
 | `Cuirass` / `CuirassHeavy` | `spine_03` | 胸当て / 重装版（喉当て付き、ボス） |
 | `Pauldron_L/R` / `PauldronLarge_L/R` | `upperarm_l/r` | 肩当て（亡者兵・盾持ち）/ 3 段の大型（ボス） |

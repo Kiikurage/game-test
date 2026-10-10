@@ -42,7 +42,7 @@ describe('技 1 大上段斬り: frame data (6.3)', () => {
         poise: 70,
         guard: 60,
         arc: 60,
-        range: 4.5,
+        range: 4.2,
         dash: 0,
       },
     ]);
@@ -55,7 +55,7 @@ describe('技 1 大上段斬り: frame data (6.3)', () => {
         poise: 70,
         guard: 60,
         arc: 60,
-        range: 4.5,
+        range: 4.2,
         dash: 0,
       },
     ]);
@@ -80,7 +80,7 @@ describe('技 1 大上段斬り: frame data (6.3)', () => {
     expect(stagesOf(move('overhead'), 2)[0]?.superArmor).toEqual({ start: 1, end: 50 });
   });
 
-  it('reaches 4.5m from the boss, with the apex in front of the body (the dive-through zone)', () => {
+  it('reaches 4.2m from the boss, with the apex in front of the body (the dive-through zone)', () => {
     const m = move('overhead');
     const stage = stagesOf(m, 1)[0];
     if (!stage || !m.hooks?.shape) throw new Error('no shape');

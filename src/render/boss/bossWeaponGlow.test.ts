@@ -3,7 +3,7 @@ import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import '../../game/boss/boss.system';
 import { CHARGE_COLOR, CHARGE_FLASH_COLOR } from '../player/heavyChargeGlow';
 import { WEAPON_TELEGRAPH } from '../telegraph/weaponTelegraph';
-import { BOSS_WEAPON_TELEGRAPH, bossWeaponGlow } from './bossWeaponGlow';
+import { BOSS_GLOW_STYLE, BOSS_WEAPON_TELEGRAPH, bossWeaponGlow } from './bossWeaponGlow';
 
 /** 色相（度）。 */
 function hue(rgb: number): number {
@@ -93,5 +93,28 @@ describe('bossWeaponGlow: 技の段ごとの発光', () => {
         });
       }
     }
+  });
+});
+
+describe('光る物と見た目（#225）', () => {
+  const glow = (move: string, stage: number, phase: 1 | 2 = 1) =>
+    bossWeaponGlow({ move, stage, stageFrame: 12 }, phase);
+
+  it('盾打ちの 1 段目（盾で打つ）は盾が光り、斧は光らない。追撃（斧の大上段）は斧が光る', () => {
+    expect(glow('shieldBash', 1).target).toBe('shield');
+    expect(glow('shieldBash', 1).amount).toBeGreaterThan(0);
+    expect(glow('shieldBash', 2).target).toBe('axe');
+    expect(glow('overhead', 1).target).toBe('axe');
+    expect(glow('combo3', 1).target).toBe('axe');
+  });
+
+  it('面は暗いまま輪郭だけが光る（縁マスク）。にじみは強攻撃のピークだけ', () => {
+    for (const kind of ['normal', 'heavy', 'unblockable'] as const) {
+      expect(BOSS_GLOW_STYLE[kind].edge, kind).toBe(1);
+    }
+    expect(BOSS_GLOW_STYLE.normal.fill).toBe(0);
+    expect(BOSS_GLOW_STYLE.heavy.fill ?? 0).toBeGreaterThan(0);
+    expect(BOSS_GLOW_STYLE.heavy.fill ?? 0).toBeLessThan(1);
+    expect(glow('overhead', 1).style).toBe(BOSS_GLOW_STYLE.heavy);
   });
 });
