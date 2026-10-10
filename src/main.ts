@@ -86,10 +86,13 @@ export async function createGameApp(
     rendererTask.done();
     const input = new InputSystem(root);
     // 既定はレベル「灰の礎」。`?scene=test` で従来のテストシーン（雰囲気確認用）、
-    // `?scene=combat` はテストシーンに亡者兵 1 体を置いた戦闘デバッグシーン
+    // `?scene=combat` はテストシーンに亡者兵 1 体を置いた戦闘デバッグシーン、
+    // `?scene=boss` はテストシーンにボスだけを置いた回避検証シーン（`?debug` で UI。boss/bossDebug.*）
     const sceneParam = new URLSearchParams(location.search).get('scene');
     const level =
-      sceneParam === 'test' || sceneParam === 'combat' ? null : createLevel(ASHEN_FOUNDATION);
+      sceneParam === 'test' || sceneParam === 'combat' || sceneParam === 'boss'
+        ? null
+        : createLevel(ASHEN_FOUNDATION);
     const game = await Game.create({
       input,
       save: new SaveStore(getLocalStorage()),
