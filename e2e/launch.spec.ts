@@ -150,7 +150,7 @@ test.describe('mobile', () => {
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'paused', {
       timeout: 10_000,
     });
-    // 縦持ちでは「横画面にしてください」の案内が出る
+    // 縦持ちでは「タッチして横画面にする」の案内が出る
     await expect(page.locator('.orientation-hint')).toBeVisible();
 
     await page.setViewportSize({ width: 915, height: 412 });
@@ -159,14 +159,113 @@ test.describe('mobile', () => {
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
   });
 
-  test('shows the start screen without errors in portrait too', async ({ page }) => {
+  test('portrait: tapping the hint on the start screen enters landscape fullscreen once', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (err) => errors.push(err.message));
     await installMocks(page);
     await page.setViewportSize({ width: 412, height: 915 });
     await openAndWaitReady(page);
     await expect(page.getByTestId('start-screen')).toBeVisible();
-    await expect(page.locator('.orientation-hint')).toBeVisible();
-    // 案内はタップを透過するので、縦持ちのままタップして開始できる
+    const hint = page.getByTestId('orientation-hint');
+    await expect(hint).toBeVisible();
+    await expect(hint).toContainText('タッチして横画面にする');
+
     await page.touchscreen.tap(200, 450);
+    await expect
+      .poll(async () => (await launch(page)).calls)
+      .toEqual(['requestFullscreen', 'orientation.lock']);
+    expect((await launch(page)).lockArgs).toEqual(['landscape']);
+    // 案内のタップでは開始しない（横向きになってから開始画面をタップする）
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'ready');
+    await expect(hint).toContainText('タッチして横画面にする');
+
+    // すでにフルスクリーンなら再度呼ばない
+    await page.touchscreen.tap(200, 450);
+    await page.waitForTimeout(200);
+    expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
+
+    // 横向きになったら案内は消え、開始タップでは没入化を繰り返さない
+    await page.setViewportSize({ width: 915, height: 412 });
+    await expect(hint).toBeHidden();
+    await page.touchscreen.tap(450, 200);
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
+    expect(errors).toEqual([]);
+  });
+
+  test('portrait: tapping the hint while loading enters landscape fullscreen', async ({ page }) => {
+    await installMocks(page);
+    await page.setViewportSize({ width: 412, height: 915 });
+    // 本体チャンクの配信を遅らせてローディング中の状態を保つ
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    await page.route(/\/assets\/(?!index-).*\.js$/, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await page.goto('./?quality=low&scale=0.25&nodraw');
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'loading');
+    await page.touchscreen.tap(200, 450);
+    await expect
+      .poll(async () => (await launch(page)).calls)
+      .toEqual(['requestFullscreen', 'orientation.lock']);
+    release();
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    await page.setViewportSize({ width: 915, height: 412 });
+    await page.touchscreen.tap(450, 200);
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
+  });
+
+  test('portrait: switches to "rotate your device" when landscape fails and taps pass through', async ({
+    page,
+  }) => {
+    const warnings: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'warning') warnings.push(msg.text());
+    });
+    await installMocks(page, true);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openAndWaitReady(page);
+    const hint = page.getByTestId('orientation-hint');
+    await page.touchscreen.tap(200, 450);
+    await expect(hint).toContainText('端末を横向きにしてください');
+    expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
+    expect(warnings.some((w) => w.includes('[immersive] orientation failed'))).toBe(true);
+    // 失敗後のタップは開始画面に届き、縦のままでも開始できる
+    await page.touchscreen.tap(200, 450);
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    // 縦のまま「開始 → 一時停止 → 開始…」のループに入らない（判定タイミングを十分に待つ）
+    await page.waitForTimeout(3000);
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    await expect(page.getByTestId('resume-screen')).toHaveCount(0);
+    await expect(hint).toContainText('端末を横向きにしてください');
+    // 横向きにして縦へ戻せば通常どおり一時停止する
+    await page.setViewportSize({ width: 915, height: 412 });
+    await expect(hint).toBeHidden();
+    await page.waitForTimeout(300); // 横向きを確認させる
+    await page.setViewportSize({ width: 412, height: 915 });
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'paused', {
+      timeout: 10_000,
+    });
+  });
+
+  test('portrait: switches to "rotate" when the lock resolves but the device stays portrait', async ({
+    page,
+  }) => {
+    await installMocks(page);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openAndWaitReady(page);
+    const hint = page.getByTestId('orientation-hint');
+    await page.touchscreen.tap(200, 450); // 没入化は成功するが端末は回らない
+    await expect(hint).toContainText('端末を横向きにしてください', { timeout: 10_000 });
+    await page.touchscreen.tap(200, 450); // 透過して開始画面へ
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    await page.waitForTimeout(3000);
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
     expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
   });
