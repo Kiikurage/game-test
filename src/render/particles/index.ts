@@ -8,6 +8,7 @@ import {
   ambientAshSpec,
   bonfireFlameSpec,
   bonfireSparkSpec,
+  chargeGlintInit,
   deathAshInit,
   deathEmberInit,
   emberFieldSpec,
@@ -261,6 +262,20 @@ export class ParticleSystem {
     this.bursts.spark.emit(t, burstCount(Math.round(14 * power), q), p, hitSparkInit);
     this.bursts.dust.emit(t, burstCount(6, q), p, hitDustInit);
     this.bursts.splash.emit(t, burstCount(8, q), p, hitSplashInit);
+  }
+
+  /** 強攻撃のフル溜めの閃き（刃先の小さな火花。ヒット用の塵・飛沫は出さない）。 */
+  chargeGlint(position: Vector3, power = 1): void {
+    const p: HitParams = {
+      x: position.x,
+      y: position.y,
+      z: position.z,
+      nx: 0,
+      ny: 1,
+      nz: 0,
+      power,
+    };
+    this.bursts.spark.emit(this.clock, burstCount(9, this.quality), p, chargeGlintInit);
   }
 
   /** 撃破時に体から灰と熾火が剥がれて舞い上がる（亡者のディゾルブ・ボスの熾火）。 */

@@ -13,7 +13,8 @@ import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
 import { PlayerKitAssets, type CapeRig } from './player/playerKit';
-import { applyCharacterLight } from './characterLight';
+import { applyCharacterLight, type CharacterLight } from './characterLight';
+import { heavyChargeGlow } from './player/heavyChargeGlow';
 
 const Y_AXIS = new Vector3(0, 1, 0);
 
@@ -41,6 +42,7 @@ export class PlayerView {
     private readonly animator: PlayerAnimator,
     readonly triangles: number,
     private readonly cape?: CapeRig,
+    private readonly light?: CharacterLight,
   ) {}
 
   private lastYaw = NaN;
@@ -69,7 +71,7 @@ export class PlayerView {
     });
     const cape = kit?.equipKnight(character).cape;
     // 逆光でも輪郭・武器が読めるよう補助光（リムライト・暗部の持ち上げ）を足す（#144）
-    applyCharacterLight(character.root);
+    const light = applyCharacterLight(character.root);
     let triangles = 0;
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {
@@ -88,7 +90,7 @@ export class PlayerView {
     lodBuilder?.create(character.root, new MeshBasicNodeMaterial());
     scene.add(character.root);
     const animator = new PlayerAnimator(character, loaded);
-    const view = new PlayerView(game, character, animator, triangles, cape);
+    const view = new PlayerView(game, character, animator, triangles, cape, light);
     view.update(1);
     return view;
   }
@@ -126,6 +128,12 @@ export class PlayerView {
       this.character.root.visible = !this.character.root.visible;
     }
     this.applyGuardPose(player.animation.guard);
+    // 強攻撃の溜め: 刃の発光が溜めに応じて強まり、フル溜めの瞬間に閃く（#200）
+    if (this.light) {
+      const glow = heavyChargeGlow(player.state, player.stateFrame);
+      if (glow.amount > 0) this.light.setWeaponTelegraph(glow.amount, glow.color);
+      else if (this.light.weaponTelegraph !== 0) this.light.setWeaponTelegraph(0);
+    }
     this.animator.update(dt, player.animation, alpha);
     // ロックオン中の横移動は、体を移動方向へ向ける（上半身は背骨で対象へ戻す）
     this.offset.setFromAxisAngle(Y_AXIS, this.animator.bodyYawOffset);
