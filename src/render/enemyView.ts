@@ -46,6 +46,8 @@ interface EnemyEntry {
   readonly lod: CharacterLod | null;
   /** LOD 切り替えのヒステリシス用（直前に詳細メッシュだったか）。 */
   near: boolean;
+  /** ディゾルブ中（復活したら戻す）。 */
+  dissolving: boolean;
 }
 
 /** 敵の LOD 設定（品質プリセットから `GameView` が渡す）。 */
@@ -138,6 +140,7 @@ export class EnemyViews {
         scale,
         lod,
         near: false,
+        dissolving: false,
       });
     }
     const views = new EnemyViews(scene, entries);
@@ -184,9 +187,14 @@ export class EnemyViews {
       character.root.quaternion.copy(this.orientation).multiply(this.offset);
       animator.applyTwist();
       if (!enemy.alive) {
+        e.dissolving = true;
         e.look.setDissolve(
           dissolveProgress(enemy.deadFrames - DISSOLVE_DELAY_FRAMES, DISSOLVE_FRAMES.soldier),
         );
+      } else if (e.dissolving) {
+        // 篝火の休憩で復活した
+        e.dissolving = false;
+        e.look.setDissolve(0);
       }
     }
     if (this.debug && camera) this.debug.update(alpha, camera);
