@@ -120,6 +120,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest ユニットテスト（`src/**/*.test.ts`） |
 | `npm run e2e` | Playwright E2E（ビルド → preview 配信 → ヘッドレス WebGPU で起動確認） |
+| `npm run perf -- [low\|medium\|high]` | 計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
 | `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
 
 - PR 前に `npm run lint && npm run typecheck && npm test && npm run build && npm run e2e` を通す。
