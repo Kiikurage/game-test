@@ -38,6 +38,11 @@ export interface BossStageDef extends EnemyAttackDef {
   readonly superArmor?: FrameWindow;
   /** 未ガードで命中したときの後退距離（m。盾打ちの 3m など。重い被弾のプレイヤーの転倒に効く）。 */
   readonly knockback?: number;
+  /**
+   * 直前の段から途切れず続く段（回転斬りの 2 回転目など）。連続攻撃の発生の下限（`BOSS_MIN_FOLLOW_UP_STARTUP`）を免除する。
+   * 向き固定の猶予は別（`trackEndFrame`）で見る。`followUp` と併用する。
+   */
+  readonly chained?: boolean;
 }
 
 /** 技の前に行う移動（接近）。省略すると、いまの位置のまま予備動作に入る。 */
@@ -89,6 +94,11 @@ export interface BossMoveHooks {
     readonly z: number;
     readonly radius: number;
   };
+  /**
+   * この F の判定形状が前フレームから不連続か（true ならスイープせず、現在の形状だけで判定する）。
+   * 灰の波の 2 本目の発生のように、判定が別の場所へ「飛ぶ」F で返す。
+   */
+  discontinuous?(ctx: BossMoveContext): boolean;
   /** 技が終わった・打ち切られた（崩し・撃破）。 */
   onEnd?(ctx: BossMoveContext, cancelled: boolean): void;
 }
@@ -136,7 +146,7 @@ export function checkBossMove(move: BossMoveDef): string[] {
           `${move.id}(${label}) 段${i + 1}: 追尾終了 F${trackEnd} が発生 ${stage.startup} の ${BOSS_MIN_LOCKED_FRAMES}F 前を超える`,
         );
       }
-      if (stage.followUp && stage.startup < BOSS_MIN_FOLLOW_UP_STARTUP) {
+      if (stage.followUp && !stage.chained && stage.startup < BOSS_MIN_FOLLOW_UP_STARTUP) {
         problems.push(
           `${move.id}(${label}) 段${i + 1}: 発生 ${stage.startup} が下限 ${BOSS_MIN_FOLLOW_UP_STARTUP} 未満（連続攻撃）`,
         );

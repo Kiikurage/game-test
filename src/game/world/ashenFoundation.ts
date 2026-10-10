@@ -18,6 +18,7 @@ import type {
   SidePathDef,
 } from './level';
 import type { BoxSpec } from './playground';
+import { buildWaterway, carveMass, GRATE, HATCH } from './waterway';
 
 /** 礼拝堂の床の高さ（m）。B の道は篝火の高さ 0 からここまで緩く上る。 */
 const C_FLOOR = 3.4;
@@ -604,6 +605,46 @@ const PERIMETER: PerimeterParams = {
   openPaths: SIDE_PATHS,
 };
 
+// --- 脇道 side_waterway: 地下水路・墓室・鉄格子・腐った床板（#111。仕様 14.1.3。組み立ては waterway.ts）---
+/** 水路の床 = C の床 - 落下 2.4m。出口の床 = D の通路の側面 (72, 47) の床の高さ。 */
+const WATERWAY = buildWaterway(C_FLOOR - 2.4, 5.9);
+/** 水路が通る所をくり抜いた地下墓所の岩盤（`d-mass-s` を置き換える）。 */
+const D_MASS_S = D_PROPS.find((p) => p.id === 'd-mass-s');
+const D_PROPS_CARVED: PropSpec[] = [
+  ...D_PROPS.filter((p) => p.id !== 'd-mass-s'),
+  ...(D_MASS_S?.kind === 'block' ? carveMass(D_MASS_S, WATERWAY.rects, WATERWAY.def.ceiling) : []),
+];
+const WATERWAY_PROPS: PropSpec[] = [
+  ...WATERWAY.props,
+  // 腐った床板（C 祭壇裏の北西 2m × 2m。床と同じ高さで穴を塞ぐ。割ると 2.4m 落ちる。敵は通らない）
+  {
+    kind: 'block',
+    id: HATCH.id,
+    style: 'hatch',
+    x: HATCH.x,
+    z: HATCH.z,
+    hx: HATCH.half,
+    hz: HATCH.half,
+    height: 0.3,
+    baseY: C_FLOOR - 0.3,
+    embed: 0,
+    navSolid: true,
+  },
+  // 錆びた鉄格子（水路の出口。開通前はコライダ）
+  {
+    kind: 'block',
+    id: GRATE.id,
+    style: 'grate',
+    x: GRATE.x,
+    z: GRATE.z,
+    hx: GRATE.halfWidth,
+    hz: GRATE.halfThickness,
+    height: 2.6,
+    baseY: 5.9,
+    embed: 0,
+  },
+];
+
 const props: PropSpec[] = [
   // --- A 篝火「灰の炉」 ---
   {
@@ -750,7 +791,8 @@ const props: PropSpec[] = [
     height: 18,
   },
   ...SIDE_PROPS,
-  ...D_PROPS,
+  ...D_PROPS_CARVED,
+  ...WATERWAY_PROPS,
   ...E_PROPS,
   ...LANE_PROPS,
   ...F_PROPS,
@@ -857,6 +899,9 @@ const interactables: InteractableSpawn[] = [
   { id: 'G1', kind: 'gate', area: null, x: 78, z: 32 },
   { id: 'lever-g1', kind: 'lever', area: null, x: 80, z: 36 },
   { id: 'fog-gate', kind: 'gate', area: 'E', x: 104, z: 68 },
+  // 脇道 side_waterway: 腐った床板（C）と水路の鉄格子（D の側面。内側から押して開く）
+  { id: 'hatch-waterway', kind: 'hatch', area: 'C', x: HATCH.x, z: HATCH.z },
+  { id: 'grate-waterway', kind: 'grate', area: 'D', x: GRATE.x, z: GRATE.z },
 ];
 
 const gates: GateDef[] = [
@@ -986,6 +1031,9 @@ export const ASHEN_FOUNDATION: LevelData = {
   ],
   sidePaths: SIDE_PATH_DEFS,
   guards: SIDE_GUARDS,
+  waterways: [WATERWAY.def],
+  terrainHoles: WATERWAY.holes,
+  zones: WATERWAY.zones,
   gates,
   bonfire: { x: 0, z: 0 },
   playerSpawn: { x: 0, z: -2.4, yaw: 1.0 },

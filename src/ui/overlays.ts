@@ -25,14 +25,40 @@ export function showUnsupportedScreen(root: HTMLElement, reason: string): void {
   root.dataset.state = 'unsupported';
 }
 
+export interface OrientationHint {
+  /** 横向き化に失敗した（非対応・拒否）環境では案内を「端末を横向きにしてください」に切り替える。 */
+  setFailed(failed: boolean): void;
+}
+
 /**
- * 縦持ち時に横画面を促す表示。表示の出し分けは CSS（orientation + pointer: coarse）で行う。
- * 開始・再開画面より前面に出るが、タップは透過する（縦持ちのままタップして開始 → 自動で横向きにできる）。
+ * 縦持ち時の案内。表示の出し分けは CSS（orientation + pointer: coarse）で行う。
+ * 通常は「タッチして横画面にする」で、案内自体がタップを受けて `onTap` を呼ぶ（ローディング中も有効）。
+ * 失敗後は「端末を横向きにしてください」に切り替え、タップを背後の開始・再開画面へ透過する。
  */
-export function mountOrientationHint(): void {
-  document.body.appendChild(
-    createOverlay('orientation-hint', '横画面にしてください', [
-      '端末を横向きにするとプレイできます。',
-    ]),
-  );
+export function mountOrientationHint(onTap: () => void): OrientationHint {
+  const el = document.createElement('div');
+  el.className = 'overlay orientation-hint';
+  el.dataset.testid = 'orientation-hint';
+  el.setAttribute('role', 'button');
+  const icon = document.createElement('div');
+  icon.className = 'orientation-hint-icon';
+  const title = document.createElement('p');
+  title.className = 'orientation-hint-title';
+  const sub = document.createElement('p');
+  sub.className = 'orientation-hint-sub';
+  el.append(icon, title, sub);
+  const setFailed = (failed: boolean): void => {
+    el.dataset.failed = String(failed);
+    title.textContent = failed
+      ? '横向きにできませんでした。端末を横向きにしてください'
+      : 'タッチして横画面にする';
+    sub.textContent = failed ? '' : '端末を回さなくても、そのまま横画面ではじめられます';
+    el.setAttribute('aria-label', title.textContent);
+  };
+  setFailed(false);
+  el.addEventListener('click', () => {
+    if (el.dataset.failed !== 'true') onTap();
+  });
+  document.body.appendChild(el);
+  return { setFailed };
 }

@@ -403,6 +403,86 @@
           "frame": 78
         }
       ]
+    },
+    {
+      "id": "boss.spin.1.p2",
+      "clip": "Sword_Regular_B",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 16
+      },
+      "clipHitFrame": 8,
+      "spec": {
+        "startup": 36,
+        "active": 10,
+        "recovery": 0
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 37
+        },
+        {
+          "type": "hitEnd",
+          "frame": 46
+        }
+      ]
+    },
+    {
+      "id": "boss.spin.2.p2",
+      "clip": "Melee_Hook",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 14
+      },
+      "clipHitFrame": 7,
+      "tail": {
+        "clip": "Melee_Hook_Rec",
+        "startFrame": 0,
+        "endFrame": 17
+      },
+      "spec": {
+        "startup": 12,
+        "active": 10,
+        "recovery": 60
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 13
+        },
+        {
+          "type": "hitEnd",
+          "frame": 22
+        }
+      ]
+    },
+    {
+      "id": "boss.ashWave.1.p2",
+      "clip": "Sword_Heavy_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 52
+      },
+      "clipHitFrame": 28,
+      "spec": {
+        "startup": 50,
+        "active": 36,
+        "recovery": 54
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 51
+        },
+        {
+          "type": "hitEnd",
+          "frame": 86
+        }
+      ]
     }
   ]
 }
