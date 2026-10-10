@@ -23,8 +23,9 @@ test('an enemy goes around the rock of the catacombs to reach a player on the ot
     window.__game?.dev.pause(true);
   });
 
-  // d-shield-1 は地下墓所 D の出口側 (74, 49) に立つ。プレイヤーは岩盤（x 63..78, z 35.5..47.25）を
-  // 挟んだ南側 (73, 34.5) で、直線距離は約 14.5m。L 字の通路を西へ出て南へ回り込まないと着かない（経路は約 36m）。
+  // d-shield-1 は地下墓所 D の出口側 (74, 49) に立つ。プレイヤーは L 字の通路の第 1 区間 (62, 41) で、
+  // 間に岩盤（x 63..78, z 35.5..47.25）があり直線距離は約 14.4m。通路を角 (62, 48.5) まで西へ進んでから南へ曲がらないと着かない（経路は約 18m）。
+  // D の外側（岩盤の南など）は外周の崖（#176）で通れないので、外を回る経路はない。
   const sample = await page.evaluate(() => {
     const dev = window.__game?.dev;
     if (!dev) throw new Error('game is not ready');
@@ -34,7 +35,7 @@ test('an enemy goes around the rock of the catacombs to reach a player on the ot
       if (!s) throw new Error('game is not ready');
       return s;
     };
-    dev.teleport(73, 34.5, 0);
+    dev.teleport(62, 41, 0);
     dev.advance(2);
     const player = sim().player.position;
     const start = sim().enemies.find((e) => e.id === 'd-shield-1');
@@ -75,7 +76,7 @@ test('an enemy goes around the rock of the catacombs to reach a player on the ot
   expect(sample.state).toBe('approach');
   expect(sample.distance).toBeLessThan(3.6);
   expect(sample.inRock).toBe(false);
-  expect(sample.travelled).toBeGreaterThan(28); // 直線 14.5m を壁の向こうへ突っ込まず、通路を回った
-  expect(sample.minX).toBeLessThan(63); // 通路の西端（x≈62）まで行って戻った
+  expect(sample.travelled).toBeGreaterThan(14); // 直線 14.4m のうち 3m 手前で止まる分を引いても 11m 強。壁へ突っ込まず通路の角を回ると 15m 超
+  expect(sample.minX).toBeLessThan(65); // 通路の角（x≈62）の近くまで行って戻った
   expect(errors).toEqual([]);
 });

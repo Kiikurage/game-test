@@ -118,7 +118,15 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
     vec3(positionWorld.x.mul(0.35), positionWorld.y.mul(2.4), positionWorld.z.mul(0.35)),
   );
   const grain = mx_noise_float(positionWorld.mul(4.3));
-  const rockTone = float(0.78).add(strata.mul(0.34)).add(grain.mul(0.14));
+  // 崖（外周封鎖、#176）の近景でのっぺりしないよう、地層の縞を強め、縦の割れ目（暗い線）を足す
+  const crack = smoothstep(
+    0.1,
+    0.0,
+    mx_noise_float(
+      vec3(positionWorld.x.mul(0.9), positionWorld.y.mul(0.35), positionWorld.z.mul(0.9)),
+    ).abs(),
+  );
+  const rockTone = float(0.72).add(strata.mul(0.5)).add(grain.mul(0.18)).sub(crack.mul(0.28));
   const rocky = mix(float(1), rockTone, rockMask);
 
   const factor = mix(

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { startGame, waitFrames } from './helpers';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -32,7 +32,7 @@ test('plays the requested clip and can freeze it at a given time', async ({ page
   await page.goto('./?clip=Roll&t=0.5');
   await startGame(page);
 
-  await page.waitForTimeout(500);
+  await waitFrames(page, 10);
   const state = await page.evaluate(() => window.__game?.showcase);
   expect(state?.clip).toBe('Roll');
   expect(state?.time).toBeCloseTo(0.5, 5);
@@ -45,7 +45,7 @@ test('shows the exploration props preview without errors (#108)', async ({ page 
   await startGame(page);
   await page.goto('./?props=sword-back&view=back&quality=low&scale=0.25');
   await startGame(page);
-  await page.waitForTimeout(500);
+  await waitFrames(page, 10);
   expect(errors).toEqual([]);
 });
 
@@ -70,6 +70,6 @@ test('places a dozen frozen corpses without errors (#109)', async ({ page }) => 
   );
   expect(state?.count).toBe(12);
   expect(state?.triangles).toBeGreaterThan(50_000);
-  await page.waitForTimeout(500);
+  await waitFrames(page, 10);
   expect(errors).toEqual([]);
 });

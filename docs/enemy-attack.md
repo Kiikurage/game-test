@@ -79,6 +79,12 @@ A3 の射程は仕様書に数値がないため、剣の長さに合わせて 1
 
 `Game.playerTarget.health`（HP 300）に敵の攻撃が当たり、0 になると `Player.die()` が呼ばれて `dead` 状態になる（入力を受け付けず倒れたまま・`Death01`。無敵扱いで追撃を受けない）。`game.player.dead` / `debugState.combat.playerDead`。`game.respawn()` が HP を戻して操作可能に戻す。HUD・死亡演出・ペナルティは別チケット。
 
+## 戦闘デバッグシーン（#61）
+
+`?scene=combat`（テストシーンの広場 + 亡者兵 1 体。`src/game/world/combatDebug.ts`）。プレイヤーは (0, 3.5) 北向き、亡者兵は (0, -3.5) で南向きに待つ。`?debug` で判定の扇形と状態ラベルが出る。撮影は `SHOT_QUERY='?scene=combat&debug'` と `dev.pause` / `dev.advance` / `dev.view(yawOffset, distance, pitch)` を使う `SHOT_SCRIPT`（攻撃開始から F4 / F12 / F22 / F26 / F32 の画を撮る）。
+
+テスト（`enemy/undeadSoldier.test.ts`）: 選択ルールのシード固定の分布（60/40・A3 70%・ロール直後 A1 70%・A1 連続 40%）・距離境界 2.2 / 2.5 / 5.0m・3 連続禁止、A1 が回避しない相手に F25 で当たる、ロールが A1 / A2 / A3 を躱せる（発生の 3F 前、予備動作開始 +10F の両方）、軽攻撃 3 発で HP 120 を倒し Dead へ遷移。
+
 ## 確認用
 
 - `window.__game.sim.enemies[].attackId`: 攻撃中の動作 ID（`enemy.undead.a1` など）。

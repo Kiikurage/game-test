@@ -12,6 +12,8 @@ import type {
   InteractableSpawn,
   ItemSpawn,
   LevelData,
+  OpenPath,
+  PerimeterParams,
   PropSpec,
 } from './level';
 
@@ -287,6 +289,62 @@ const F_PROPS: PropSpec[] = [
     height: 0.9,
   },
 ];
+
+/**
+ * 脇道（仕様書 14 章）の通行領域。外周封鎖（`PERIMETER`）が崖にしない範囲で、脇道の本実装（別チケット）が
+ * 屋根・岩棚・蔵・壁上回廊の地形を足すときの余地。S3（水路）は地下で、入口の床板 (44, 28) は C の内側なので不要。
+ * 幅は 14 章の経路（幅 1.2〜1.6m）より広く取ってある。
+ */
+const SIDE_PATHS: OpenPath[] = [
+  // side_roof: B 北端の倒れた柵 (33, 18.5〜23) → 霊廟の裏手 (28〜29, 20〜23.5) の石段
+  {
+    id: 'side_roof',
+    points: [
+      [33, 14],
+      [33, 23.5],
+      [29, 23.5],
+      [29, 21],
+    ],
+    halfWidth: 3,
+  },
+  // side_ledge: 崖下 (35, 19) → (44, 26) → (52, 31)（礼拝堂の北壁上）。始点は side_roof と重なる
+  {
+    id: 'side_ledge',
+    points: [
+      [33, 21],
+      [35, 19],
+      [44, 26],
+      [52, 31],
+    ],
+    halfWidth: 2.5,
+  },
+  // side_wall: 北進路の東壁 (82, 41) → 蔵 (83..87, 40..43) → 石段 → 壁上回廊 (86, 44) → (86, 66) → (100, 67) → 霧の門の脇 (101, 65)
+  {
+    id: 'side_wall',
+    points: [
+      [80.5, 41],
+      [85, 41.5],
+      [86, 44],
+      [86, 66],
+      [100, 67],
+      [101, 65],
+    ],
+    halfWidth: 2.5,
+  },
+];
+
+/**
+ * 外周の封鎖（#176）。道・エリア・脇道の外側を岩壁（崖）にして、D・G1・霧の門の迂回を物理的に不可にする。
+ * 地形データだけで実現するので、敵のナビ格子（#43）も同じ崖を避ける。余白は「壁の外側に出られても行き止まり」
+ * になる程度（エリアの壁・道のすぐ外）に絞る。D は岩盤の塊が外壁なので余白 0（C 側から D の外壁沿いに回り込ませない）。
+ */
+const PERIMETER: PerimeterParams = {
+  rise: 7,
+  width: 3,
+  routeMargin: 1.5,
+  areaMargin: 2.5,
+  openPaths: SIDE_PATHS,
+};
 
 const props: PropSpec[] = [
   // --- A 篝火「灰の炉」 ---
@@ -570,6 +628,7 @@ export const ASHEN_FOUNDATION: LevelData = {
   id: 'ashen-foundation',
   name: '灰の礎',
   bounds: { minX: -11, maxX: 141, minZ: -11, maxZ: 105 },
+  perimeter: PERIMETER,
   terrain: {
     slopeX: 0.06,
     slopeZ: 0.03,
@@ -609,6 +668,7 @@ export const ASHEN_FOUNDATION: LevelData = {
       name: '地下墓所',
       shape: { type: 'rect', minX: 60, maxX: 78, minZ: 36, maxZ: 52 },
       surface: 'underground',
+      perimeterMargin: 0,
     },
     {
       id: 'E',
