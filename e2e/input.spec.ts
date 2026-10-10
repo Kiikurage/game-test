@@ -159,6 +159,8 @@ test.describe('touch (mobile landscape)', () => {
   });
 
   test('multi-touch: stick + buttons + camera drag + flick', async ({ page }) => {
+    // ソフトウェア描画では CDP の往復とフレーム進行が遅く、描画が重いと 60 秒に収まらないことがある
+    test.setTimeout(180_000);
     await boot(page);
     const cdp = await page.context().newCDPSession(page);
 
@@ -211,7 +213,7 @@ test.describe('touch (mobile landscape)', () => {
     }
     await dispatch(cdp, 'touchEnd', []);
     await expect
-      .poll(async () => (await input(page))?.lookTotal.x ?? 0)
+      .poll(async () => (await input(page))?.lookTotal.x ?? 0, { timeout: 30_000 })
       .toBeGreaterThan(before.x + 0.3);
     expect((await input(page))?.lookTotal.y).toBeGreaterThan(before.y); // 上へドラッグ = 上を向く
     // ゆっくりのドラッグはターゲット切替にならない

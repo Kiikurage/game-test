@@ -1,4 +1,3 @@
-import { Vector3 } from 'three/webgpu';
 import { MainLoop } from './core/mainLoop';
 import type { ProgressTracker } from './core/progress';
 import { createBrowserAudioEngine, createSfxSystem, installAudioUnlock } from './audio';
@@ -14,12 +13,15 @@ import { resetTuning, tuning } from './game/tuning';
 import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { PlayerView, type PlayerViewState } from './render/playerView';
 import { EnemyViews } from './render/enemyView';
-import type { PlayerAnimLayer } from './render/assets/playerAnimator';
 import { createTerrainCollisionMesh } from './render/testScene';
 import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
 import { EnvironmentAssets } from './render/assets/environment';
 import { createLevel, levelGameOptions } from './game/world/level';
 import { terrainHeight } from './render/terrain';
+import { createDevHooks, isShowcaseRequested, type DevHooks } from './devHooks';
+
+// `*.dev.ts`（デバッグフック・showcase の URL パラメータの登録）を自動で読み込む。新機能は main.ts を編集しない。
+import.meta.glob('./**/*.dev.ts', { eager: true });
 
 /** E2E / デバッグ用に公開する読み取り専用の状態。 */
 interface DebugState {
@@ -33,43 +35,8 @@ interface DebugState {
   readonly showcase?: ShowcaseState;
   /** プレイヤー・カメラ・ロックオンの状態（E2E 用）。 */
   readonly sim: GameDebugState;
-  /** E2E 用の操作（テレポートなど）。 */
-  readonly dev: {
-    teleport(x: number, z: number, yaw: number, y?: number): void;
-    /** シミュレーションの一時停止（撮影用）。 */
-    pause(paused: boolean): void;
-    /** シミュレーションを指定ステップ（60Hz）だけ進める（撮影・E2E 用。`pause(true)` と併用する）。 */
-    advance(steps: number): void;
-    /** 指定した対象を直接ロックオンする（撮影用）。 */
-    lock(id: string): boolean;
-    /** カメラをプレイヤーの向き + `yawOffset` の背後に置き直す（撮影用）。 */
-    view(yawOffset: number, distance?: number, pitchDeg?: number): void;
-    /** プレイヤーのアニメーションレイヤーを時刻で固定表示する（撮影用）。 */
-    pose(layer: PlayerAnimLayer | null, time?: number): void;
-    /** 音源を鳴らす（敵の聴覚・経路探索の E2E 用）。 */
-    noise(x: number, y: number, z: number, kind: 'bell' | 'dash' | 'combat'): void;
-    /** プレイヤーの HP を減らす（回復瓶の確認・撮影用）。 */
-    damage(amount: number): void;
-    /** ?debug 用の仮の攻撃（軽攻撃 1 の判定）を 1 回出す。判定の動作確認・撮影用。 */
-    swing(): void;
-    /**
-     * 敵の攻撃を 1 発プレイヤーへ当てる（ガード・削り・ブレイクの確認用ダミー。`from` は攻撃者の方向、
-     * `bearingDeg` は正面からの角度。本物の命中と同じ経路を通る）。
-     */
-    hitPlayer(options?: {
-      from?: 'front' | 'back' | 'left' | 'right';
-      damage?: number;
-      poiseDamage?: number;
-      guardStaminaCost?: number;
-      bearingDeg?: number;
-    }): void;
-    /** プレイヤーを `frames` ステップ凍結する（ヒットストップの確認用）。 */
-    hitStop(frames: number): void;
-    /** タイムスケールを `scale` 倍にして `frames` ステップ続ける（スローモーションの確認用）。 */
-    slowMotion(scale: number, frames: number): void;
-    /** カメラを任意の視点へ固定する（俯瞰撮影用）。`null` でゲームのカメラへ戻す。 */
-    freeCam(position: [number, number, number] | null, target?: [number, number, number]): void;
-  };
+  /** E2E 用の操作（テレポートなど）。各機能が `*.dev.ts` の `registerDevHooks` で足す（src/devHooks.ts）。 */
+  readonly dev: DevHooks;
   /** プレイヤーの描画状態（読み込み失敗時は undefined）。 */
   readonly playerView?: PlayerViewState;
   /** オーディオエンジンの状態（AudioContext 非対応なら undefined）。 */
@@ -79,14 +46,6 @@ interface DebugState {
     /** E2E 用: game のイベントバス経由で SE を鳴らす。 */
     readonly emitSound: (cue: string) => void;
   };
-}
-
-/** キャラクター確認用の URL 指定（`?clip=` / `?view=` / `?corpse=` / `?props=` など）があるか。あれば従来どおり騎士を 1 体置いて見せる。 */
-function isShowcaseRequested(search: string): boolean {
-  const params = new URLSearchParams(search);
-  return ['clip', 'view', 'player', 'corpse', 'props', 'equip', 'undead', 'light'].some((k) =>
-    params.has(k),
-  );
 }
 
 declare global {
@@ -181,6 +140,7 @@ export async function createGameApp(
         }
       }
     }
+    await view.loadPlugins();
     // 初回描画のシェーダコンパイルをローディング中に済ませる（開始直後の長いカクつきを防ぐ）
     view.resize();
     await view.warmUp();
@@ -266,51 +226,15 @@ export async function createGameApp(
       get sim() {
         return game.debugState;
       },
-      dev: {
-        teleport: (x, z, yaw, y) => {
-          game.teleportPlayer(x, z, yaw, y);
-        },
-        lock: (id) => game.lockOnTo(id),
-        pause: (p) => {
+      dev: createDevHooks({
+        game,
+        view,
+        input,
+        playerView: () => playerView,
+        setPaused: (p) => {
           paused = p;
         },
-        advance: (steps) => {
-          for (let i = 0; i < steps; i++) {
-            input.step(1 / 60); // ループと同じく、入力スナップショットを確定してから game が読む
-            game.update(1 / 60);
-          }
-        },
-        view: (yawOffset, distance, pitchDeg) => {
-          if (distance !== undefined) tuning.camera.distance = distance;
-          game.camera.reset(game.player.feet, game.player.yaw + yawOffset, pitchDeg);
-        },
-        freeCam: (position, target = [0, 0, 0]) => {
-          view.setFreeCamera(
-            position && { position: new Vector3(...position), target: new Vector3(...target) },
-          );
-        },
-        noise: (x, y, z, kind) => {
-          game.emitNoise({ x, y, z }, kind);
-        },
-        swing: () => {
-          game.debugSwing.start();
-        },
-        hitPlayer: (options) => {
-          game.debugHitPlayer(options);
-        },
-        damage: (amount) => {
-          game.playerTarget.health.damage(amount);
-        },
-        hitStop: (frames) => {
-          game.player.hitStop(frames);
-        },
-        slowMotion: (scale, frames) => {
-          game.timeScale.start(scale, frames);
-        },
-        pose: (layer, time = 0) => {
-          playerView?.setDebugPose(layer ? { layer, time } : null);
-        },
-      },
+      }),
       get playerView() {
         return playerView?.state;
       },

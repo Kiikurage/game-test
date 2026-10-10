@@ -7,6 +7,7 @@ import { GroundTelegraphs } from './telegraph';
 import { TelegraphDemo, isTelegraphDemoEnabled } from './telegraph/demo';
 import { PlaygroundView } from './playground';
 import { LevelView } from './levelView';
+import { Skyline } from './skyline';
 import type { EnvironmentAssets } from './assets/environment';
 import type { Level } from '../game/world/level';
 import type { PlayerView } from './playerView';
@@ -17,6 +18,10 @@ import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
 import { CombatDebugView } from './combatDebugView';
 import { NavDebugView } from './navDebugView';
 import { GridNavigator } from '../game/enemy/gridNavigator';
+import { createViewPlugins, type ViewPlugin } from './viewPlugins';
+
+// `*.view.ts`（登録式の描画機能。viewPlugins.ts 参照）を自動で読み込む。新機能は gameView.ts を編集しない。
+import.meta.glob('./**/*.view.ts', { eager: true });
 
 /**
  * Game の状態を three のシーンとして描画する。
@@ -32,6 +37,8 @@ export class GameView {
   readonly environment: Environment;
   /** レベルを描いているときだけ（`?scene=test` では null）。 */
   readonly levelView: LevelView | null = null;
+  /** 遠景の山並みとランドマーク（レベルを描いているときだけ）。 */
+  private readonly skyline: Skyline | null = null;
   /** ボス技の地面予告（円・直線・影の円）。 */
   readonly telegraphs = new GroundTelegraphs();
   /** パーティクル（環境の灰・篝火・熾火・ヒット/撃破バースト）。 */
@@ -58,6 +65,8 @@ export class GameView {
   private readonly combatDebug: CombatDebugView | null = null;
   /** ?debug のときだけ作る敵のナビゲーション（歩ける範囲・経路）の可視化。 */
   private readonly navDebug: NavDebugView | null = null;
+  /** 登録式の描画機能（`viewPlugins.ts`）。 */
+  private readonly plugins: readonly ViewPlugin[];
 
   constructor(
     private readonly game: Game,
@@ -72,6 +81,8 @@ export class GameView {
       this.colliders = [];
       this.levelView = new LevelView(level);
       this.scene.add(this.levelView.root);
+      this.skyline = new Skyline();
+      this.scene.add(this.skyline.root);
     } else {
       const testScene = createTestScene(preset);
       this.colliders = testScene.pillars;
@@ -127,7 +138,22 @@ export class GameView {
 
     this.postProcess = createPostProcess(gameRenderer.renderer, this.scene, this.camera, preset);
 
+    this.plugins = createViewPlugins({ game, view: this, gameRenderer, level });
+
     this.resize();
+  }
+
+  /** 登録式の描画機能のアセットを読み込む（失敗してもゲームは続行する）。起動時に 1 度呼ぶ。 */
+  async loadPlugins(): Promise<void> {
+    await Promise.all(
+      this.plugins.map(async (p) => {
+        try {
+          await p.load?.();
+        } catch (e) {
+          console.error('view plugin failed to load', e);
+        }
+      }),
+    );
   }
 
   /** 環境メッシュ（A〜C の墓石・枯れ木・石壁など）と篝火のパーティクルを置く。読み込み後に 1 度呼ぶ。 */
@@ -192,6 +218,7 @@ export class GameView {
   render(alpha: number): void {
     this.gameRenderer.beginFrame(performance.now());
     if (this.useGameCamera) this.syncCamera(alpha);
+    this.skyline?.update(this.camera.position.x, this.camera.position.z);
     this.playerView?.update(alpha);
     this.enemyViews?.update(alpha, this.camera);
     this.playground.update(this.camera);
@@ -204,6 +231,7 @@ export class GameView {
     this.particles.update(dt, focus);
     this.telegraphDemo?.update(Math.min(dt, 0.1));
     this.telegraphs.update(dt);
+    for (const plugin of this.plugins) plugin.update?.(dt);
     this.combatDebug?.update();
     this.navDebug?.update();
     if (this.drawEnabled) this.postProcess.render();
