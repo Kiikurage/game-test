@@ -34,6 +34,7 @@ import {
   createRimControls,
   isWeaponObject,
   type RimControls,
+  type WeaponTelegraphStyle,
 } from '../characterLight';
 import { OUTFIT_MESHES, clampProgress, type UndeadVariant } from './variants';
 
@@ -74,7 +75,11 @@ export interface UndeadLook {
    * 武器の縁を光らせる（強さ 0..1、色は省略時は直前の色）。敵の攻撃予備動作（テレグラフ演出, #62）用。
    * 縁の加算の光だけで、世界のライティングには影響しない。このインスタンスの武器だけが光る。
    */
-  setWeaponTelegraph(amount: number, color?: ColorRepresentation): void;
+  setWeaponTelegraph(
+    amount: number,
+    color?: ColorRepresentation,
+    style?: WeaponTelegraphStyle,
+  ): void;
   readonly weaponTelegraph: number;
   /** 生成したマテリアルを解放する。 */
   dispose(): void;
@@ -149,10 +154,13 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
     get weaponTelegraph() {
       return telegraph;
     },
-    setWeaponTelegraph(amount, color) {
+    setWeaponTelegraph(amount, color, style) {
       telegraph = clampProgress(amount);
       controls.rim.weapon.value = telegraph;
       if (color !== undefined) controls.rim.weaponColor.value.set(color);
+      controls.rim.weaponFill.value = style?.fill ?? 1;
+      controls.rim.weaponRim.value = style?.rim ?? 1;
+      controls.rim.weaponSharp.value = style?.sharp ?? 0;
     },
     dispose() {
       for (const m of created) m.dispose();

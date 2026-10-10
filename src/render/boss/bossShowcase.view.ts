@@ -8,6 +8,7 @@ import { registerViewPlugin } from '../viewPlugins';
 import { BossAnimator, bossMoveState } from './bossAnimator';
 import { BOSS_GAIT_TABLE, BOSS_LOCOMOTION, BOSS_SPEED, toModelSpeed } from './bossGait';
 import { ThrownShield } from './thrownShield';
+import { BOSS_GLOW_STYLE, BOSS_WEAPON_TELEGRAPH } from './bossWeaponGlow';
 
 /**
  * ボスのモデルの確認表示（`?bossmodel=1|2&scene=test`。フェーズ 1 / 2）。撮影・E2E 用。
@@ -18,6 +19,8 @@ import { ThrownShield } from './thrownShield';
  *   `&clip=<クリップ名>&t=<秒>`  任意のクリップを固定表示（Sword_Heavy_Combo など）
  *   `&grip=shield|twoHand`  フェーズに関わらず斧の持ち方を上書き
  *   `&throw=1`  フェーズ 2 への移行で盾を投げ捨てる（盾が飛んで地面に刺さるまでを再生）
+ *   `&action=<動作 ID>&sf=<段の F>`  マーカー表の動作（例 `boss.overhead.1.p1`）を、実際のアニメーションコントローラで段 F まで進めて固定表示
+ *   `&glow=normal|heavy`  予兆の斧の発光（種別のピーク）を点ける（`bossWeaponGlow.ts`）
  *   `&ember=<0..1>`  熾火の強さを上書き（フェーズ 1 の見た目のまま発光だけ確認）
  */
 declare global {
@@ -57,6 +60,8 @@ registerViewPlugin('bossShowcase', ({ view, gameRenderer }) => {
         (Number.isFinite(Number(gaitParam)) ? Number(gaitParam) : BOSS_SPEED.walk));
   const clipParam = params.get('clip');
   const fixedClip = CLIP_NAMES.find((n) => n === clipParam);
+  const actionParam = params.get('action');
+  const actionFrame = Number(params.get('sf') ?? 1);
   const frozenAt = params.has('t') ? Number(params.get('t')) : NaN;
   const feet: { left?: Object3D; right?: Object3D } = {};
   const prev = { left: new Vector3(), right: new Vector3(), valid: false };
@@ -105,6 +110,28 @@ registerViewPlugin('bossShowcase', ({ view, gameRenderer }) => {
           boss.character.mixer.update(0);
         }
       }
+      if (actionParam) {
+        // 実際の再生経路（BossAnimator + マーカー表）で段の F まで進める
+        for (let f = 1; f <= actionFrame; f++) {
+          animator.update(
+            FIXED_DT,
+            {
+              ...bossMoveState(0, gait),
+              state: 'attack',
+              kind: 'action',
+              actionId: actionParam,
+              stateFrame: f,
+            },
+            1,
+          );
+          boss.lateUpdate(FIXED_DT);
+        }
+      }
+      const glowParam = params.get('glow');
+      if (glowParam === 'normal' || glowParam === 'heavy') {
+        const profile = BOSS_WEAPON_TELEGRAPH[glowParam];
+        boss.look.setWeaponTelegraph(profile.peak, profile.color, BOSS_GLOW_STYLE);
+      }
       feet.left = boss.root.getObjectByName('foot_l') ?? undefined;
       feet.right = boss.root.getObjectByName('foot_r') ?? undefined;
 
@@ -120,7 +147,9 @@ registerViewPlugin('bossShowcase', ({ view, gameRenderer }) => {
       if (!boss || !animator) return;
       thrown?.update(dt);
       boss.updateLod(view.camera, view.shadowFocusTarget?.position);
-      if (!fixedClip) {
+      if (actionParam) {
+        boss.lateUpdate(FIXED_DT);
+      } else if (!fixedClip) {
         // 歩行位相はモデル空間の速度で進める（拡大後の歩幅。bossGait.ts）。計測のため固定刻みで進める
         const step = gaitParam === null ? Math.min(dt, 0.1) : FIXED_DT;
         gait.advance(toModelSpeed(speed), step, { profile: BOSS_LOCOMOTION });

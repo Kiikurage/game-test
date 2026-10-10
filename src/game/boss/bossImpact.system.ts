@@ -1,13 +1,13 @@
 import { slamAt } from '../camera/cameraEffects.system';
 import { registerGameSystem } from '../systems';
 import { bossSystemOf } from './boss.system';
-import { LEAP_RADIUS, leapStateOf } from './moves/leap.move';
+import { LEAP_PUSH_FRAMES, LEAP_RADIUS, leapPushOut, leapStateOf } from './moves/leap.move';
 import { stagesOf, BOSS_MOVES } from './bossMove';
 
 /**
  * ボスの技の「衝撃」の演出の発火（技 4・5）。
  *
- * - 跳躍叩きつけ（技 5）の着地: 画面振動（`slamAt`。仕様書 3.3 節の 1.2°・24F、距離で減衰）、`bossSlam` イベント
+ * - 跳躍叩きつけ（技 5）の着地: ボスの体に重なったプレイヤーの押し出し（`leapPushOut`）、画面振動（`slamAt`。仕様書 3.3 節の 1.2°・24F、距離で減衰）、`bossSlam` イベント
  *   （描画のパーティクル・破片）、SE（`sfx.boss.slam` グループ）を、判定が出るステップ（段 F73）に 1 回出す。
  * - 盾打ち（技 4）: 判定が出るステップ（段 F27）に SE（`sfx.boss.shield-bash`）。
  *
@@ -34,6 +34,12 @@ registerGameSystem('boss-impact', (game) => {
         slamAt(game, position);
         game.events.emit('bossSlam', { position, radius: LEAP_RADIUS });
         game.events.emit('sound', { cue: 'sfx.boss.slam', source: 'boss', position });
+        // 真上に着地されたプレイヤーを体の外へ押し出す（ボスとプレイヤーが重ならない）
+        const push = leapPushOut(
+          { x: boss.position.x, z: boss.position.z, yaw: boss.yaw },
+          game.player.feet,
+        );
+        if (push) game.player.shove(push.x, push.z, LEAP_PUSH_FRAMES);
       }
 
       if (info.move === 'shieldBash' && info.stage === 1 && boss.state === 'attack') {

@@ -262,6 +262,8 @@ export class Player {
   private readonly tmpVelocity: Vec2Like = { x: 0, y: 0 };
   /** このステップの被弾による押し戻し変位（m）。 */
   private readonly slide = { x: 0, z: 0 };
+  /** 外から押し出す残りの変位（m）と、残りのステップ数（`shove`。ボスの着地などでめり込みを解く）。 */
+  private readonly shoveLeft = { x: 0, z: 0, frames: 0 };
   /** 仰け反り・転倒の長さ（フレーム）。 */
   private reactionFrames = 0;
   private visualY = 0;
@@ -585,6 +587,16 @@ export class Player {
     return { phase: this.guardAge < params.raiseFrames ? 'raise' : 'hold', frame: this.guardAge };
   }
 
+  /**
+   * 水平方向に `(dx, dz)` m を `frames` ステップかけて押し出す（状態は変えない。壁・床の衝突は通常の移動と同じ）。
+   * ボスの跳躍の着地でプレイヤーが体に重なったときなどに使う。残りがあれば足し合わせる。
+   */
+  shove(dx: number, dz: number, frames = 6): void {
+    this.shoveLeft.x += dx;
+    this.shoveLeft.z += dz;
+    this.shoveLeft.frames = Math.max(this.shoveLeft.frames, Math.max(1, Math.round(frames)));
+  }
+
   /** スポーン・リスポーン・テレポート。補間もスナップする。 */
   teleport(position: Vector3, yaw: number): void {
     this.position.copy(position);
@@ -607,6 +619,7 @@ export class Player {
     this.armorActive = false;
     this.slide.x = 0;
     this.slide.z = 0;
+    this.shoveLeft.frames = 0;
     this.markers.begin(undefined);
     this.gait.reset();
     this.body.setTranslation({ x: position.x, y: position.y + CENTER_Y, z: position.z }, true);
@@ -634,6 +647,14 @@ export class Player {
     this.reactor.step();
     this.counterWindow.step();
     this.reactor.consumeSlide(this.slide);
+    if (this.shoveLeft.frames > 0) {
+      const k = 1 / this.shoveLeft.frames;
+      this.slide.x += this.shoveLeft.x * k;
+      this.slide.z += this.shoveLeft.z * k;
+      this.shoveLeft.x -= this.shoveLeft.x * k;
+      this.shoveLeft.z -= this.shoveLeft.z * k;
+      this.shoveLeft.frames--;
+    }
     const snap = frame.input.snapshot;
 
     cameraRelativeMove(snap.move, frame.cameraYaw, this.worldMove);

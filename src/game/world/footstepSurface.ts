@@ -7,6 +7,8 @@ export const FOOTSTEP_SURFACE_OF: Readonly<Record<SurfaceKind, FootstepSurface>>
   stone: 'stone',
   wood: 'wood',
   underground: 'crypt',
+  // 水の足音の素材は音の担当（E7）が足すまで石 + 反響の `crypt` を鳴らす
+  water: 'crypt',
 };
 
 export function footstepSurfaceOf(kind: SurfaceKind): FootstepSurface {
@@ -19,6 +21,6 @@ export function footstepSurfaceOf(kind: SurfaceKind): FootstepSurface {
  */
 export function createFootstepSurfaceResolver(
   level: Pick<Level, 'surfaceAt'>,
-): (x: number, z: number) => FootstepSurface {
-  return (x, z) => footstepSurfaceOf(level.surfaceAt(x, z));
+): (x: number, z: number, y?: number) => FootstepSurface {
+  return (x, z, y) => footstepSurfaceOf(level.surfaceAt(x, z, y));
 }

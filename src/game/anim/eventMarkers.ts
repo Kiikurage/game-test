@@ -48,6 +48,12 @@ export interface ClipEventEntry {
    * 省略すると、判定を持たない動作（ロール・移動など）として再生範囲の全体を「全体フレーム」に合わせる。
    */
   readonly clipHitFrame?: number;
+  /**
+   * 動作の頭で再生範囲の先頭のポーズを保持するシミュレーションフレーム数（`clipHitFrame` があるときだけ。0 以上・発生未満）。
+   * クリップが「構えのない振り抜き」から始まる場合（盾打ち・跳躍の踏み切りなど）に、仕様の発生（予備動作）の間は構えを保ち、
+   * 振り抜きだけを残りのフレームに合わせる。再生速度は `(発生 − holdFrames)` で決まる。省略は 0。
+   */
+  readonly holdFrames?: number;
   /** true で再生範囲を終端から先頭へ逆再生する（バックステップなど）。 */
   readonly reverse?: boolean;
   /**
@@ -95,7 +101,7 @@ export function playbackRate(entry: ClipEventEntry): number {
     return rangeSeconds / (totalFrames(entry) / SIM_FPS);
   }
   const clipHitSeconds = (entry.clipHitFrame - entry.clipRange.startFrame) / entry.clipFps;
-  return clipHitSeconds / (entry.spec.startup / SIM_FPS);
+  return clipHitSeconds / ((entry.spec.startup - (entry.holdFrames ?? 0)) / SIM_FPS);
 }
 
 /**
@@ -104,7 +110,10 @@ export function playbackRate(entry: ClipEventEntry): number {
  */
 export function swingEndElapsed(entry: ClipEventEntry): number {
   const rangeSeconds = (entry.clipRange.endFrame - entry.clipRange.startFrame) / entry.clipFps;
-  return Math.min(totalFrames(entry), (rangeSeconds / playbackRate(entry)) * SIM_FPS);
+  return Math.min(
+    totalFrames(entry),
+    (entry.holdFrames ?? 0) + (rangeSeconds / playbackRate(entry)) * SIM_FPS,
+  );
 }
 
 /**
@@ -114,7 +123,8 @@ export function swingEndElapsed(entry: ClipEventEntry): number {
 export function simFrameToClipTime(entry: ClipEventEntry, frame: number): number {
   const start = entry.clipRange.startFrame / entry.clipFps;
   const end = entry.clipRange.endFrame / entry.clipFps;
-  const travelled = ((frame - 1) / SIM_FPS) * playbackRate(entry);
+  const travelled =
+    (Math.max(0, frame - 1 - (entry.holdFrames ?? 0)) / SIM_FPS) * playbackRate(entry);
   const t = entry.reverse ? end - travelled : start + travelled;
   return Math.min(Math.max(t, start), end);
 }
@@ -124,7 +134,7 @@ export function clipTimeToSimFrame(entry: ClipEventEntry, clipTime: number): num
   const start = entry.clipRange.startFrame / entry.clipFps;
   const end = entry.clipRange.endFrame / entry.clipFps;
   const travelled = entry.reverse ? end - clipTime : clipTime - start;
-  return 1 + (travelled / playbackRate(entry)) * SIM_FPS;
+  return 1 + (entry.holdFrames ?? 0) + (travelled / playbackRate(entry)) * SIM_FPS;
 }
 
 /** マーカーのクリップ時間（秒）。 */
@@ -263,6 +273,16 @@ function parseEntry(raw: unknown, path: string): ClipEventEntry {
 
   const spec = asObject(o.spec, `${path}.spec`);
   const startup = asNumber(spec.startup, `${path}.spec.startup`, 1, true);
+  let holdFrames = 0;
+  if (o.holdFrames !== undefined) {
+    holdFrames = asNumber(o.holdFrames, `${path}.holdFrames`, 0, true);
+    if (clipHitFrame === undefined || holdFrames >= startup) {
+      throw new AnimDataError(
+        `${path}.holdFrames`,
+        `clipHitFrame があり、発生（${startup}）未満である必要があります（${holdFrames}）`,
+      );
+    }
+  }
   const active = asNumber(spec.active, `${path}.spec.active`, 0, true);
   const recovery = asNumber(spec.recovery, `${path}.spec.recovery`, 0, true);
   const total = startup + active + recovery;
@@ -309,6 +329,7 @@ function parseEntry(raw: unknown, path: string): ClipEventEntry {
     clipFps,
     clipRange: { startFrame, endFrame },
     ...(clipHitFrame !== undefined && { clipHitFrame }),
+    ...(holdFrames > 0 && { holdFrames }),
     ...(reverse && { reverse }),
     ...(tail && { tail }),
     spec: { startup, active, recovery },

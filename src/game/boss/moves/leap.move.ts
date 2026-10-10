@@ -1,4 +1,6 @@
 import { circleShape } from '../../combat';
+import { PLAYER_STATS } from '../../data';
+import { BOSS_STATS } from '../bossData';
 import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
 
 /**
@@ -55,6 +57,29 @@ const COMMON = {
 
 const LEAP_P1: BossStageDef = { ...COMMON, recovery: 56, damage: 120 };
 const LEAP_P2: BossStageDef = { ...COMMON, recovery: 46, damage: 130 };
+
+/** 着地でプレイヤーを押し出して空ける、ボスの体の中心からの距離（m）。ボスの体の半径 + プレイヤーのカプセル半径 + 余裕。 */
+export const LEAP_CLEARANCE = BOSS_STATS.radius + PLAYER_STATS.hurtCapsule.radius + 0.1;
+/** 押し出しにかける長さ（F）。 */
+export const LEAP_PUSH_FRAMES = 6;
+
+/**
+ * 着地でボスの体にめり込んだプレイヤーの押し出し量（m）。体から `LEAP_CLEARANCE` 以上離れていれば null。
+ * 方向はボス → プレイヤー。真上（ほぼ同じ位置）に着地したときはボスの向き（着地へ飛んできた方向）へ押し出す。
+ */
+export function leapPushOut(
+  boss: { readonly x: number; readonly z: number; readonly yaw: number },
+  player: { readonly x: number; readonly z: number },
+): { x: number; z: number } | null {
+  const dx = player.x - boss.x;
+  const dz = player.z - boss.z;
+  const d = Math.hypot(dx, dz);
+  if (d >= LEAP_CLEARANCE) return null;
+  const ux = d > 0.05 ? dx / d : Math.sin(boss.yaw);
+  const uz = d > 0.05 ? dz / d : Math.cos(boss.yaw);
+  const push = LEAP_CLEARANCE - (d > 0.05 ? d : 0);
+  return { x: ux * push, z: uz * push };
+}
 
 /** 跳躍の状態（描画が読む。技の実行中だけ `leapStateOf` で引ける）。 */
 export interface LeapState {

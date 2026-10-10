@@ -22,7 +22,7 @@ src/render/levelView.ts            Level から地形・静的物・篝火・マ
 
 - 敵の配置は `enemies`、アイテムは `items`、インタラクト対象は `interactables`（いずれもエリア内の座標。`validateLevel` がエリア内か検査）。敵は `Game` が `level.data.enemies` から生成する（[enemy-ai.md](enemy-ai.md)）。アイテムは現状、描画側が目印を置くだけ。
 - 壁や階段は `props` に足す（`block` / `stairs` / `cylinder`）。階段の 1 段は 0.35m 以下。
-- 脇道（14 章）: 高所の足場（霊廟の屋根・北崖の岩棚・北壁の上）は #110 で作成済み（下の「脇道の足場」）。`side_waterway`・`side_wall` は未作成。
+- 脇道（14 章）: 高所の足場（霊廟の屋根・北崖の岩棚・北壁の上）は #110 で作成済み（下の「脇道の足場」）。`side_waterway`（地下水路）は #111 で作成済み（下の「地下水路」）。`side_wall` は未作成。
 - `?scene=test` で従来のテストシーン。`window.__game.dev.freeCam([x,y,z], [tx,ty,tz])` で俯瞰撮影（`null` で戻す）。`dev.teleport` は地形の高さに合わせて置く。
 
 ## 環境メッシュ（#34）
@@ -49,6 +49,12 @@ A〜C と塔の見た目は `environment.glb`（`docs/assets.md` 7.11 節）。`
 - 検証: `levelPerimeter.test.ts`（0.5m 格子の到達可能性。D を塞いだ状態で E・G1 の北・闘技場へ行けない、G1 を閉じたまま北へ行けない、霧の門を閉じたまま闘技場へ行けない、敵のナビ格子が通行領域内に収まる、脇道の要所が開いている）と、`levelWalk.test.ts` の物理テスト（外側へ向かって歩き続けても迂回できない）。
 - 新しいエリアや道を足したら、`perimeter` の対象に自動で入る（ルート・エリア）。意図しない迂回路ができた場合は上のテストが落ちる。
 
+## 外周の崖の岩肌化（#190）
+
+- 岩マテリアル（`src/render/cliff/rockSurface.ts`、TSL）: ワールド座標ベースの地層（うねる層・層ごとの色味と張り出し）、層ごとにずれる節理（目地・ブロックの丸み）、縦の割れ目・雨だれ・粒。凹凸は高さ関数の画面空間微分から法線を作る（`bumpedNormal`）。地形マテリアル（`createGroundMaterial`）が斜面角（`normalWorld.y` 0.93..0.74）でブレンドし、岩塊メッシュも同じ関数を使う。層の境・ブロックの境で値が不連続になると微分が跳ねてギザギザが出るので、境でフェード・中間値へ寄せている。
+- 岩塊・枯れ草（`src/render/cliff/cliff.view.ts`、`cliffLayout.ts`、`cliffGeometry.ts`）: `Level.openDistance` の帯に InstancedMesh で配置。崖の足元（d = 0.3..0.9m。足元は垂直に近いので壁に半分埋まる）に岩塊の山、上端（d = 2.5..4.4m）に岩と枯れ草のシルエット。斜面の途中には置かない（浮いて見える）。通行領域の内側・脇道の足場（`Level.sidePathDistance` が 岩の半径 + 1.2m 未満。#110 の岩棚・霊廟裏の石段）・壁や柱の近くには置かない。当たり判定・ナビは変更なし。
+- 負荷: 空間バケット（48m）ごとに岩 1 + 枯れ草 1 ドローコール。視錐台カリングに加え、岩 24m・枯れ草 22m より遠いバケットは描かない。影は落とさない。密度は `QualityPreset.cliffDetail`（low 0.3 / medium 0.5 / high 1。位置ごとのハッシュで間引くので上位集合）。`?cliff=0` で出さない（比較用）。
+
 ## 脇道の足場（#110: `side_roof` / `side_ledge`）
 
 仕様 14.1.1 / 14.1.2。座標・寸法は初期値（グレーボックス）。すべてレベルデータ（`ashenFoundation.ts`）にあり、見た目（`levelView`）と当たり（`Game`）が同じデータを読む。
@@ -61,3 +67,18 @@ A〜C と塔の見た目は `environment.glb`（`docs/assets.md` 7.11 節）。`
 - **足場の範囲（装飾の除外領域）**: `LevelData.sidePaths`（`SidePathDef`: `id` / 中心線 `points` + `halfWidth`（透明壁の外面まで）/ 矩形 `rects` / `spots`）。`Level.sidePathDistance(x, z, ids?)`（または `sidePathDistance(data, x, z, ids?)`）が範囲までの距離を返す（範囲内は 0）。外周の崖の岩塊（#190）など、足場を塞いではいけない配置は、この距離が 0 より十分大きい所にだけ置くこと。外周封鎖の通行領域（`SIDE_PATHS` の `side_ledge`）も同じ `LEDGE_POINTS` から作る。
 - 検証: `levelSidePath.test.ts`（寸法・勾配・段差・範囲、ナビ格子に含まれないこと、屋根・岩棚・壁上の走破・3 か所の落下・往復・縁から落ちないこと）と `e2e/sidePath.spec.ts`（入力注入で B → 屋根 → 岩棚 → 壁上 → 3 か所の落下）。
 - 撮影した俯瞰: `docs/images/side-path/`（`roof-south` / `roof-top` / `ledge` / `wall-top` / `overview`）。
+
+## 地下水路（#111: `side_waterway`）
+
+仕様 14.1.3。座標・寸法は初期値（グレーボックス）。組み立ては `src/game/world/waterway.ts`（区画 → 壁・床・天井・段）、データは `ashenFoundation.ts` の `WATERWAY`。
+
+- **経路**（内寸 幅 2.0m・天井 2.2m・水深 0.15m・全長 約 47m）: 腐った床板の真下 (43..45, 27..29) → 礼拝堂の床下を東へ（x = 60 の東の崩れ口の下）→ x = 66 を北へ → (66, 40) 雫（水底）→ 上り階段（6 段 + 角の踊り場 + 12 段、1 段 0.272m × 奥行 0.45m）→ 鉄格子 (72, 45) → 出口 (72, 47.25)（D の通路の側面）。墓室（5m × 4m, x 60..65 z 33..37）は x = 66 の通路から西へ分岐。
+  - 仕様の斜めの線 (44,28)→(58,36)→(66,40)→(72,45) は、礼拝堂の北壁（z = 32。地面の 1.2m 下まで埋まっている）の下を通れないので、東の崩れ口の下を通る直角の経路に取り直した。
+  - 水路の床は C の床（3.4m）− 落下 2.4m = 1.0m。出口の床は D の通路の床 5.9m。階段の 1 段は自動乗り越えの範囲（≦ 0.28m）で、奥行きはプレイヤーのカプセル（半径 0.35m）+ 自動乗り越えの最小幅（0.1m）以上が必要（0.4m では上れなかった）。段の前後は自動乗り越えの頭上の余裕のため天井を 2.6m にしてある（`WaterwayRect.ceiling`）。
+- **地形の下に作る方法**: 地形メッシュは 1 枚の面なので、区画ごとに床・天井・壁を `BlockProp`（style `waterway`、`embed` で板を地形に埋めず宙に置く）で作る。腐った床板の穴と、上り階段の上（地形が頭の高さまで来る所）は `LevelData.terrainHoles`（1m 格子に合わせた矩形）で地形メッシュ（描画・衝突の両方）の三角形を抜く。地下墓所の岩盤 `d-mass-s` は水路の通る所を `carveMass` でくり抜き、天井の上を埋め直す（元の id `d-mass-s` は西の端の帯として残る）。
+- **腐った床板** `floor-hatch`（style `hatch`、(44, 28) 2m × 2m）: 床と同じ高さで穴を塞ぐコライダ（`navSolid`）。`waterway.system.ts` が、プレイヤーが床板の上に立つと割る（`Game.setBoxEnabled(id, false)`）。落下 2.4m でダメージなし。割れた後は穴が開いたまま（保存は E11）。水路 → C へは 2.4m の段差で戻れない。
+- **鉄格子** `iron-grate`（style `grate`、(72, 45)）: 開通前はコライダ。E11 の状況ボタン「押す」は `waterwayOf(game).openGrate()` を呼ぶ。開通後は D 側から水路へ逆行できる。dev フック: `dev.waterway()` / `dev.breakHatch()` / `dev.openGrate()`。
+- **足音**: `SurfaceKind` に `water` を追加。`Level.surfaceAt(x, z, y?)` に足元の高さ `y` を渡すと、水路の水のある区画（床 − 0.3m〜天井）の中は `water`（C の床と区別するため。`Game.footstepSurface` が y を渡す）。足音の cue はまだ水専用が無いので `crypt` を鳴らす（E7）。
+- **暗所・反響ゾーン**: `LevelData.zones`（`ZoneDef`: `dark` / `echo`、矩形 + 任意の高さ範囲）。地下墓所（エリア D）と水路の全区画。`Level.zoneAt(x, z, y?)` / `visionMultiplierAt`（暗所 `DARK_VISION_MULTIPLIER` = 0.7）/ `hearingMultiplierAt`（反響 `ECHO_HEARING_MULTIPLIER` = 1.3）。たいまつから 4m 超の条件は灯りの配置（E11）後に AI（E3-6）が判定する。音は E7-5b が参照する。
+- **敵のナビ格子**: style `waterway` は `NavGrid` が無視する（地下なので C・D の床のセルを塞がない）。床板は `navSolid`、鉄格子の奥は岩盤の埋め草で固体になり、敵は水路へ入らない。
+- 検証: `levelWaterway.test.ts`（寸法・地形の頭上の余裕・ゾーン・足音・ナビ・物理で床板 → 水路 → 鉄格子 → D の走破と逆行・戻れないこと）と `e2e/waterway.spec.ts`。

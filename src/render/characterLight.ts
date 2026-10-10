@@ -9,6 +9,7 @@ import {
   type UniformNode,
 } from 'three/webgpu';
 import {
+  abs,
   cameraPosition,
   dot,
   float,
@@ -75,10 +76,32 @@ export interface RimControls {
   readonly weapon: UniformNode<'float', number>;
   /** 武器のテレグラフの発光色（攻撃種別で変える）。 */
   readonly weaponColor: UniformNode<'color', Color>;
+  /** 刃の面の淡い発光の倍率（1 = 既定。0 で縁だけが光り、刃の暗い芯と形が読める）。ボスの予兆が使う。 */
+  readonly weaponFill: UniformNode<'float', number>;
+  /** 縁（フレネル）の発光の倍率（1 = 既定）。 */
+  readonly weaponRim: UniformNode<'float', number>;
+  /** 縁の鋭さへの加算（0 = 既定）。大きいほど正面を向いた面が暗くなり、斜めの面・丸い柄の縁だけが光る。 */
+  readonly weaponSharp: UniformNode<'float', number>;
+}
+
+/** `setWeaponTelegraph` の見た目の調整（省略 = 既定）。 */
+export interface WeaponTelegraphStyle {
+  /** 刃の面の淡い発光の倍率。 */
+  readonly fill?: number;
+  /** 縁の発光の倍率。 */
+  readonly rim?: number;
+  /** 縁の鋭さへの加算（フレネルの指数に足す）。 */
+  readonly sharp?: number;
 }
 
 export function createRimControls(): RimControls {
-  return { weapon: uniform(0), weaponColor: uniform(new Color(0xffffff)) };
+  return {
+    weapon: uniform(0),
+    weaponColor: uniform(new Color(0xffffff)),
+    weaponFill: uniform(1),
+    weaponRim: uniform(1),
+    weaponSharp: uniform(0),
+  };
 }
 
 /**
@@ -110,7 +133,9 @@ export function characterLightNode(
   if (isWeapon) {
     // テレグラフ: 世界のライトとは無関係な加算の光。刃は細いのでフレネル（縁）が刃に沿った輪郭になる。
     // 追加のメッシュ・パスは無く、既存の emissive に数命令足すだけ。
-    const edge = fresnel.mul(RIM.telegraphGain).add(RIM.telegraphFill);
+    const edge = pow(float(1).sub(abs(dot(n, v))), controls.weaponSharp.add(RIM.power))
+      .mul(controls.weaponRim.mul(RIM.telegraphGain))
+      .add(controls.weaponFill.mul(RIM.telegraphFill));
     rim = rim.add(controls.weaponColor.mul(controls.weapon).mul(edge));
   }
   // 暗部の持ち上げ: 暗い色ほど効く（明るい面は十分明るいので元の色をほぼ保つ）
@@ -126,7 +151,11 @@ export function characterLightNode(
 /** `applyCharacterLight` が返すハンドル。 */
 export interface CharacterLight {
   /** 武器の縁を光らせる（強さ 0..1、色は省略時は直前の色）。敵の攻撃予備動作（テレグラフ）演出用。 */
-  setWeaponTelegraph(amount: number, color?: ColorRepresentation): void;
+  setWeaponTelegraph(
+    amount: number,
+    color?: ColorRepresentation,
+    style?: WeaponTelegraphStyle,
+  ): void;
   readonly weaponTelegraph: number;
   dispose(): void;
 }
@@ -160,10 +189,13 @@ export function applyCharacterLight(root: Object3D): CharacterLight {
   });
   let amount = 0;
   return {
-    setWeaponTelegraph(a, color) {
+    setWeaponTelegraph(a, color, style) {
       amount = Math.min(1, Math.max(0, a));
       controls.weapon.value = amount;
       if (color !== undefined) controls.weaponColor.value.set(color);
+      controls.weaponFill.value = style?.fill ?? 1;
+      controls.weaponRim.value = style?.rim ?? 1;
+      controls.weaponSharp.value = style?.sharp ?? 0;
     },
     get weaponTelegraph() {
       return amount;

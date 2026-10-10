@@ -339,3 +339,35 @@ describe('戻りクリップ（tail）', () => {
     }
   });
 });
+
+describe('先頭ポーズの保持（holdFrames）', () => {
+  // 発生 12・クリップの当たり 6F（0.2s）。先頭の 8 フレームは保持 → 残り 4 フレーム（1/15s）で 0.2s 進める = 3 倍速
+  const held = { holdFrames: 8 };
+
+  it('読み込め、clipHitFrame が必要で発生未満でなければならない', () => {
+    expect(first(held).holdFrames).toBe(8);
+    expect(first().holdFrames).toBeUndefined();
+    expect(() => parse({ holdFrames: 12 })).toThrow(AnimDataError);
+    expect(() => parse({ holdFrames: -1 })).toThrow(AnimDataError);
+    expect(() => parse({ holdFrames: 1.5 })).toThrow(AnimDataError);
+    expect(() => parse({ ...held, clipHitFrame: undefined })).toThrow(AnimDataError);
+  });
+
+  it('playbackRate は (発生 − 保持) で決まり、保持の間は先頭のポーズ', () => {
+    const e = first(held);
+    expect(playbackRate(e)).toBeCloseTo(0.2 / (4 / 60), 6);
+    for (let f = 1; f <= 9; f++) expect(simFrameToClipTime(e, f)).toBe(0);
+    expect(simFrameToClipTime(e, 11)).toBeCloseTo((2 / 60) * playbackRate(e), 6);
+  });
+
+  it('hitStart（発生 + 1）は当たりフレームの時刻で、往復変換と tail の開始も一致する', () => {
+    const e = first({
+      ...held,
+      tail: { clip: 'Sword_Regular_A_Rec', startFrame: 0, endFrame: 29 },
+    });
+    expect(simFrameToClipTime(e, e.spec.startup + 1)).toBeCloseTo(6 / 30, 6);
+    expect(clipTimeToSimFrame(e, 6 / 30)).toBeCloseTo(e.spec.startup + 1, 6);
+    // 範囲 24F（0.8s）: 保持 8 + 0.8s ÷ 3 倍速 = 8 + 16 = 24 フレーム（全体 36 以内）
+    expect(swingEndElapsed(e)).toBeCloseTo(24, 6);
+  });
+});

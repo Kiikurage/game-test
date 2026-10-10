@@ -54,11 +54,66 @@ body {
   font-size: 0.9rem;
 }
 
-/* スマホの縦持ちでは横画面を促す（ゲーム自体は止めない） */
+/* スマホの縦持ち: タッチで横画面にする案内。案内自体がタップを受ける（ローディング中も有効）。
+   背景は透明で上寄せ: 背後のローディング（進捗）や開始・再開画面を隠さない。
+   横向き化に失敗した後（data-failed="true"）は、タップを背後の画面へ透過する */
 .orientation-hint {
   display: none;
   z-index: 40;
+  justify-content: flex-start;
+  padding-top: 14vh;
+  gap: 1.1rem;
+  font-weight: 200;
+  letter-spacing: 0.35em;
+  background: transparent;
+  cursor: pointer;
+}
+
+.orientation-hint[data-failed='true'] {
   pointer-events: none;
+}
+
+/* 案内の下で「タッチしてはじめる」を出すと指示が二重になるので、横向き化を促している間は隠す */
+@media (orientation: portrait) and (pointer: coarse) {
+  body:has(.orientation-hint:not([data-failed='true'])) .launch-prompt .launch-title {
+    visibility: hidden;
+  }
+}
+
+/* WebGPU 非対応などの失敗画面は案内より前面に出す */
+.overlay.unsupported {
+  z-index: 50;
+}
+
+.orientation-hint-icon {
+  width: 3.2rem;
+  height: 1.9rem;
+  box-sizing: border-box;
+  border: 1px solid var(--fg);
+  border-radius: 0.3rem;
+  opacity: 0.7;
+}
+
+.orientation-hint-title {
+  margin: 0;
+  color: var(--fg);
+  font-size: 1rem;
+  font-weight: 200;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  animation: launch-pulse 3.2s ease-in-out infinite;
+}
+
+.orientation-hint .orientation-hint-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 200;
+  letter-spacing: 0.1em;
+}
+
+.orientation-hint .orientation-hint-sub:empty {
+  display: none;
 }
 
 @media (orientation: portrait) and (pointer: coarse) {
@@ -205,7 +260,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .launch-prompt .launch-title {
+  .launch-prompt .launch-title,
+  .orientation-hint-title {
     animation: none;
   }
 }

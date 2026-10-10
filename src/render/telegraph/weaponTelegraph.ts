@@ -35,15 +35,16 @@ export const WEAPON_TELEGRAPH: Readonly<Record<TelegraphKind, WeaponTelegraphPro
 
 /**
  * Attack 状態に入ってからのフレーム `frame`（F1 起点）での発光量（0..1）。
- * 予備動作の前では 0。
+ * 予備動作の前では 0。`profiles` を渡すと別の色・強さの表（ボス用）で計算する。
  */
 export function weaponTelegraphAmount(
   def: Pick<EnemyAttackDef, 'startup' | 'active'>,
   kind: TelegraphKind,
   frame: number,
+  profiles: Readonly<Record<TelegraphKind, WeaponTelegraphProfile>> = WEAPON_TELEGRAPH,
 ): number {
   if (frame < 1) return 0;
-  const p = WEAPON_TELEGRAPH[kind];
+  const p = profiles[kind];
   const ramp = RAMP_START + (1 - RAMP_START) * Math.min(1, (frame - 1) / RAMP_FRAMES);
   const holdEnd = p.holdThroughActive ? def.startup + def.active : def.startup;
   let level = ramp;
