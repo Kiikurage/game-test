@@ -31,7 +31,7 @@ test('the arena exposes the bonfire slot and the pillar debris hook, and eases t
 
   // 闘技場へ入ると、ムードが 0 → 1 へ滑らかに移る（瞬間移動でも 1 フレームでは変わらない）
   await page.evaluate(() => {
-    window.__game?.dev.arenaEnter();
+    window.__game?.dev.teleport(116, 80, Math.PI / 4);
   });
   await waitFrames(page, 2);
   const early = await page.evaluate(() => window.__game?.dev.arenaInfo()?.moodWeight ?? -1);

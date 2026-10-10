@@ -268,7 +268,7 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNode
   material.colorNode = color;
   material.roughnessNode = shade.roughness;
   material.normalNode = bumpNormal(shade.height, 1);
-  material.emissiveNode = color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 1.15));
+  material.emissiveNode = color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 2.1));
   return material;
 }
 
@@ -329,6 +329,6 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): MeshStandard
   material.colorNode = shade.color;
   material.roughnessNode = shade.roughness;
   material.normalNode = bumpNormal(shade.height, 1);
-  material.emissiveNode = shade.color.mul(torchGlow(p, normalWorld, o.torches, 1.15));
+  material.emissiveNode = shade.color.mul(torchGlow(p, normalWorld, o.torches, 2.1));
   return material;
 }

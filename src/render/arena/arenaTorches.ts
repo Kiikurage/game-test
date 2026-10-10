@@ -70,7 +70,7 @@ export function torchGlow(p: V3, n: V3, torches: readonly Torch[], intensity = 1
   torches.forEach((t) => {
     const to = vec3(t.x, t.y, t.z).sub(p);
     const d: F = length(to);
-    const q: F = d.div(5.2);
+    const q: F = d.div(4.4);
     const falloff: F = float(1).div(float(1).add(q.mul(q)).pow(2));
     const facing: F = max(dot(n, normalize(to)), 0)
       .mul(0.7)

@@ -98,23 +98,23 @@ export const DUSK_MOOD: Mood = {
 };
 
 /**
- * 闘技場（仕様書 7.2 節: 夕闇からほぼ夜。太陽は黄昏の 1/4 = 仕様の 2.0 → 0.5 と同じ比、環境光は青）。
+ * 闘技場（仕様書 7.2 節: 夕闇からほぼ夜。太陽は黄昏の 1/4（仕様の 2.0 → 0.5 と同じ比）、環境光は青。太陽は冷たい月明かり、補助光は篝火の暖色）。
  * 主光源は篝火・熾火・たいまつ（画面側の暖色）で、太陽・環境光は暗い青に寄せる。
  */
 export const ARENA_MOOD: Mood = {
-  sunColor: 0xffa878,
-  skyTint: 0x4a3250,
-  sunIntensity: ATMOSPHERE.sunIntensity * 0.25,
-  skyLight: 0x6a86d4,
-  groundLight: 0x2a2a4a,
-  hemiIntensity: 1.5,
-  fillLight: 0x7088cc,
-  fillIntensity: 0.85,
-  zenith: 0x0c1226,
-  midSky: 0x151c38,
-  horizon: 0x40304e,
-  hazeFar: 0x1c2338,
-  hazeSun: 0x2c2c4a,
+  sunColor: 0x9ab0f0,
+  skyTint: 0x6a3a52,
+  sunIntensity: ATMOSPHERE.sunIntensity * 0.35,
+  skyLight: 0x5a7acc,
+  groundLight: 0x242446,
+  hemiIntensity: 1.35,
+  fillLight: 0xff9c64,
+  fillIntensity: 0.55,
+  zenith: 0x14183c,
+  midSky: 0x2a2450,
+  horizon: 0x7a4a5c,
+  hazeFar: 0x232a4a,
+  hazeSun: 0x3c2c4c,
   fogDensity: 0.0115,
 };
 

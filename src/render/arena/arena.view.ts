@@ -56,6 +56,8 @@ export interface ArenaView {
   emitPillarHit(pillar: number, moveId?: string, from?: { x: number; z: number }): void;
   /** これまでに破片の口が開いた回数。 */
   readonly pillarHitCount: number;
+  /** ムードを現在位置の目標値へ即座に合わせる（撮影・読み込み直後用。通常は自動でなじむ）。 */
+  snapMood(): void;
   /** 現在のムードの重み 0..1（0 = 黄昏のフィールド、1 = 闘技場）。 */
   readonly moodWeight: number;
   /** 描画の統計（三角形数・ドローコール数）。 */
@@ -253,6 +255,9 @@ registerViewPlugin('arena', ({ game, view, level }) => {
         moveId,
       );
     },
+    snapMood: () => {
+      weight = -1;
+    },
     get pillarHitCount() {
       return hitCount;
     },
@@ -271,7 +276,7 @@ registerViewPlugin('arena', ({ game, view, level }) => {
       weight =
         weight < 0
           ? target
-          : weight + (target - weight) * (1 - Math.exp(-Math.min(dt, 0.1) * MOOD_RATE));
+          : weight + (target - weight) * (1 - Math.exp(-Math.min(dt, 0.5) * MOOD_RATE));
       if (Math.abs(weight - target) < 1e-3) weight = target;
       view.environment.setMood(ARENA_MOOD, weight);
     },

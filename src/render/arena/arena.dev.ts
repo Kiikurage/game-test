@@ -36,6 +36,8 @@ registerDevHooks('arena', ({ game, view }) => {
     const px = def.entry.x + (dx / len) * 5;
     const pz = def.entry.z + (dz / len) * 5;
     game.teleportPlayer(px, pz, Math.atan2(dx, dz));
+    // 撮影・確認用なので、ライティングもすぐ闘技場のものにする
+    arenaViewOf(game)?.snapMood();
     if (options.boss) {
       const bx = def.center.x + (dx / len) * 4;
       const bz = def.center.z + (dz / len) * 4;
