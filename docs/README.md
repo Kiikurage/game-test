@@ -14,4 +14,5 @@
 | [level.md](level.md) | レベルデータ形式・地形・静的コライダー・エリア A〜C グレーボックスの構成と、後続チケット向けの API 要約 |
 | [hit-stop.md](hit-stop.md) | ヒットストップ・撃破スローモーション（タイムスケール）・付随演出イベントの構成と、敵・ボス向けの使い方、`?debug` の調整値（#49） |
 | [hit-reaction.md](hit-reaction.md) | 強靭度・被弾リアクション・ノックバック・被弾後無敵の構成と、敵・ボス向けの使い方（#50） |
+| [performance.md](performance.md) | 描画負荷の予算（draws / tris）・計測方法（`?debug`・`npm run perf`）・削減策（キャラクター LOD と影の簡略メッシュ・グレーボックス結合）と before/after（#180） |
 | [enemy-attack.md](enemy-attack.md) | 敵の攻撃実行（予備動作・旋回追尾・判定）・攻撃トークン・周回待機・亡者兵 A1〜A3・テレグラフ品質の検証（#54） |

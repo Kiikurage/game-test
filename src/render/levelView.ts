@@ -11,8 +11,10 @@ import {
   Uint32BufferAttribute,
   ConeGeometry,
   InstancedMesh,
+  type Material,
   type Object3D,
 } from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   type BlockStyle,
   type Level,
@@ -32,6 +34,8 @@ import {
 import type { Bonfire, ParticleSystem } from './particles';
 
 const DEG = Math.PI / 180;
+/** 結合したグレーボックスの空間セルの一辺（m）。 */
+const GRAYBOX_CELL = 48;
 
 /** 地表の素材ごとの色（リニア）。黄昏の墓地: 彩度を抑えた枯れ草・乾いた土・冷たい石。 */
 const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
@@ -126,6 +130,12 @@ const BARK = new MeshStandardNodeMaterial({ color: 0x3f352c, roughness: 1, metal
 const COLUMN = new MeshStandardNodeMaterial({ color: 0x8a8378, roughness: 0.9, metalness: 0 });
 const WATER = new MeshStandardNodeMaterial({ color: 0x2a3a4a, roughness: 0.2, metalness: 0 });
 const IRON = new MeshStandardNodeMaterial({ color: 0x2c2b2a, roughness: 0.6, metalness: 0.5 });
+/** 結合したグレーボックス用（色は頂点色）。 */
+const GRAYBOX_MATERIAL = new MeshStandardNodeMaterial({
+  vertexColors: true,
+  roughness: 0.92,
+  metalness: 0,
+});
 
 function cylinderObject(c: PlacedCylinder): Group {
   const group = new Group();
@@ -289,11 +299,71 @@ export class LevelView {
       const { x, z } = this.level.data.bonfire;
       this.bonfireEmitter = particles.acquireBonfire(x, this.level.heightAt(x, z) + 0.25, z);
     }
+    this.batchGraybox();
     this.environmentStats = {
       placements: batcher.stats.placements,
       triangles: batcher.stats.triangles + grassTris,
       meshes: env.children.length,
     };
+  }
+
+  /**
+   * 環境メッシュに置き換わらず残ったグレーボックス（壁・床・階段・柱）を、マテリアル × 空間セルごとに 1 メッシュへ結合する
+   * （数十ドローコール → 十数ドローコール。視錐台カリングはセル単位）。
+   */
+  private batchGraybox(): void {
+    const groups = new Map<
+      string,
+      { material: Material; cast: boolean; receive: boolean; geometries: BufferGeometry[] }
+    >();
+    this.root.updateMatrixWorld(true);
+    for (const object of this.grayboxById.values()) {
+      object.traverse((o) => {
+        const mesh = o as Mesh;
+        if ((mesh as { isMesh?: boolean }).isMesh !== true) return;
+        // 石・木のグレーボックスは頂点色 + 共通マテリアルにして、セルごとに 1 メッシュへ寄せる。
+        // 金属（鉄）と水は質感が違うので元のマテリアルのまま
+        const source = mesh.material as MeshStandardNodeMaterial;
+        const shared = source !== IRON && source !== WATER;
+        const material: Material = shared ? GRAYBOX_MATERIAL : source;
+        const cx = Math.floor(mesh.matrixWorld.elements[12] / GRAYBOX_CELL);
+        const cz = Math.floor(mesh.matrixWorld.elements[14] / GRAYBOX_CELL);
+        const key = `${cx},${cz}:${material.uuid}:${mesh.castShadow ? 1 : 0}${mesh.receiveShadow ? 1 : 0}`;
+        let group = groups.get(key);
+        if (!group) {
+          group = {
+            material,
+            cast: mesh.castShadow,
+            receive: mesh.receiveShadow,
+            geometries: [],
+          };
+          groups.set(key, group);
+        }
+        const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+        if (shared) {
+          const count = geometry.getAttribute('position').count;
+          const colors = new Float32Array(count * 3);
+          for (let i = 0; i < count; i++) {
+            colors[i * 3] = source.color.r;
+            colors[i * 3 + 1] = source.color.g;
+            colors[i * 3 + 2] = source.color.b;
+          }
+          geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+        }
+        group.geometries.push(geometry);
+      });
+      object.removeFromParent();
+    }
+    this.grayboxById.clear();
+    for (const [key, group] of groups) {
+      const merged = mergeGeometries(group.geometries);
+      for (const g of group.geometries) g.dispose();
+      const mesh = new Mesh(merged, group.material);
+      mesh.name = `graybox:${key}`;
+      mesh.castShadow = group.cast;
+      mesh.receiveShadow = group.receive;
+      this.root.add(mesh);
+    }
   }
 
   /** 篝火のパーティクル（点火 / 消火の操作用）。環境メッシュを置いたあとに取得できる。 */
@@ -329,18 +399,22 @@ export class LevelView {
       gate.position.set(def.x, g.y, def.z);
       gate.rotation.y = def.yawDeg * DEG;
       if (def.kind === 'iron') {
+        // 鉄格子と横桟は静的なので 1 つのジオメトリへ結合する（1 ドローコール）
         const bars = Math.round(def.width / 0.45);
+        const parts: BufferGeometry[] = [];
         for (let i = 0; i <= bars; i++) {
-          const bar = new Mesh(new BoxGeometry(0.07, def.height, 0.07), IRON);
-          bar.position.set(-def.width / 2 + (i * def.width) / bars, def.height / 2, 0);
-          bar.castShadow = true;
-          gate.add(bar);
+          const bar = new BoxGeometry(0.07, def.height, 0.07);
+          bar.translate(-def.width / 2 + (i * def.width) / bars, def.height / 2, 0);
+          parts.push(bar);
         }
         for (const y of [0.4, def.height - 0.3]) {
-          const rail = new Mesh(new BoxGeometry(def.width, 0.1, 0.1), IRON);
-          rail.position.y = y;
-          gate.add(rail);
+          const rail = new BoxGeometry(def.width, 0.1, 0.1);
+          rail.translate(0, y, 0);
+          parts.push(rail);
         }
+        const ironBars = new Mesh(mergeGeometries(parts), IRON);
+        ironBars.castShadow = true;
+        gate.add(ironBars);
       } else {
         const fog = new Mesh(
           new BoxGeometry(def.width, def.height, 0.1),

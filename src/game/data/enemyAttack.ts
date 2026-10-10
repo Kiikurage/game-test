@@ -1,4 +1,4 @@
-import { totalFrames, type EnemyAttackDef } from './types';
+import { totalFrames, type EnemyAttackDef, type TelegraphKind } from './types';
 
 /**
  * 敵・ボスの攻撃定義の共通ルール（5.1 節のテレグラフ基準）。個別の数値は各敵のチケットで
@@ -143,3 +143,33 @@ export const UNDEAD_ATTACK_RULES = {
   /** 同じ攻撃を連続で選べる最大回数（3 回連続は選ばない）。 */
   maxConsecutive: 2,
 } as const;
+
+/** 攻撃のテレグラフ種別（`telegraph` の指定を優先し、なければ `heavy` から決める）。 */
+export function telegraphKindOf(def: EnemyAttackDef): TelegraphKind {
+  return def.telegraph ?? (def.heavy ? 'heavy' : 'normal');
+}
+
+const actionTables: { prefix: string; attacks: Readonly<Record<string, EnemyAttackDef>> }[] = [];
+
+/**
+ * 敵の攻撃表を動作 ID の接頭辞（`enemy.undead.` など）で登録する。描画側が動作 ID から攻撃定義を引いて
+ * テレグラフを駆動する。新しい敵・ボスの攻撃表はここへ登録する。
+ */
+export function registerEnemyAttackTable(
+  prefix: string,
+  attacks: Readonly<Record<string, EnemyAttackDef>>,
+): void {
+  if (actionTables.some((t) => t.prefix === prefix)) return;
+  actionTables.push({ prefix, attacks });
+}
+
+/** 動作 ID（`enemy.undead.a2`）から攻撃定義を引く。未登録なら undefined。 */
+export function enemyAttackByAction(actionId: string | null): EnemyAttackDef | undefined {
+  if (!actionId) return undefined;
+  for (const t of actionTables) {
+    if (actionId.startsWith(t.prefix)) return t.attacks[actionId.slice(t.prefix.length)];
+  }
+  return undefined;
+}
+
+registerEnemyAttackTable('enemy.undead.', UNDEAD_SOLDIER_ATTACKS);
