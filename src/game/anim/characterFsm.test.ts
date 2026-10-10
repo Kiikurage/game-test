@@ -207,13 +207,16 @@ describe('プレイヤーの状態グラフ', () => {
     expect(validateStateGraph(PLAYER_STATE_GRAPH)).toEqual([]);
   });
 
-  it('Action 状態の動作 ID は PLAYER_ACTIONS のキーか、フレームデータを持たない着地・状況アクション', () => {
+  it('Action 状態の動作 ID は PLAYER_ACTIONS のキーか、フレームデータを持たない着地・強攻撃の溜め・状況アクション', () => {
     for (const [id, spec] of Object.entries(PLAYER_STATE_GRAPH) as [
       PlayerStateId,
       (typeof PLAYER_STATE_GRAPH)[PlayerStateId],
     ][]) {
       if (spec.kind !== 'action') continue;
-      expect(id in PLAYER_ACTIONS || id === 'land' || isScriptedState(id), id).toBe(true);
+      expect(
+        id in PLAYER_ACTIONS || id === 'land' || id === 'heavyCharge' || isScriptedState(id),
+        id,
+      ).toBe(true);
     }
   });
 

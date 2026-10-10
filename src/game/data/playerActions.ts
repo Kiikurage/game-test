@@ -214,6 +214,16 @@ export const PLUNGE_UNAWARE_MULTIPLIER = 3.3;
 /** 強攻撃の溜め中の移動速度（m/s）。 */
 export const HEAVY_CHARGE_MOVE_SPEED = 1.0;
 
+/**
+ * フル溜めに達した時点で追加で消費するスタミナ（34 − 28）。溜め開始時に溜めなしの 28 を消費し、
+ * 溜めが 30F に達した時点で差分を消費する（合計 34。2.3 節「動作開始時に消費」を保つ）。
+ */
+export const HEAVY_FULL_CHARGE_STAMINA_EXTRA =
+  PLAYER_ACTIONS.heavyCharged.staminaCost - PLAYER_ACTIONS.heavy.staminaCost;
+
+/** 走り攻撃の発動条件: 走り最高速（4.5 m/s）に対するこの割合以上の速さで動いている（ダッシュは常に可）。 */
+export const RUN_ATTACK_MIN_SPEED_RATIO = 0.75;
+
 /** ロール終了時（F32）にボタンが押されていればダッシュへ移行する。 */
 export const ROLL_DASH_TRANSITION_FRAME = 32;
 
