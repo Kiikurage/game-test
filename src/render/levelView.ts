@@ -45,7 +45,7 @@ const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
   underground: [0.1, 0.1, 0.11],
 };
 const PATH_COLOR: readonly [number, number, number] = [0.2, 0.155, 0.105];
-const ROCK_COLOR: readonly [number, number, number] = [0.12, 0.112, 0.105];
+const ROCK_COLOR: readonly [number, number, number] = [0.19, 0.18, 0.17];
 const MOSS_COLOR: readonly [number, number, number] = [0.085, 0.115, 0.05];
 const MUD_COLOR: readonly [number, number, number] = [0.085, 0.065, 0.048];
 const ASH_COLOR: readonly [number, number, number] = [0.12, 0.115, 0.11];
@@ -93,7 +93,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
     const n = 0.8 + 0.4 * (0.6 * broad + 0.4 * patch);
     const mossAmt = Math.max(0, patch - 0.52) * 2.2 * (1 - path) * (1 - stoneAmt * 0.6);
     const mudAmt = Math.max(0, 0.42 - broad) * 1.6 * (1 - stoneAmt);
-    const steep = Math.min(1, Math.max(0, (0.9 - normals.getY(i)) / 0.2));
+    const steep = Math.min(1, Math.max(0, (0.93 - normals.getY(i)) / 0.19));
     // 篝火の周りは灰で白っぽく、石畳は縁ほど土・草に侵される
     const ashAmt = Math.max(0, 1 - Math.hypot(x, z) / 3.2) * 0.8;
     for (let c = 0; c < 3; c++) {
