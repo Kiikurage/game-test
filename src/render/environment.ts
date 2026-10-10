@@ -29,6 +29,7 @@ import {
 } from 'three/tsl';
 import type { QualityPreset } from './quality';
 import { SHADOW_PROXY_LAYER } from './layers';
+import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
 
 /** 太陽（シャドウカメラ）をフォーカスからどれだけ離すか（m）。 */
 const SHADOW_LIGHT_DISTANCE = 90;
@@ -58,6 +59,65 @@ export const ATMOSPHERE = {
   hazeSun: 0xf0b877,
 } as const;
 
+/** 時間帯・場所ごとのライティング・空・フォグのまとまり（`Environment.setMood` が 2 つの間を補間する）。 */
+export interface Mood {
+  readonly sunColor: number;
+  /** 空の太陽の光芒・雲の縁・遠景の逆光に使う色（ライトの色 `sunColor` とは別。夜は暗くする）。 */
+  readonly skyTint: number;
+  readonly sunIntensity: number;
+  readonly skyLight: number;
+  readonly groundLight: number;
+  readonly hemiIntensity: number;
+  readonly fillLight: number;
+  readonly fillIntensity: number;
+  readonly zenith: number;
+  readonly midSky: number;
+  readonly horizon: number;
+  readonly hazeFar: number;
+  readonly hazeSun: number;
+  /** 距離フォグの密度。 */
+  readonly fogDensity: number;
+}
+
+/** 既定の黄昏（フィールド）。 */
+export const DUSK_MOOD: Mood = {
+  sunColor: ATMOSPHERE.sunColor,
+  skyTint: ATMOSPHERE.sunColor,
+  sunIntensity: ATMOSPHERE.sunIntensity,
+  skyLight: ATMOSPHERE.skyLight,
+  groundLight: ATMOSPHERE.groundLight,
+  hemiIntensity: ATMOSPHERE.hemiIntensity,
+  fillLight: ATMOSPHERE.fillLight,
+  fillIntensity: ATMOSPHERE.fillIntensity,
+  zenith: ATMOSPHERE.zenith,
+  midSky: ATMOSPHERE.midSky,
+  horizon: ATMOSPHERE.horizon,
+  hazeFar: ATMOSPHERE.hazeFar,
+  hazeSun: ATMOSPHERE.hazeSun,
+  fogDensity: 0.0085,
+};
+
+/**
+ * 闘技場（仕様書 7.2 節: 夕闇からほぼ夜。太陽は黄昏の 1/4 = 仕様の 2.0 → 0.5 と同じ比、環境光は青）。
+ * 主光源は篝火・熾火・たいまつ（画面側の暖色）で、太陽・環境光は暗い青に寄せる。
+ */
+export const ARENA_MOOD: Mood = {
+  sunColor: 0xffa878,
+  skyTint: 0x4a3250,
+  sunIntensity: ATMOSPHERE.sunIntensity * 0.25,
+  skyLight: 0x6a86d4,
+  groundLight: 0x2a2a4a,
+  hemiIntensity: 1.5,
+  fillLight: 0x7088cc,
+  fillIntensity: 0.85,
+  zenith: 0x0c1226,
+  midSky: 0x151c38,
+  horizon: 0x40304e,
+  hazeFar: 0x1c2338,
+  hazeSun: 0x2c2c4a,
+  fogDensity: 0.0115,
+};
+
 /** 太陽へ向かう単位ベクトル。 */
 export function sunDirection(out = new Vector3()): Vector3 {
   const { sunAzimuth: az, sunElevation: el } = ATMOSPHERE;
@@ -69,6 +129,11 @@ export interface Environment {
   readonly hemisphere: HemisphereLight;
   /** 影のカバー範囲の中心をプレイヤー付近へ追従させる（毎フレーム呼ぶ）。 */
   followShadowFocus(focus: Vector3): void;
+  /**
+   * ライティング・空・フォグを `DUSK_MOOD`（t = 0）から `mood`（t = 1）へ補間して設定する。
+   * uniform / ライトの値を書き換えるだけでシェーダは変わらない（毎フレーム呼んでよい）。
+   */
+  setMood(mood: Mood, t: number): void;
 }
 
 /**
@@ -84,9 +149,11 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   const zenith = uniform(new Color(ATMOSPHERE.zenith));
   const midSky = uniform(new Color(ATMOSPHERE.midSky));
   const horizon = uniform(new Color(ATMOSPHERE.horizon));
-  const hazeFar = uniform(new Color(ATMOSPHERE.hazeFar));
-  const hazeSun = uniform(new Color(ATMOSPHERE.hazeSun));
-  const sunTint = uniform(sunColor);
+  // フォグ色と太陽色は遠景（skyline）と共有（闘技場のムード切り替えで同時に動く）
+  const hazeFar = sharedHazeFar;
+  const hazeSun = sharedHazeSun;
+  const sunTint = sharedSunTint;
+  sunTint.value.copy(sunColor);
 
   const skyColor = Fn(() => {
     const dir = positionWorldDirection;
@@ -129,7 +196,8 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
     const mu = clamp(dot(viewDir, sunDirNode), 0, 1);
     return mix(hazeFar, hazeSun, pow(mu, 2.5));
   })();
-  const distanceFog = densityFogFactor(float(0.0085));
+  const fogDensity = uniform(DUSK_MOOD.fogDensity);
+  const distanceFog = densityFogFactor(fogDensity);
   const heightFog = exponentialHeightFogFactor(float(0.0025), float(3));
   // 2 つのフォグ係数を「透過率の積」で合成する
   const transmittance = (f: unknown): Node<'float'> => float(1).sub(f as Node<'float'>);
@@ -190,5 +258,32 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   };
   followShadowFocus(new Vector3());
 
-  return { sun, hemisphere, followShadowFocus };
+  const from = DUSK_MOOD;
+  const tmpA = new Color();
+  const tmpB = new Color();
+  const lerpColor = (out: Color, a: number, b: number, t: number): Color =>
+    out.copy(tmpA.set(a)).lerp(tmpB.set(b), t);
+  let lastT = 0;
+  const setMood = (mood: Mood, t: number): void => {
+    const k = Math.min(1, Math.max(0, t));
+    if (k === lastT && (k === 0 || k === 1)) return;
+    lastT = k;
+    const num = (a: number, b: number): number => a + (b - a) * k;
+    lerpColor(sun.color, from.sunColor, mood.sunColor, k);
+    sun.intensity = num(from.sunIntensity, mood.sunIntensity);
+    lerpColor(hemisphere.color, from.skyLight, mood.skyLight, k);
+    lerpColor(hemisphere.groundColor, from.groundLight, mood.groundLight, k);
+    hemisphere.intensity = num(from.hemiIntensity, mood.hemiIntensity);
+    lerpColor(fill.color, from.fillLight, mood.fillLight, k);
+    fill.intensity = num(from.fillIntensity, mood.fillIntensity);
+    lerpColor(zenith.value, from.zenith, mood.zenith, k);
+    lerpColor(midSky.value, from.midSky, mood.midSky, k);
+    lerpColor(horizon.value, from.horizon, mood.horizon, k);
+    lerpColor(hazeFar.value, from.hazeFar, mood.hazeFar, k);
+    lerpColor(hazeSun.value, from.hazeSun, mood.hazeSun, k);
+    lerpColor(sunTint.value, from.skyTint, mood.skyTint, k);
+    fogDensity.value = num(from.fogDensity, mood.fogDensity);
+  };
+
+  return { sun, hemisphere, followShadowFocus, setMood };
 }

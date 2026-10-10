@@ -22,6 +22,7 @@ import {
   type PlacedCylinder,
   type SurfaceKind,
 } from '../game/world/level';
+import { isArenaProp } from '../game/world/arena';
 import type { EnvironmentAssets } from './assets/environment';
 import { StaticBatcher } from './assets/environment';
 import { layoutEnvironment } from './environmentLayout';
@@ -221,11 +222,15 @@ export class LevelView {
 
     const materials = new Map<number, MeshStandardNodeMaterial>();
     for (const box of level.boxes) {
+      // 闘技場の壁は `arena.view.ts` が石積みのメッシュで描く
+      if (isArenaProp(box.id)) continue;
       const mesh = boxMesh(box, materials);
       this.grayboxById.set(box.id, mesh);
       this.root.add(mesh);
     }
     for (const cyl of level.cylinders) {
+      // 闘技場の柱・台座も同様
+      if (isArenaProp(cyl.id)) continue;
       const object = cylinderObject(cyl);
       this.grayboxById.set(cyl.id, object);
       this.root.add(object);
