@@ -68,6 +68,15 @@ export class PlayerTracker {
     this.rolling = player.rolling;
   }
 
+  /** 戦闘のリセット（追跡を最初から）。 */
+  reset(): void {
+    this.behindFrames = 0;
+    this.rollStreak = 0;
+    this.healing = false;
+    this.rolling = false;
+    this.sinceRollEnd = Number.POSITIVE_INFINITY;
+  }
+
   /** ロール連打の補正を使った（次の近距離技で消費する）。 */
   consumeRollStreak(): void {
     this.rollStreak = 0;

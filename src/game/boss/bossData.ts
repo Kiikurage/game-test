@@ -99,3 +99,20 @@ export const BOSS_WEIGHTS: Readonly<
     far: { overhead: 0, sweep: 0, combo3: 0, leap: 40, spin: 0, ashWave: 60 },
   },
 };
+
+/** ボス戦のルール（6.2 / 6.5 / 6.6 節）。 */
+export const BOSS_BATTLE = {
+  /** フェーズ 2 へ移る HP（以下になったあとの最初の硬直で移行）。フェーズ境界 = HP バーの目盛り。 */
+  phase2Hp: BOSS_STATS.hp / 2,
+  /** フェーズ移行の長さ（F1〜F120。この間ボスは無敵で行動しない。演出の実行は E5-6）。 */
+  transitionFrames: 120,
+} as const;
+
+/** 壁際の位置取り（6.6 節）。 */
+export const BOSS_WALL = {
+  /** プレイヤーが壁（アリーナの縁）からこの距離以内なら、追い詰められているとみなす（m）。 */
+  playerWallGap: 2.0,
+  /** 近距離技の発生前に下がる距離（m）と、その長さ（F）。 */
+  stepBackDistance: 2.0,
+  stepBackFrames: 18,
+} as const;
