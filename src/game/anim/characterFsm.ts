@@ -62,11 +62,15 @@ export interface TransitionOptions {
    * 同じステップの途中で状態名だけが変わる移動系（idle ⇔ move）は 1 を指定する。
    */
   readonly frame?: number;
+  /** 遷移先の動作 ID（Action 状態のみ。既定は状態のもの）。 */
+  readonly actionId?: string;
 }
 
 export class CharacterFsm<S extends string> {
   private current: S;
   private frame = 0;
+  /** 同じ状態の中で動作 ID だけ変える（敵の攻撃: 1 つの Attack 状態で A1 / A2 / A3 を出し分ける）。遷移・リセットで消える。 */
+  private actionOverride: string | null = null;
   private freezeLeft = 0;
   private frozenStep = false;
 
@@ -95,7 +99,7 @@ export class CharacterFsm<S extends string> {
   /** `kind: 'action'` の間の動作 ID。それ以外は null。 */
   get actionId(): string | null {
     const spec = this.graph[this.current];
-    return spec.kind === 'action' ? (spec.actionId ?? this.current) : null;
+    return spec.kind === 'action' ? (this.actionOverride ?? spec.actionId ?? this.current) : null;
   }
 
   /** 行動不能（Action / Stagger / Dead）か。移動系の状態では false。 */
@@ -115,11 +119,13 @@ export class CharacterFsm<S extends string> {
     if (!this.canTransition(to)) throw new IllegalTransitionError(this.current, to);
     this.current = to;
     this.frame = options.frame ?? 0;
+    this.actionOverride = options.actionId ?? null;
   }
 
   /** 現在の状態を最初からやり直す（状態フレームを 0 へ戻す。仰け反り中の再被弾など、同じ状態への再突入用）。 */
-  restart(): void {
+  restart(actionId?: string): void {
     this.frame = 0;
+    if (actionId !== undefined) this.actionOverride = actionId;
   }
 
   /** 遷移できれば遷移して true、できなければ何もせず false。 */
@@ -134,6 +140,7 @@ export class CharacterFsm<S extends string> {
     this.assertKnown(to);
     this.current = to;
     this.frame = 0;
+    this.actionOverride = null;
     this.freezeLeft = 0;
     this.frozenStep = false;
   }

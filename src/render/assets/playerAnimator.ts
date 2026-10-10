@@ -24,6 +24,8 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     knockdown: { clip: 'Hit_Knockback', fadeIn: 0.03, fadeOut: 0.12, fallbackFrames: 48 },
     // ガード崩し（#53）: 54F に Idle_Shield_Break（1.07s）を合わせる
     guardBreak: { clip: 'Idle_Shield_Break', fadeIn: 0.04, fadeOut: 0.15, fallbackFrames: 54 },
+    // 死亡（HP 0）: 倒れて動かない（演出・UI は別チケット）
+    dead: { clip: 'Death01', fadeIn: 0.08, fadeOut: 0.1, fallbackFrames: 90 },
   },
   // 回避は切れ味重視: 入りは素早く、戻りはやや長く
   actionFades: {
