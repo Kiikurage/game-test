@@ -327,7 +327,7 @@ look.setEmber(1);                                                    // ボス�
 - 装備一覧（`LOADOUTS`）: `soldier` = 剣・胸当て・肩当て、`shieldbearer` = 斧・大盾・鉢形兜・肩当て、`boss` = 大斧・大盾・全頭兜・重胸当て・大型肩当て・籠手・草摺り・脛当て・マント。ボスは UBC を 2.2 倍にした `root` に取り付けるので、装備も一緒に拡大される（形状は拡大しても破綻しない）。
 - 手持ち品（剣・斧・大盾）は `props.glb` と同じソケット（`hand_r` / `lowerarm_l`）に乗る。防具は knight.glb の bind pose（T ポーズ）の位置で作り、取り付けボーンの bind ワールド行列の逆行列をソケットとして計算する（`build-equipment.mjs`）。ボーン名とソケット（position / quaternion）は各ノードの `extras` に入る。
 - 生成: `npm run assets:equipment`（`assets:build` の最後にも実行される。knight.glb が必要）。出力は `public/assets/equipment.glb`、`manifest.json` の `equipment` に記録。
-- 予算（実測、manifest）: 全 18 アイテム合計 4,490 tris / 約 110KB / テクスチャメモリ 0。1 体ぶんの装備は soldier 948 / shieldbearer 1,124 / boss 3,114 tris で、騎士 21,252 tris と合わせて 25,000 tris の予算内（boss が最大の 24,366）。`equipment.test.ts` が検証している。
+- 予算（実測、manifest）: 全 18 アイテム合計 4,490 tris / 約 110KB / テクスチャメモリ 0。1 体ぶんの装備は soldier 948 / shieldbearer 1,124 / boss 2,634 tris で、騎士 21,252 tris と合わせて 25,000 tris の予算内（boss が最大の 23,886）。`equipment.test.ts` が検証している。
 - ランタイム: `EquipmentAssets.load()` → `equipLoadout(character, 'boss')` / `equip(character, 'GreatAxe')` / `unequip(...)`（`src/render/assets/equipment.ts`）。`Character.attachAt(name, bone, object, position, quaternion)` を新設。兜を付けるときはフードを隠す。
 - 注意（#10 のバグ修正）: glb の小物ノードは頂点量子化のためノード自身に平行移動・スケールを持つ。`Character.attach` がそれを上書きして剣・盾がずれていたため、ソケットの姿勢はホルダー（`Group`）に持たせるようにした。
 - 確認用: `?equip=soldier|shieldbearer|boss|all`（`?view=front&dist=8.5` と併用。boss は dist 12 程度）。
@@ -353,7 +353,7 @@ boss.setEmber(emberAtTransitionFrame(frame));                           // 移�
 - **斧の持ち方**: `setGrip('twoHand')` で斧をキャラクターのルート直下へ移し、`lateUpdate` が毎フレーム「右手を通り、左手の方向を向く」姿勢に合わせる（手が近い片手向けクリップでは右手ソケットの向きのまま）。盾は `lowerarm_l` のホルダーを `detachShield` でシーンへ移す（ワールド姿勢を保つ）。
 - **歩幅・足滑り**（`bossGait.ts`）: 拡大で 1 歩が 2.2 倍になるため、歩行位相の時計に**モデル空間の速度（実速度 ÷ 2.2）**を渡す。歩き 2.4 m/s は歩きクリップ 100%（1 サイクル 1.47s・1 歩 1.76m）、走り 4.2 / 4.8 m/s は歩き + 走りクリップを約 10% / 13% 混ぜる（1 サイクル 約 0.98 / 0.90s・1 歩 約 2.05 / 2.15m）。走りクリップを全開にすると 1 歩 4.7m のスローモーションになるため。足の接地速度は `?bossmodel=…&gait=walk|run1|run2` で計測できる（`window.__bossGait`。接地中の足の後退速度の中央値。実測: 歩き 2.04 / 走り 4.01 / フェーズ 2 の走り 4.71 m/s に対し移動速度 2.4 / 4.2 / 4.8 m/s。`e2e/bossModel.spec.ts` が 25% 以内を検証）。足音は `BOSS_FOOTSTEP`（`foot_l` / `foot_r`、ピッチ比 0.48、音量・画面揺れの指定）。
 - **被弾判定**: `src/game/combat/bossHeartboxes.ts` の `BOSS_HEARTBOXES`（脚部 半径 0.75m + 胴 半径 0.9m、頭部判定なし）を `UprightTarget` に渡す。
-- **予算**: 全身 24,366 tris（騎士 21,252 + 装備 3,114。25,000 以下）、テクスチャは騎士の 7 枚（約 17.3MB、24MB 以下。雑魚と共有）、追加テクスチャ 0。ドローコール: 騎士 9 メッシュ + 装備 12 ≒ 21（影パスで倍）。ボスは常に近距離（闘技場は直径 32m）なので簡略メッシュ（LOD）には切り替えない。
+- **予算**: 全身 23,886 tris（騎士 21,252 + 装備 2,634。25,000 以下）、テクスチャは騎士の 7 枚（約 17.3MB、24MB 以下。雑魚と共有）、追加テクスチャ 0。ドローコール: 騎士 9 メッシュ + 装備 12 ≒ 21（影パスで倍）。ボスは常に近距離（闘技場は直径 32m）なので簡略メッシュ（LOD）には切り替えない。
 - 確認用: `?scene=test&bossmodel=1|2&cam=combat|up|front|three|side|back|wide&dist=6`（`clip=<名前>&t=<秒>` で任意のポーズ、`throw=1` で盾の投げ捨て、`grip=`、`ember=`）。
 
 ### 7.8 探索用の簡易メッシュ（Issue #108）

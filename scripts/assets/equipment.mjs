@@ -507,16 +507,16 @@ function pauldronLeft(size, tiers, flat = 1) {
           [0, 0.128 * s * flat],
         ],
       ],
-      16,
+      flat < 1 ? 8 : 16,
     );
   const parts = [];
   for (let t = 0; t < tiers; t++) {
-    const s = size * (1 + t * 0.14);
+    const s = size * (1 + t * (flat < 1 ? 0.3 : 0.14));
     parts.push(
       transform(
         dome(s),
         compose(
-          move(0, -0.045 * t * size * (flat < 1 ? 1.9 : 1), 0),
+          move(0, -0.045 * t * size * (flat < 1 ? 3.2 : 1), 0),
           rotZ(-38),
           move(0.2, 1.5, 0.0),
         ),
@@ -796,8 +796,8 @@ export const ITEMS = {
   CuirassHeavy: { build: () => cuirass(true), socket: 'spine_03' },
   Pauldron_L: { build: () => pauldronLeft(0.85, 1), socket: 'upperarm_l' },
   Pauldron_R: { build: () => mirrorParts(pauldronLeft(0.85, 1)), socket: 'upperarm_r' },
-  PauldronLarge_L: { build: () => pauldronLeft(0.98, 3, 0.55), socket: 'upperarm_l' },
-  PauldronLarge_R: { build: () => mirrorParts(pauldronLeft(0.98, 3, 0.55)), socket: 'upperarm_r' },
+  PauldronLarge_L: { build: () => pauldronLeft(0.7, 3, 0.3), socket: 'upperarm_l' },
+  PauldronLarge_R: { build: () => mirrorParts(pauldronLeft(0.7, 3, 0.3)), socket: 'upperarm_r' },
   Vambrace_L: { build: vambraceLeft, socket: 'lowerarm_l' },
   Vambrace_R: { build: () => mirrorParts(vambraceLeft()), socket: 'lowerarm_r' },
   Greave_L: { build: greaveLeft, socket: 'calf_l' },
