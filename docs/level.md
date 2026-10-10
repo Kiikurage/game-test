@@ -49,6 +49,26 @@ A〜C と塔の見た目は `environment.glb`（`docs/assets.md` 7.11 節）。`
 - 検証: `levelPerimeter.test.ts`（0.5m 格子の到達可能性。D を塞いだ状態で E・G1 の北・闘技場へ行けない、G1 を閉じたまま北へ行けない、霧の門を閉じたまま闘技場へ行けない、敵のナビ格子が通行領域内に収まる、脇道の要所が開いている）と、`levelWalk.test.ts` の物理テスト（外側へ向かって歩き続けても迂回できない）。
 - 新しいエリアや道を足したら、`perimeter` の対象に自動で入る（ルート・エリア）。意図しない迂回路ができた場合は上のテストが落ちる。
 
+## 闘技場の見た目（#45）
+
+F 闘技場の描画は `src/render/arena/`。外部アセットは使わず、すべて手続き（頂点生成 + TSL）で作っている（出典・ライセンスの記録は不要）。
+
+```
+src/game/world/arena.ts             arenaOf(level): 寸法・柱・台座・bonfireSlot・入口 / arenaMoodWeight / isArenaProp
+src/render/arena/arenaGeometry.ts   柱（フルート + 礎盤・柱頭）・台座（皿つき）・外周壁（崩れた天端）・床の円盤
+src/render/arena/arenaMaterials.ts  石の TSL マテリアル（床: 同心円の敷石、壁・柱・台座: 石積み）
+src/render/arena/arenaTorches.ts    壁のたいまつ 8 本（燭台 + 炎 + 石の emissive に足す解析的な光）
+src/render/arena/arena.view.ts      描画プラグイン + ライティングの切り替え + 柱の破片の口 + arenaViewOf(game)
+src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit / arenaEnter、`?arena` `?arena=boss`）
+```
+
+- **寸法**: 内径 32m（壁の内面は当たり判定の 24 角形より内に出ない 16.12m）、柱 4 本（r = 12m、高さ 4m、軸の半径 0.7m）、台座（r 1.6m・高さ 0.9m）。コライダは `ashenFoundation.ts` のまま。`LevelView` は `isArenaProp` の静的物のグレーボックスを作らない。
+- **後続（撃破演出 #86 など）**: `arenaOf(level).bonfireSlot`（台座の上面の中央。ワールド座標）に篝火を置く。ボス戦の開始は `arenaOf(level).circle`（= `BossSpawnOptions.arena`）と `.pillars`（= `BossSpawnOptions.pillars`。添字は `bossPillarHit.pillar` と一致）をそのまま `spawn` へ渡す。
+- **柱の破片の口**: `arenaViewOf(game)?.onPillarHit((hit) => ...)`。`bossPillarHit` から `PillarHit`（柱の添字・表面の位置・飛び散る向き・技 ID）を作って呼ぶ。購読者がいなくても既定で `particles.hit`（砂煙・火花）が出る。破片の演出本体は E5-8b がここへ購読する。デバッグ: `__game.dev.arenaPillarHit(i)`。
+- **ライティング**: `Environment.setMood(mood, t)`（`environment.ts`）が `DUSK_MOOD` から `ARENA_MOOD` へ補間する（太陽・半球光・補助光・空・フォグ・遠景の色を uniform / ライトの値の書き換えだけで変える。シェーダの再コンパイルなし）。重み `t` は `arenaMoodWeight`（霧の門の通路を進む約 20m で smootherstep）を指数でなじませる（約 0.5 秒。リスポーンの瞬間移動でも急に切り替わらない）。仕様書 7.2 節の「太陽強度 0.5」は仕様の黄昏（2.0）に対する比（1/4）で、実装の黄昏（3.4）に対しては 0.85。
+- **石の質感**: 目地・ひびの線は `fwidth` による解析的 AA、遠景では粒・孔を消す。石ごとの明暗・色味、欠けた縁、染み、苔、床に近い汚れ、壁際・柱の根元の接触 AO、石をまたぐ大きなひび（床のみ）、焦げ跡、台座を囲む彫り込みの輪。凹凸は高さ → 法線の摂動（追加テクスチャ・パスなし）。
+- **負荷**: 床 1 + 壁 1 + 柱 4 本結合 1 + 台座 1 + 燭台 1 + 炎 1 = 6 ドローコール（影パスは壁・柱・台座・燭台の 4）。`dev.arenaInfo()` に三角形数が出る。計測視点 `arena`（闘技場の入口）を `scripts/perfViewpoints.mjs` に追加し、`e2e/perf.spec.ts` の予算検査に含めた。
+
 ## 外周の崖の岩肌化（#190）
 
 - 岩マテリアル（`src/render/cliff/rockSurface.ts`、TSL）: ワールド座標ベースの地層（うねる層・層ごとの色味と張り出し）、層ごとにずれる節理（目地・ブロックの丸み）、縦の割れ目・雨だれ・粒。凹凸は高さ関数の画面空間微分から法線を作る（`bumpedNormal`）。地形マテリアル（`createGroundMaterial`）が斜面角（`normalWorld.y` 0.93..0.74）でブレンドし、岩塊メッシュも同じ関数を使う。層の境・ブロックの境で値が不連続になると微分が跳ねてギザギザが出るので、境でフェード・中間値へ寄せている。
