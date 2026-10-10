@@ -337,6 +337,19 @@ export const deathEmberInit: BurstInit<DeathParams> = (out, _i, _n, p, rng) => {
   out.life = 0.9 + rng() * 1.5;
 };
 
+/** 回復の光の粒（#173）: 体の周りから琥珀色の熾火が立ちのぼる（ember レイヤを共用。`rise` は上昇の強さ）。 */
+export const healMoteInit: BurstInit<DeathParams> = (out, _i, _n, p, rng) => {
+  const a = rng() * TAU;
+  const r = (0.35 + rng() * 0.65) * p.radius;
+  out.x = p.x + Math.cos(a) * r;
+  out.z = p.z + Math.sin(a) * r;
+  out.y = p.y + rng() * p.height * 0.55;
+  out.vx = -Math.cos(a) * 0.12;
+  out.vz = -Math.sin(a) * 0.12;
+  out.vy = (0.55 + rng() * 0.9) * p.rise;
+  out.life = 0.9 + rng() * 0.9;
+};
+
 export const BURST_SPECS = {
   spark: {
     slotSize: 16,

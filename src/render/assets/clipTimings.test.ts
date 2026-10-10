@@ -7,6 +7,8 @@ import {
   type ClipMeasure,
 } from '../../../scripts/assets/clipMeasure.mjs';
 import { undeadClipEvents } from '../../game/anim/enemyClips';
+import { THRUST_CLIP_FRAMES, THRUST_CLIP_NAME, THRUST_HIT_FRAME } from '../anim/thrustClip';
+import { DERIVED_CLIP_NAMES } from './clips';
 import { playerClipEvents } from '../../game/anim/playerClips';
 import {
   GAIT_CLIP_FRAMES,
@@ -15,7 +17,11 @@ import {
 } from '../../game/anim/locomotion';
 
 /** プレイヤーと亡者兵（敵の攻撃）のマーカー表のエントリ。 */
-const tableEntries = [...playerClipEvents.entries, ...undeadClipEvents.entries];
+const allEntries = [...playerClipEvents.entries, ...undeadClipEvents.entries];
+/** glb に無い派生クリップ（`Sword_Thrust`）を使う動作は実測の対象外（下のテストで派生クリップの定数と突き合わせる）。 */
+const isDerived = (clip: string): boolean =>
+  (DERIVED_CLIP_NAMES as readonly string[]).includes(clip);
+const tableEntries = allEntries.filter((e) => !isDerived(e.clip));
 
 /**
  * マーカー表・歩行定数の値を、実際の animations.glb（meshopt 圧縮）から実測した値と突き合わせる。
@@ -65,6 +71,15 @@ describe('実クリップとの整合（animations.glb を実測）', () => {
         `${e.id}: 実測 ${measured}`,
       ).toBeLessThanOrEqual(1);
     }
+  });
+
+  it('軽 3 の突き（派生クリップ Sword_Thrust）の再生範囲・当たりフレームは派生クリップの定数と一致する', () => {
+    const light3 = playerClipEvents.entries.find((e) => e.id === 'player.light3');
+    expect(light3?.clip).toBe(THRUST_CLIP_NAME);
+    expect(light3?.clipRange).toEqual({ startFrame: 0, endFrame: THRUST_CLIP_FRAMES });
+    expect(light3?.clipHitFrame).toBe(THRUST_HIT_FRAME);
+    // 発生 16F（0.267s）に当たりフレームを合わせると等速（playbackRate 1）になる
+    expect(THRUST_HIT_FRAME / 30 / (16 / 60)).toBeCloseTo(1, 6);
   });
 
   it('ロールは Roll の 1.4s（実クリップ 1.47s のうち立ち上がりの手前まで）を 32F に合わせる', () => {

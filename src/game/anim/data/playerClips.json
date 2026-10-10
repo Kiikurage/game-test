@@ -31,10 +31,10 @@
     },
     {
       "id": "player.light3",
-      "clip": "Sword_Regular_C",
+      "clip": "Sword_Thrust",
       "clipFps": 30,
-      "clipRange": { "startFrame": 0, "endFrame": 60 },
-      "clipHitFrame": 20,
+      "clipRange": { "startFrame": 0, "endFrame": 26 },
+      "clipHitFrame": 8,
       "spec": { "startup": 16, "active": 6, "recovery": 30 },
       "markers": [
         { "type": "hitStart", "frame": 17 },

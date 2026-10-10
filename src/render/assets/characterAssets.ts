@@ -11,6 +11,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Character } from './character';
+import { buildThrustClip, THRUST_CLIP_NAME, THRUST_SOURCE_CLIP } from '../anim/thrustClip';
 import { CLIP_NAMES, type ClipName } from './clips';
 
 /** public/assets/characters/ に置かれているキャラクター名（`npm run assets:build` で生成）。 */
@@ -66,6 +67,9 @@ export class CharacterAssets {
       if (!clip) throw new Error(`animation clip missing in animations.glb: ${name}`);
       clipMap.set(name, clip);
     }
+    // 派生クリップ（軽 3 の突き。UAL に突きが無いので Sword_Regular_C の姿勢から作る）
+    const thrustSource = clipMap.get(THRUST_SOURCE_CLIP);
+    if (thrustSource) clipMap.set(THRUST_CLIP_NAME, buildThrustClip(thrustSource));
 
     const sword = propsGltf.scene.getObjectByName('Sword');
     const shield = propsGltf.scene.getObjectByName('Shield');

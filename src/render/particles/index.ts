@@ -12,6 +12,7 @@ import {
   deathAshInit,
   deathEmberInit,
   emberFieldSpec,
+  healMoteInit,
   hitDustInit,
   hitSparkInit,
   hitSplashInit,
@@ -276,6 +277,12 @@ export class ParticleSystem {
       power,
     };
     this.bursts.spark.emit(this.clock, burstCount(9, this.quality), p, chargeGlintInit);
+  }
+
+  /** 回復の光の粒（#173）: 体の周りから琥珀色の粒が立ちのぼる。`feet` は足元。 */
+  healGlow(feet: Vector3, radius = 0.5, height = 1.8): void {
+    const p: DeathParams = { x: feet.x, y: feet.y, z: feet.z, radius, height, rise: 1 };
+    this.bursts.ember.emit(this.clock, burstCount(26, this.quality), p, healMoteInit);
   }
 
   /** 撃破時に体から灰と熾火が剥がれて舞い上がる（亡者のディゾルブ・ボスの熾火）。 */
