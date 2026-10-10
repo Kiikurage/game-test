@@ -2,7 +2,7 @@ import { Group, Mesh, Vector3 } from 'three/webgpu';
 import type { Game } from '../../game/game';
 import { arenaMoodWeight, arenaOf, type ArenaDef } from '../../game/world/arena';
 import type { Level } from '../../game/world/level';
-import { ARENA_MOOD } from '../environment';
+import { ARENA_MOOD, type Environment } from '../environment';
 import { registerViewPlugin } from '../viewPlugins';
 import {
   createColumnGeometry,
@@ -12,6 +12,13 @@ import {
   mergeAll,
   triangleCount,
 } from './arenaGeometry';
+import {
+  backdropFade,
+  createBackdropGeometry,
+  createBackdropMaterial,
+  createRimGeometry,
+  createRimMaterial,
+} from './arenaBackdrop';
 import { createArenaFloorMaterial, createArenaMasonryMaterial } from './arenaMaterials';
 import {
   createFlameGeometry,
@@ -26,6 +33,11 @@ const FLOOR_LIFT = 0.012;
 /** 壁の内側 / 外側の半径。内面は当たり判定（24 角形。角で 16.14m）より内側に出ない。 */
 const WALL_INNER = 16.12;
 const WALL_OUTER = 17.3;
+/** 闘技場の中心からこの距離（m）より遠いときは闘技場を描かない。 */
+const ARENA_FAR = 80;
+/** 背景の幕が現れ始める / 完全に出る、闘技場の中心からの距離（m）。 */
+const FADE_OUTER = 27;
+const FADE_INNER = 18;
 /** ムードの時間方向のなじませ（1/秒）。リスポーンなどの瞬間移動でも急にぱっと変わらない。 */
 const MOOD_RATE = 2.2;
 
@@ -71,11 +83,12 @@ export function arenaViewOf(game: Game): ArenaView | null {
   return views.get(game) ?? null;
 }
 
-function createArena(level: Level, def: ArenaDef) {
+function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
   const { center, floorY } = def;
   const root = new Group();
   root.name = 'arena';
   const torches = layoutTorches(def);
+  const sky: Mesh[] = [];
 
   // 床（敷石の円）
   const floor = new Mesh(
@@ -128,6 +141,26 @@ function createArena(level: Level, def: ArenaDef) {
     wall.castShadow = true;
     wall.receiveShadow = true;
     root.add(wall);
+
+    // 背景の幕と、壁の向こうの岩場のシルエット（外周の崖が空を覆って見えるのを避ける）
+    const spec = {
+      cx: center.x,
+      cz: center.z,
+      floorY,
+      radius: WALL_OUTER + 0.5,
+      start: a0 - half,
+      end: a0 + span + half,
+    };
+    const backdrop = new Mesh(createBackdropGeometry(spec), createBackdropMaterial(skyAt));
+    backdrop.name = 'arena:backdrop';
+    backdrop.renderOrder = 1;
+    backdrop.frustumCulled = false;
+    const rim = new Mesh(createRimGeometry(spec), createRimMaterial(floorY));
+    rim.name = 'arena:rim';
+    rim.renderOrder = 2;
+    rim.frustumCulled = false;
+    root.add(backdrop, rim);
+    sky.push(backdrop, rim);
   }
 
   // 柱 4 本（1 メッシュに結合）
@@ -187,7 +220,6 @@ function createArena(level: Level, def: ArenaDef) {
   root.add(sconces);
   const flames = new Mesh(createFlameGeometry(torches), createFlameMaterial());
   flames.name = 'arena:flames';
-  flames.frustumCulled = false;
   root.add(flames);
 
   let triangles = 0;
@@ -199,7 +231,7 @@ function createArena(level: Level, def: ArenaDef) {
       meshes++;
     }
   });
-  return { root, triangles, meshes };
+  return { root, triangles, meshes, sky };
 }
 
 // 闘技場の見た目: 石畳の床・外周の壁・柱 4 本・中央の台座（`arenaOf(level)` と同じ寸法）と、
@@ -209,12 +241,13 @@ registerViewPlugin('arena', ({ game, view, level }) => {
   const def = level ? arenaOf(level) : null;
   if (!level || !def) return {};
 
-  const built = createArena(level, def);
+  const built = createArena(level, def, (dir) => view.environment.skyAt(dir));
   view.scene.add(built.root);
 
   const listeners = new Set<(hit: PillarHit) => void>();
   let hitCount = 0;
   let weight = -1;
+  let frames = 0;
   const tmpPos = new Vector3();
   const tmpNormal = new Vector3();
 
@@ -279,6 +312,16 @@ registerViewPlugin('arena', ({ game, view, level }) => {
           : weight + (target - weight) * (1 - Math.exp(-Math.min(dt, 0.5) * MOOD_RATE));
       if (Math.abs(weight - target) < 1e-3) weight = target;
       view.environment.setMood(ARENA_MOOD, weight);
+      // 背景の幕: 闘技場の外から近づくときに滑らかに現れる（崖が急に消えない）
+      const d = Math.hypot(feet.x - def.center.x, feet.z - def.center.z);
+      const t = Math.min(1, Math.max(0, (FADE_OUTER - d) / (FADE_OUTER - FADE_INNER)));
+      backdropFade.value = t * t * (3 - 2 * t);
+      const show = backdropFade.value > 0.002;
+      // 遠い間は闘技場ごと描かない（崖の向こうで見えないのに、遠景の視野に入るだけで数千三角形かかる）。
+      // 初回の 2 フレームは出したままにして、ローディング中のウォームアップでパイプラインを作っておく
+      frames++;
+      built.root.visible = frames <= 2 || d < ARENA_FAR;
+      for (const m of built.sky) m.visible = show;
     },
   };
 });

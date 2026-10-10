@@ -111,7 +111,7 @@ export function createSconceGeometry(torches: readonly Torch[]): BufferGeometry 
 export function createFlameGeometry(torches: readonly Torch[]): BufferGeometry {
   const parts: BufferGeometry[] = [];
   for (const t of torches) {
-    const g = new SphereGeometry(1, 10, 8);
+    const g = new SphereGeometry(1, 8, 5);
     const pos = g.getAttribute('position');
     const flameT: number[] = [];
     const phase: number[] = [];

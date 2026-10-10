@@ -7,6 +7,7 @@ import {
   createWallRingGeometry,
   triangleCount,
 } from './arenaGeometry';
+import { createBackdropGeometry, createRimGeometry } from './arenaBackdrop';
 
 /** 三角形の幾何法線と頂点法線の向きが一致しない三角形の割合（巻き方向の検査）。 */
 function inverted(g: BufferGeometry): number {
@@ -69,6 +70,17 @@ describe('arena geometry', () => {
     expect(g.boundingBox?.min.y).toBeCloseTo(1, 6);
     expect(inverted(g)).toBe(0);
     expect(triangleCount(g)).toBeLessThan(2500);
+  });
+
+  it('builds the backdrop and rim facing the arena centre', () => {
+    const spec = { cx: 0, cz: 0, floorY: 2, radius: 17.8, start: 0.3, end: 5.9 };
+    expect(inverted(createBackdropGeometry(spec))).toBe(0);
+    const rim = createRimGeometry(spec);
+    expect(inverted(rim)).toBe(0);
+    rim.computeBoundingBox();
+    // 稜線は空を覆わない高さ（壁の上端の少し上〜10m 程度）
+    expect(rim.boundingBox?.max.y).toBeLessThan(2 + 11);
+    expect(rim.boundingBox?.max.y).toBeGreaterThan(2 + 4);
   });
 
   it('builds a flat floor disc', () => {
