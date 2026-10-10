@@ -108,7 +108,8 @@ describe('enemy AI in the game (Rapier)', () => {
     run(1);
     expect(enemy.hp).toBe(enemy.maxHp - 10);
     expect(enemy.state).toBe('staggered');
-    run(60);
+    // 崩しの硬直 54F + ヒットストップ（被弾側の敵も凍結する。強攻撃扱いで 8F）
+    run(54 + 8 + 2);
     expect(enemy.state).not.toBe('staggered');
     expect(hit(500, 0)).toHaveLength(1);
     run(1);

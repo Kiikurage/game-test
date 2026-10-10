@@ -40,7 +40,7 @@ src/render/enemyDebugView.ts    ?debug の視野コーン・状態ラベル
 
 ## 後続チケット向け
 
-- 攻撃（#54）: `enemy.attackBehavior = { tryStart(enemy, ctx), update(enemy, dt, ctx) }` を差し替える。`tryStart` が true なら Attack、`update` が true を返すと Recover（クールダウン 30〜90F、HP 25% 以下は 30〜60F）。攻撃トークン（同時 2 体）と旋回の固定は未実装。
+- 攻撃（#54、実装済み）: [enemy-attack.md](enemy-attack.md)。`enemy.attackBehavior`（`tryStart` / `update` / `cancel` / `isWaiting` / `skipHold`）を `AttackRunner` が実装し、攻撃トークン（同時 2 体）・予備動作の旋回追尾（発生の 60% まで）・周回待機を担う。
 - ナビゲーション（#43）: `GameOptions.enemyNavigator` に `Navigator`（`nextPoint(from, to, out)`）を渡す。経路なしは null。
 - 被弾（#40 / #50）: `enemy.hp`、`stagger(frames)`、`kill()`、`provoke(x, z)`（被弾で Alert）、`fsm.freeze(frames)`（ヒットストップ）。
 - アニメーション: `src/render/assets/enemyAnimator.ts`。Action 系の状態は `states` にクリップを足す（攻撃は #54 でマーカー表）。

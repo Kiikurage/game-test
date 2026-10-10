@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "enemy.undead.a1",
+      "clip": "Sword_Regular_A",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 13 },
+      "clipHitFrame": 8,
+      "tail": { "clip": "Sword_Regular_A_Rec", "startFrame": 0, "endFrame": 29 },
+      "spec": { "startup": 24, "active": 5, "recovery": 28 },
+      "markers": [
+        { "type": "hitStart", "frame": 25 },
+        { "type": "hitEnd", "frame": 29 }
+      ]
+    },
+    {
+      "id": "enemy.undead.a1b",
+      "clip": "Sword_Regular_B",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 16 },
+      "clipHitFrame": 8,
+      "tail": { "clip": "Sword_Regular_B_Rec", "startFrame": 0, "endFrame": 31 },
+      "spec": { "startup": 20, "active": 5, "recovery": 28 },
+      "markers": [
+        { "type": "hitStart", "frame": 21 },
+        { "type": "hitEnd", "frame": 25 }
+      ]
+    },
+    {
+      "id": "enemy.undead.a2",
+      "clip": "Sword_Regular_C",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 44 },
+      "clipHitFrame": 20,
+      "spec": { "startup": 34, "active": 6, "recovery": 36 },
+      "markers": [
+        { "type": "hitStart", "frame": 35 },
+        { "type": "hitEnd", "frame": 40 }
+      ]
+    },
+    {
+      "id": "enemy.undead.a3",
+      "clip": "Sword_Attack",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 30 },
+      "clipHitFrame": 12,
+      "spec": { "startup": 28, "active": 8, "recovery": 34 },
+      "markers": [
+        { "type": "hitStart", "frame": 29 },
+        { "type": "hitEnd", "frame": 36 }
+      ]
+    }
+  ]
+}
