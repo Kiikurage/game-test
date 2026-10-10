@@ -61,6 +61,8 @@ export class KeyboardMouseInput {
   private lastWheelMs = Number.NEGATIVE_INFINITY;
   /** Pointer Lock を取得してから受けた mousemove の数（異常値の判定は最初の数イベントだけ）。 */
   private movesSinceLock = Number.POSITIVE_INFINITY;
+  /** 現在のロックを検出済みか。 */
+  private lockSeen = false;
   private disposers: (() => void)[] = [];
 
   constructor(
@@ -88,8 +90,13 @@ export class KeyboardMouseInput {
       e.preventDefault();
     });
     this.listen(document, 'pointerlockchange', () => {
-      if (this.pointerLocked) this.movesSinceLock = 0;
-      else this.releaseMouseButtons();
+      if (this.pointerLocked) {
+        if (!this.lockSeen) this.movesSinceLock = 0;
+        this.lockSeen = true;
+      } else {
+        this.lockSeen = false;
+        this.releaseMouseButtons();
+      }
     });
   }
 
@@ -182,6 +189,11 @@ export class KeyboardMouseInput {
 
   private readonly onMouseMove = (e: MouseEvent): void => {
     if (!this.pointerLocked) return;
+    // pointerlockchange の通知より先に mousemove が届くことがあるため、ロックの開始はここでも検出する
+    if (!this.lockSeen) {
+      this.lockSeen = true;
+      this.movesSinceLock = 0;
+    }
     if (this.movesSinceLock < SPIKE_CHECK_MOVES) {
       this.movesSinceLock++;
       if (isFirstMoveSpike(e.movementX, e.movementY)) return;
