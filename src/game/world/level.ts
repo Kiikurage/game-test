@@ -15,7 +15,7 @@ import { NavGrid } from '../enemy/navGrid';
 import type { BoxSpec } from './playground';
 
 /** 足音用の地表素材。 */
-export type SurfaceKind = 'grass' | 'stone' | 'wood' | 'underground';
+export type SurfaceKind = 'grass' | 'stone' | 'wood' | 'underground' | 'water';
 
 export type AreaId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
 
@@ -108,7 +108,13 @@ export type BlockStyle =
   | 'stairs'
   | 'bonfire'
   | 'stone'
-  | 'sarcophagus';
+  | 'sarcophagus'
+  /** 地下水路の壁・床・天井（#111。地下なので敵のナビ格子では無視する）。 */
+  | 'waterway'
+  /** 腐った床板（#111。`Game.setBoxEnabled` で割る）。 */
+  | 'hatch'
+  /** 錆びた鉄格子（#111。`Game.setBoxEnabled` で開ける）。 */
+  | 'grate';
 
 /** 立方体の静的物。底面は地形に埋め込み、上面は `baseY + height`。 */
 export interface BlockProp {
@@ -124,6 +130,13 @@ export interface BlockProp {
   readonly yawDeg?: number;
   /** 基準の高さ。省略時は足元の地形の最低点。 */
   readonly baseY?: number;
+  /**
+   * true なら、低くても（自動乗り越えの 0.35m 以内でも）敵のナビ格子では通れない固体として扱う。
+   * プレイヤーだけが上がれる足場（脇道の岩棚・壁上回廊・霊廟の石段）に付ける。
+   */
+  readonly navSolid?: boolean;
+  /** 底面を基準の高さより下へ埋め込む深さ（m）。省略時は 1.2。地下の薄い板（天井・床）に指定する。 */
+  readonly embed?: number;
 }
 
 /** 階段。始点 (x, z) から前方（ヨー）へ登る。1 段の高さは自動乗り越えの 0.35m 以下にすること。 */
@@ -137,6 +150,8 @@ export interface StairsProp {
   readonly stepRise: number;
   readonly stepRun: number;
   readonly width: number;
+  /** true なら敵のナビ格子では通れない（`BlockProp.navSolid` と同じ）。 */
+  readonly navSolid?: boolean;
 }
 
 export type CylinderStyle = 'tree' | 'column' | 'fountain' | 'pedestal';
@@ -178,7 +193,7 @@ export interface ItemSpawn {
   readonly z: number;
 }
 
-export type InteractableKind = 'bonfire' | 'tablet' | 'lever' | 'gate';
+export type InteractableKind = 'bonfire' | 'tablet' | 'lever' | 'gate' | 'hatch' | 'grate';
 
 export interface InteractableSpawn {
   readonly id: string;
@@ -205,6 +220,87 @@ export interface GateDef {
   readonly leverId?: string;
 }
 
+/** 軸に平行な矩形（m）。 */
+export interface RectDef {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
+/** 脇道の地点（アイテム・鐘・落下ポイントなど。後続チケットが参照する置き場所）。 */
+export interface SidePathSpot {
+  readonly id: string;
+  readonly x: number;
+  readonly z: number;
+}
+
+/**
+ * 脇道（仕様書 14 章）の高所の足場の範囲。プレイヤーだけが上がれる（敵のナビ格子には含めない）。
+ * 地形の装飾（崖の岩塊など）はこの範囲を避けること: `sidePathDistance` で距離を問い合わせられる。
+ * 範囲 = 折れ線（`points`。中心線）から `halfWidth` 以内 と `rects` の和。
+ */
+export interface SidePathDef {
+  readonly id: string;
+  /** 足場の中心線（x, z）。屋根のように線を持たないものは空。 */
+  readonly points: readonly (readonly [number, number])[];
+  /** 折れ線の半幅（足場の半幅 + 透明壁の厚み）。 */
+  readonly halfWidth: number;
+  /** 屋根・壁上回廊などの矩形の足場。 */
+  readonly rects: readonly RectDef[];
+  readonly spots: readonly SidePathSpot[];
+}
+
+/** 暗所ゾーンの視認ゲージ倍率・反響ゾーンの聴覚半径倍率（仕様 14.3.1 節。参照するのは AI（E3-6）と音（E7-5b））。 */
+export const DARK_VISION_MULTIPLIER = 0.7;
+export const ECHO_HEARING_MULTIPLIER = 1.3;
+
+export type ZoneKind = 'dark' | 'echo';
+
+/** ゾーンの矩形。`minY` / `maxY` を指定すると、その高さの範囲だけ（足元の高さ。上階と地下を分ける）。 */
+export interface ZoneRect extends RectDef {
+  readonly minY?: number;
+  readonly maxY?: number;
+}
+
+/**
+ * 暗所（`dark`: 視認ゲージ ×0.7）・反響（`echo`: 聴覚半径 ×1.3）のゾーン。たいまつから 4m 超という条件は
+ * 灯りの配置（E11）が決まってから AI が判定する。ここは地下墓所・水路の範囲だけ持つ。
+ */
+export interface ZoneDef {
+  readonly id: string;
+  readonly kind: ZoneKind;
+  readonly rects: readonly ZoneRect[];
+}
+
+/** 地下水路の水平な通路 1 区画（内寸。壁は外側）。段（階段の 1 段）も 1 区画として並べる。 */
+export interface WaterwayRect extends RectDef {
+  readonly id: string;
+  /** 床の上面の高さ（m）。 */
+  readonly floorY: number;
+  /** この区画の天井の高さ（床から。m）。省略時は `WaterwayDef.ceiling`。段の前後は自動乗り越えの頭上の余裕のため高くする。 */
+  readonly ceiling?: number;
+  /** true なら天井を張らない（腐った床板の真下。落下してくる穴）。 */
+  readonly noCeiling?: boolean;
+  /** true なら浅い水面（床 + `depth`）を張る。段・出口の床は張らない。 */
+  readonly water?: boolean;
+  /** 壁を作らない辺（w = 西, e = 東, s = 南, n = 北）。外へ開いている口（出口）。 */
+  readonly open?: readonly ('w' | 'e' | 's' | 'n')[];
+}
+
+/**
+ * 地下水路（#111。仕様 14.1.3）。高さは地形の下。区画 `rects` は軸に平行な矩形の和で、
+ * 壁・床・天井・段は `waterway.ts` が区画から作って `LevelData.props` に足す。
+ */
+export interface WaterwayDef {
+  readonly id: string;
+  /** 天井の高さ（床から。m）。 */
+  readonly ceiling: number;
+  /** 水深（m。歩行に影響しない）。 */
+  readonly depth: number;
+  readonly rects: readonly WaterwayRect[];
+}
+
 export interface LevelData {
   readonly id: string;
   readonly name: string;
@@ -220,6 +316,16 @@ export interface LevelData {
   readonly perimeter?: PerimeterParams;
   readonly areas: readonly AreaDef[];
   readonly route: readonly RoutePoint[];
+  /** 脇道の高所の足場の範囲（屋根・岩棚・壁上）。敵のナビ格子には含めない。 */
+  readonly sidePaths?: readonly SidePathDef[];
+  /** 地下水路（#111）。足音の素材（水）と、地形メッシュの穴の判定に使う。 */
+  readonly waterways?: readonly WaterwayDef[];
+  /** 地形メッシュから抜く矩形（腐った床板の穴・地下水路の上り階段の上。1m 格子の境界に合わせる。描画と衝突の両方から消える）。 */
+  readonly terrainHoles?: readonly RectDef[];
+  /** 暗所・反響のゾーン（#111）。 */
+  readonly zones?: readonly ZoneDef[];
+  /** 見えない衝突壁（脇道の岩棚・壁上の縁など。3m 超の縁を塞ぎ、落下死を作らない）。描画しない。 */
+  readonly guards?: readonly BoxSpec[];
   /** メインルートから分かれる道（ショートカットなど）。メインルートと同じ規則で地形をならす。 */
   readonly extraRoutes?: readonly (readonly RoutePoint[])[];
   /** 門。コライダは `Level.gates[].box`（`Game.setBoxEnabled(id, bool)` で開閉）。 */
@@ -249,6 +355,8 @@ export interface TerrainMesh {
 /** 配置済みの箱（描画用のスタイル付き）。 */
 export interface PlacedBox extends BoxSpec {
   readonly style: BlockStyle;
+  /** 敵のナビ格子では常に固体（`BlockProp.navSolid`）。 */
+  readonly navSolid?: boolean;
 }
 
 export interface PlacedCylinder {
@@ -277,7 +385,14 @@ export interface Level {
   readonly pathWeight: (x: number, z: number) => number;
   /** 通行領域までの距離（m。領域内は 0。`perimeter` がなければ常に 0）。0 より大きい所は崖・岩壁。 */
   readonly openDistance: (x: number, z: number) => number;
-  readonly surfaceAt: (x: number, z: number) => SurfaceKind;
+  /** `y`（足元の高さ）を渡すと、地下水路の中を「水」にする（地形の下の水路と、その上の床を区別できる）。 */
+  readonly surfaceAt: (x: number, z: number, y?: number) => SurfaceKind;
+  /** (x, z, 足元の高さ) が暗所・反響ゾーンに入っているか。 */
+  readonly zoneAt: (x: number, z: number, y?: number) => { dark: boolean; echo: boolean };
+  /** 視認ゲージの環境倍率（暗所 `DARK_VISION_MULTIPLIER`、それ以外 1）。 */
+  readonly visionMultiplierAt: (x: number, z: number, y?: number) => number;
+  /** 聴覚半径の倍率（反響ゾーン `ECHO_HEARING_MULTIPLIER`、それ以外 1）。 */
+  readonly hearingMultiplierAt: (x: number, z: number, y?: number) => number;
   readonly terrain: TerrainMesh;
   /** 見える静的物の箱（壁・墓石・階段など）。 */
   readonly boxes: readonly PlacedBox[];
@@ -285,6 +400,10 @@ export interface Level {
   readonly cylinders: readonly PlacedCylinder[];
   /** プレイ範囲の外周の透明壁（描画しない）。 */
   readonly boundaryBoxes: readonly BoxSpec[];
+  /** 脇道の縁の透明壁（`LevelData.guards`。描画しない）。 */
+  readonly guardBoxes: readonly BoxSpec[];
+  /** 脇道（高所の足場）の範囲までの距離（m。範囲内は 0。`sidePaths` がなければ Infinity）。`ids` で脇道を絞れる。 */
+  readonly sidePathDistance: (x: number, z: number, ids?: readonly string[]) => number;
   /** 門（鉄門・霧の門）。コライダは `levelGameOptions().boxes` に含まれる。 */
   readonly gates: readonly PlacedGate[];
 }
@@ -532,10 +651,15 @@ export function buildTerrainMesh(
       vertices[o + 2] = z;
     }
   }
+  const holes = data.terrainHoles ?? [];
   const indices = new Uint32Array((cols - 1) * (rows - 1) * 6);
   let n = 0;
   for (let iz = 0; iz < rows - 1; iz++) {
     for (let ix = 0; ix < cols - 1; ix++) {
+      // 穴: セルの中心が穴の矩形に入っていれば三角形を張らない
+      const cx = minX + (ix + 0.5) * p.cellSize;
+      const cz = minZ + (iz + 0.5) * p.cellSize;
+      if (holes.some((h) => cx > h.minX && cx < h.maxX && cz > h.minZ && cz < h.maxZ)) continue;
       const a = iz * cols + ix;
       const b = a + 1;
       const c = a + cols;
@@ -549,7 +673,7 @@ export function buildTerrainMesh(
       indices[n++] = d;
     }
   }
-  return { vertices, indices, cols, rows, minX, minZ, cellSize: p.cellSize };
+  return { vertices, indices: indices.slice(0, n), cols, rows, minX, minZ, cellSize: p.cellSize };
 }
 
 const DEG = Math.PI / 180;
@@ -592,7 +716,7 @@ function placeProps(
       const yawDeg = prop.yawDeg ?? 0;
       const base =
         prop.baseY ?? footprintMinHeight(heightAt, prop.x, prop.z, prop.hx, prop.hz, yawDeg);
-      const bottom = base - EMBED;
+      const bottom = base - (prop.embed ?? EMBED);
       const top = base + prop.height;
       boxes.push({
         id: prop.id,
@@ -604,6 +728,7 @@ function placeProps(
         hy: (top - bottom) / 2,
         hz: prop.hz,
         yawDeg,
+        ...(prop.navSolid ? { navSolid: true } : {}),
       });
     } else if (prop.kind === 'stairs') {
       const base = heightAt(prop.x, prop.z);
@@ -623,6 +748,7 @@ function placeProps(
           hy: (top - bottom) / 2,
           hz: prop.stepRun / 2,
           yawDeg: prop.yawDeg,
+          ...(prop.navSolid ? { navSolid: true } : {}),
         });
       }
     } else {
@@ -681,14 +807,85 @@ function placeGates(
   });
 }
 
+/** 点から線分までの距離。 */
+function distanceToSegment(
+  x: number,
+  z: number,
+  [ax, az]: readonly [number, number],
+  [bx, bz]: readonly [number, number],
+): number {
+  const len2 = (bx - ax) ** 2 + (bz - az) ** 2;
+  const t =
+    len2 > 0 ? Math.min(1, Math.max(0, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / len2)) : 0;
+  return Math.hypot(x - (ax + (bx - ax) * t), z - (az + (bz - az) * t));
+}
+
+/**
+ * 脇道（高所の足場）の範囲までの距離（m。範囲内は 0）。折れ線は中心線から `halfWidth`、矩形はそのまま。
+ * `ids` を渡すとその脇道だけ。崖の岩塊など、足場を塞いではいけない配置の除外判定に使う
+ * （例: `sidePathDistance(data, x, z) < 1.5` なら置かない）。
+ */
+export function sidePathDistance(
+  data: LevelData,
+  x: number,
+  z: number,
+  ids?: readonly string[],
+): number {
+  let best = Infinity;
+  for (const path of data.sidePaths ?? []) {
+    if (ids && !ids.includes(path.id)) continue;
+    for (let i = 0; i + 1 < path.points.length; i++) {
+      const a = path.points[i];
+      const b = path.points[i + 1];
+      if (!a || !b) continue;
+      best = Math.min(best, Math.max(0, distanceToSegment(x, z, a, b) - path.halfWidth));
+    }
+    for (const r of path.rects) {
+      best = Math.min(best, distanceToShape({ type: 'rect', ...r }, x, z));
+    }
+    if (best <= 0) return 0;
+  }
+  return best;
+}
+
+/** (x, z, y) が `kind` のゾーンに入っているか。`y` を省略すると高さの範囲を持たないゾーンだけが対象になる。 */
+export function inZone(data: LevelData, kind: ZoneKind, x: number, z: number, y?: number): boolean {
+  for (const zone of data.zones ?? []) {
+    if (zone.kind !== kind) continue;
+    for (const r of zone.rects) {
+      if (x < r.minX || x > r.maxX || z < r.minZ || z > r.maxZ) continue;
+      if (r.minY !== undefined && (y === undefined || y < r.minY)) continue;
+      if (r.maxY !== undefined && (y === undefined || y > r.maxY)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+/** (x, z) が地下水路の水のある区画の中で、足元の高さ `y` がその床から天井の間か（上の階の床と区別する）。 */
+export function inWaterway(data: LevelData, x: number, z: number, y: number): boolean {
+  for (const w of data.waterways ?? []) {
+    for (const r of w.rects) {
+      if (!r.water || x < r.minX || x > r.maxX || z < r.minZ || z > r.maxZ) continue;
+      if (y >= r.floorY - 0.3 && y <= r.floorY + (r.ceiling ?? w.ceiling)) return true;
+    }
+  }
+  return false;
+}
+
 /** データからレベルを組み立てる。 */
 export function createLevel(data: LevelData): Level {
   const { heightAt, pathWeight, openDistance } = createTerrainFunctions(data);
   const areaOrder = data.areas;
-  const surfaceAt = (x: number, z: number): SurfaceKind => {
+  const surfaceAt = (x: number, z: number, y?: number): SurfaceKind => {
+    if (y !== undefined && inWaterway(data, x, z, y)) return 'water';
     for (const area of areaOrder) if (insideShape(area.shape, x, z)) return area.surface;
     return 'grass';
   };
+  const zoneAt = (x: number, z: number, y?: number): { dark: boolean; echo: boolean } => ({
+    dark: inZone(data, 'dark', x, z, y),
+    echo: inZone(data, 'echo', x, z, y),
+  });
   const { boxes, cylinders } = placeProps(data.props, heightAt);
   return {
     data,
@@ -696,10 +893,15 @@ export function createLevel(data: LevelData): Level {
     pathWeight,
     openDistance,
     surfaceAt,
+    zoneAt,
+    visionMultiplierAt: (x, z, y) => (inZone(data, 'dark', x, z, y) ? DARK_VISION_MULTIPLIER : 1),
+    hearingMultiplierAt: (x, z, y) => (inZone(data, 'echo', x, z, y) ? ECHO_HEARING_MULTIPLIER : 1),
     terrain: buildTerrainMesh(data, heightAt),
     boxes,
     cylinders,
     boundaryBoxes: createBoundaryBoxes(data),
+    guardBoxes: data.guards ?? [],
+    sidePathDistance: (x, z, ids) => sidePathDistance(data, x, z, ids),
     gates: placeGates(data.gates, heightAt),
   };
 }
@@ -795,6 +997,18 @@ export function validateLevel(data: LevelData): string[] {
       problems.push(`${prop.id}: stepRise ${prop.stepRise} exceeds the 0.35m auto-step limit`);
     }
   }
+  const sideIds = new Set<string>();
+  for (const path of data.sidePaths ?? []) {
+    if (sideIds.has(path.id)) problems.push(`duplicate side path id ${path.id}`);
+    sideIds.add(path.id);
+    for (const [x, z] of path.points) {
+      if (!inBounds(x, z)) problems.push(`side path ${path.id} point (${x}, ${z}) is outside`);
+    }
+    for (const spot of path.spots) {
+      checkId(`${path.id}:${spot.id}`);
+      if (!inBounds(spot.x, spot.z)) problems.push(`side path spot ${spot.id} is outside`);
+    }
+  }
   for (const p of data.route) {
     if (!inBounds(p.x, p.z)) problems.push(`route point (${p.x}, ${p.z}) is outside the bounds`);
   }
@@ -836,7 +1050,12 @@ export function levelGameOptions(
   return {
     terrain: { vertices: level.terrain.vertices, indices: level.terrain.indices },
     terrainHeight: level.heightAt,
-    boxes: [...level.boxes, ...level.boundaryBoxes, ...level.gates.map((g) => g.box)],
+    boxes: [
+      ...level.boxes,
+      ...level.boundaryBoxes,
+      ...level.guardBoxes,
+      ...level.gates.map((g) => g.box),
+    ],
     dummies: [],
     spawn: level.data.playerSpawn,
     enemies: level.data.enemies,

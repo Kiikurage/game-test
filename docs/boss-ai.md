@@ -102,7 +102,7 @@ registerBossMove({
 | イベント | いつ | ペイロード |
 | --- | --- | --- |
 | `bossEngaged` | 交戦開始（`Boss.engage()`。リセット後の再交戦でも毎回） | `{ id, hp, maxHp, phase, boundaries }`（`boundaries` = フェーズ境界の HP `[1200]`。バーの目盛り位置） |
-| `bossHpChanged` | HP が変わった（被弾のたび） | `{ id, hp, maxHp, damage, phase }`（`damage` = 減少量。白い残像の長さに使う） |
+| `bossHpChanged` | HP が変わった（被弾のたび） | `{ id, hp, maxHp, damage, phase }`（`damage` = 減少量。残像（琥珀色）の長さに使う） |
 | `bossPhaseBoundary` | フェーズ移行が始まった（技が終わった瞬間） | `{ id, from, to, hp, transitionFrames }` |
 | `bossDefeated` | 撃破（`bossHpChanged` の後） | `{ id, position }` |
 | `bossReset` | 交戦中のボスが戻る / 取り除かれた（バーを消す） | `{ id, cause: 'death' \| 'rest' \| 'removed', hp, maxHp }` |
@@ -129,6 +129,29 @@ registerBossMove({
 
 攻撃判定は地形で遮られない（`HitResolver` は壁・柱の遮蔽を見ない）ので、柱を挟んでも当たる。`BossDeps.pillars`（円の配列）があるとき、扇形の判定が始まる F に柱へ触れていれば
 `bossPillarHit` を発行する（破片は E4-2c の演出がこれを購読する）。`hooks.shape` を持つ技（円・線）は対象外。アリーナ・柱の実座標を渡すのは E5-6 のアリーナ生成。
+
+### フェーズ移行の演出（E5-6 / #84）
+
+仕様は vertical-slice.md の 6.5 節。ボスは 120F 固定で進む（上記）ので、演出はボスの移行 F（`Boss.transitionFrame`。`bossPhaseBoundary` の瞬間が F0）に同期させる。
+タイムラインの数値は `src/game/boss/bossTransition.ts`（`BOSS_TRANSITION`）。
+
+| F | 内容 | 担当 |
+| --- | --- | --- |
+| 0 | `bossTransition` `start`（HP バーの境界の光 20F の起点）・カメラクリップ `PHASE_TRANSITION_CLIP`（120F） | `bossTransition.system.ts` |
+| 1–12 | 仰け反り（無敵は 120F 通してボス側）。胸を反らして頭が跳ねる手続きの姿勢 | `bossTransitionPose.ts` |
+| 13 | `shieldThrow`: 盾が手を離れて飛び、地面に刺さる（着地で破片・`sfx.boss.slam2`・小さな振動）。`bgmLayer`（`bgm.boss-layer` を 360F で重ねる） | `bossTransitionFx.ts` / system |
+| 27 以降 | 斧を両手持ちへ（`setGrip('twoHand')`） | fx |
+| 60 | `roar`: 眼窩・武器が橙に発光（60→100 で `emberAtTransitionFrame`）・熾火が舞う・`bgmDuck` −6dB / 30F・`sfx.boss.roar`・赤い縁取り（F60–F90 の 30F） | fx / system |
+| 100 | `roarEnd`: `bgmDuck` 解除（30F）。カメラが戻り始める | system |
+| 120 | `end`: 戦闘再開（ボスは `setPhase(2)`。最初の技は遠距離帯の跳躍か灰の波） | `Boss` |
+
+- カメラ（`cameraClips.ts`）は仕様どおり（F60 までに +1.5m・FOV +6°・振動 0.8° を 60F、F100–F120 で戻す）なので調整なし。再生は `start` の瞬間から（クリップの F60 が咆哮に合う）。
+- 赤い縁取りは `postprocess.ts` の `ScreenEffect.rim`（死亡演出の `setScreenEffect` と同じ口。追加パスなし）。強さは `rimAtTransitionFrame`（立ち上がり 6F・保持 12F・減衰 12F）。
+- プレイヤーは移行中も操作できる（移動・ロール・回復。ボスの無敵は `UprightTarget.invulnerable`）。ロックオンも維持される。
+- 途中でボスがリセットされたら（死亡・篝火）、カメラ演出・ダッキングを止めて `bossTransition` `end`（`aborted: true`）を発行し、描画は盾と熾火をフェーズ 1 の見た目へ戻す。
+- 一時停止・スローでも合うよう、描画は `bossTransitionOf(game).frame`（移行 F。演出中でなければ -1）を読んで進める（盾の飛行も F から進める）。
+- 確認: `?debug&scene=boss` で `bossTool().set('ai', true)` → `window.__game.dev.bossHp(1200)`（次の硬直で移行）。`bossTransitionFrame()` で F を読める。
+- 未対応: ヒットストップ 12F（ボスの移行の進行を止めてしまうので、仰け反りの姿勢の勢いで代用）、`Spell_Simple_*` クリップ（アニメーションに未収録のため手続きの姿勢のみ）、BGM / HP バーの購読（E7-4b / E6-3a）。
 
 ## 確認用
 
@@ -191,3 +214,16 @@ it('大上段は左右ロールを F36–F46 で入力して回避できる', ()
 - 技 4〜7（盾打ち・跳躍・回転斬り・灰の波）、モデル（#57）、入場演出・開始前無敵（E5-6）、フェーズ移行・撃破の**演出**（E5-6）、アリーナ（円形・柱）の生成と `arena` / `pillars` の受け渡し（E5-6）。
 - 移行直後の「遠距離帯の技で再開」は、距離帯の重みを 'far' に固定するだけ（ボスを遠くへ動かさない）。跳躍・灰の波の実装後に見直す。
 - 描画の補間（view プラグインは `alpha` を受け取らないので、仮の見た目は最新のステップ位置を描く）。
+
+### ボス HP バー（E6-3a / #88）
+
+`bossEngaged` で出て、`bossDefeated` / `bossReset` / プレイヤーの死亡（`death` の `start`）で消える。上記イベントだけを購読する（ボスの内部状態は読まない）。
+
+```
+src/game/hud/bossBarModel.ts    状態（琥珀色の残像 60F 遅延・目盛り・フェーズ移行の 20F 発光・30F フェード）。DOM 非依存
+src/game/hud/bossBar.system.ts  イベント購読と毎ステップの更新。bossBarModelOf(game)
+src/ui/hud/bossBar.ts / .css    DOM（画面下中央、下端から 48px、幅 min(50vw, 560px)、高さ 12px、名前 16px）
+src/render/hud/bossBar.view.ts  ビュープラグイン。不透明度は HUD 全体のフェード（死亡演出・休憩）との積
+```
+
+確認: `?scene=test&boss&debug`、dev フック `window.__game.dev.bossDamage(amount)`。

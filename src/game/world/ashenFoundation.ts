@@ -15,7 +15,10 @@ import type {
   OpenPath,
   PerimeterParams,
   PropSpec,
+  SidePathDef,
 } from './level';
+import type { BoxSpec } from './playground';
+import { buildWaterway, carveMass, GRATE, HATCH } from './waterway';
 
 /** 礼拝堂の床の高さ（m）。B の道は篝火の高さ 0 からここまで緩く上る。 */
 const C_FLOOR = 3.4;
@@ -290,6 +293,267 @@ const F_PROPS: PropSpec[] = [
   },
 ];
 
+// --- 脇道の足場（仕様書 14 章。グレーボックス）---
+// 屋根・岩棚・壁上はプレイヤーだけが上がれる高所。敵のナビ格子には含めない（`navSolid`）。
+// 座標・寸法は初期値（グレーボックスで調整する）。#190（外周の崖の岩肌化）は `sidePaths` の範囲を避けること。
+
+/** 霊廟の屋根（高さ 2.2m）。基準は裏手の石段の足元の地形（heightAt(29, 21.6) ≈ 2.76）。 */
+const ROOF_BASE = 2.76;
+const ROOF_H = 2.2;
+/** 北壁上の回廊の床（礼拝堂の床 + 2.8m）。 */
+const WALL_TOP_Y = C_FLOOR + 2.8;
+/** 回廊（北壁の上）。幅 1.5m・長さ 14m（x 40..54。うち x 46..54 が仕様の「幅 1.5m・長さ 8m」の回廊で、西は岩棚の終端）。 */
+const WALL_TOP = { minX: 40, maxX: 54, minZ: 31.5, maxZ: 33 };
+
+/**
+ * 岩棚（side_ledge）の中心線。崖の足元 (35, 19) から、倒れた柵の隙間 (33, 23) を通り、礼拝堂の西の外壁沿いに北へ上って
+ * 北壁の上 (40, 32) へ出る。仕様の (44, 26) は礼拝堂の内側（西壁の内）なので、折れ曲がりを外側 (35.5, 27.5)・(38, 29.8) に
+ * 取り直した。全長 約 22m（岩棚 約 16m + 壁上 6m）。
+ */
+const LEDGE_POINTS: readonly (readonly [number, number])[] = [
+  [35, 19],
+  [33, 22],
+  [33, 25],
+  [35.5, 27.5],
+  [38, 29.8],
+  [39.6, 32],
+];
+const LEDGE_HALF_WIDTH = 0.6;
+const LEDGE_SLAB = 0.5;
+/** 岩棚の床は 地形（約 3.4m）+ 少し から 北壁の上（6.2m）まで一定勾配で上る（段の高さ ≒ 0.09m。自動乗り越えの範囲）。 */
+const LEDGE_START_Y = 3.4;
+/** 透明壁: 床の縁から 0.05m 離して厚み 0.2m。 */
+const GUARD_HALF_T = 0.1;
+const GUARD_OFFSET = LEDGE_HALF_WIDTH + 0.05 + GUARD_HALF_T;
+/** 岩棚・壁上の足場の範囲の半幅（透明壁の外面まで）。 */
+const LEDGE_FOOTPRINT = GUARD_OFFSET + GUARD_HALF_T;
+
+function slabBlock(
+  id: string,
+  x: number,
+  z: number,
+  hx: number,
+  hz: number,
+  yawDeg: number,
+  top: number,
+): BlockProp {
+  const base = 3;
+  return {
+    kind: 'block',
+    id,
+    style: 'stairs',
+    x,
+    z,
+    hx,
+    hz,
+    height: top - base,
+    baseY: base,
+    yawDeg,
+    navSolid: true,
+  };
+}
+
+function guardBox(
+  id: string,
+  x: number,
+  z: number,
+  hx: number,
+  hz: number,
+  yawDeg: number,
+  bottom: number,
+  top: number,
+): BoxSpec {
+  return { id, x, y: (bottom + top) / 2, z, hx, hy: (top - bottom) / 2, hz, yawDeg };
+}
+
+/** 岩棚の足場（0.5m ごとの小さな段）と、その両脇の透明壁。 */
+function buildLedge(): { props: BlockProp[]; guards: BoxSpec[] } {
+  const props: BlockProp[] = [];
+  const guards: BoxSpec[] = [];
+  const legs = LEDGE_POINTS.slice(0, -1).map((a, i) => {
+    const b = LEDGE_POINTS[i + 1] as readonly [number, number];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    return { a, b, len, dx: (b[0] - a[0]) / len, dz: (b[1] - a[1]) / len };
+  });
+  const total = legs.reduce((sum, leg) => sum + leg.len, 0);
+  const topAt = (s: number): number => LEDGE_START_Y + (WALL_TOP_Y - LEDGE_START_Y) * (s / total);
+  let s = 0;
+  legs.forEach((leg, k) => {
+    const yawDeg = (Math.atan2(leg.dx, leg.dz) * 180) / Math.PI;
+    const count = Math.max(1, Math.round(leg.len / LEDGE_SLAB));
+    const seg = leg.len / count;
+    for (let j = 0; j < count; j++) {
+      const mid = (j + 0.5) * seg;
+      props.push(
+        slabBlock(
+          `ledge-${k}-${j}`,
+          leg.a[0] + leg.dx * mid,
+          leg.a[1] + leg.dz * mid,
+          LEDGE_HALF_WIDTH,
+          seg / 2 + 0.02,
+          yawDeg,
+          topAt(s + (j + 1) * seg),
+        ),
+      );
+    }
+    s += leg.len;
+    const legTop = topAt(s);
+    // 継ぎ目の隙間を埋める四角（外側の角）
+    props.push(
+      slabBlock(
+        `ledge-joint-${k}`,
+        leg.b[0] + (k === legs.length - 1 ? 0.2 : 0),
+        leg.b[1] + (k === legs.length - 1 ? 0.1 : 0),
+        LEDGE_HALF_WIDTH,
+        LEDGE_HALF_WIDTH,
+        0,
+        legTop,
+      ),
+    );
+    // 透明壁。曲がりの外側だけ 0.8m 延ばして角の隙間を塞ぐ
+    const next = legs[k + 1];
+    const prev = legs[k - 1];
+    const outerSide = (from: typeof leg, to: typeof leg | undefined): number => {
+      if (!to) return 0;
+      const cross = from.dx * to.dz - from.dz * to.dx;
+      return cross < 0 ? 1 : -1; // 右へ曲がる（cross < 0）なら外側は左（+1）
+    };
+    const nl = [-leg.dz, leg.dx] as const;
+    const bottom = legTop - 3.2;
+    for (const side of [1, -1] as const) {
+      const extStart = prev && outerSide(prev, leg) === side ? 0.8 : 0;
+      const extEnd =
+        next && outerSide(leg, next) === side ? 0.8 : k === legs.length - 1 && side === 1 ? 0.8 : 0;
+      const along = (leg.len + extStart + extEnd) / 2 - extStart;
+      guards.push(
+        guardBox(
+          `ledge-guard-${k}-${side > 0 ? 'l' : 'r'}`,
+          (leg.a[0] + leg.b[0]) / 2 + leg.dx * (along - leg.len / 2) + nl[0] * side * GUARD_OFFSET,
+          (leg.a[1] + leg.b[1]) / 2 + leg.dz * (along - leg.len / 2) + nl[1] * side * GUARD_OFFSET,
+          GUARD_HALF_T,
+          (leg.len + extStart + extEnd) / 2,
+          yawDeg,
+          bottom,
+          legTop + 1,
+        ),
+      );
+    }
+  });
+  return { props, guards };
+}
+
+/** 壁上回廊の透明壁。北は全長、南は落下ポイント 3 か所（x = 47, 50, 53。幅 1.5m）だけ開ける。 */
+const DROP_X = [47, 50, 53] as const;
+function buildWallTopGuards(): BoxSpec[] {
+  const bottom = WALL_TOP_Y - 0.8;
+  const top = WALL_TOP_Y + 1;
+  const guards: BoxSpec[] = [];
+  const north = WALL_TOP.maxZ + GUARD_HALF_T;
+  const south = WALL_TOP.minZ - GUARD_HALF_T;
+  const westX = WALL_TOP.minX - 1;
+  guards.push(
+    guardBox(
+      'wall-top-guard-n',
+      (westX + WALL_TOP.maxX + 0.2) / 2,
+      north,
+      (WALL_TOP.maxX + 0.2 - westX) / 2,
+      GUARD_HALF_T,
+      0,
+      bottom,
+      top,
+    ),
+  );
+  const edges = [
+    WALL_TOP.minX,
+    ...DROP_X.flatMap((x) => [x - 0.75, x + 0.75]),
+    WALL_TOP.maxX + 0.2,
+  ];
+  for (let i = 0; i < edges.length; i += 2) {
+    const x0 = edges[i] as number;
+    const x1 = edges[i + 1] as number;
+    guards.push(
+      guardBox(
+        `wall-top-guard-s${i / 2}`,
+        (x0 + x1) / 2,
+        south,
+        (x1 - x0) / 2,
+        GUARD_HALF_T,
+        0,
+        bottom,
+        top,
+      ),
+    );
+  }
+  guards.push(
+    guardBox(
+      'wall-top-guard-e',
+      WALL_TOP.maxX + 0.1,
+      (WALL_TOP.minZ + WALL_TOP.maxZ) / 2,
+      GUARD_HALF_T,
+      (WALL_TOP.maxZ - WALL_TOP.minZ) / 2 + 0.2,
+      0,
+      bottom,
+      top,
+    ),
+  );
+  return guards;
+}
+
+const LEDGE = buildLedge();
+const SIDE_GUARDS: BoxSpec[] = [...LEDGE.guards, ...buildWallTopGuards()];
+const SIDE_PROPS: PropSpec[] = [
+  ...LEDGE.props,
+  // 北壁の上の回廊の床（礼拝堂の北壁 chapel-n の上に幅 1.5m で被せる）
+  {
+    kind: 'block',
+    id: 'wall-top',
+    style: 'stairs',
+    x: (WALL_TOP.minX + WALL_TOP.maxX) / 2,
+    z: (WALL_TOP.minZ + WALL_TOP.maxZ) / 2,
+    hx: (WALL_TOP.maxX - WALL_TOP.minX) / 2,
+    hz: (WALL_TOP.maxZ - WALL_TOP.minZ) / 2,
+    height: WALL_TOP_Y - C_FLOOR,
+    baseY: C_FLOOR,
+    navSolid: true,
+  },
+];
+
+/**
+ * 脇道の高所の足場の範囲（#110）。敵のナビ格子には含めない。外周の崖の岩塊（#190）などの装飾は、
+ * `sidePathDistance`（level.ts）でこの範囲から離して置くこと。
+ */
+const SIDE_PATH_DEFS: SidePathDef[] = [
+  {
+    id: 'side_roof',
+    points: [],
+    halfWidth: 0,
+    rects: [
+      // 霊廟（屋根）と裏手の石段
+      { minX: 27, maxX: 31, minZ: 14, maxZ: 18 },
+      { minX: 28.4, maxX: 29.6, minZ: 18, maxZ: 21.6 },
+    ],
+    spots: [
+      { id: 'letter', x: 29, z: 16 },
+      { id: 'drop-edge', x: 29, z: 13.8 },
+    ],
+  },
+  {
+    id: 'side_ledge',
+    points: LEDGE_POINTS,
+    halfWidth: LEDGE_FOOTPRINT,
+    rects: [WALL_TOP],
+    spots: [
+      { id: 'ring', x: 38, z: 29.8 },
+      { id: 'bell', x: 50, z: 32 },
+      { id: 'charm', x: 52, z: 32.5 },
+      // 壁上から礼拝堂内へ降りる落下ポイントの着地点（仕様 14.1.2）
+      { id: 'drop-w', x: 47, z: 30.8 },
+      { id: 'drop-m', x: 50, z: 30.8 },
+      { id: 'drop-e', x: 53, z: 30.8 },
+    ],
+  },
+];
+
 /**
  * 脇道（仕様書 14 章）の通行領域。外周封鎖（`PERIMETER`）が崖にしない範囲で、脇道の本実装（別チケット）が
  * 屋根・岩棚・蔵・壁上回廊の地形を足すときの余地。S3（水路）は地下で、入口の床板 (44, 28) は C の内側なので不要。
@@ -307,15 +571,10 @@ const SIDE_PATHS: OpenPath[] = [
     ],
     halfWidth: 3,
   },
-  // side_ledge: 崖下 (35, 19) → (44, 26) → (52, 31)（礼拝堂の北壁上）。始点は side_roof と重なる
+  // side_ledge: 崖下 (35, 19) → 倒れた柵の隙間 → 礼拝堂の西の外壁沿い → 北壁の上（足場は SIDE_PATH_DEFS）。始点は side_roof と重なる
   {
     id: 'side_ledge',
-    points: [
-      [33, 21],
-      [35, 19],
-      [44, 26],
-      [52, 31],
-    ],
+    points: LEDGE_POINTS,
     halfWidth: 2.5,
   },
   // side_wall: 北進路の東壁 (82, 41) → 蔵 (83..87, 40..43) → 石段 → 壁上回廊 (86, 44) → (86, 66) → (100, 67) → 霧の門の脇 (101, 65)
@@ -345,6 +604,46 @@ const PERIMETER: PerimeterParams = {
   areaMargin: 2.5,
   openPaths: SIDE_PATHS,
 };
+
+// --- 脇道 side_waterway: 地下水路・墓室・鉄格子・腐った床板（#111。仕様 14.1.3。組み立ては waterway.ts）---
+/** 水路の床 = C の床 - 落下 2.4m。出口の床 = D の通路の側面 (72, 47) の床の高さ。 */
+const WATERWAY = buildWaterway(C_FLOOR - 2.4, 5.9);
+/** 水路が通る所をくり抜いた地下墓所の岩盤（`d-mass-s` を置き換える）。 */
+const D_MASS_S = D_PROPS.find((p) => p.id === 'd-mass-s');
+const D_PROPS_CARVED: PropSpec[] = [
+  ...D_PROPS.filter((p) => p.id !== 'd-mass-s'),
+  ...(D_MASS_S?.kind === 'block' ? carveMass(D_MASS_S, WATERWAY.rects, WATERWAY.def.ceiling) : []),
+];
+const WATERWAY_PROPS: PropSpec[] = [
+  ...WATERWAY.props,
+  // 腐った床板（C 祭壇裏の北西 2m × 2m。床と同じ高さで穴を塞ぐ。割ると 2.4m 落ちる。敵は通らない）
+  {
+    kind: 'block',
+    id: HATCH.id,
+    style: 'hatch',
+    x: HATCH.x,
+    z: HATCH.z,
+    hx: HATCH.half,
+    hz: HATCH.half,
+    height: 0.3,
+    baseY: C_FLOOR - 0.3,
+    embed: 0,
+    navSolid: true,
+  },
+  // 錆びた鉄格子（水路の出口。開通前はコライダ）
+  {
+    kind: 'block',
+    id: GRATE.id,
+    style: 'grate',
+    x: GRATE.x,
+    z: GRATE.z,
+    hx: GRATE.halfWidth,
+    hz: GRATE.halfThickness,
+    height: 2.6,
+    baseY: 5.9,
+    embed: 0,
+  },
+];
 
 const props: PropSpec[] = [
   // --- A 篝火「灰の炉」 ---
@@ -395,7 +694,7 @@ const props: PropSpec[] = [
     hz: 0.08,
     height: 1.1,
   })),
-  // 霊廟（屋根の高さ 2.2m。脇道 side_roof）とその裏手の石段（1 段 0.314m × 7 段）
+  // 霊廟（屋根の高さ 2.2m。脇道 side_roof）とその裏手の石段（1 段 0.275m × 8 段。プレイヤーの実効の自動乗り越えは 0.29m 程度なので、仕様の 0.3m × 7 段から変更）
   {
     kind: 'block',
     id: 'mausoleum',
@@ -404,19 +703,21 @@ const props: PropSpec[] = [
     z: 16,
     hx: 2,
     hz: 2,
-    height: 2.2,
-    baseY: 2.78,
+    height: ROOF_H,
+    baseY: ROOF_BASE,
+    navSolid: true,
   },
   {
     kind: 'stairs',
     id: 'mausoleum-steps',
     x: 29,
-    z: 21.2,
+    z: 21.6,
     yawDeg: 180,
-    steps: 7,
-    stepRise: 2.2 / 7,
+    steps: 8,
+    stepRise: ROOF_H / 8,
     stepRun: 0.45,
     width: 1.2,
+    navSolid: true,
   },
 
   // --- C 崩れた礼拝堂（20m × 20m。入口は西の門・南の崩れ口・東の崩れ口の 3 か所） ---
@@ -489,7 +790,9 @@ const props: PropSpec[] = [
     hz: 3,
     height: 18,
   },
-  ...D_PROPS,
+  ...SIDE_PROPS,
+  ...D_PROPS_CARVED,
+  ...WATERWAY_PROPS,
   ...E_PROPS,
   ...LANE_PROPS,
   ...F_PROPS,
@@ -596,6 +899,9 @@ const interactables: InteractableSpawn[] = [
   { id: 'G1', kind: 'gate', area: null, x: 78, z: 32 },
   { id: 'lever-g1', kind: 'lever', area: null, x: 80, z: 36 },
   { id: 'fog-gate', kind: 'gate', area: 'E', x: 104, z: 68 },
+  // 脇道 side_waterway: 腐った床板（C）と水路の鉄格子（D の側面。内側から押して開く）
+  { id: 'hatch-waterway', kind: 'hatch', area: 'C', x: HATCH.x, z: HATCH.z },
+  { id: 'grate-waterway', kind: 'grate', area: 'D', x: GRATE.x, z: GRATE.z },
 ];
 
 const gates: GateDef[] = [
@@ -723,6 +1029,11 @@ export const ASHEN_FOUNDATION: LevelData = {
       { x: 8, z: -5, height: 0, halfWidth: 2.6 },
     ],
   ],
+  sidePaths: SIDE_PATH_DEFS,
+  guards: SIDE_GUARDS,
+  waterways: [WATERWAY.def],
+  terrainHoles: WATERWAY.holes,
+  zones: WATERWAY.zones,
   gates,
   bonfire: { x: 0, z: 0 },
   playerSpawn: { x: 0, z: -2.4, yaw: 1.0 },

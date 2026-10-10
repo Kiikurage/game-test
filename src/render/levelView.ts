@@ -22,6 +22,7 @@ import {
   type PlacedCylinder,
   type SurfaceKind,
 } from '../game/world/level';
+import { isArenaProp } from '../game/world/arena';
 import type { EnvironmentAssets } from './assets/environment';
 import { StaticBatcher } from './assets/environment';
 import { layoutEnvironment } from './environmentLayout';
@@ -44,9 +45,10 @@ const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
   stone: [0.2, 0.19, 0.17],
   wood: [0.2, 0.15, 0.1],
   underground: [0.1, 0.1, 0.11],
+  water: [0.06, 0.08, 0.1],
 };
 const PATH_COLOR: readonly [number, number, number] = [0.2, 0.155, 0.105];
-const ROCK_COLOR: readonly [number, number, number] = [0.12, 0.112, 0.105];
+const ROCK_COLOR: readonly [number, number, number] = [0.19, 0.18, 0.17];
 const MOSS_COLOR: readonly [number, number, number] = [0.085, 0.115, 0.05];
 const MUD_COLOR: readonly [number, number, number] = [0.085, 0.065, 0.048];
 const ASH_COLOR: readonly [number, number, number] = [0.12, 0.115, 0.11];
@@ -64,6 +66,9 @@ const BLOCK_COLOR: Record<BlockStyle, number> = {
   bonfire: 0x55504a,
   stone: 0x9a968c,
   sarcophagus: 0x7c776d,
+  waterway: 0x56595e,
+  hatch: 0x5a4430,
+  grate: 0x2f2d2b,
 };
 
 /** 地形メッシュ（物理と同じ頂点）。頂点色は地表素材・道・勾配から決める。 */
@@ -79,6 +84,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   const colors = new Float32Array(count * 3);
   const stone = new Float32Array(count);
   const pathAttr = new Float32Array(count);
+  const damp = new Float32Array(count);
   const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
   for (let i = 0; i < count; i++) {
     const x = vertices[i * 3] ?? 0;
@@ -87,6 +93,10 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
     const path = level.pathWeight(x, z);
     const stoneAmt = stoneAmount(level, x, z);
     stone[i] = stoneAmt;
+    // 崖の足元ほど湿る（足元は垂直に近く、d = 0.7m で高さ約 3.6m）
+    const openD = level.openDistance(x, z);
+    const dt = Math.min(1, Math.max(0, (openD - 0.05) / 0.65));
+    damp[i] = openD > 0 ? 1 - dt * dt * (3 - 2 * dt) : 0;
     pathAttr[i] = path * (1 - stoneAmt);
     // 低周波の色むら + 苔・泥の斑
     const broad = valueNoise(x * 0.09 + 4, z * 0.09 - 2);
@@ -94,7 +104,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
     const n = 0.8 + 0.4 * (0.6 * broad + 0.4 * patch);
     const mossAmt = Math.max(0, patch - 0.52) * 2.2 * (1 - path) * (1 - stoneAmt * 0.6);
     const mudAmt = Math.max(0, 0.42 - broad) * 1.6 * (1 - stoneAmt);
-    const steep = Math.min(1, Math.max(0, (0.9 - normals.getY(i)) / 0.2));
+    const steep = Math.min(1, Math.max(0, (0.93 - normals.getY(i)) / 0.19));
     // 篝火の周りは灰で白っぽく、石畳は縁ほど土・草に侵される
     const ashAmt = Math.max(0, 1 - Math.hypot(x, z) / 3.2) * 0.8;
     for (let c = 0; c < 3; c++) {
@@ -109,6 +119,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
   geometry.setAttribute('stone', new Float32BufferAttribute(stone, 1));
   geometry.setAttribute('path', new Float32BufferAttribute(pathAttr, 1));
+  geometry.setAttribute('damp', new Float32BufferAttribute(damp, 1));
   return geometry;
 }
 
@@ -223,12 +234,18 @@ export class LevelView {
     const materials = new Map<number, MeshStandardNodeMaterial>();
     for (const box of level.boxes) {
       if (isMasonryProp(box.id)) continue; // 地下墓所・中庭は masonry/crypt.view.ts が描く
+      // 闘技場の壁は `arena.view.ts` が石積みのメッシュで描く
+      if (isArenaProp(box.id)) continue;
+      // 腐った床板・鉄格子は割れる・開く。`waterway.view.ts` が別に描く
+      if (box.style === 'hatch' || box.style === 'grate') continue;
       const mesh = boxMesh(box, materials);
       this.grayboxById.set(box.id, mesh);
       this.root.add(mesh);
     }
     for (const cyl of level.cylinders) {
       if (isMasonryProp(cyl.id)) continue;
+      // 闘技場の柱・台座も同様
+      if (isArenaProp(cyl.id)) continue;
       const object = cylinderObject(cyl);
       this.grayboxById.set(cyl.id, object);
       this.root.add(object);

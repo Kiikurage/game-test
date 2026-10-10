@@ -36,9 +36,11 @@ src/game/anim/data/bossClips.json      マーカー表（`boss.<段 ID>.p1|p2`�
 | 三連撃 1・2 段 | `normal` | 発生 30 / 20F の素早い斬り。ガードして次を見る |
 | 三連撃 3 段（突き） | `heavy` | 突進つきでダメージ 100 以上・発生 36 / 30F |
 
-`unblockable` は今回の 3 技には無い（仕様でガード不能の技は無い）。武器の発光は雑魚と同じ仕組みで、ボスのモデル（#57）が入ってから `bossTelegraphOf` を描画側から引いてつなぐ。
+`unblockable` は今回の 3 技には無い（仕様でガード不能の技は無い）。武器の発光は雑魚と同じ仕組みで、`bossTelegraphOf` を描画側から引いてつないだ（#214。ボス用の色は [boss-clip-sync.md](boss-clip-sync.md)）。
 
-## マーカー表（`bossClips.json`、仮置き）
+## マーカー表（`bossClips.json`）
+
+実クリップとの照合・調整後の値は [boss-clip-sync.md](boss-clip-sync.md)（#214）。下表は #75 時点の仮置き。
 
 | 動作 | クリップ | 備考 |
 | --- | --- | --- |

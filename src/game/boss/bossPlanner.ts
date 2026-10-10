@@ -43,6 +43,8 @@ export class PlayerTracker {
   rollStreak = 0;
   healing = false;
   private rolling = false;
+  /** 直近の「ボスとプレイヤーの距離」（`retreatWindowFrames` F ぶん）。後退の検出に使う。 */
+  private readonly recentDistances: number[] = [];
   private sinceRollEnd = Number.POSITIVE_INFINITY;
 
   update(bossX: number, bossZ: number, bossYaw: number, player: BossPlayerInfo): void {
@@ -50,6 +52,10 @@ export class PlayerTracker {
     // 背後: ボスの向きと「ボス → プレイヤー」の向きの差が 180° ± 60° 以内
     const dx = player.x - bossX;
     const dz = player.z - bossZ;
+    this.recentDistances.push(Math.hypot(dx, dz));
+    if (this.recentDistances.length > BOSS_CORRECTION.retreatWindowFrames) {
+      this.recentDistances.shift();
+    }
     if (Math.hypot(dx, dz) > 1e-3) {
       const diff = Math.abs(angleDelta(bossYaw, yawOf(dx, dz)));
       const behind = diff >= Math.PI - BOSS_CORRECTION.behindHalfDeg * DEG;
@@ -75,6 +81,16 @@ export class PlayerTracker {
     this.healing = false;
     this.rolling = false;
     this.sinceRollEnd = Number.POSITIVE_INFINITY;
+    this.recentDistances.length = 0;
+  }
+
+  /** 近距離にいたプレイヤーに直近で離れられた（跳躍の重みを上げる。6.3 節 技 5）。 */
+  get retreated(): boolean {
+    const d = this.recentDistances;
+    if (d.length < 2) return false;
+    const min = Math.min(...d);
+    const now = d[d.length - 1] ?? min;
+    return min < BOSS_BANDS.closeBelow && now - min >= BOSS_CORRECTION.retreatDistance;
   }
 
   /** ロール連打の補正を使った（次の近距離技で消費する）。 */
@@ -104,6 +120,8 @@ export interface BossSelectionContext {
   readonly behind: boolean;
   /** ロールを 3 回連続で使った。 */
   readonly rollStreak: boolean;
+  /** 近距離にいたプレイヤーに後退された（跳躍の重みを上げる）。省略は false。 */
+  readonly retreated?: boolean;
 }
 
 /** 技 1 つの重みの内訳（デバッグ表示・テスト用）。 */
@@ -143,6 +161,7 @@ function atRepeatLimit(id: string, history: readonly string[]): boolean {
  * 1. 重み表（フェーズ × 距離帯）。未登録・フェーズ外の技、表が 0 の技は除く。
  * 2. 同じ技を 3 回連続で選ばない（重み 0）。直前と同じ技（2 連続目）は重み半分。
  * 3. 背後に 90F 以上: 回転斬り（P2）・薙ぎ払いを ×2。
+ * 3b. 近距離にいたプレイヤーに後退された: 跳躍の重みを `retreatLeapWeight` 以上にする。
  * 4. ロール 3 連続 + 近距離: 三連撃の確率を +20%（ほかの重みの合計に対して、確率がちょうど +0.2 になるよう決める）。
  */
 export function computeWeights(ctx: BossSelectionContext): BossWeights {
@@ -150,7 +169,11 @@ export function computeWeights(ctx: BossSelectionContext): BossWeights {
   const last = ctx.history[ctx.history.length - 1];
   const raw: (Omit<WeightEntry, 'probability' | 'weight'> & { weight: number })[] =
     BOSS_MOVE_IDS.map((id) => {
-      const base = table[id] ?? 0;
+      // 近距離で後退された時は跳躍を選べる（距離を詰める）。重み表が大きければそちら
+      const base =
+        id === 'leap' && ctx.retreated && ctx.band !== 'far'
+          ? Math.max(table[id] ?? 0, BOSS_CORRECTION.retreatLeapWeight)
+          : (table[id] ?? 0);
       const repeatFactor = last === id ? BOSS_AI.repeatWeightFactor : 1;
       const behindFactor =
         ctx.behind && (id === 'sweep' || (id === 'spin' && ctx.phase === 2))

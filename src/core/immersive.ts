@@ -5,6 +5,8 @@ export interface ImmersiveEnv {
   readonly fullscreenSupported: boolean;
   requestFullscreen(): Promise<void>;
   lockLandscape(): Promise<void>;
+  /** 失敗の通知（原因の切り分け用。エラー名を渡す）。 */
+  onFailure?(stage: 'fullscreen' | 'orientation', error: unknown): void;
 }
 
 export interface ImmersiveResult {
@@ -22,16 +24,18 @@ export async function enterImmersive(env: ImmersiveEnv): Promise<ImmersiveResult
     try {
       await env.requestFullscreen();
       fullscreen = true;
-    } catch {
+    } catch (e) {
       // iPhone Safari など要素のフルスクリーン非対応、または拒否された
+      env.onFailure?.('fullscreen', e);
     }
   }
   let orientationLocked = false;
   try {
     await env.lockLandscape();
     orientationLocked = true;
-  } catch {
+  } catch (e) {
     // 非対応・フルスクリーンでない・拒否
+    env.onFailure?.('orientation', e);
   }
   return { fullscreen, orientationLocked };
 }

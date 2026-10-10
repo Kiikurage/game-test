@@ -7,6 +7,7 @@ import {
 import { bossDebugOf } from '../../game/boss/bossDebug.system';
 import type { FrameRange } from '../../game/boss/dodgeSim';
 import { isDebugEnabled } from '../../ui/debugHud';
+import { createPlaybackControls, debugButton } from '../../ui/debugPlayback';
 import { registerViewPlugin } from '../viewPlugins';
 
 /**
@@ -14,8 +15,6 @@ import { registerViewPlugin } from '../viewPlugins';
  * （`?debug` なし・他のシーンでは何も作らない）。判定形状の可視化は `?debug` の判定表示（CombatDebugView）がそのまま出る。
  * 一時停止・フレーム送りは dev フック（`pause` / `advance`）、スローは `BossDebugTool.set('slow', ..)`。
  */
-
-const SLOW_STEPS = [1, 0.5, 0.25, 0.1] as const;
 
 const ranges = (list: readonly FrameRange[] | undefined): string =>
   !list || list.length === 0
@@ -64,15 +63,6 @@ export function formatBossToolInfo(info: BossToolInfo): string {
   }
   if (info.expectation) lines.push(`想定（6.3 節）: ${info.expectation}`);
   return lines.join('\n');
-}
-
-function button(label: string, onClick: () => void): HTMLButtonElement {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.textContent = label;
-  b.addEventListener('click', onClick);
-  Object.assign(b.style, { font: 'inherit', padding: '2px 6px', margin: '0 2px 2px 0' });
-  return b;
 }
 
 function labelled(text: string, control: HTMLElement): HTMLLabelElement {
@@ -160,35 +150,18 @@ function buildPanel(tool: BossDebugTool): {
     return input;
   };
 
-  const slow = document.createElement('select');
-  slow.className = 'boss-tool-slow';
-  for (const s of SLOW_STEPS)
-    slow.append(new Option(s === 1 ? '通常速度' : `スロー ×${s}`, String(s)));
-  slow.addEventListener('change', () => {
-    tool.set('slow', Number(slow.value));
+  const {
+    pause: pauseButton,
+    step: stepButton,
+    slow,
+  } = createPlaybackControls('boss-tool', (scale) => {
+    tool.set('slow', scale);
   });
-
-  let paused = false;
-  const pauseButton = button('一時停止', () => {
-    paused = !paused;
-    window.__game?.dev.pause(paused);
-    pauseButton.textContent = paused ? '再開' : '一時停止';
-  });
-  pauseButton.className = 'boss-tool-pause';
-  const stepButton = button('1F 送り', () => {
-    if (!paused) {
-      paused = true;
-      window.__game?.dev.pause(true);
-      pauseButton.textContent = '再開';
-    }
-    window.__game?.dev.advance(1);
-  });
-  stepButton.className = 'boss-tool-step';
-  const fireButton = button('発動', () => {
+  const fireButton = debugButton('発動', () => {
     tool.fire();
   });
   fireButton.className = 'boss-tool-fire';
-  const resetButton = button('リセット', () => {
+  const resetButton = debugButton('リセット', () => {
     tool.reset();
   });
   resetButton.className = 'boss-tool-reset';
