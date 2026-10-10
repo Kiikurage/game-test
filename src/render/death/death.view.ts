@@ -1,3 +1,4 @@
+import { HUD_FADE_FRAMES } from '../../game/hud/hudModel';
 import { DEATH } from '../../game/data/death';
 import { deathOf } from '../../game/death/death.system';
 import { registerViewPlugin } from '../viewPlugins';
@@ -28,9 +29,24 @@ registerViewPlugin('death', ({ game, view }) => {
   });
   (document.getElementById('app') ?? document.body).appendChild(text);
 
+  // 死亡中はタッチ操作 UI も HUD と同じ速さ（30F）でフェードアウトし、再開で戻す。
+  // opacity だけ変える（ポインタは受け付けたままなので、F90 以降のスキップ入力はそのまま効く）。
+  let touch: HTMLElement | null = null;
+  let touchOpacity = 1;
+  const fadePerSecond = 60 / HUD_FADE_FRAMES;
+
   let last = '';
   return {
-    update: () => {
+    update: (dt) => {
+      {
+        touch ??= document.querySelector<HTMLElement>('[data-testid=touch-controls]');
+        const target = death.active ? 0 : 1;
+        touchOpacity =
+          target < touchOpacity
+            ? Math.max(target, touchOpacity - fadePerSecond * dt)
+            : Math.min(target, touchOpacity + fadePerSecond * dt);
+        if (touch) touch.style.opacity = touchOpacity >= 1 ? '' : String(touchOpacity);
+      }
       const v = death.visual;
       const key = `${v.grade}|${v.fade}|${v.textAlpha}|${v.textScale}`;
       if (key === last) return;

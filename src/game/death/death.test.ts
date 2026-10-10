@@ -99,7 +99,7 @@ describe('death and respawn', () => {
     expect(game.player.feet.x).toBeCloseTo(0, 3);
     expect(game.player.feet.z).toBeCloseTo(-1.5, 3);
     expect(game.playerTarget.health.current).toBe(PLAYER_STATS.hp);
-    expect(game.camera.presentation).toEqual({ fovOffsetDeg: 0, armOffsetM: 0 });
+    expect(game.camera.presentation).toEqual({ fovOffsetDeg: 0, armOffsetM: 0, pivotDropM: 0 });
     expect(death.visual.grade).toBe(0);
     expect(
       events.filter((e) => e.name === 'rest').map((e) => (e.payload as { cause: string }).cause),

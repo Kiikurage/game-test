@@ -13,6 +13,8 @@ export const DEATH = {
   fovDeltaDeg: -4,
   /** カメラを引く距離（m）。 */
   cameraPullM: 0.8,
+  /** 注視点を下げる距離（m）。倒れた体が画面の中央からやや下に収まるようにする。 */
+  cameraPivotDropM: 0.9,
   /** F30–F120: 彩度 0% / 明度 -40% / 周辺減光へ（90F 補間）。 */
   gradeFrame: 30,
   gradeFrames: 90,

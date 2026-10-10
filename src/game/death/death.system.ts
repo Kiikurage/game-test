@@ -105,9 +105,10 @@ export class DeathController {
   }
 
   private applyCamera(): void {
-    const { fovOffsetDeg, armOffsetM } = this.timeline.visual;
+    const { fovOffsetDeg, armOffsetM, pivotDropM } = this.timeline.visual;
     this.game.camera.presentation.fovOffsetDeg = fovOffsetDeg;
     this.game.camera.presentation.armOffsetM = armOffsetM;
+    this.game.camera.presentation.pivotDropM = pivotDropM;
   }
 }
 

@@ -62,7 +62,7 @@ export class ThirdPersonCamera {
    * 演出による補正（死亡演出の FOV 縮小・カメラの引き。3.3 節）。基準の FOV・アーム長へ加える。
    * 書き込むのは演出（`death.system.ts`）だけで、通常は 0。
    */
-  readonly presentation = { fovOffsetDeg: 0, armOffsetM: 0 };
+  readonly presentation = { fovOffsetDeg: 0, armOffsetM: 0, pivotDropM: 0 };
 
   /** 向き（ラジアン）。ピッチは下向きが正。 */
   yaw = 0;
@@ -314,7 +314,11 @@ export class ThirdPersonCamera {
 
   private updatePivot(dt: number, playerPosition: Vector3, collision: CameraCollision): void {
     const cam = tuning.camera;
-    tmpRaw.set(playerPosition.x, playerPosition.y + cam.pivotHeight, playerPosition.z);
+    tmpRaw.set(
+      playerPosition.x,
+      playerPosition.y + cam.pivotHeight - this.presentation.pivotDropM,
+      playerPosition.z,
+    );
     const fh = smoothFactor(dt, cam.followTau);
     const fv = smoothFactor(dt, cam.followTauVertical);
     this.pivot.x += (tmpRaw.x - this.pivot.x) * fh;

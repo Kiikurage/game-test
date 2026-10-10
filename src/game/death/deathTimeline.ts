@@ -11,6 +11,8 @@ export interface DeathVisual {
   readonly fovOffsetDeg: number;
   /** カメラを引く距離（m）。 */
   readonly armOffsetM: number;
+  /** 注視点を下げる距離（m。倒れた体を画面内に収める）。 */
+  readonly pivotDropM: number;
   /** 「倒れた」テキストの不透明度と倍率。 */
   readonly textAlpha: number;
   readonly textScale: number;
@@ -21,6 +23,7 @@ const IDLE_VISUAL: DeathVisual = {
   fade: 0,
   fovOffsetDeg: 0,
   armOffsetM: 0,
+  pivotDropM: 0,
   textAlpha: 0,
   textScale: 1,
 };
@@ -123,6 +126,7 @@ export class DeathTimeline {
       fade,
       fovOffsetDeg: DEATH.fovDeltaDeg * camera + 0,
       armOffsetM: DEATH.cameraPullM * camera,
+      pivotDropM: DEATH.cameraPivotDropM * camera,
       textAlpha: clamp01((f - DEATH.textFrame) / DEATH.textFadeFrames) * (1 - fade),
       textScale:
         1 +
