@@ -28,7 +28,7 @@ const advance = (page: Page, steps: number) =>
     window.__game?.dev.advance(n);
   }, steps);
 
-test('boss HP bar appears on engage, drops on damage and the white ghost follows', async ({
+test('boss HP bar appears on engage, drops on damage and the ghost follows', async ({
   page,
 }) => {
   const errors = await boot(page);
@@ -85,12 +85,17 @@ test('boss HP bar flashes at the phase boundary and hides on defeat', async ({ p
   await page.evaluate(() => {
     window.__game?.dev.bossDamage(1200);
   });
-  let saw = false;
-  for (let i = 0; i < 40 && !saw; i++) {
-    await advance(page, 1);
-    saw = (await flash()) > 0.5;
+  // 移行は「いまの技が終わったところ」で始まる（技の最中は待つ）。`transition` になるまで 1 ステップずつ進める
+  for (let i = 0; i < 900; i++) {
+    const state = await page.evaluate(() => {
+      window.__game?.dev.advance(1);
+      return window.__game?.dev.bossDebug()?.state ?? null;
+    });
+    if (state === 'transition') break;
   }
-  expect(saw).toBe(true);
+  await advance(page, 3);
+  // シミュレーションは停止中なので、発光は描画フレームで DOM に反映されるまで保たれる
+  await expect.poll(flash).toBeGreaterThan(0.5);
   await advance(page, 30);
   await expect.poll(flash).toBe(0);
 
