@@ -30,8 +30,9 @@ export type SoundSelector = readonly string[] | ((entry: SoundManifestEntry) => 
 
 /** プリロードのグループ（仕様書 10.2 節: タイトル中に BGM・UI・環境音、フィールド進入前に敵・ボス SE）。 */
 export const PRELOAD_GROUPS = {
+  // 足音（`sfx.footstep-*`）は開始直後から鳴るので title で先読みする（未ロードの要求は見送られる）。
   title: (e: SoundManifestEntry): boolean =>
-    e.kind === 'bgm' || e.kind === 'ui' || e.kind === 'ambient',
+    e.kind === 'bgm' || e.kind === 'ui' || e.kind === 'ambient' || e.id.startsWith('sfx.footstep-'),
   field: (e: SoundManifestEntry): boolean =>
     e.kind === 'se' && (e.id.startsWith('sfx.enemy') || e.id.startsWith('sfx.boss')),
 } as const satisfies Record<string, (e: SoundManifestEntry) => boolean>;
