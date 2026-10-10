@@ -67,10 +67,27 @@ describe('boss move definitions', () => {
       id: 'combo3',
       stages: [
         { ...stage, heavy: false, startup: 30 },
-        { ...stage, id: 'c2', heavy: false, followUp: true, startup: 16 },
+        { ...stage, id: 'c2', heavy: false, followUp: true, startup: 15, trackEndFrame: 3 },
       ],
     };
-    expect(checkBossMove(combo).join('\n')).toMatch(/下限 20/);
+    expect(checkBossMove(combo).join('\n')).toMatch(/下限 16/);
+    // 仕様の三連撃 P2 の 2 段目（発生 16F）はボスの基準で許す
+    const ok: BossMoveDef = {
+      ...combo,
+      stages: [
+        { ...stage, heavy: false, startup: 30, trackEndFrame: 18, superArmor: undefined },
+        {
+          ...stage,
+          id: 'c2',
+          heavy: false,
+          followUp: true,
+          startup: 16,
+          trackEndFrame: 4,
+          superArmor: undefined,
+        },
+      ],
+    };
+    expect(checkBossMove(ok)).toEqual([]);
   });
 
   it('flags a follow-up flag on the first stage, a missing one on later stages, and bad armor windows', () => {

@@ -1,0 +1,295 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "boss.overhead.1.p1",
+      "clip": "Sword_Heavy_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 52
+      },
+      "clipHitFrame": 28,
+      "spec": {
+        "startup": 48,
+        "active": 8,
+        "recovery": 52
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 49
+        },
+        {
+          "type": "hitEnd",
+          "frame": 56
+        }
+      ]
+    },
+    {
+      "id": "boss.overhead.1.p2",
+      "clip": "Sword_Heavy_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 52
+      },
+      "clipHitFrame": 28,
+      "spec": {
+        "startup": 42,
+        "active": 8,
+        "recovery": 44
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 43
+        },
+        {
+          "type": "hitEnd",
+          "frame": 50
+        }
+      ]
+    },
+    {
+      "id": "boss.sweep.1.p1",
+      "clip": "Sword_Regular_B",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 16
+      },
+      "clipHitFrame": 8,
+      "tail": {
+        "clip": "Sword_Regular_B_Rec",
+        "startFrame": 0,
+        "endFrame": 31
+      },
+      "spec": {
+        "startup": 40,
+        "active": 10,
+        "recovery": 48
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 41
+        },
+        {
+          "type": "hitEnd",
+          "frame": 50
+        }
+      ]
+    },
+    {
+      "id": "boss.sweep.1.p2",
+      "clip": "Sword_Regular_B",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 16
+      },
+      "clipHitFrame": 8,
+      "tail": {
+        "clip": "Sword_Regular_B_Rec",
+        "startFrame": 0,
+        "endFrame": 31
+      },
+      "spec": {
+        "startup": 34,
+        "active": 10,
+        "recovery": 8
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 35
+        },
+        {
+          "type": "hitEnd",
+          "frame": 44
+        }
+      ]
+    },
+    {
+      "id": "boss.sweep.2.p2",
+      "clip": "Melee_Hook",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 14
+      },
+      "clipHitFrame": 7,
+      "tail": {
+        "clip": "Melee_Hook_Rec",
+        "startFrame": 0,
+        "endFrame": 17
+      },
+      "spec": {
+        "startup": 24,
+        "active": 10,
+        "recovery": 40
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 25
+        },
+        {
+          "type": "hitEnd",
+          "frame": 34
+        }
+      ]
+    },
+    {
+      "id": "boss.combo3.1.p1",
+      "clip": "Sword_Regular_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 22
+      },
+      "clipHitFrame": 15,
+      "spec": {
+        "startup": 30,
+        "active": 6,
+        "recovery": 8
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 31
+        },
+        {
+          "type": "hitEnd",
+          "frame": 36
+        }
+      ]
+    },
+    {
+      "id": "boss.combo3.1.p2",
+      "clip": "Sword_Regular_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 0,
+        "endFrame": 22
+      },
+      "clipHitFrame": 15,
+      "spec": {
+        "startup": 24,
+        "active": 6,
+        "recovery": 8
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 25
+        },
+        {
+          "type": "hitEnd",
+          "frame": 30
+        }
+      ]
+    },
+    {
+      "id": "boss.combo3.2.p1",
+      "clip": "Sword_Regular_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 22,
+        "endFrame": 39
+      },
+      "clipHitFrame": 32,
+      "spec": {
+        "startup": 20,
+        "active": 6,
+        "recovery": 8
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 21
+        },
+        {
+          "type": "hitEnd",
+          "frame": 26
+        }
+      ]
+    },
+    {
+      "id": "boss.combo3.2.p2",
+      "clip": "Sword_Regular_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 22,
+        "endFrame": 39
+      },
+      "clipHitFrame": 32,
+      "spec": {
+        "startup": 16,
+        "active": 6,
+        "recovery": 8
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 17
+        },
+        {
+          "type": "hitEnd",
+          "frame": 22
+        }
+      ]
+    },
+    {
+      "id": "boss.combo3.3.p1",
+      "clip": "Sword_Regular_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 39,
+        "endFrame": 89
+      },
+      "clipHitFrame": 57,
+      "spec": {
+        "startup": 36,
+        "active": 8,
+        "recovery": 56
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 37
+        },
+        {
+          "type": "hitEnd",
+          "frame": 44
+        }
+      ]
+    },
+    {
+      "id": "boss.combo3.3.p2",
+      "clip": "Sword_Regular_Combo",
+      "clipFps": 30,
+      "clipRange": {
+        "startFrame": 39,
+        "endFrame": 89
+      },
+      "clipHitFrame": 57,
+      "spec": {
+        "startup": 30,
+        "active": 8,
+        "recovery": 46
+      },
+      "markers": [
+        {
+          "type": "hitStart",
+          "frame": 31
+        },
+        {
+          "type": "hitEnd",
+          "frame": 38
+        }
+      ]
+    }
+  ]
+}
