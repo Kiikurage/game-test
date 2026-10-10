@@ -13,6 +13,7 @@ import {
   BUFFERED_ACTIONS,
   DODGE_HOLD_SECONDS,
   INPUT_BUFFER_SECONDS,
+  INPUT_BUFFER_SECONDS_BY_ACTION,
   LOOK_SENSITIVITY,
 } from './config';
 import { DodgeButton } from './dodgeButton';
@@ -51,7 +52,7 @@ export interface InputDebugState {
  */
 export class InputSystem implements InputReader {
   private readonly collector = new InputCollector();
-  private readonly buffer = new InputBuffer(INPUT_BUFFER_SECONDS);
+  private readonly buffer = new InputBuffer(INPUT_BUFFER_SECONDS, INPUT_BUFFER_SECONDS_BY_ACTION);
   private readonly dodge = new DodgeButton(DODGE_HOLD_SECONDS * 1000);
   private readonly keyboardMouse: KeyboardMouseInput;
   private readonly gamepad: GamepadInput;

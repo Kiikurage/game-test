@@ -33,4 +33,13 @@ describe('InputBuffer', () => {
     b.push('item', 0.1);
     expect(b.has('item', 0.2)).toBe(true);
   });
+
+  it('アクション別の保持時間を持てる（指定がなければ既定）', () => {
+    const b = new InputBuffer(0.15, { item: 0.05 });
+    b.push('item', 1.0);
+    b.push('dodge', 1.0);
+    expect(b.has('item', 1.04)).toBe(true);
+    expect(b.has('item', 1.06)).toBe(false);
+    expect(b.has('dodge', 1.14)).toBe(true);
+  });
 });
