@@ -439,12 +439,13 @@ function rasterBox(
   stepHeight: number,
 ): void {
   const top = box.y + box.hy;
-  const walkableTop = box.style === 'stairs';
+  // navSolid: 脇道の足場（岩棚・壁上・霊廟の石段）。低くても敵は上がれない固体にする
+  const walkableTop = box.style === 'stairs' && !box.navSolid;
   // 壁は半セルぶん広げて塗る（薄い柵がセルの中心の間をすり抜けないように）。階段は表面の高さだけなので広げない
   const grow = walkableTop ? 0 : space.cellSize / 2;
   forEachCellInRect(space, box.x, box.z, box.hx + grow, box.hz + grow, box.yawDeg ?? 0, (i) => {
     const g = ground[i] ?? 0;
-    if (!walkableTop && top - g > stepHeight) {
+    if (box.navSolid || (!walkableTop && top - g > stepHeight)) {
       solid[i] = 1;
     } else if (top > (height[i] ?? 0)) {
       height[i] = top;
