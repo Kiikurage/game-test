@@ -4,8 +4,10 @@ import {
   Mesh,
   MeshStandardNodeMaterial,
   PlaneGeometry,
+  type BufferGeometry,
   type Object3D,
 } from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { waterwayOf } from '../../game/world/waterway.system';
 import { registerViewPlugin } from '../viewPlugins';
 
@@ -29,16 +31,23 @@ registerViewPlugin('waterway', ({ game, view, level }) => {
     emissive: 0x0b2a3a,
     emissiveIntensity: 1.2,
   });
+  // ドローコールを増やさないよう、水面・鉄格子はそれぞれ 1 メッシュに結合する
+  const waterParts: BufferGeometry[] = [];
   for (const way of level.data.waterways ?? []) {
     for (const r of way.rects) {
       if (!r.water) continue;
-      const plane = new Mesh(new PlaneGeometry(r.maxX - r.minX, r.maxZ - r.minZ), waterMaterial);
-      plane.rotation.x = -Math.PI / 2;
-      plane.position.set((r.minX + r.maxX) / 2, r.floorY + way.depth, (r.minZ + r.maxZ) / 2);
-      plane.name = `water:${r.id}`;
-      plane.receiveShadow = true;
-      root.add(plane);
+      const plane = new PlaneGeometry(r.maxX - r.minX, r.maxZ - r.minZ);
+      plane.rotateX(-Math.PI / 2);
+      plane.translate((r.minX + r.maxX) / 2, r.floorY + way.depth, (r.minZ + r.maxZ) / 2);
+      waterParts.push(plane);
     }
+  }
+  const waterGeometry = waterParts.length > 0 ? mergeGeometries(waterParts) : null;
+  if (waterGeometry) {
+    const water = new Mesh(waterGeometry, waterMaterial);
+    water.name = 'water';
+    water.receiveShadow = true;
+    root.add(water);
   }
 
   const wood = new MeshStandardNodeMaterial({ color: 0x5a4430, roughness: 0.95, metalness: 0 });
@@ -47,47 +56,39 @@ registerViewPlugin('waterway', ({ game, view, level }) => {
   const hatchBox = level.boxes.find((b) => b.style === 'hatch');
   let hatch: Object3D | null = null;
   if (hatchBox) {
-    // 床板: 板を 4 枚並べた箱（隙間から水の反射が見える想定。隙間は E11-4）
-    const group = new Group();
-    const planks = 4;
-    const w = (hatchBox.hx * 2) / planks;
-    for (let i = 0; i < planks; i++) {
-      const plank = new Mesh(new BoxGeometry(w * 0.94, hatchBox.hy * 2, hatchBox.hz * 2), wood);
-      plank.position.x = -hatchBox.hx + w * (i + 0.5);
-      plank.castShadow = true;
-      plank.receiveShadow = true;
-      group.add(plank);
-    }
-    group.position.set(hatchBox.x, hatchBox.y, hatchBox.z);
-    group.rotation.y = (hatchBox.yawDeg ?? 0) * DEG;
-    root.add(group);
-    hatch = group;
+    // 床板（割れたら消える）。板の継ぎ目・隙間の見た目は E11-4
+    const mesh = new Mesh(new BoxGeometry(hatchBox.hx * 2, hatchBox.hy * 2, hatchBox.hz * 2), wood);
+    mesh.position.set(hatchBox.x, hatchBox.y, hatchBox.z);
+    mesh.rotation.y = (hatchBox.yawDeg ?? 0) * DEG;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+    hatch = mesh;
   }
 
   const grateBox = level.boxes.find((b) => b.style === 'grate');
   let grate: Object3D | null = null;
   if (grateBox) {
     // 鉄格子: 縦の鉄棒と上下の枠
-    const group = new Group();
+    const parts: BufferGeometry[] = [];
     const bars = 8;
     for (let i = 0; i < bars; i++) {
-      const bar = new Mesh(new BoxGeometry(0.06, grateBox.hy * 2, 0.06), iron);
-      bar.position.x = -grateBox.hx + 0.1 + ((grateBox.hx * 2 - 0.2) * i) / (bars - 1);
-      group.add(bar);
+      const bar = new BoxGeometry(0.06, grateBox.hy * 2, 0.06);
+      bar.translate(-grateBox.hx + 0.1 + ((grateBox.hx * 2 - 0.2) * i) / (bars - 1), 0, 0);
+      parts.push(bar);
     }
     for (const dy of [-1, 1]) {
-      const rail = new Mesh(new BoxGeometry(grateBox.hx * 2, 0.1, 0.1), iron);
-      rail.position.y = dy * (grateBox.hy - 0.05);
-      group.add(rail);
+      const rail = new BoxGeometry(grateBox.hx * 2, 0.1, 0.1);
+      rail.translate(0, dy * (grateBox.hy - 0.05), 0);
+      parts.push(rail);
     }
-    for (const m of group.children) {
-      m.castShadow = true;
-      m.receiveShadow = true;
-    }
-    group.position.set(grateBox.x, grateBox.y, grateBox.z);
-    group.rotation.y = (grateBox.yawDeg ?? 0) * DEG;
-    root.add(group);
-    grate = group;
+    const mesh = new Mesh(mergeGeometries(parts), iron);
+    mesh.position.set(grateBox.x, grateBox.y, grateBox.z);
+    mesh.rotation.y = (grateBox.yawDeg ?? 0) * DEG;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+    grate = mesh;
   }
 
   const state = waterwayOf(game);
