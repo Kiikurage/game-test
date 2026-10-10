@@ -57,6 +57,11 @@ export interface LodBuildOptions {
   readonly colorize?: PartColorizer;
   /** 結合に含める条件（既定: `mesh.visible`）。 */
   readonly include?: (mesh: SkinnedMesh) => boolean;
+  /**
+   * 簡略メッシュにも切り替え対象にも含めないメッシュ（常に詳細で描き、自分で影を落とす）。
+   * 姿勢が骨に固定されない / 体から外れうる物（ボスの両手持ちの斧・投げ捨てる盾）用。
+   */
+  readonly exclude?: (mesh: Mesh) => boolean;
 }
 
 export interface LodSettings {
@@ -311,6 +316,7 @@ export class CharacterLodBuilder {
     const all: Mesh[] = [];
     root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh !== true) return;
+      if (options.exclude?.(obj as Mesh)) return;
       all.push(obj as Mesh);
       if (
         (obj as { isSkinnedMesh?: boolean }).isSkinnedMesh === true &&
