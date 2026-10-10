@@ -36,8 +36,9 @@ export const CLIFF_BUCKET_SIZE = 48;
 
 const ROCK_CELL = 1.25;
 const GRASS_CELL = 0.85;
-/** 脇道の中心線から、この余白（半幅に足す）以内には置かない。 */
-const PATH_CLEARANCE = 2.6;
+/** 岩塊の山の半径（m。scale 1 あたり）と、脇道の足場から空ける余白（m）。 */
+const SIDE_PATH_ROCK_RADIUS = 0.9;
+const SIDE_PATH_MARGIN = 1.2;
 
 function hash2(ix: number, iz: number, salt: number): number {
   let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263) + Math.imul(salt, 2147483647);
@@ -50,19 +51,6 @@ function smoothstep(e0: number, e1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-function distanceToSegment(
-  x: number,
-  z: number,
-  a: readonly [number, number],
-  b: readonly [number, number],
-): number {
-  const dx = b[0] - a[0];
-  const dz = b[1] - a[1];
-  const len2 = dx * dx + dz * dz;
-  const t = len2 === 0 ? 0 : Math.min(1, Math.max(0, ((x - a[0]) * dx + (z - a[1]) * dz) / len2));
-  return Math.hypot(x - (a[0] + dx * t), z - (a[1] + dz * t));
-}
-
 /**
  * `density`（0..1）は品質プリセットの `cliffDetail`。low では岩塊と枯れ草を間引く
  * （間引きは位置ごとのハッシュで決まるので、density を上げると必ず上位集合になる）。
@@ -73,22 +61,15 @@ export function layoutCliff(level: Level, density: number): CliffPlacements {
   if (!level.data.perimeter || density <= 0) return { rocks, grass };
 
   const { bounds } = level.data;
-  const paths = level.data.perimeter.openPaths;
   const blockers = [
     ...level.boxes.map((b) => ({ x: b.x, z: b.z, r: Math.hypot(b.hx, b.hz) + 1.2 })),
     ...level.cylinders.map((c) => ({ x: c.x, z: c.z, r: c.radius + 1.2 })),
   ];
 
-  const blocked = (x: number, z: number): boolean => {
-    for (const path of paths) {
-      for (let i = 0; i + 1 < path.points.length; i++) {
-        const a = path.points[i];
-        const b = path.points[i + 1];
-        if (a && b && distanceToSegment(x, z, a, b) < path.halfWidth + PATH_CLEARANCE) return true;
-      }
-    }
-    return blockers.some((b) => Math.hypot(x - b.x, z - b.z) < b.r);
-  };
+  // 置く岩は、脇道（高所の足場。`Level.sidePathDistance`）から岩の半径 + 余白以上離す
+  const blocked = (x: number, z: number, size: number): boolean =>
+    level.sidePathDistance(x, z) < SIDE_PATH_ROCK_RADIUS * size + SIDE_PATH_MARGIN ||
+    blockers.some((b) => Math.hypot(x - b.x, z - b.z) < b.r);
   const bucketOf = (x: number, z: number): string =>
     `${Math.floor(x / CLIFF_BUCKET_SIZE)},${Math.floor(z / CLIFF_BUCKET_SIZE)}`;
 
@@ -113,7 +94,7 @@ export function layoutCliff(level: Level, density: number): CliffPlacements {
       // 間引き用のハッシュは chance と別に引く（density で上位集合を保つ）
       if (hash2(ix, iz, 5) > chance) continue;
       if (hash2(ix, iz, 6) > density) continue;
-      if (blocked(x, z)) continue;
+      if (blocked(x, z, size)) continue;
       // 足元は崖の高さではなく、手前（通行領域側）の地面の高さに据える
       const ground = foot
         ? Math.min(
@@ -149,8 +130,8 @@ export function layoutCliff(level: Level, density: number): CliffPlacements {
       const rim = 1 - smoothstep(0, 1, Math.abs(d - 3.2) / 2.8);
       if (hash2(ix, iz, 13) > 0.1 + 0.55 * cluster * rim) continue;
       if (hash2(ix, iz, 14) > density) continue;
-      if (blocked(x, z)) continue;
       const size = 1.1 + 1.3 * hash2(ix, iz, 15);
+      if (blocked(x, z, size)) continue;
       grass.push({
         x,
         y: level.heightAt(x, z) - 0.03,

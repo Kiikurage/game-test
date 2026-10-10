@@ -29,19 +29,16 @@ describe('layoutCliff', () => {
     }
   });
 
-  it('leaves the side paths open', () => {
-    for (const path of ASHEN_FOUNDATION.perimeter?.openPaths ?? []) {
-      for (const [px, pz] of path.points) {
-        const near = [...full.rocks, ...full.grass].filter(
-          (i) => Math.hypot(i.x - px, i.z - pz) < path.halfWidth + 1,
-        );
-        expect(near).toEqual([]);
-      }
+  it('keeps the side-path footprint (#110 ledge, mausoleum roof/stairs) clear of rocks and grass', () => {
+    // 脇道の足場の範囲（`Level.sidePathDistance`）から、岩の半径 + 余白以上離れている
+    expect(ASHEN_FOUNDATION.sidePaths?.length).toBeGreaterThan(0);
+    for (const item of [...full.rocks, ...full.grass]) {
+      expect(level.sidePathDistance(item.x, item.z)).toBeGreaterThan(0.9 * item.scale + 1);
     }
   });
 
-  it('keeps the side-path ledge (#110) and the mausoleum stairs clear', () => {
-    // 岩棚 (35,19)→(44,26)→(52,31) の中心線と、霊廟裏の石段 (28,20) 付近。幅 1.2m + 余裕
+  it('leaves the ledge centerline and the stairs behind the mausoleum clear', () => {
+    // 岩棚 (35,19)→(44,26)→(52,31) の中心線と、霊廟裏の石段 (28,20) 付近
     const line: [number, number][] = [];
     for (let t = 0; t <= 1; t += 0.05) {
       line.push([35 + 9 * t, 19 + 7 * t], [44 + 8 * t, 26 + 5 * t]);

@@ -6,6 +6,15 @@ export const AFTERIMAGE = {
   totalFrames: 60,
 } as const;
 
+/** 残像のタイミング（待ち・消えるまで）。 */
+export interface AfterimageTiming {
+  readonly delayFrames: number;
+  readonly totalFrames: number;
+}
+
+/** ボス HP バーの残像（仕様書 9.1 節: 遅延 60F。減少は 24F）。 */
+export const BOSS_AFTERIMAGE: AfterimageTiming = { delayFrames: 60, totalFrames: 84 };
+
 /**
  * HP バーの残像。固定ステップ（60Hz）ごとに `step(current)` を呼ぶ。
  *
@@ -21,7 +30,10 @@ export class Afterimage {
   private decayFrom: number;
   private decayStep = 0;
 
-  constructor(initial: number) {
+  constructor(
+    initial: number,
+    private readonly timing: AfterimageTiming = AFTERIMAGE,
+  ) {
     this.last = initial;
     this.ghost_ = initial;
     this.decayFrom = initial;
@@ -35,7 +47,7 @@ export class Afterimage {
   step(current: number): void {
     if (current < this.last) {
       this.ghost_ = Math.max(this.ghost_, this.last);
-      this.hold = AFTERIMAGE.delayFrames;
+      this.hold = this.timing.delayFrames;
       this.decayStep = 0;
     }
     this.last = current;
@@ -49,7 +61,7 @@ export class Afterimage {
       this.decayFrom = this.ghost_;
       return;
     }
-    const decayFrames = AFTERIMAGE.totalFrames - AFTERIMAGE.delayFrames;
+    const decayFrames = this.timing.totalFrames - this.timing.delayFrames;
     this.decayStep++;
     const t = Math.min(1, this.decayStep / decayFrames);
     this.ghost_ = this.decayFrom + (current - this.decayFrom) * t;

@@ -22,7 +22,7 @@ src/render/levelView.ts            Level から地形・静的物・篝火・マ
 
 - 敵の配置は `enemies`、アイテムは `items`、インタラクト対象は `interactables`（いずれもエリア内の座標。`validateLevel` がエリア内か検査）。敵は `Game` が `level.data.enemies` から生成する（[enemy-ai.md](enemy-ai.md)）。アイテムは現状、描画側が目印を置くだけ。
 - 壁や階段は `props` に足す（`block` / `stairs` / `cylinder`）。階段の 1 段は 0.35m 以下。
-- 脇道（14 章）: 霊廟（屋根 2.2m）と裏手の石段 7 段は `side_roof` 用に置いてある。ほかは未作成。
+- 脇道（14 章）: 高所の足場（霊廟の屋根・北崖の岩棚・北壁の上）は #110 で作成済み（下の「脇道の足場」）。`side_waterway`・`side_wall` は未作成。
 - `?scene=test` で従来のテストシーン。`window.__game.dev.freeCam([x,y,z], [tx,ty,tz])` で俯瞰撮影（`null` で戻す）。`dev.teleport` は地形の高さに合わせて置く。
 
 ## 環境メッシュ（#34）
@@ -52,5 +52,18 @@ A〜C と塔の見た目は `environment.glb`（`docs/assets.md` 7.11 節）。`
 ## 外周の崖の岩肌化（#190）
 
 - 岩マテリアル（`src/render/cliff/rockSurface.ts`、TSL）: ワールド座標ベースの地層（うねる層・層ごとの色味と張り出し）、層ごとにずれる節理（目地・ブロックの丸み）、縦の割れ目・雨だれ・粒。凹凸は高さ関数の画面空間微分から法線を作る（`bumpedNormal`）。地形マテリアル（`createGroundMaterial`）が斜面角（`normalWorld.y` 0.93..0.74）でブレンドし、岩塊メッシュも同じ関数を使う。層の境・ブロックの境で値が不連続になると微分が跳ねてギザギザが出るので、境でフェード・中間値へ寄せている。
-- 岩塊・枯れ草（`src/render/cliff/cliff.view.ts`、`cliffLayout.ts`、`cliffGeometry.ts`）: `Level.openDistance` の帯に InstancedMesh で配置。崖の足元（d = 0.3..0.9m。足元は垂直に近いので壁に半分埋まる）に岩塊の山、上端（d = 2.5..4.4m）に岩と枯れ草のシルエット。斜面の途中には置かない（浮いて見える）。通行領域の内側・脇道（`perimeter.openPaths` の半幅 + 2.6m）・壁や柱の近くには置かない（#110 の岩棚・霊廟裏の石段はこれで空く）。当たり判定・ナビは変更なし。
+- 岩塊・枯れ草（`src/render/cliff/cliff.view.ts`、`cliffLayout.ts`、`cliffGeometry.ts`）: `Level.openDistance` の帯に InstancedMesh で配置。崖の足元（d = 0.3..0.9m。足元は垂直に近いので壁に半分埋まる）に岩塊の山、上端（d = 2.5..4.4m）に岩と枯れ草のシルエット。斜面の途中には置かない（浮いて見える）。通行領域の内側・脇道の足場（`Level.sidePathDistance` が 岩の半径 + 1.2m 未満。#110 の岩棚・霊廟裏の石段）・壁や柱の近くには置かない。当たり判定・ナビは変更なし。
 - 負荷: 空間バケット（48m）ごとに岩 1 + 枯れ草 1 ドローコール。視錐台カリングに加え、岩 24m・枯れ草 22m より遠いバケットは描かない。影は落とさない。密度は `QualityPreset.cliffDetail`（low 0.3 / medium 0.5 / high 1。位置ごとのハッシュで間引くので上位集合）。`?cliff=0` で出さない（比較用）。
+
+## 脇道の足場（#110: `side_roof` / `side_ledge`）
+
+仕様 14.1.1 / 14.1.2。座標・寸法は初期値（グレーボックス）。すべてレベルデータ（`ashenFoundation.ts`）にあり、見た目（`levelView`）と当たり（`Game`）が同じデータを読む。
+
+- **屋根**: 霊廟 (27..31, 14..18) の上面は足元の石段の足元 + 2.2m（`ROOF_BASE`）。裏手の石段は 1 段 0.275m × 8 段（幅 1.2m）。プレイヤーの実効の自動乗り越えは 0.28m 程度（0.3m の段で止まることを実測）なので、仕様の 0.3m × 7 段から変えた。南縁 (29, 13.8) は B の巡回路の真上。
+- **岩棚**: 幅 1.2m。0.5m ごとの小さな段（`ledge-<区間>-<番号>`、style `stairs`）を積んで、地形（約 3.4m）から北壁の上（6.2m）まで一定勾配（約 10°、最大 20° 以内）で上る。中心線は `LEDGE_POINTS`: (35,19) → (33,22) → (33,25) → (35.5,27.5) → (38,29.8) → (39.6,32)。仕様の (44,26) は礼拝堂の内側なので、折れ曲がりを礼拝堂の西の外壁沿いへ取り直した。B の北の柵の欠け（32..34）を通る。
+- **壁上の回廊**: `wall-top`（x 40..54、z 31.5..33、幅 1.5m、床 6.2m = 礼拝堂の床 + 2.8m）。x 46..54 が仕様の回廊で、x 40..46 は岩棚の終端。鐘 (50,32)・護符 (52,32.5) は `sidePaths` の `spots`（置き場所の確保のみ）。落下ポイントは (47, 50, 53) の 3 か所で、着地点 (x, 30.8) は `spots` の `drop-w/m/e`。
+- **透明壁**（`LevelData.guards` → `Level.guardBoxes`。描画しない。`levelGameOptions` が `boxes` に含める）: 岩棚の両脇（曲がりの外側は 0.8m 延長）、回廊の北側全長、南側は落下ポイント 3 か所（幅 1.5m）以外、東端。落下ダメージはない（高さ ≦ 3m）。
+- **敵のナビ格子**: 足場の箱・石段に `navSolid: true`（`BlockProp` / `StairsProp`）を付けると、`NavGrid` は低くても固体として扱い、敵は屋根・岩棚・壁上・石段に入らない。壁上から礼拝堂内へ落ちた先（落下ポイントの着地点付近）は、通常の礼拝堂内のナビ格子とつながっている。
+- **足場の範囲（装飾の除外領域）**: `LevelData.sidePaths`（`SidePathDef`: `id` / 中心線 `points` + `halfWidth`（透明壁の外面まで）/ 矩形 `rects` / `spots`）。`Level.sidePathDistance(x, z, ids?)`（または `sidePathDistance(data, x, z, ids?)`）が範囲までの距離を返す（範囲内は 0）。外周の崖の岩塊（#190）など、足場を塞いではいけない配置は、この距離が 0 より十分大きい所にだけ置くこと。外周封鎖の通行領域（`SIDE_PATHS` の `side_ledge`）も同じ `LEDGE_POINTS` から作る。
+- 検証: `levelSidePath.test.ts`（寸法・勾配・段差・範囲、ナビ格子に含まれないこと、屋根・岩棚・壁上の走破・3 か所の落下・往復・縁から落ちないこと）と `e2e/sidePath.spec.ts`（入力注入で B → 屋根 → 岩棚 → 壁上 → 3 か所の落下）。
+- 撮影した俯瞰: `docs/images/side-path/`（`roof-south` / `roof-top` / `ledge` / `wall-top` / `overview`）。
