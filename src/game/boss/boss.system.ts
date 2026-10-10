@@ -27,6 +27,8 @@ export interface BossSpawnOptions {
   readonly engage?: boolean;
   /** アリーナの円。省略時は制限なし。 */
   readonly arena?: { readonly x: number; readonly z: number; readonly radius: number };
+  /** 柱（円）。攻撃は柱を貫通し、触れると `bossPillarHit` を発行する（破片の演出用）。 */
+  readonly pillars?: readonly { readonly x: number; readonly z: number; readonly radius: number }[];
 }
 
 /**
@@ -37,7 +39,30 @@ export class BossSystem {
   boss: Boss | null = null;
   private heart: UprightTarget | null = null;
 
-  constructor(private readonly game: Game) {}
+  constructor(private readonly game: Game) {
+    // プレイヤーの死亡（演出の開始）・篝火の休憩でボスを戻す（撃破済みのボスは戻さない）
+    game.events.on('death', (e) => {
+      if (e.phase === 'start') this.reset('death');
+    });
+    game.events.on('rest', (e) => {
+      this.reset(e.cause === 'rest' ? 'rest' : 'death');
+    });
+  }
+
+  /**
+   * ボスを HP 満タン・フェーズ 1・待機位置へ戻す（`engage()` するまで動かない。E5-8a が使う）。撃破済み（`dead`）なら何もしない。
+   * 交戦中だったら `bossReset` を発行する。
+   */
+  reset(cause: 'death' | 'rest' = 'death'): void {
+    const { boss, heart, game } = this;
+    if (!boss || !heart || !boss.alive) return;
+    boss.reset(cause);
+    heart.health.refill();
+    heart.invulnerable = false;
+    heart.staggered = false;
+    game.reactors.get(BOSS_ID)?.reset();
+    heart.place(boss.position.x, boss.position.y, boss.position.z, boss.yaw);
+  }
 
   spawn(options: BossSpawnOptions): Boss {
     this.remove();
@@ -56,7 +81,9 @@ export class BossSystem {
         moves,
         random: seededRandom(options.seed ?? 'boss'),
         poise: reactor.poise,
+        events: game.events,
         ...(options.arena && { arena: options.arena }),
+        ...(options.pillars && { pillars: options.pillars }),
       },
     );
     const heart = new UprightTarget(BOSS_ID, 'enemy', boss.maxHp, [
@@ -85,7 +112,7 @@ export class BossSystem {
     game.bossIds.delete(BOSS_ID);
     const i = game.lockOnTargets.indexOf(boss);
     if (i >= 0) game.lockOnTargets.splice(i, 1);
-    boss.kill();
+    boss.dispose();
     this.boss = null;
     this.heart = null;
   }
@@ -105,13 +132,14 @@ export class BossSystem {
       player.feet.y,
     );
     heart.place(boss.position.x, boss.position.y, boss.position.z, boss.yaw);
-    boss.hp = heart.health.current;
+    heart.invulnerable = boss.invulnerable;
+    boss.setHp(heart.health.current);
   }
 
   onHit(e: HitEvent): void {
     const { boss, heart, game } = this;
     if (!boss || !heart || e.targetId !== BOSS_ID) return;
-    boss.hp = heart.health.current;
+    boss.setHp(heart.health.current);
     if (heart.health.dead) {
       boss.kill();
       return;

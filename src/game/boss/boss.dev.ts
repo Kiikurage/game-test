@@ -17,7 +17,7 @@ declare module '../../devHooks' {
     bossRemove(): void;
     /** ボスの状態（距離帯・選択重み・直前の技など）。いなければ null。 */
     bossDebug(): BossDebugInfo | null;
-    /** ボスのフェーズを切り替える（確認用。移行演出は E5-7）。 */
+    /** ボスのフェーズを切り替える（確認用。移行の演出なしで即時。崩しは 1 回使えるように戻る）。 */
     bossPhase(phase: BossPhase): void;
   }
 }
@@ -34,7 +34,13 @@ registerDevHooks('boss', ({ game }) => {
     });
   };
   // `?boss` で起動すると、開始時にボスを出す（`?scene=test&boss` がボスの確認シーン）
-  if (new URLSearchParams(location.search).has('boss')) spawn();
+  if (new URLSearchParams(location.search).has('boss')) {
+    spawn();
+    // プレイヤーの死亡でボスは待機へ戻る（`BossSystem`）。確認シーンは入場演出がないので、復活の時点で再び交戦させる
+    game.events.on('death', (e) => {
+      if (e.phase === 'respawn') bossSystemOf(game).boss?.engage();
+    });
+  }
   return {
     bossSpawn: spawn,
     bossRemove: () => {
