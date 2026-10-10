@@ -9,9 +9,10 @@
 // - リスポーン（死亡処理 #64 が呼ぶ）: `bonfiresOf(game).respawn()`。篝火から 1.5m 南で、篝火の方を向いて座った状態から
 //   立ち上がる（2s・移動不可・被弾しない）。休憩と同じ効果を適用する。
 import type { Game } from '../game';
-import { BONFIRE } from '../data/bonfire';
+import { ARENA_BONFIRE_ID, ARENA_BOSS_ID, BONFIRE } from '../data/bonfire';
 import { yawOf } from '../player/movement';
 import { interactionOf } from '../interaction/interaction';
+import type { InteractableSpawn } from '../world/level';
 
 export interface RespawnPoint {
   readonly x: number;
@@ -36,29 +37,46 @@ export class BonfireController {
   private igniting: string | null = null;
 
   constructor(private readonly game: Game) {
-    const interaction = interactionOf(game);
     const saved = new Set(game.save.get().bonfires);
     for (const spawn of game.interactableSpawns) {
       if (spawn.kind !== 'bonfire') continue;
-      const entry: BonfireEntry = {
-        id: spawn.id,
-        x: spawn.x,
-        z: spawn.z,
-        lit: saved.has(spawn.id),
-      };
-      this.entries.set(entry.id, entry);
-      interaction.register({
-        id: entry.id,
-        kind: 'bonfire',
-        x: entry.x,
-        z: entry.z,
-        radius: BONFIRE.radiusM,
-        label: () => (game.player.resting ? '立ち上がる' : entry.lit ? '休む' : '火を灯す'),
-        interact: () => {
-          this.interact(entry);
-        },
-      });
+      // 闘技場の台座の篝火はボスを撃破するまで存在しない（撃破済みのセーブなら最初から灯っている）
+      if (spawn.id === ARENA_BONFIRE_ID && !game.save.get().bosses.includes(ARENA_BOSS_ID))
+        continue;
+      this.register(spawn, saved.has(spawn.id) || spawn.id === ARENA_BONFIRE_ID);
     }
+  }
+
+  private register(spawn: InteractableSpawn, lit: boolean, available?: () => boolean): void {
+    const { game } = this;
+    const entry: BonfireEntry = { id: spawn.id, x: spawn.x, z: spawn.z, lit };
+    this.entries.set(entry.id, entry);
+    interactionOf(game).register({
+      id: entry.id,
+      kind: 'bonfire',
+      x: entry.x,
+      z: entry.z,
+      radius: BONFIRE.radiusM,
+      ...(available && { available }),
+      label: () => (game.player.resting ? '立ち上がる' : entry.lit ? '休む' : '火を灯す'),
+      interact: () => {
+        this.interact(entry);
+      },
+    });
+  }
+
+  /**
+   * 闘技場の台座の篝火を出して灯す（ボス撃破の F300。`bossDefeat.system.ts` が呼ぶ）。点火済みとしてセーブする
+   * （初回点火の動作・バナーはなし）。`available` が false の間は「休む」を出さない（操作可能になる F360 まで）。
+   * レベルに配置がなければ false。すでに出ていれば何もしない（true）。
+   */
+  revealArenaBonfire(available?: () => boolean): boolean {
+    if (this.entries.has(ARENA_BONFIRE_ID)) return true;
+    const spawn = this.game.interactableSpawns.find((s) => s.id === ARENA_BONFIRE_ID);
+    if (!spawn) return false;
+    this.register(spawn, true, available);
+    this.game.save.igniteBonfire(ARENA_BONFIRE_ID);
+    return true;
   }
 
   /** 篝火の ID 一覧。 */

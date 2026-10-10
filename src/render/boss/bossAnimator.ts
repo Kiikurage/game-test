@@ -17,7 +17,10 @@ import { BOSS_LOCOMOTION, toModelSpeed } from './bossGait';
 export const BOSS_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
   actionEntry: (id) => findBossClipEvents(id),
   profile: BOSS_LOCOMOTION,
-  states: {},
+  states: {
+    // 撃破（#86）: 膝をつき崩れ落ちる。再生位置は `BossDefeatFx.animState` が撃破 F から決める
+    dead: { clip: 'Death01', fallbackFrames: 60, fadeIn: 0.12, fadeOut: 0.1 },
+  },
   combatIdle: 'Sword_Idle',
   // 巨体は動きの切り替わりが緩やか
   fade: { locomotion: 0.25 },

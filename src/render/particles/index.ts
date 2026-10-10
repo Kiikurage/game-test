@@ -34,6 +34,8 @@ export class Bonfire {
   private lit = 0;
   private target = 1;
   readonly position = { x: 0, y: 0, z: 0 };
+  /** 光の強さへの倍率（点火の閃光など。既定 1）。 */
+  boost = 1;
 
   constructor(root: Group, q: ParticleQuality, time: TimeUniform, index: number) {
     this.flames = new ContinuousLayer(bonfireFlameSpec(q.bonfireFlames, 5100 + index), time);
@@ -76,6 +78,7 @@ export class Bonfire {
   reset(): void {
     this.lit = 0;
     this.target = 1;
+    this.boost = 1;
   }
 
   /** @internal */
@@ -92,7 +95,7 @@ export class Bonfire {
         0.1 * Math.sin(t * 9.3) +
         0.06 * Math.sin(t * 17.1 + 1.3) +
         0.04 * Math.sin(t * 31.7 + 2.1);
-      this.light.intensity = 38 * this.lit * f;
+      this.light.intensity = 38 * this.lit * f * this.boost;
     }
   }
 }

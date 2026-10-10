@@ -899,6 +899,8 @@ const interactables: InteractableSpawn[] = [
   { id: 'G1', kind: 'gate', area: null, x: 78, z: 32 },
   { id: 'lever-g1', kind: 'lever', area: null, x: 80, z: 36 },
   { id: 'fog-gate', kind: 'gate', area: 'E', x: 104, z: 68 },
+  // 闘技場の台座の篝火: ボスを撃破するまで登録されない（`BonfireController`。8.4 節）
+  { id: 'bonfire-arena', kind: 'bonfire', area: 'F', x: F_CENTER.x, z: F_CENTER.z },
   // 脇道 side_waterway: 腐った床板（C）と水路の鉄格子（D の側面。内側から押して開く）
   { id: 'hatch-waterway', kind: 'hatch', area: 'C', x: HATCH.x, z: HATCH.z },
   { id: 'grate-waterway', kind: 'grate', area: 'D', x: GRATE.x, z: GRATE.z },
