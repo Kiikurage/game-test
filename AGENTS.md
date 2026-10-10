@@ -129,14 +129,18 @@ Node.js 22.12 以上。初回は `npm ci`。
   Vulkan 指定が無いとキャンバスのスワップチェーンが作れず GPU デバイスがロストする）。
   ローカルのブラウザは `CHROMIUM_PATH` で上書きできる（未指定なら `/opt/pw-browsers/chromium-1194` があればそれを使う）。
   `playwright install` はローカルでは実行しない（CI のみ）。
-- ローカルの Chromium 141 は three r186 の `GPUTextureViewDescriptor.swizzle` を受け付けないため、
-  E2E / shot では `scripts/webgpuCompat.mjs` の互換シムを注入している（最新の Chrome では不要）。
+- 一部の Chrome は three r186 の `GPUTextureViewDescriptor.swizzle` を受け付けないため、本番コード
+  （`src/core/webgpuCompat.ts`、`boot.ts` が起動時に導入）で恒等 swizzle を除去している。E2E / shot に専用のシムは無い。
+- 起動は `src/boot.ts`（軽量エントリ）→ `src/main.ts`（動的 import。three / rapier を含む）。E2E は開始画面を経由するので
+  `e2e/helpers.ts` の `startGame(page)` で開始する（`#app[data-state]`: loading → ready → running ⇄ paused）。
+  `npm run shot` は既定で開始後を撮る。`SHOT_STATE=ready|loading` で開始画面・ローディング画面を撮れる。
 
 ## 9. ソース構成と依存方向
 
 ```
 src/
-  main.ts        起動・各層の組み立て（ここだけが全層を知る）
+  boot.ts        エントリ。WebGPU 判定・ローディング・開始画面・全画面/一時停止（初期バンドルは軽量に保つ）
+  main.ts        各層の組み立て（ここだけが全層を知る）。boot.ts から動的 import される
   core/          純粋なロジック（DOM/three 非依存）: 固定ステップ、メインループ、WebGPU 判定、補間用 Transform、永続化（`core/persistence`: セーブ・設定。ストレージは `KeyValueStorage` を注入）
   game/          シミュレーション（Rapier 物理含む）。描画・DOM に依存しない
   render/        three/webgpu による描画。game の状態を読み取って描くだけ

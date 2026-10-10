@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame } from './helpers';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -15,10 +11,11 @@ function collectErrors(page: Page): string[] {
 }
 
 test('renders with the WebGPU backend and no console errors', async ({ page }) => {
+  test.setTimeout(120_000); // ソフトウェア描画ではフレームが遅いので長めにとる
   const errors = collectErrors(page);
-  await page.goto('./');
+  await page.goto('./?quality=low&scale=0.25&env=0');
 
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await startGame(page);
   await expect(page.locator('#app canvas')).toBeVisible();
 
   const backend = await page.evaluate(() => window.__game?.backend);
@@ -27,7 +24,7 @@ test('renders with the WebGPU backend and no console errors', async ({ page }) =
   // メインループが回り、固定ステップのシミュレーションが進んでいる
   await expect
     .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(5);
+    .toBeGreaterThan(2);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
     .toBeGreaterThan(5);
@@ -35,7 +32,7 @@ test('renders with the WebGPU backend and no console errors', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test('creates an AudioContext that stays suspended until the first user gesture', async ({
+test('creates an AudioContext that stays suspended until the start screen is tapped', async ({
   page,
 }) => {
   const errors = collectErrors(page);
@@ -61,7 +58,8 @@ test('creates an AudioContext that stays suspended until the first user gesture'
     };
   });
   await page.goto('./');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  // 開始画面（ready）の間は、AudioContext はユーザー操作がないので suspended のまま
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
   // 失敗時に原因が分かるよう、例外も文字列として返す
   const readAudioState = (): Promise<string> =>
@@ -81,7 +79,8 @@ test('creates an AudioContext that stays suspended until the first user gesture'
   await page.waitForTimeout(500);
   expect(await readAudioState()).toBe('suspended');
 
-  await page.mouse.click(200, 200);
+  // 開始画面のタップ（ユーザー操作）で resume される
+  await page.getByTestId('start-screen').click();
   await expect.poll(readAudioState).toBe('running');
   expect(errors).toEqual([]);
 });

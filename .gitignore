@@ -9,3 +9,4 @@ assets-src/quaternius/
 assets-src/.fetch-*/
 __pycache__/
 *.pyc
+.claude/worktrees/
