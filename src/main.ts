@@ -1,9 +1,9 @@
-import './style.css';
 import { Vector3 } from 'three/webgpu';
 import { MainLoop } from './core/mainLoop';
-import { checkWebGPUSupport } from './core/webgpuSupport';
+import type { ProgressTracker } from './core/progress';
 import { createBrowserAudioEngine, createSfxSystem, installAudioUnlock } from './audio';
 import { Game, type GameDebugState } from './game/game';
+import { preloadPhysics } from './game/physics';
 import { InputSystem, type InputDebugState } from './input';
 import { createRenderer } from './render/renderer';
 import { GameView } from './render/gameView';
@@ -20,7 +20,6 @@ import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
 import { EnvironmentAssets } from './render/assets/environment';
 import { createLevel, levelGameOptions } from './game/world/level';
 import { terrainHeight } from './render/terrain';
-import { mountOrientationHint, showUnsupportedScreen } from './ui/overlays';
 
 /** E2E / デバッグ用に公開する読み取り専用の状態。 */
 interface DebugState {
@@ -85,19 +84,34 @@ declare global {
   }
 }
 
-async function bootstrap(): Promise<void> {
-  const root = document.getElementById('app');
-  if (!root) throw new Error('#app not found');
+/** 起動フロー（boot.ts）から見たゲーム本体の操作口。 */
+export interface GameApp {
+  /** メインループを開始する（開始画面のタップ後に一度だけ）。 */
+  start(): void;
+  setPaused(paused: boolean): void;
+  /** AudioContext を resume する（ユーザー操作のハンドラ内で呼ぶ）。 */
+  resumeAudio(): void;
+  requestPointerLock(): void;
+}
 
-  const support = await checkWebGPUSupport();
-  if (!support.ok) {
-    showUnsupportedScreen(root, support.reason);
-    return;
-  }
-
+/**
+ * ゲーム本体を組み立てる（レンダラー・物理・アセットのロード）。ループは `start()` まで回さない。
+ * boot.ts から動的 import される（three / rapier を初期バンドルに含めないため）。
+ * WebGPU の対応判定は呼び出し側で済んでいる前提。失敗時は例外を投げる。
+ */
+export async function createGameApp(
+  root: HTMLElement,
+  progress: ProgressTracker,
+): Promise<GameApp> {
   try {
+    preloadPhysics();
+    const rendererTask = progress.task('renderer');
+    const physicsTask = progress.task('physics');
+    const sceneTask = progress.task('scene');
+    const assetsTask = progress.task('assets');
     const quality = selectQuality(location.search, readDeviceHints());
     const gameRenderer = await createRenderer(root, quality);
+    rendererTask.done();
     const input = new InputSystem(root);
     // 既定はレベル「灰の礎」。`?scene=test` で従来のテストシーン（雰囲気確認用）
     const level =
@@ -112,6 +126,7 @@ async function bootstrap(): Promise<void> {
       // `?enemies=0`: 敵を配置しない（敵に邪魔されない移動の E2E・地形の確認用）
       ...(new URLSearchParams(location.search).get('enemies') === '0' && { enemies: [] }),
     });
+    physicsTask.done();
     const view = new GameView(game, gameRenderer, level ?? undefined);
     game.addStaticCylinders(level ? level.cylinders : view.colliders);
     // ?env=0: 環境メッシュを置かない（グレーボックスのまま。負荷比較用）
@@ -125,6 +140,7 @@ async function bootstrap(): Promise<void> {
           console.error('environment assets failed to load', e);
         });
     }
+    sceneTask.done();
 
     let showcase: CharacterShowcase | undefined;
     let playerView: PlayerView | undefined;
@@ -154,12 +170,12 @@ async function bootstrap(): Promise<void> {
         }
       }
     }
+    assetsTask.done();
 
     new ResizeObserver(() => {
       view.resize();
     }).observe(root);
 
-    mountOrientationHint();
     if (isDebugEnabled(location.search)) {
       mountDebugHud(gameRenderer.stats, {
         quality: quality.preset.level,
@@ -181,7 +197,8 @@ async function bootstrap(): Promise<void> {
       });
     void sfx?.preloadGroup('title'); // 暫定: タイトル画面ができたらそこで呼ぶ（field は敵・ボス SE 用）
 
-    let paused = false;
+    // 開始画面のタップまでシミュレーションは進めない（boot.ts が setPaused(false) → start() する）
+    let paused = true;
     const loop = new MainLoop(
       {
         update: (dt) => {
@@ -197,7 +214,6 @@ async function bootstrap(): Promise<void> {
       },
       { timeScale: () => game.timeScale.current },
     );
-    loop.start();
 
     window.__game = {
       backend: 'webgpu',
@@ -282,12 +298,26 @@ async function bootstrap(): Promise<void> {
         return playerView?.state;
       },
     };
-    root.dataset.state = 'running';
+
+    return {
+      start: () => {
+        loop.start();
+      },
+      setPaused: (p) => {
+        paused = p;
+        audio?.setPaused(p);
+      },
+      resumeAudio: () => {
+        if (audio && audio.state !== 'running') void audio.resume();
+      },
+      requestPointerLock: () => {
+        input.requestPointerLock();
+      },
+    };
   } catch (e) {
     console.error(e);
-    // アダプタ取得後でもデバイス生成・バックエンド検証に失敗しうる。WebGL へは落とさない。
-    showUnsupportedScreen(root, e instanceof Error ? e.message : String(e));
+    // 呼び出し側（boot.ts）が、アダプタ取得後のデバイス生成・バックエンド検証の失敗を非対応画面にする。
+    // WebGL へは落とさない。
+    throw e;
   }
 }
-
-void bootstrap();

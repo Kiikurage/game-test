@@ -1,19 +1,30 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
+import { startGame, tapKey } from './helpers';
 
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+test.describe.configure({ timeout: 120_000 });
 
-/** ソフトウェア描画でもシミュレーションが回るよう、最小品質・低解像度で起動する。足場・ダミーのあるテストシーン（?scene=test）で試す。 */
+/** ソフトウェア描画では描画が極端に遅いので、最小品質・低解像度で起動し、draw は省く（`?nodraw`。描画の検証は他の spec）。足場・ダミーのあるテストシーン（?scene=test）で試す。 */
 async function boot(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const log: unknown[] = [];
+    (window as unknown as { __keys: unknown[] }).__keys = log;
+    for (const type of ['keydown', 'keyup'])
+      window.addEventListener(
+        type,
+        (e) => {
+          const k = e as KeyboardEvent;
+          log.push([type, k.code, Math.round(k.timeStamp), Math.round(performance.now())]);
+        },
+        true,
+      );
+  });
   const errors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=test&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await page.goto('./?scene=test&quality=low&scale=0.25&nodraw');
+  await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
     .toBeGreaterThan(30);
@@ -22,12 +33,51 @@ async function boot(page: Page): Promise<void> {
   expect(errors).toEqual([]);
 }
 
+// 失敗時の調査用: 入力・シミュレーション・フォーカスの状態を出す
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  const state = await page
+    .evaluate(() => ({
+      focus: document.hasFocus(),
+      hidden: document.hidden,
+      lock: document.pointerLockElement !== null,
+      state: document.getElementById('app')?.dataset.state,
+      steps: window.__game?.steps,
+      frames: window.__game?.frames,
+      input: window.__game?.input,
+      player: window.__game?.sim.player,
+      camera: window.__game?.sim.camera.yaw,
+      keys: (window as unknown as { __keys?: unknown }).__keys,
+    }))
+    .catch((e: unknown) => String(e));
+  console.log(`[diag] ${info.title}: ${JSON.stringify(state)}`);
+});
+
 const sim = (page: Page) =>
   page.evaluate(() => {
     const s = window.__game?.sim;
     if (!s) throw new Error('sim state unavailable');
     return s;
   });
+
+/**
+ * キーを押し、入力システムがそのアクションの押下を受け付けるまで待つ。ソフトウェア描画では 1 フレームが非常に長く、
+ * キーイベントの処理がフレームに遅れることがあるため、受け付けられなければ押し直す（カウント済みなら二重に押さない）。
+ */
+async function pressAccepted(page: Page, code: string, action: 'dodge' | 'lockOn'): Promise<void> {
+  const count = () => page.evaluate((a) => window.__game?.input.pressCounts[a] ?? 0, action);
+  const before = await count();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await tapKey(page, code);
+    try {
+      await expect.poll(count, { timeout: 15_000 }).toBeGreaterThan(before);
+      return;
+    } catch {
+      // 押し直す
+    }
+  }
+  throw new Error(`${code} was never accepted as ${action}`);
+}
 
 const teleport = (page: Page, x: number, z: number, yaw: number) =>
   page.evaluate(
@@ -81,7 +131,7 @@ test('a short Space press rolls toward the stick direction and costs stamina', a
   const start = (await sim(page)).player;
 
   await page.keyboard.down('KeyD');
-  await page.keyboard.press('Space'); // 短押し = 離した時点でロール確定
+  await tapKey(page, 'Space'); // 短押し = 離した時点でロール確定
   await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
   expect((await sim(page)).player.stamina).toBeLessThan(start.stamina - 10);
 
@@ -99,7 +149,7 @@ test('a roll plays the Roll clip and fires the invulnerability and footstep mark
 }) => {
   await boot(page);
   await page.keyboard.down('KeyD');
-  await page.keyboard.press('Space');
+  await tapKey(page, 'Space');
   await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
   await expect
     .poll(async () => (await sim(page)).markers.invulnStart, { timeout: 30_000 })
@@ -115,7 +165,7 @@ test('a roll plays the Roll clip and fires the invulnerability and footstep mark
 
 test('Space without a direction does a backstep, and holding Space sprints', async ({ page }) => {
   await boot(page);
-  await page.keyboard.press('Space');
+  await pressAccepted(page, 'Space', 'dodge');
   await expect.poll(async () => (await sim(page)).events.backstepStart).toBe(1);
   await expect.poll(async () => (await sim(page)).player.state).toBe('idle');
 
@@ -134,7 +184,7 @@ test('lock-on: Q locks the nearest dummy, strafing keeps facing it, arrows switc
   page,
 }) => {
   await boot(page);
-  await page.keyboard.press('KeyQ');
+  await pressAccepted(page, 'KeyQ', 'lockOn');
   await expect.poll(async () => (await sim(page)).lockOn.targetId).toBe('dummy-a');
 
   // 右へストレイフ。対象を向いたまま、約 3.8 m/s で横へ動く
@@ -289,8 +339,8 @@ test('a swing hits the dummy in front exactly once (hit resolution, ?debug wiref
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=test&quality=low&scale=0.25&debug');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await page.goto('./?scene=test&quality=low&scale=0.25&nodraw&debug');
+  await startGame(page);
   await expect.poll(async () => (await sim(page)).player.grounded).toBe(true);
 
   // dummy-a (0, -6) の 1.5m 手前で北向き
@@ -351,9 +401,7 @@ test('left clicks chain the 3-hit light combo and each swing hits the dummy once
   // dummy-a (0, -6) の 1.5m 手前で北向き
   await teleport(page, 0, -4.5, Math.PI);
 
-  // 最初のクリックは Pointer Lock の取得（攻撃にならない）
-  await page.mouse.move(640, 360);
-  await page.mouse.click(640, 360);
+  // Pointer Lock は開始画面のクリックで取得済み（以降のクリックは攻撃になる）
   await expect
     .poll(() => page.evaluate(() => document.pointerLockElement !== null), { timeout: 10_000 })
     .toBe(true);

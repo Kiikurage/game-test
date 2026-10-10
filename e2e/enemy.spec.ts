@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { webgpuCompatInit } from '../scripts/webgpuCompat.mjs';
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(webgpuCompatInit);
-});
+import { startGame } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で起動する（`?debug` で敵の可視化も確認）。 */
 async function boot(page: Page): Promise<string[]> {
@@ -12,8 +8,8 @@ async function boot(page: Page): Promise<string[]> {
     if (msg.type() === 'error') errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?debug&quality=low&scale=0.25');
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'running', { timeout: 30_000 });
+  await page.goto('./?debug&quality=low&scale=0.25&nodraw');
+  await startGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
     .toBeGreaterThan(30);

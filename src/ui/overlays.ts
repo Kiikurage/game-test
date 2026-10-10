@@ -25,7 +25,10 @@ export function showUnsupportedScreen(root: HTMLElement, reason: string): void {
   root.dataset.state = 'unsupported';
 }
 
-/** 縦持ち時に横画面を促す表示。表示の出し分けは CSS（orientation + pointer: coarse）で行う。 */
+/**
+ * 縦持ち時に横画面を促す表示。表示の出し分けは CSS（orientation + pointer: coarse）で行う。
+ * 開始・再開画面より前面に出るが、タップは透過する（縦持ちのままタップして開始 → 自動で横向きにできる）。
+ */
 export function mountOrientationHint(): void {
   document.body.appendChild(
     createOverlay('orientation-hint', '横画面にしてください', [

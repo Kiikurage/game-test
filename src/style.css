@@ -57,7 +57,8 @@ body {
 /* スマホの縦持ちでは横画面を促す（ゲーム自体は止めない） */
 .orientation-hint {
   display: none;
-  z-index: 10;
+  z-index: 40;
+  pointer-events: none;
 }
 
 @media (orientation: portrait) and (pointer: coarse) {
@@ -124,4 +125,87 @@ body {
   background: #111;
   color: inherit;
   border: 1px solid #555;
+}
+
+/* 起動画面（ローディング・開始・再開）。タイトル画面（#95）までの暫定 */
+.launch-screen {
+  z-index: 30;
+  gap: 1.1rem;
+  font-weight: 200;
+  letter-spacing: 0.35em;
+  background: #000;
+}
+
+.launch-screen.launch-resume {
+  background: rgb(0 0 0 / 0.78);
+}
+
+.launch-label,
+.launch-percent {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 200;
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+}
+
+.launch-percent {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.launch-bar {
+  width: min(16rem, 60vw);
+  height: 1px;
+  background: rgb(232 230 225 / 0.18);
+  overflow: hidden;
+}
+
+.launch-bar-fill {
+  height: 100%;
+  background: var(--fg);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease-out;
+}
+
+.launch-prompt {
+  cursor: pointer;
+  outline: none;
+}
+
+.launch-prompt .launch-title {
+  margin: 0;
+  color: var(--fg);
+  font-size: 1rem;
+  font-weight: 200;
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  animation: launch-pulse 3.2s ease-in-out infinite;
+}
+
+.launch-prompt .launch-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 200;
+  letter-spacing: 0.15em;
+}
+
+@keyframes launch-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launch-prompt .launch-title {
+    animation: none;
+  }
 }
