@@ -150,12 +150,13 @@ CI は WAV をコミット済みとして `assets:audio` だけを実行する�
 
 素材 ID は `docs/audio.md` の cue 規約（末尾の連番を除いたものがバリエーショングループ）に合わせる。主な対応:
 `sfx.hit-light1〜4`（肉 2 + 鎧 2）/ `sfx.hit-heavy1〜4` → `hit` イベントの light / heavy、`sfx.guard1〜3` / `sfx.guard-break` → guard / guardBreak、
-`sfx.guard-just`・`sfx.shield-deflect1〜2`・`sfx.sword-light1〜3`・`sfx.sword-heavy1〜2`・`sfx.roll1〜2`・`sfx.hurt1〜2`・`sfx.heal-drink`・`sfx.heal-glow`・`sfx.breathless`・`sfx.defeat-collapse`・`sfx.defeat-ash` は `sound` イベントで cue を直接渡す。
+`sfx.guard-just`・`sfx.shield-deflect1〜2`・`sfx.sword-light1〜3`・`sfx.sword-heavy1〜2`・`sfx.roll1〜2`・`sfx.hurt1〜2`・`sfx.heal-drink`・`sfx.heal-glow`・`sfx.player-heavy-charge-full`（強攻撃のフル溜め到達の「キン」、0.5s）・`sfx.breathless`・`sfx.defeat-collapse`・`sfx.defeat-ash` は `sound` イベントで cue を直接渡す。
 敵は `sfx.enemy.*`（プリロードの `field` グループ対象）、UI は `ui.*`（`title` グループ）。
 
 ### 足音・環境音・ボス SE（#37）
 
 - 足音 16: `sfx.footstep-{grass,stone,wood,crypt}{1..4}`（`docs/audio.md` の `footstep` イベントの cue）（モノラル、短い単発）。歩き / 走り / ロールは再生側で音量を変える。地下は石の足音を 1.7s の残響に通す。
+  地下墓所（D）の「残響設定の切替」は、この素材（`crypt`、残響を焼き込み済み）へ素材を切り替えることで行う（ランタイムのリバーブ送りは使わない）。足音 16 本は `title` グループで先読みする（接続は E7-3a、配線は `docs/audio.md` の「足音の接続」）。
 - 環境音 6（ステレオ）: `ambient.wind` / `ash-leaves` / `fire` / `fog-gate` / `crypt` はループ、`ambient.bell-distant` は単発（遠い鐘。再生間隔は呼び出し側）。
 - ボス SE 16: 足音 4（66 / 58 / 52 / 46 Hz 帯の低音）、咆哮 1（ピーク 0.99）、斧の風切り 3、叩きつけ 2、灰の波 3（地割れ・突風・降灰）、入場 1、撃破 1、盾打ち 1。
 - **ループ素材の継ぎ目**: ループ区間そのものを継ぎ目なしに作る（ノイズは末尾 2s を先頭へ等パワー・クロスフェード、`fog-gate` は全周波数・LFO を 1/20Hz の格子 = ループ長で整数周期、`crypt` の水滴残響は 3 連結してリバーブをかけ中央を切り出す）。

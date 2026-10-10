@@ -9,9 +9,10 @@ import type {
   PlaybackContextLike,
 } from './playbackTypes';
 import { listenerPoseFromMatrix } from './listener';
+import { FOOTSTEP_PROFILES, GAIT_VOLUME, footstepPlayRequest } from './footstep';
 import { bindSfxEvents, toPlayRequest } from './sfxEvents';
 import { SfxPlayer } from './sfxPlayer';
-import { SoundLibrary, chooseFile, isOpusSupported } from './soundLibrary';
+import { PRELOAD_GROUPS, SoundLibrary, chooseFile, isOpusSupported } from './soundLibrary';
 import {
   PITCH_JITTER,
   SPATIAL,
@@ -602,5 +603,81 @@ describe('game events to SFX', () => {
     bus.emit('hit', { kind: 'light', source: 'enemy' });
     expect(play).toHaveBeenCalledTimes(1);
     err.mockRestore();
+  });
+});
+
+describe('footstep SFX (E7-3a)', () => {
+  const surfaces = ['grass', 'stone', 'wood', 'crypt'] as const;
+
+  it('scales the volume by gait: run > roll > walk, all audible', () => {
+    const vol = (gait: 'walk' | 'run' | 'roll') =>
+      footstepPlayRequest({ surface: 'stone', gait, source: 'player' }).volume ?? 0;
+    expect(vol('run')).toBeGreaterThan(vol('roll'));
+    expect(vol('roll')).toBeGreaterThan(vol('walk'));
+    expect(vol('walk')).toBeGreaterThan(0);
+    expect(vol('run')).toBeLessThanOrEqual(1);
+    expect(GAIT_VOLUME).toEqual({ walk: 0.55, run: 0.85, roll: 0.7 });
+  });
+
+  it('selects the cue per surface; the player is non-positional, others are positioned', () => {
+    const pos = { x: 1, y: 0, z: 2 };
+    for (const s of surfaces) {
+      expect(
+        footstepPlayRequest({ surface: s, gait: 'walk', source: 'player', position: pos }),
+      ).toEqual({ cue: `sfx.footstep-${s}`, volume: GAIT_VOLUME.walk });
+    }
+    expect(
+      footstepPlayRequest({ surface: 'crypt', gait: 'run', source: 'enemy', position: pos }),
+    ).toMatchObject({ cue: 'sfx.footstep-crypt', position: pos });
+    expect(toPlayRequest('footstep', { surface: 'wood', gait: 'roll', source: 'boss' })).toEqual({
+      cue: 'sfx.footstep-wood',
+      volume: GAIT_VOLUME.roll,
+    });
+  });
+
+  it('lets a source profile override cue, volume, pitch and priority (enemy / boss hook)', () => {
+    const profiles = {
+      ...FOOTSTEP_PROFILES,
+      boss: { cue: () => 'sfx.boss.step', volume: 1.2, rate: 0.7, priority: 70 },
+    };
+    expect(
+      footstepPlayRequest(
+        { surface: 'stone', gait: 'run', source: 'boss', position: { x: 0, y: 0, z: 5 } },
+        profiles,
+      ),
+    ).toEqual({
+      cue: 'sfx.boss.step',
+      volume: GAIT_VOLUME.run * 1.2,
+      rate: 0.7,
+      priority: 70,
+      position: { x: 0, y: 0, z: 5 },
+    });
+  });
+
+  it('plays all 4 variants of a surface without repeating the previous one, and applies the rate', async () => {
+    const ids = surfaces.flatMap((g) => [1, 2, 3, 4].map((i) => `sfx.footstep-${g}${i}`));
+    let n = 0;
+    const { player, sources } = await setup(
+      ids.map((id) => entry(id)),
+      { rng: () => (n++ * 0.37) % 1 },
+    );
+    const req = footstepPlayRequest({ surface: 'grass', gait: 'walk', source: 'player' });
+    const bufs: unknown[] = [];
+    for (let i = 0; i < 40; i++) {
+      player.play(req);
+      bufs.push(sources[sources.length - 1]?.buffer);
+    }
+    for (let i = 1; i < bufs.length; i++) expect(bufs[i]).not.toBe(bufs[i - 1]);
+    expect(new Set(bufs).size).toBe(4);
+
+    const slow = await setup([entry('sfx.boss.step1')], { rng: () => 0.5 });
+    slow.player.play({ cue: 'sfx.boss.step', rate: 0.7 });
+    expect(slow.sources[0]?.playbackRate.value).toBeCloseTo(0.7);
+  });
+
+  it('preloads the footstep materials with the title group', () => {
+    const e = (id: string) => entry(id, { kind: 'se' });
+    expect(PRELOAD_GROUPS.title(e('sfx.footstep-crypt3'))).toBe(true);
+    expect(PRELOAD_GROUPS.title(e('sfx.hit-light1'))).toBe(false);
   });
 });

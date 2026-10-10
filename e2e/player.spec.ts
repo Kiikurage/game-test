@@ -448,6 +448,10 @@ test('holding right click charges the heavy attack and releasing swings it (Swor
   // 溜め 30F を超えても保持している間は溜めのまま（フル溜め）。溜め開始時に 28 消費。
   await waitSteps(page, 40);
   expect((await sim(page)).player.state).toBe('heavyCharge');
+  // フル溜め到達でさらに 6 消費（計 34）。溜め中はスタミナが回復しないので、負荷で溜めが長引いても増えない（#206）。
+  expect((await sim(page)).player.stamina).toBeLessThan(100 - 33);
+  await waitSteps(page, 90);
+  expect((await sim(page)).player.state).toBe('heavyCharge');
   expect((await sim(page)).player.stamina).toBeLessThan(100 - 33);
 
   await page.mouse.up({ button: 'right' });

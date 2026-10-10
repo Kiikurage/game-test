@@ -184,6 +184,10 @@ export class CombatDebugView {
   private readonly geometry = new BufferGeometry();
   private readonly positionAttr = new BufferAttribute(this.builder.positions, 3);
   private readonly colorAttr = new BufferAttribute(this.builder.colors, 3);
+  /** ハートボックス（被弾判定）を描くか。戦闘デバッグ HUD のトグルが切り替える。 */
+  showHeartboxes = true;
+  /** ヒットボックス（攻撃判定）を描くか。 */
+  showHitboxes = true;
 
   constructor(private readonly resolver: HitResolver) {
     this.positionAttr.setUsage(35048); // DynamicDrawUsage
@@ -205,7 +209,7 @@ export class CombatDebugView {
   update(): void {
     const b = this.builder;
     b.reset();
-    for (const target of this.resolver.allTargets.values()) {
+    for (const target of this.showHeartboxes ? this.resolver.allTargets.values() : []) {
       const color = target.invulnerable
         ? COLOR_HEART_INVULN
         : target.team === 'player'
@@ -213,12 +217,12 @@ export class CombatDebugView {
           : COLOR_HEART_ENEMY;
       for (const box of target.heartboxes) b.capsule(box, color);
     }
-    for (const attack of this.resolver.activeAttacks) {
+    for (const attack of this.showHitboxes ? this.resolver.activeAttacks : []) {
       if (attack.lastShape) {
         b.shape(attack.lastShape, attack.hitFlash < 6 ? COLOR_HIT_CONNECTED : COLOR_HIT);
       }
     }
-    for (const { attack } of this.resolver.recentAttacks) {
+    for (const { attack } of this.showHitboxes ? this.resolver.recentAttacks : []) {
       if (attack.lastShape) {
         b.shape(
           attack.lastShape,
