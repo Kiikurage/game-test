@@ -84,10 +84,17 @@ function frustumOf(camera: Camera): Frustum {
 
 function inFrustum(mesh: Mesh, frustum: Frustum): boolean {
   if (!mesh.frustumCulled) return true;
+  // InstancedMesh は three のレンダラと同じく、インスタンス全体の球（`boundingSphere`）で判定する
+  const instanced = mesh as Mesh & {
+    boundingSphere?: Sphere | null;
+    computeBoundingSphere?(): void;
+  };
+  if (instanced.boundingSphere === null) instanced.computeBoundingSphere?.();
   const geometry = mesh.geometry;
   if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
-  if (!geometry.boundingSphere) return true;
-  sphere.copy(geometry.boundingSphere).applyMatrix4(mesh.matrixWorld);
+  const bounds = instanced.boundingSphere ?? geometry.boundingSphere;
+  if (!bounds) return true;
+  sphere.copy(bounds).applyMatrix4(mesh.matrixWorld);
   return frustum.intersectsSphere(sphere);
 }
 

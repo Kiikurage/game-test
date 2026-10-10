@@ -2,13 +2,18 @@
 // 起動フロー: WebGPU 判定 → ローディング画面 → 本体ロード → 開始画面 → （タップ）→ 開始。
 // `#app` の data-state: loading → ready（開始画面待ち）→ running ⇄ paused（再開画面待ち）/ unsupported。
 import './style.css';
-import { enterImmersive, shouldPause, type ImmersiveEnv } from './core/immersive';
+import {
+  enterImmersive,
+  shouldPause,
+  type ImmersiveEnv,
+  type ImmersiveResult,
+} from './core/immersive';
 import { LOAD_STAGES, ProgressTracker } from './core/progress';
 import { installWebGPUCompat } from './core/webgpuCompat';
 import { checkWebGPUSupport } from './core/webgpuSupport';
 import type { GameApp } from './main';
 import { createLoadingScreen, createPromptScreen, type PromptScreen } from './ui/launchScreens';
-import { mountOrientationHint, showUnsupportedScreen } from './ui/overlays';
+import { mountOrientationHint, showUnsupportedScreen, type OrientationHint } from './ui/overlays';
 
 /** 開始 / 再開直後は、向きロックによる回転が終わるまで縦向き・フルスクリーン解除での一時停止を判定しない。 */
 const SETTLE_MS = 1500;
@@ -24,7 +29,33 @@ function createImmersiveEnv(): ImmersiveEnv {
     requestFullscreen: () => doc.requestFullscreen({ navigationUI: 'hide' }),
     lockLandscape: () =>
       (screen.orientation as unknown as ScreenOrientationLockable).lock('landscape'),
+    onFailure: (stage, e) => {
+      console.warn(`[immersive] ${stage} failed: ${e instanceof Error ? e.name : String(e)}`);
+    },
   };
+}
+
+let orientationHint: OrientationHint | undefined;
+let lastImmersive: ImmersiveResult | undefined;
+let pendingImmersive: Promise<ImmersiveResult> | undefined;
+
+/**
+ * 横向きフルスクリーン化（縦持ちの案内タップ・開始 / 再開タップ共通）。ユーザー操作のハンドラから呼ぶ
+ * （requestFullscreen は同期的に呼ばれる。向きロックはフルスクリーン成立後でないと拒否されるため直後に続ける）。
+ * すでに横向きロック済みのフルスクリーンなら何も呼ばない。結果で案内の文言を切り替える。
+ */
+function enterLandscape(): Promise<ImmersiveResult> {
+  if (document.fullscreenElement !== null && lastImmersive?.orientationLocked) {
+    return Promise.resolve(lastImmersive);
+  }
+  if (pendingImmersive) return pendingImmersive;
+  pendingImmersive = enterImmersive(createImmersiveEnv()).then((r) => {
+    lastImmersive = r;
+    pendingImmersive = undefined;
+    orientationHint?.setFailed(!r.orientationLocked);
+    return r;
+  });
+  return pendingImmersive;
 }
 
 /** 開始・一時停止・再開の遷移を管理する。 */
@@ -33,8 +64,16 @@ function runLaunchFlow(root: HTMLElement, app: GameApp): void {
   const portraitQuery = matchMedia('(orientation: portrait)');
   let state: 'waiting' | 'running' = 'waiting';
   let started = false;
-  let fullscreenEntered = false;
+  let fullscreenEntered = lastImmersive?.fullscreen ?? false;
   let settleUntil = 0;
+  /** 縦のまま開始 / 再開した直後（最初の判定がまだ）。横向きで始めてから縦へ回した場合は含めない。 */
+  let justActivated = false;
+  /**
+   * タップで横向き化を試みたのに縦のままだった（ロック失敗・端末が回らない）。
+   * この状態で縦を理由に一時停止すると「開始 → 停止 → 開始…」を繰り返すだけなので、縦のまま続行する。
+   * 横向きを一度でも確認したら解除する（その後に縦へ戻したら通常どおり一時停止）。
+   */
+  let portraitGaveUp = false;
   let prompt: PromptScreen | undefined;
 
   const showPrompt = (kind: 'start' | 'resume'): void => {
@@ -61,11 +100,20 @@ function runLaunchFlow(root: HTMLElement, app: GameApp): void {
   };
 
   const evaluate = (): void => {
+    if (touch && !portraitQuery.matches && portraitGaveUp) {
+      portraitGaveUp = false;
+      orientationHint?.setFailed(false);
+    }
     if (state !== 'running' || performance.now() < settleUntil) return;
+    if (justActivated && touch && portraitQuery.matches) {
+      portraitGaveUp = true;
+      orientationHint?.setFailed(true);
+    }
+    justActivated = false;
     if (
       shouldPause({
         touch,
-        portrait: portraitQuery.matches,
+        portrait: portraitQuery.matches && !portraitGaveUp,
         fullscreenEntered,
         isFullscreen: document.fullscreenElement !== null,
       })
@@ -77,14 +125,16 @@ function runLaunchFlow(root: HTMLElement, app: GameApp): void {
   /** ユーザー操作（タップ・クリック・キー）のハンドラから呼ぶ。同期部分でジェスチャーを使い切る。 */
   const activate = async (): Promise<void> => {
     app.resumeAudio();
+    const portraitAtActivate = portraitQuery.matches;
     // PC: Pointer Lock（モバイルでは不要）。フルスクリーンは PC では強制しない。
     if (!touch) app.requestPointerLock();
-    const immersive = touch ? enterImmersive(createImmersiveEnv()) : Promise.resolve(undefined);
+    const immersive = touch ? enterLandscape() : Promise.resolve(undefined);
     prompt?.remove();
     prompt = undefined;
     const result = await immersive;
     fullscreenEntered = result?.fullscreen ?? false;
     settleUntil = performance.now() + SETTLE_MS;
+    justActivated = portraitAtActivate;
     setTimeout(evaluate, SETTLE_MS + 50);
     state = 'running';
     root.dataset.state = 'running';
@@ -105,7 +155,14 @@ async function boot(): Promise<void> {
   const root = document.getElementById('app');
   if (!root) throw new Error('#app not found');
 
-  mountOrientationHint();
+  orientationHint = mountOrientationHint(() => {
+    void enterLandscape().then(() => {
+      // ロックが通っても端末が回らなかった場合は「回してください」に切り替え、タップを透過して縦のまま始められるようにする
+      setTimeout(() => {
+        if (matchMedia('(orientation: portrait)').matches) orientationHint?.setFailed(true);
+      }, SETTLE_MS);
+    });
+  });
   const support = await checkWebGPUSupport();
   if (!support.ok) {
     showUnsupportedScreen(root, support.reason);
