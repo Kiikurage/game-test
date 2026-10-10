@@ -28,14 +28,13 @@ export function mountBossBar(view: BossBarView, parent: HTMLElement = document.b
   name.dataset.testid = 'boss-bar-name';
   const bar = el('boss-bar-gauge', root);
   const halo = el('boss-bar-halo', bar);
+  halo.dataset.testid = 'boss-bar-glow';
   const track = el('boss-bar-track', bar);
   const ghost = el('boss-bar-fill boss-bar-fill--ghost', track);
   ghost.dataset.testid = 'boss-bar-ghost';
   const fill = el('boss-bar-fill boss-bar-fill--main', track);
   fill.dataset.testid = 'boss-bar-fill';
-  const flash = el('boss-bar-flash', track);
-  flash.dataset.testid = 'boss-bar-flash';
-  const ticks = el('boss-bar-ticks', track);
+  const ticks = el('boss-bar-ticks', bar);
   parent.appendChild(root);
 
   let lastName = '';
@@ -71,8 +70,8 @@ export function mountBossBar(view: BossBarView, parent: HTMLElement = document.b
     }
     if (view.glow !== lastGlow) {
       lastGlow = view.glow;
-      flash.style.opacity = (view.glow * 0.85).toFixed(3);
       halo.style.opacity = view.glow.toFixed(3);
+      root.style.setProperty('--glow', view.glow.toFixed(3));
     }
     if (view.opacity !== lastOpacity) {
       lastOpacity = view.opacity;

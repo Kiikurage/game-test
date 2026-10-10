@@ -78,7 +78,7 @@ test('boss HP bar flashes at the phase boundary and hides on defeat', async ({ p
   await advance(page, 40);
   await expect(page.getByTestId('boss-bar')).toBeVisible();
   const flash = (): Promise<number> =>
-    page.getByTestId('boss-bar-flash').evaluate((e) => Number(e.style.opacity));
+    page.getByTestId('boss-bar-glow').evaluate((e) => Number(e.style.opacity));
   expect(await flash()).toBe(0);
 
   // HP を 1200（50%）にするとフェーズ境界へ向かう。発光は 20F だけ
