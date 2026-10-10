@@ -15,21 +15,21 @@ export interface ChargeGlow {
 }
 
 /** 溜め中の色（琥珀の金）。 */
-export const CHARGE_COLOR = 0xff9a2a;
+export const CHARGE_COLOR = 0xff7a00;
 /** フル溜めの閃きの色（淡い金白）。 */
 export const CHARGE_FLASH_COLOR = 0xfff0b8;
 
 export const CHARGE_GLOW = {
   /** 溜め開始直後の発光量。 */
-  start: 0.3,
+  start: 0.55,
   /** フル溜めの 1 ステップ手前（29F）の発光量。 */
-  beforeFull: 0.6,
+  beforeFull: 0.8,
   /** フル溜めの閃きのピーク。 */
   flashPeak: 1,
   /** 閃きが保持レベルへ落ち着くまでのフレーム数。 */
   flashFrames: 10,
   /** フル溜め保持中の発光量（脈動の中心）。 */
-  hold: 0.7,
+  hold: 0.8,
   /** 保持中の脈動の深さと周期（F）。 */
   holdPulse: 0.1,
   holdPulseFrames: 36,

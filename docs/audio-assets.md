@@ -150,7 +150,7 @@ CI は WAV をコミット済みとして `assets:audio` だけを実行する�
 
 素材 ID は `docs/audio.md` の cue 規約（末尾の連番を除いたものがバリエーショングループ）に合わせる。主な対応:
 `sfx.hit-light1〜4`（肉 2 + 鎧 2）/ `sfx.hit-heavy1〜4` → `hit` イベントの light / heavy、`sfx.guard1〜3` / `sfx.guard-break` → guard / guardBreak、
-`sfx.guard-just`・`sfx.shield-deflect1〜2`・`sfx.sword-light1〜3`・`sfx.sword-heavy1〜2`・`sfx.roll1〜2`・`sfx.hurt1〜2`・`sfx.heal-drink`・`sfx.heal-glow`・`sfx.breathless`・`sfx.defeat-collapse`・`sfx.defeat-ash` は `sound` イベントで cue を直接渡す。
+`sfx.guard-just`・`sfx.shield-deflect1〜2`・`sfx.sword-light1〜3`・`sfx.sword-heavy1〜2`・`sfx.roll1〜2`・`sfx.hurt1〜2`・`sfx.heal-drink`・`sfx.heal-glow`・`sfx.player-heavy-charge-full`（強攻撃のフル溜め到達の「キン」、0.5s）・`sfx.breathless`・`sfx.defeat-collapse`・`sfx.defeat-ash` は `sound` イベントで cue を直接渡す。
 敵は `sfx.enemy.*`（プリロードの `field` グループ対象）、UI は `ui.*`（`title` グループ）。
 
 ### 足音・環境音・ボス SE（#37）

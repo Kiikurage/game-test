@@ -182,7 +182,7 @@ heavyAttackCapsule / runAttackCapsule(feet, yaw, p, out)   // 武器カプセル
 - **走り攻撃**: ダッシュ中（`dash`）、または走り最高速の 75% 以上（`RUN_ATTACK_MIN_SPEED_RATIO`）で動いている `move` 中の軽攻撃入力。前の軽攻撃のコンボ窓が残っていれば次段が優先。前進 2.0m・キャンセル窓なし。
 - **アニメーション**: 溜めは `Sword_Heavy_Combo` の f58–f66（剣を引いて低く構える）を 14F で再生して保持（`states.heavyCharge`）。`heavy` / `heavyCharged` は f66 → f80（`clipHitFrame` 77 = 振り下ろし）の後、`tail` で f90–f121（剣を地面から戻す）を残りの硬直に合わせる。走り攻撃は `Sword_Dash` の f2–f13（`clipHitFrame` 10）+ tail f13–f46。
 - **ヒットストップ・画面振動**: `hitStop.ts` が `attackId`（`heavy` = 8F、`heavyCharged` = 12F + 画面振動、`runAttack` は強攻撃と同じ）で決める。
-- **溜めのフィードバック（#200）**: 刃の発光（`render/player/heavyChargeGlow.ts`。琥珀の金 `0xff9a2a`、F1 0.3 → F29 0.6 とイーズインで強まり、F30 の到達で金白 `0xfff0b8` の 1.0 に閃いて 10F で保持レベル 0.7 に落ち着き脈打つ。フル溜めで離すと 24F で消える）。敵のテレグラフ（白 / 赤橙）とは色で区別する。実装は `PlayerView` が `characterLight` の武器の発光ユニフォーム（敵と同じ仕組み）を毎フレーム書き換えるだけで、追加のパス・メッシュは無い。到達の瞬間に `heavyChargeCue.system.ts` が `sound`（`sfx.player-heavy-charge-full`、30F で 1 回・キャンセル時は出ない。素材は未接続）を出し、`heavyCharge.view.ts` が同じイベントで刃先から小さな火花（`particles.chargeGlint`）を散らす。撮影は `SHOT_SCRIPT=scripts/shot-charge.mjs SHOT_CHARGE=<F> npm run shot`。
+- **溜めのフィードバック（#200）**: 刃の発光（`render/player/heavyChargeGlow.ts`。琥珀の金 `0xff7a00`、F1 0.55 → F29 0.8 とイーズインで強まり、F30 の到達で金白 `0xfff0b8` の 1.0 に閃いて 10F で保持レベル 0.8 に落ち着き脈打つ。フル溜めで離すと 24F で消える）。敵のテレグラフ（白 / 赤橙）とは色で区別する。実装は `PlayerView` が `characterLight` の武器の発光ユニフォーム（敵と同じ仕組み）を毎フレーム書き換えるだけで、追加のパス・メッシュは無い。到達の瞬間に `heavyChargeCue.system.ts` が `sound`（`sfx.player-heavy-charge-full`、30F で 1 回・キャンセル時は出ない。素材は合成の短い金属音）を出し、`heavyCharge.view.ts` が同じイベントで刃先から小さな火花（`particles.chargeGlint`）を散らす。撮影は `SHOT_SCRIPT=scripts/shot-charge.mjs SHOT_CHARGE=<F> npm run shot`。
 
 ## 回復瓶（#48）
 
