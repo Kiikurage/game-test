@@ -115,7 +115,11 @@ export function rockSurface(p: Node<'vec3'>, inputs: RockSurfaceInputs): RockSur
     .add(lf.mul(crackTilt));
   const cu = crackAlong.div(crackSpacing);
   const cDist = min(fract(cu), float(1).sub(fract(cu))).mul(crackSpacing);
-  const crackW = max(float(0.05), fwidth(crackAlong).mul(2.5));
+  // 画面上の 1 ピクセルあたりの距離（m）。幅は 1.5px 以上にして smoothstep(w - fw, w + fw) で解析的にアンチエイリアスする。
+  // 線の太さ（0.05m）より 1 ピクセルが大きい（遠い・低解像度）ときは、幅を広げた分コントラストを落とす（途切れさせない）
+  const crackPx = fwidth(crackAlong);
+  const crackHalf = max(float(0.025), crackPx.mul(0.75));
+  const crackContrast = min(float(1), float(0.05).div(crackPx.mul(1.5)));
   // 全ての層・全ての線に割れ目があるわけではない
   const crackHere = smoothstep(0.35, 0.55, hash(layer.add(66))).mul(
     smoothstep(0.4, 0.5, hash(floor(cu).add(layer.mul(13)).add(2000))),
@@ -124,7 +128,8 @@ export function rockSurface(p: Node<'vec3'>, inputs: RockSurfaceInputs): RockSur
     smoothstep(rockCrackFar.mul(0.5), rockCrackFar, positionView.length()),
   );
   const crack = float(1)
-    .sub(smoothstep(crackW.mul(0.3), crackW, cDist))
+    .sub(smoothstep(crackHalf.sub(crackPx), crackHalf.add(crackPx), cDist))
+    .mul(crackContrast)
     .mul(crackHere)
     .mul(layerFade)
     .mul(crackFade);
@@ -141,7 +146,6 @@ export function rockSurface(p: Node<'vec3'>, inputs: RockSurfaceInputs): RockSur
     .add(offset.mul(0.2))
     .add(round.mul(blockRand.mul(0.14).add(0.06)))
     .sub(joint.mul(0.09))
-    .sub(crack.mul(0.02))
     .add(ridgeSharp.mul(0.12))
     .add(grain.mul(0.025));
 
