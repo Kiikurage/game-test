@@ -151,6 +151,11 @@ registerBossMove({
     onEnd(ctx) {
       states.delete(ctx.boss);
     },
+    // 着地の円に触れた柱は `bossPillarHit`（破片の演出のフック）を出す
+    impactCircle: (ctx: BossMoveContext) => {
+      const landing = states.get(ctx.boss)?.landing ?? ctx.boss.position;
+      return { x: landing.x, z: landing.z, radius: LEAP_RADIUS };
+    },
     shape: (ctx: BossMoveContext) => {
       const landing = states.get(ctx.boss)?.landing ?? ctx.boss.position;
       return circleShape({ x: landing.x, y: ctx.boss.position.y, z: landing.z }, LEAP_RADIUS);

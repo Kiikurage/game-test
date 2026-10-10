@@ -80,6 +80,15 @@ export interface BossMoveHooks {
   onStep?(ctx: BossMoveContext, dt: number): void;
   /** 判定形状。省略時は前方の扇形（`arcDeg` / `range`）。円・線などはここで返す。 */
   shape?(ctx: BossMoveContext, stage: BossStageDef): HitShape;
+  /**
+   * 柱への接触（`bossPillarHit`）を見る円（着地の叩きつけなど。判定の開始 F の時点）。`shape` を持つ技は
+   * 既定では柱の判定の対象外だが、これを返す技は円で見る。
+   */
+  impactCircle?(ctx: BossMoveContext): {
+    readonly x: number;
+    readonly z: number;
+    readonly radius: number;
+  };
   /** 技が終わった・打ち切られた（崩し・撃破）。 */
   onEnd?(ctx: BossMoveContext, cancelled: boolean): void;
 }

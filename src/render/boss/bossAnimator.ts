@@ -2,6 +2,7 @@ import { CharacterAnimator, type CharacterAnimState } from '../anim/characterAni
 import type { CharacterAnimatorConfig } from '../anim/characterAnimator';
 import type { BossCharacter } from '../assets/bossCharacter';
 import type { CharacterAssets } from '../assets/characterAssets';
+import { findBossClipEvents } from '../../game/anim/bossClips';
 import { BOSS_LOCOMOTION, toModelSpeed } from './bossGait';
 
 /**
@@ -14,7 +15,7 @@ import { BOSS_LOCOMOTION, toModelSpeed } from './bossGait';
  *   `CharacterAnimState.speed` にも `toModelSpeed(speed)` を入れる。`bossMoveState` がそれを組み立てる。
  */
 export const BOSS_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
-  actionEntry: () => undefined,
+  actionEntry: (id) => findBossClipEvents(id),
   profile: BOSS_LOCOMOTION,
   states: {},
   combatIdle: 'Sword_Idle',

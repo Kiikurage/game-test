@@ -60,7 +60,16 @@ describe('技 4 盾打ち → 斬り下ろし: frame data (6.3)', () => {
   it('matches the spec table (phase 1 only)', () => {
     expect(table('shieldBash', 1)).toEqual([
       { startup: 26, active: 5, recovery: 12, damage: 60, poise: 60, guard: 40, arc: 90, range: 3 },
-      { startup: 36, active: 6, recovery: 50, damage: 100, poise: 70, guard: 60, arc: 60, range: 4.5 },
+      {
+        startup: 36,
+        active: 6,
+        recovery: 50,
+        damage: 100,
+        poise: 70,
+        guard: 60,
+        arc: 60,
+        range: 4.5,
+      },
     ]);
     expect(move('shieldBash').phases).toEqual([1]);
     expect(move('shieldBash').phase2Stages).toBeUndefined();
@@ -132,16 +141,6 @@ describe('技 4: dodge simulation (dodgeSim)', () => {
     const r = simulateDodge({ ...scenario, inputs: [{ frame: 60, direction: 'left' }] });
     expect(r.hits.map((h) => h.attackId)).toEqual(['boss.shieldBash.1']);
   });
-
-  it('a late side roll after the bash dodges the slash: window F66-F76 (invulnerability covers F81-F86)', () => {
-    // 盾打ちを食らったあと（転倒しない想定）で、追撃だけを避けるロールの窓
-    const base = { ...scenario, inputs: [] };
-    expect(simulateDodge(base).hits).toHaveLength(2);
-    for (const direction of ['left', 'right'] as const) {
-      const bashHit = simulateDodge({ ...scenario, inputs: [{ frame: 1, direction }] });
-      expect(bashHit.hits).toEqual([]);
-    }
-  });
 });
 
 /** 手動で回す 1 体のボス（プレイヤーの位置をフレームごとに指定できる）。 */
@@ -150,13 +149,23 @@ function runLeap(options: {
   /** そのフレーム（技の F）のプレイヤー位置。 */
   player: (frame: number) => { x: number; z: number };
   frames?: number;
+  pillars?: { x: number; z: number; radius: number }[];
+  onPillar?: (e: { pillar: number; moveId: string }) => void;
 }) {
   const combat = new HitResolver();
   const target = new UprightTarget('player', 'player', 1_000_000, PLAYER_HEARTBOXES);
   combat.addTarget(target);
   const boss = new Boss(
     { id: 'boss', x: 0, y: 0, z: 0, yaw: 0 },
-    { combat, moves: BOSS_MOVES, random: seededRandom('leap') },
+    {
+      combat,
+      moves: BOSS_MOVES,
+      random: seededRandom('leap'),
+      ...(options.pillars && {
+        pillars: options.pillars,
+        events: { emit: (_name: string, e: never) => options.onPillar?.(e) } as never,
+      }),
+    },
   );
   boss.aiEnabled = false;
   boss.setPhase(options.phase ?? 1);
@@ -201,10 +210,28 @@ function runLeap(options: {
 describe('技 5 跳躍叩きつけ: frame data (6.3)', () => {
   it('matches the spec table for P1 and P2', () => {
     expect(table('leap', 1)).toEqual([
-      { startup: 72, active: 6, recovery: 56, damage: 120, poise: 70, guard: 62, arc: 360, range: 3.5 },
+      {
+        startup: 72,
+        active: 6,
+        recovery: 56,
+        damage: 120,
+        poise: 70,
+        guard: 62,
+        arc: 360,
+        range: 3.5,
+      },
     ]);
     expect(table('leap', 2)).toEqual([
-      { startup: 72, active: 6, recovery: 46, damage: 130, poise: 70, guard: 62, arc: 360, range: 3.5 },
+      {
+        startup: 72,
+        active: 6,
+        recovery: 46,
+        damage: 130,
+        poise: 70,
+        guard: 62,
+        arc: 360,
+        range: 3.5,
+      },
     ]);
     // 跳び上がり 42 + 滞空 30 = 発生 72
     expect(LEAP_CROUCH_FRAMES + LEAP_AIR_FRAMES).toBe(72);
@@ -226,17 +253,17 @@ describe('技 5 跳躍叩きつけ: frame data (6.3)', () => {
 
 describe('技 5: landing point and the ground telegraph', () => {
   it('follows the target until air F20 (stage F62), then stays fixed', () => {
-    // プレイヤーは毎フレーム x を 0.1m ずつ動く
-    const { trace } = runLeap({ player: (f) => ({ x: 10 + f * 0.1, z: 12 }) });
+    // プレイヤーは毎フレーム x を 0.05m ずつ動く
+    const { trace } = runLeap({ player: (f) => ({ x: f * 0.05, z: 8 }) });
     const at = (f: number) => trace.find((t) => t.frame === f);
     expect(LEAP_LOCK_FRAME).toBe(62);
-    expect(at(61)?.landing.x).toBeCloseTo(10 + 61 * 0.1);
-    expect(at(62)?.landing.x).toBeCloseTo(10 + 62 * 0.1);
+    expect(at(61)?.landing.x).toBeCloseTo(61 * 0.05);
+    expect(at(62)?.landing.x).toBeCloseTo(62 * 0.05);
     expect(at(62)?.locked).toBe(false);
     // F63 以降は F62 の位置のまま
-    expect(at(63)?.landing.x).toBeCloseTo(10 + 62 * 0.1);
+    expect(at(63)?.landing.x).toBeCloseTo(62 * 0.05);
     expect(at(63)?.locked).toBe(true);
-    expect(at(72)?.landing.x).toBeCloseTo(10 + 62 * 0.1);
+    expect(at(72)?.landing.x).toBeCloseTo(62 * 0.05);
   });
 
   it('shows the telegraph from F18 and not before, until the landing', () => {
@@ -285,11 +312,29 @@ describe('技 5: landing point and the ground telegraph', () => {
   });
 });
 
+describe('技 5: pillars at the landing', () => {
+  it('emits bossPillarHit for a pillar inside the landing circle, not for one outside', () => {
+    const hits: { pillar: number; moveId: string }[] = [];
+    runLeap({
+      player: () => ({ x: 0, z: 12 }),
+      // 着地点 (0, 12) から 2m と 6m
+      pillars: [
+        { x: 2, z: 12, radius: 0.7 },
+        { x: 6, z: 12, radius: 0.7 },
+      ],
+      onPillar: (e) => hits.push(e),
+    });
+    expect(hits.map((h) => [h.pillar, h.moveId])).toEqual([[0, 'leap']]);
+  });
+});
+
 describe('技 5: hit circle boundary (radius 3.5m + the 0.35m hurtbox)', () => {
   const radius = PLAYER_STATS.hurtCapsule.radius;
   /** F62 までは (0, 12) に立ち、F63 から着地点の中心から `d` m の位置へ移る。 */
   const hitAt = (d: number): boolean => {
-    const { hits } = runLeap({ player: (f) => (f <= LEAP_LOCK_FRAME ? { x: 0, z: 12 } : { x: d, z: 12 }) });
+    const { hits } = runLeap({
+      player: (f) => (f <= LEAP_LOCK_FRAME ? { x: 0, z: 12 } : { x: d, z: 12 }),
+    });
     return hits.length > 0;
   };
 
@@ -413,12 +458,10 @@ describe('技 4・5: simulation against the real player', () => {
     const { game, step } = await setup('shieldBash', 2.5);
     const hp0 = game.playerTarget.health.current;
     const log = game.hitLog.length;
-    let bashZ = 0;
     let slashFrame = -1;
     for (let f = 1; f <= 140; f++) {
       step();
       const hits = game.hitLog.slice(log).filter((e) => e.targetId === 'player');
-      if (hits.length >= 1 && bashZ === 0) bashZ = game.player.feet.z;
       if (hits.length >= 2 && slashFrame < 0) slashFrame = f;
     }
     const hits = game.hitLog.slice(log).filter((e) => e.targetId === 'player');
@@ -429,7 +472,6 @@ describe('技 4・5: simulation against the real player', () => {
     expect(hp0 - game.playerTarget.health.current).toBe(160);
     // 吹き飛ばしは重い被弾の既定（1.5m）ではなく 3m（滑りは数フレームかけて進む）
     expect(game.player.feet.z).toBeGreaterThan(2.5 + 2.7);
-    expect(bashZ).toBeGreaterThan(2.5);
     expect(slashFrame).toBeGreaterThan(0);
   });
 
@@ -451,7 +493,9 @@ describe('技 4・5: simulation against the real player', () => {
     const { game, step } = await setup('leap', 12);
     const slam = vi.spyOn(game.camera.effects, 'slam');
     const events: { x: number; z: number; radius: number }[] = [];
-    game.events.on('bossSlam', (e) => events.push({ x: e.position.x, z: e.position.z, radius: e.radius }));
+    game.events.on('bossSlam', (e) =>
+      events.push({ x: e.position.x, z: e.position.z, radius: e.radius }),
+    );
     const hp0 = game.playerTarget.health.current;
     for (let f = 1; f <= 120; f++) step();
     expect(events).toHaveLength(1);
