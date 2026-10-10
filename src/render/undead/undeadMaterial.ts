@@ -15,7 +15,6 @@ import {
   float,
   luminance,
   mix,
-  mx_noise_float,
   normalLocal,
   normalWorld,
   positionLocal,
@@ -39,6 +38,8 @@ import {
   type WeaponTelegraphStyle,
 } from '../characterLight';
 import { OUTFIT_MESHES, clampProgress, type UndeadVariant } from './variants';
+import { bakedNoise } from '../bakedNoise';
+import { tagMaterial } from '../materialGroups';
 
 /** 材質の役割。同じ元マテリアル（MI_Ranger）でもメッシュ名で金属パーツを分ける。 */
 export type UndeadRole = 'skin' | 'cloth' | 'metal';
@@ -253,14 +254,14 @@ function createUndeadMaterial(
   const base = src.map ? texture(src.map).rgb.mul(srcColor) : srcColor;
   const lum = luminance(base);
   // 小物（UV 無し）はローカル座標でノイズを引く
-  const noiseCoord = (k: number): Node<'vec2'> | Node<'vec3'> =>
-    src.map ? uv().mul(k) : positionLocal.mul(k * 1.2);
+  const noiseCoord = (k: number): Node<'vec3'> =>
+    src.map ? vec3(uv().mul(k), 0.37) : positionLocal.mul(k * 1.2);
   const uv0 = uv();
 
   let albedo: Node<'vec3'>;
   let emissive: Node<'vec3'>;
   // 熾火の亀裂: ノイズの等値線（谷）が光る。フェーズ 2 で ember を上げると現れる。
-  const crack = float(1).sub(smoothstep(0.0, 0.035, abs(mx_noise_float(noiseCoord(30)))));
+  const crack = float(1).sub(smoothstep(0.0, 0.035, abs(bakedNoise(noiseCoord(30)))));
   const emberGlow = vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b).mul(controls.ember);
 
   if (role === 'skin') {
@@ -270,7 +271,7 @@ function createUndeadMaterial(
     const tone = vec3(skin.r, skin.g, skin.b).mul(lum.mul(1.6).add(0.45)).mul(3.4);
     // 痣・腐敗の斑
     const isFace = src.name === 'MI_Head';
-    const blotch = smoothstep(-0.35, 0.6, mx_noise_float(uv0.mul(isFace ? 22 : 9)));
+    const blotch = smoothstep(-0.35, 0.6, bakedNoise(vec3(uv0.mul(isFace ? 22 : 9), 0.37)));
     albedo = mix(
       tone,
       vec3(bruise.r, bruise.g, bruise.b).mul(lum.add(0.4)).mul(3.4),
@@ -298,7 +299,7 @@ function createUndeadMaterial(
     // 色を落としてから布の色を乗せる。足元ほど泥で暗くなる。
     const desat = mix(vec3(lum), base, 0.35);
     const dirt = smoothstep(0.0, 1.1, positionWorld.y).mul(0.45).add(0.55);
-    const stain = smoothstep(-0.2, 0.5, mx_noise_float(uv0.mul(14)))
+    const stain = smoothstep(-0.2, 0.5, bakedNoise(vec3(uv0.mul(14), 0.37)))
       .mul(0.35)
       .add(0.65);
     albedo = desat
@@ -317,7 +318,7 @@ function createUndeadMaterial(
     // ノイズで混ぜ直さず（迷彩状のまだらになる）そのまま使う。亡者らしく少しだけ変種の錆色へ寄せる。
     // UV の無い元素材の小物・肩当て（頂点カラー無し）は従来どおりノイズで鉄と錆を混ぜる。
     // 錆: ノイズで鉄の暗色と赤茶の錆を混ぜる。ボスは錆の縁が熾火で光る。
-    const rustMask = smoothstep(-0.25, 0.35, mx_noise_float(noiseCoord(11).add(3.7)));
+    const rustMask = smoothstep(-0.25, 0.35, bakedNoise(noiseCoord(11).add(3.7)));
     const iron = vec3(0.17, 0.16, 0.15).mul(lum.mul(0.8).add(0.5));
     const rusty = vec3(rust.r, rust.g, rust.b).mul(lum.mul(0.9).add(0.35));
     const steel = variant.steel ?? 0;
@@ -337,9 +338,9 @@ function createUndeadMaterial(
     // 熾火: 鎧の継ぎ目に沿った太めの亀裂（約 4 周期/m。細かいノイズだと全面がキラキラして見える）。
     // 武器は刃（+X 側）が熾火色に焼ける（大斧の刃。ローカル +X が刃、+Y が柄の先）。
     const seamCoord = positionLocal.mul(src.map ? 14 : 5.5);
-    const seamLine = float(1).sub(smoothstep(0.0, 0.032, abs(mx_noise_float(seamCoord))));
+    const seamLine = float(1).sub(smoothstep(0.0, 0.032, abs(bakedNoise(seamCoord))));
     // 全面に網目が出ないよう、低周波のむらで「よく焼けた所」だけに絞る
-    const seamHeat = smoothstep(0.05, 0.5, mx_noise_float(seamCoord.mul(0.23).add(7.3)));
+    const seamHeat = smoothstep(0.05, 0.5, bakedNoise(seamCoord.mul(0.23).add(7.3)));
     const seam = seamLine.mul(seamHeat);
     // 刃は縁だけ強く、面は薄く（面全体を強く光らせると白ピンクに飛んで、肌色の塊に見える）
     const blade = isWeapon
@@ -356,7 +357,7 @@ function createUndeadMaterial(
   }
 
   // ディゾルブ: ワールド座標のノイズがしきい値を下回った所から消える。縁は熾火色に光り、焦げた灰色になる。
-  const n = saturate(mx_noise_float(positionWorld.mul(4.2)).mul(0.9).add(0.5));
+  const n = saturate(bakedNoise(positionWorld.mul(4.2)).mul(0.9).add(0.5));
   const threshold = mix(float(-DISSOLVE_EDGE - 0.01), float(1.01), controls.dissolve);
   const edge = float(1).sub(smoothstep(threshold, threshold.add(DISSOLVE_EDGE), n));
   const charred = edge.mul(edge);
@@ -388,7 +389,7 @@ function createUndeadMaterial(
   // 完全に消えた画素を捨てる（ブレンド無し、半透明パスにならない）
   material.opacityNode = n.greaterThan(threshold).select(float(1), float(0));
   material.alphaTest = 0.5;
-  return material;
+  return tagMaterial(material, 'undead');
 }
 
 function eyeMaskNode(uvNode: ReturnType<typeof uv>, radius = EYE_RADIUS) {

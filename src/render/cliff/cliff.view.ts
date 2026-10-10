@@ -14,6 +14,7 @@ import { createGrassMaterial } from '../levelMaterials';
 import { createDryGrassGeometry, createRockPileGeometry } from './cliffGeometry';
 import { layoutCliff, type CliffItem } from './cliffLayout';
 import { rockCrackFar, rockSurface } from './rockSurface';
+import { tagMaterial } from '../materialGroups';
 
 /**
  * 外周の崖（#176）の岩塊・枯れ草（#190）。崖の基部の瓦礫、斜面の張り出し、上端の岩と枯れ草のシルエットを
@@ -31,7 +32,7 @@ function createRockPileMaterial(): MeshStandardNodeMaterial {
   const dust = vec3(0.24, 0.215, 0.18);
   const top = smoothstep(0.55, 0.95, normalWorld.y);
   material.colorNode = vec4(mix(base.mul(rock.tone), dust, top.mul(0.35)), 1);
-  return material;
+  return tagMaterial(material, 'cliff');
 }
 
 function buildInstanced(
