@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { fogGateOf } from '../fogGate/fogGate.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
 import { resetTuning, tuning } from '../tuning';
@@ -19,6 +20,8 @@ describe('walking the level D to F (physics)', () => {
     input = new FakeInput();
     game = await Game.create({ input, ...levelGameOptions(level), enemies: [] }); // 地形の通行可能性の検証なので敵は置かない
     game.addStaticCylinders(level.cylinders);
+    // 霧の門は最初は閉じている（#66）。通行可能性の検証では解除（open）にしておく
+    fogGateOf(game)?.unseal();
     for (let i = 0; i < 10; i++) game.update(DT);
   });
 
@@ -147,7 +150,7 @@ describe('walking the level D to F (physics)', () => {
     expect(along()).toBeGreaterThan(2);
   });
 
-  it('leaves the fog gate open at the start and can close it for the boss fight', () => {
+  it('lets the player through an unsealed fog gate and blocks it again once sealed', () => {
     const gate = level.gates.find((g) => g.def.id === 'fog-gate');
     if (!gate) throw new Error('no fog gate');
     const yaw = (gate.def.yawDeg * Math.PI) / 180;
@@ -164,7 +167,7 @@ describe('walking the level D to F (physics)', () => {
     expect(along()).toBeGreaterThan(3);
 
     // 戻る向きに歩く。霧で塞いだら通れない
-    expect(game.setBoxEnabled('fog-gate', true)).toBe(true);
+    expect(fogGateOf(game)?.seal()).toBe(true);
     for (let i = 0; i < 12; i++) {
       aim(yaw + Math.PI);
       run(15);

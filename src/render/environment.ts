@@ -143,6 +143,8 @@ export interface Environment {
    * uniform / ライトの値を書き換えるだけでシェーダは変わらない（毎フレーム呼んでよい）。
    */
   setMood(mood: Mood, t: number): void;
+  /** 距離フォグの密度に掛ける倍率（1 = そのまま）。霧の門の周辺だけ濃くする（仕様 7.2 節）。`setFogScale` と掛け合わさる。 */
+  setFogBoost(factor: number): void;
   /**
    * 距離フォグの密度への倍率（既定 1。ムードの密度に掛ける）。ボス撃破で崩壊の灰が空気を濃くし、霧が晴れる演出が使う（#86）。
    * `setMood` と独立に効く（毎フレーム呼んでよい）。
@@ -295,6 +297,10 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   let lastT = 0;
   let moodFog = from.fogDensity;
   let fogScale = 1;
+  let fogBoost = 1;
+  const applyFog = (): void => {
+    fogDensity.value = moodFog * fogScale * fogBoost;
+  };
   const setMood = (mood: Mood, t: number): void => {
     const k = Math.min(1, Math.max(0, t));
     if (k === lastT && (k === 0 || k === 1)) return;
@@ -314,14 +320,19 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
     lerpColor(hazeSun.value, from.hazeSun, mood.hazeSun, k);
     lerpColor(sunTint.value, from.skyTint, mood.skyTint, k);
     moodFog = num(from.fogDensity, mood.fogDensity);
-    fogDensity.value = moodFog * fogScale;
+    applyFog();
     starAmount.value = num(from.stars, mood.stars);
   };
 
   const setFogScale = (scale: number): void => {
     fogScale = Math.max(0, scale);
-    fogDensity.value = moodFog * fogScale;
+    applyFog();
   };
 
-  return { sun, hemisphere, followShadowFocus, setMood, setFogScale, skyAt };
+  const setFogBoost = (factor: number): void => {
+    fogBoost = Math.max(0, factor);
+    applyFog();
+  };
+
+  return { sun, hemisphere, followShadowFocus, setMood, setFogScale, setFogBoost, skyAt };
 }

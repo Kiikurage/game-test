@@ -34,6 +34,19 @@ describe('arenaOf', () => {
     expect(Math.hypot(arena.entry.x - 122, arena.entry.z - 86)).toBeCloseTo(16.5, 0);
   });
 
+  it('has the fog gate target 3m inside the arena entry, facing the center', () => {
+    if (!arena) throw new Error('no arena');
+    const spawn = level.data.interactables.find((i) => i.id === 'fog-gate');
+    const target = spawn?.target;
+    if (!target) throw new Error('no fog gate target');
+    expect(Math.hypot(target.x - arena.entry.x, target.z - arena.entry.z)).toBeCloseTo(3, 0);
+    expect(Math.hypot(target.x - arena.center.x, target.z - arena.center.z)).toBeLessThan(
+      arena.circle.radius - 2,
+    );
+    const toCenter = Math.atan2(arena.center.x - target.x, arena.center.z - target.z);
+    expect(target.yaw).toBeCloseTo(toCenter, 6);
+  });
+
   it('recognises the props replaced by the arena view', () => {
     expect(isArenaProp('f-wall-3')).toBe(true);
     expect(isArenaProp('f-pillar-1')).toBe(true);
