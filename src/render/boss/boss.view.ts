@@ -8,7 +8,12 @@ import {
   LineSegments,
   Mesh,
   MeshStandardNodeMaterial,
+  Vector3,
 } from 'three/webgpu';
+import { GaitClock } from '../../game/anim/locomotion';
+import { BossCharacter } from '../assets/bossCharacter';
+import { BossAnimator, bossMoveState } from './bossAnimator';
+import { toModelSpeed, BOSS_LOCOMOTION } from './bossGait';
 import type { Boss } from '../../game/boss/boss';
 import { bossSystemOf } from '../../game/boss/boss.system';
 import { BOSS_BANDS, BOSS_STATS } from '../../game/boss/bossData';
@@ -32,10 +37,12 @@ function ring(radius: number, steps = 64): BufferGeometry {
 }
 
 /**
- * ボスの仮の見た目（E5-1 のモデルが入るまで）: 身長 4.0m・半径 0.9m のカプセルと、正面を示す箱。
+ * ボスの見た目: `BossCharacter`（E5-1。2.2 倍の亡者の騎士）。読み込みに失敗したときだけ、
+ * 身長 4.0m・半径 0.9m のカプセルと正面を示す箱の仮の見た目にする。
+ * 移動のアニメーションは位置の変化から速度を求めて再生する（技のモーションは E5-2 以降）。
  * `?debug` では距離帯（3.5m / 8m）の円と、状態・距離帯・直前の技・選択重みの表示を出す。
  */
-registerViewPlugin('boss', ({ game, view }) => {
+registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
   const system = bossSystemOf(game);
   const debug = isDebugEnabled(location.search);
   const root = new Group();
@@ -61,6 +68,13 @@ registerViewPlugin('boss', ({ game, view }) => {
   );
   eye.position.set(0, BOSS_STATS.height * 0.88, BOSS_STATS.radius - 0.05);
   root.add(body, front, eye);
+
+  // 本物のモデル（読み込めたら仮の見た目を隠す）
+  let model: BossCharacter | undefined;
+  let animator: BossAnimator | undefined;
+  const gait = new GaitClock();
+  const last = new Vector3();
+  let lastValid = false;
 
   const bands = new Group();
   if (debug) {
@@ -116,10 +130,27 @@ registerViewPlugin('boss', ({ game, view }) => {
   };
 
   return {
-    update: () => {
+    async load() {
+      const { assets, equipment, lod } = await BossCharacter.load();
+      model = BossCharacter.create(assets, equipment, lod);
+      const { preset } = gameRenderer.quality;
+      model.lodConfig = {
+        nearDistance: preset.characterLod.nearDistance,
+        shadowDistance: preset.shadowRadius * 1.4,
+      };
+      model.root.visible = false;
+      view.scene.add(model.root);
+      model.bindParticles(view.particles);
+      animator = new BossAnimator(model, assets);
+      body.visible = false;
+      front.visible = false;
+      eye.visible = false;
+    },
+    update: (dt) => {
       const boss = system.boss;
       root.visible = boss !== null && boss.alive;
       bands.visible = root.visible;
+      if (model) model.root.visible = root.visible;
       if (!boss) {
         if (overlay) overlay.style.display = 'none';
         return;
@@ -128,6 +159,22 @@ registerViewPlugin('boss', ({ game, view }) => {
       root.position.copy(p);
       root.rotation.y = boss.yaw;
       bands.position.copy(p);
+      if (model && animator && root.visible) {
+        const speed = lastValid && dt > 0 ? Math.hypot(p.x - last.x, p.z - last.z) / dt : 0;
+        last.copy(p);
+        lastValid = true;
+        model.root.position.copy(p);
+        model.root.rotation.y = boss.yaw;
+        const visible = model.updateLod(
+          view.camera,
+          view.shadowFocusTarget?.position ?? game.player.feet,
+        );
+        if (model.phase !== boss.phase) model.setPhase(boss.phase);
+        gait.advance(toModelSpeed(speed), dt, { profile: BOSS_LOCOMOTION });
+        // 画面にも影にも出ないときはアニメーションを省く
+        if (visible) animator.update(dt, bossMoveState(speed, gait));
+        model.lateUpdate(dt);
+      }
       if (overlay) {
         overlay.style.display = 'block';
         overlay.textContent = text(boss);

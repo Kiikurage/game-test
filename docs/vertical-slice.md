@@ -252,6 +252,15 @@
 
 振動は設定で ON/OFF（画面酔い対策、既定 ON、強度 100%）。
 
+実装メモ（#58。`src/game/camera/cameraEffects.ts` / `cameraEffects.system.ts`）:
+
+- 発火: `HitEvent` の購読（命中と同じステップ。ヒットストップと同期して始まる）。プレイヤーの被弾は、ボスの攻撃・重い被弾（`kind: 'heavy'`）が「重 / ボス」、それ以外が「軽」。ガード・ジャストガードでは出さない。強攻撃は `heavy` / `heavyCharged` のヒットのみ。死亡する命中・死亡処理中は出さない（死亡の FOV −4° は死亡演出が担当）。
+- 時間: 固定ステップ（60Hz）で数え、キャラクター単位のヒットストップでは止まらない。振幅は最初のステップが最大で線形に減衰。
+- 合成: 振動は最大値採用（加算しない）。被弾の FOV キックも最大値採用。クリップの FOV・距離は加算し、合計を FOV −10〜+12°・距離 −2〜+3m に頭打ち。
+- 強度: OFF / 50% / 100%（既定 100%）は振動の振幅と被弾の FOV キックに掛ける。クリップの距離・FOV（フェーズ移行のドリー）は強度で変えない。設定ストアは `cameraEffectsOf(game).setStrengthSource(() => settings.get().cameraShake)` で接続する（未接続は 100%）。
+- 適用位置: 振動と FOV はカメラ最終段（ロックオン・衝突解決の後）に加算する。ボスの叩きつけの減衰は水平距離 3m 以内で 100%、24m 以上で 0%（線形）。
+- 汎用 API: `cameraEffectsOf(game).playClip(clip)`（距離・FOV・振動のキーフレーム。フェーズ移行は `PHASE_TRANSITION_CLIP`）、`slam(distance)` / `slamAt(game, position)`、`shake(deg, frames)`、`fovKick(deg, frames)`。
+
 ---
 
 ## 4. ダメージモデル

@@ -243,11 +243,11 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 2032740,
+  "totalBytes": 2028432,
   "equipment": {
     "file": "equipment.glb",
-    "bytes": 109208,
-    "triangles": 4490,
+    "bytes": 104900,
+    "triangles": 4010,
     "textureMemoryBytes": 0,
     "items": {
       "Sword_Rusty": {
@@ -283,11 +283,11 @@
         "bone": "upperarm_r"
       },
       "PauldronLarge_L": {
-        "triangles": 544,
+        "triangles": 304,
         "bone": "upperarm_l"
       },
       "PauldronLarge_R": {
-        "triangles": 544,
+        "triangles": 304,
         "bone": "upperarm_r"
       },
       "Vambrace_L": {
@@ -355,7 +355,7 @@
     "loadoutTriangles": {
       "soldier": 948,
       "shieldbearer": 1124,
-      "boss": 3114
+      "boss": 2634
     }
   },
   "exploration": {

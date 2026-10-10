@@ -135,6 +135,11 @@ export class Boss implements BossMoveActor {
   yaw: number;
   hp: number = BOSS_STATS.hp;
   phase: BossPhase = 1;
+  /**
+   * AI の有効 / 無効（回避検証ツール用。既定 true）。false の間は、技が終わっても次のビート・選択へ進まず待機（`dormant`）する。
+   * 技は `startMove` で明示的に出す。
+   */
+  aiEnabled = true;
 
   private stateId: BossStateId = 'dormant';
   private stateFrames = 0;
@@ -206,7 +211,24 @@ export class Boss implements BossMoveActor {
 
   /** 戦闘を始める（最初はビートから）。 */
   engage(): void {
-    if (this.stateId === 'dormant') this.enterBeat();
+    if (this.stateId === 'dormant' && this.aiEnabled) this.enterBeat();
+  }
+
+  /**
+   * 指定した技を今すぐ始める（回避検証ツール・検証 API 用。AI の選択・ビートは通らない）。実行中の技は打ち切る。
+   * `skipApproach` を true にすると接近を飛ばし、いまの位置から予備動作に入る（F1 = 技の 1 段目の F1）。
+   * 使えない技（未登録・そのフェーズで使えない）なら false。
+   */
+  startMove(id: BossMoveId, options: { skipApproach?: boolean } = {}): boolean {
+    if (!this.alive) return false;
+    const move = this.deps.moves.get(id);
+    if (!move || !move.phases.includes(this.phase)) return false;
+    this.cancelRun();
+    this.history.push(move.id);
+    if (this.history.length > BOSS_AI.historyLength) this.history.shift();
+    this.pending = { move, rollBonus: false };
+    this.beginMove(options.skipApproach ?? false);
+    return true;
   }
 
   /** フェーズを切り替える（E5-7 が呼ぶ。移行演出はそちら）。 */
@@ -304,6 +326,10 @@ export class Boss implements BossMoveActor {
   }
 
   private enterBeat(): void {
+    if (!this.aiEnabled) {
+      this.enter('dormant');
+      return;
+    }
     const [min, max] = BOSS_AI.beatFrames[this.phase];
     this.beatLength = min + Math.floor(this.deps.random() * (max - min + 1));
     this.enter('beat');
@@ -360,7 +386,7 @@ export class Boss implements BossMoveActor {
     this.beginMove();
   }
 
-  private beginMove(): void {
+  private beginMove(skipApproach = false): void {
     const pending = this.pending;
     if (!pending) return;
     this.pending = null;
@@ -382,7 +408,7 @@ export class Boss implements BossMoveActor {
     };
     move.hooks?.onStart?.(this.moveContext());
     const a = move.approach;
-    if (a && this.distanceNow > a.stopRange) {
+    if (a && !skipApproach && this.distanceNow > a.stopRange) {
       this.approachMax = a.maxFrames ?? BOSS_AI.approachMaxFrames;
       this.enter('approach');
     } else {
