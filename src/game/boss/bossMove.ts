@@ -17,6 +17,13 @@ import type { BossMoveId, BossPhase } from './bossData';
  */
 export const BOSS_MIN_LOCKED_FRAMES = 12;
 
+/**
+ * 連続攻撃の 2 段目以降（`followUp`）の発生の下限（F）。雑魚の 20F（`ENEMY_ATTACK_RULES.minFollowUpStartup`）は、
+ * 仕様の三連撃 P2 の 2 段目（発生 16F）と合わないので、ボスはこの値で見る（6.3 節の数値を優先する本実装の判断）。
+ * 1 段目で身構えているうえ、向き固定の猶予（`BOSS_MIN_LOCKED_FRAMES`）は別に守らせる。
+ */
+export const BOSS_MIN_FOLLOW_UP_STARTUP = 16;
+
 /** 技 1 段。`EnemyAttackDef` のフレームデータ・判定に、ボス用の指定を足す。 */
 export interface BossStageDef extends EnemyAttackDef {
   /**
@@ -108,12 +115,19 @@ export function checkBossMove(move: BossMoveDef): string[] {
       // 追尾終了は雑魚の「発生の 60% まで」ではなく、ボス用の基準（向き固定の猶予 12F 以上）で見る
       for (const p of checkEnemyAttack(stage)) {
         if (p.includes('追尾終了')) continue;
+        // 連続攻撃の発生の下限はボス用（`BOSS_MIN_FOLLOW_UP_STARTUP`）で見る
+        if (stage.followUp && /発生 \d+ が下限/.test(p)) continue;
         problems.push(`${move.id}(${label}) 段${i + 1}: ${p}`);
       }
       const trackEnd = trackEndFrame(stage);
       if (trackEnd > stage.startup - BOSS_MIN_LOCKED_FRAMES) {
         problems.push(
           `${move.id}(${label}) 段${i + 1}: 追尾終了 F${trackEnd} が発生 ${stage.startup} の ${BOSS_MIN_LOCKED_FRAMES}F 前を超える`,
+        );
+      }
+      if (stage.followUp && stage.startup < BOSS_MIN_FOLLOW_UP_STARTUP) {
+        problems.push(
+          `${move.id}(${label}) 段${i + 1}: 発生 ${stage.startup} が下限 ${BOSS_MIN_FOLLOW_UP_STARTUP} 未満（連続攻撃）`,
         );
       }
       if (i > 0 && !stage.followUp) {

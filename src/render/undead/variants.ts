@@ -13,7 +13,8 @@ export const OUTFIT_MESHES = {
 } as const;
 
 export interface UndeadVariant {
-  readonly id: UndeadVariantId;
+  /** 雑魚のバリアント ID、またはボス専用（`BOSS_VARIANT`。乱数選択の対象には入らない）。 */
+  readonly id: UndeadVariantId | 'boss';
   /** 肌の色（暗く彩度を落とした灰褐色）。 */
   readonly skin: number;
   /** 肌の斑（痣・腐敗）の色。 */
@@ -30,6 +31,11 @@ export interface UndeadVariant {
   readonly belts: boolean;
   /** 眼の発光の強さ（1 が標準）。 */
   readonly eyeGlow: number;
+  /**
+   * 装備金属の「冷たい鋼」寄せ（0〜1、省略 0）。頂点カラーの錆の茶を彩度を落として青灰へ寄せ、
+   * 上向きの面に灰を薄く積もらせる。ボスは暖色の夕日の下でも粘土色に見えないよう強めに掛ける。
+   */
+  readonly steel?: number;
 }
 
 export const UNDEAD_VARIANTS: Readonly<Record<UndeadVariantId, UndeadVariant>> = {
@@ -85,6 +91,25 @@ export const UNDEAD_VARIANTS: Readonly<Record<UndeadVariantId, UndeadVariant>> =
     belts: false,
     eyeGlow: 1,
   },
+};
+
+/**
+ * ボス「オルグ」の見た目（仕様書 6.1 節）: 暗く彩度を落とした灰色の肌、ボロ布は煤けた黒褐色、錆びた全身鎧。
+ * 衣装は兜・大型肩当て・マントで覆うのでフード・肩当て・ベルトは出さない。体型は等倍（拡大は 2.2 倍の一様スケールのみ。
+ * 実寸比のまま大きくし、プロポーションを変えない）。眼は雑魚より強く光らせる。
+ */
+export const BOSS_VARIANT: UndeadVariant = {
+  id: 'boss',
+  skin: 0x5e5853,
+  bruise: 0x2e2c32,
+  cloth: 0x2e2824,
+  rust: 0x7a4426,
+  build: { width: 1, height: 1 },
+  hood: false,
+  pauldron: false,
+  belts: false,
+  eyeGlow: 1.5,
+  steel: 0.6,
 };
 
 export const UNDEAD_VARIANT_IDS = Object.keys(UNDEAD_VARIANTS) as UndeadVariantId[];

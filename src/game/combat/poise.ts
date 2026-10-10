@@ -28,6 +28,11 @@ export class Poise {
   private sinceHit = Number.POSITIVE_INFINITY;
   /** false の間は強靭度が 0 以下になっても崩れない（ボスのフェーズ内 1 回制限用）。 */
   breakEnabled = true;
+  /**
+   * true の間は強靭度ダメージを無効化する（`hit` は `ignored`）。ボスが崩された後、そのフェーズの残りで使う
+   * （崩しは「フェーズごとに 1 回」。フェーズが変わる・リセットで解除）。
+   */
+  damageDisabled = false;
 
   constructor(
     readonly max: number,
@@ -61,7 +66,7 @@ export class Poise {
 
   /** 強靭度削り `damage` を受ける。崩れたら `staggerFrames` 間 `staggered` になる。 */
   hit(damage: number, staggerFrames: number): PoiseHit {
-    if (this.staggered) return { broke: false, ignored: true };
+    if (this.staggered || this.damageDisabled) return { broke: false, ignored: true };
     this.sinceHit = 0;
     let remaining = Math.max(0, damage);
     const soaked = Math.min(this.bonusLeft, remaining);
@@ -96,5 +101,6 @@ export class Poise {
     this.bonusLeft = 0;
     this.staggerLeft = 0;
     this.sinceHit = Number.POSITIVE_INFINITY;
+    this.damageDisabled = false;
   }
 }
