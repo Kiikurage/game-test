@@ -70,3 +70,70 @@
 - プレイヤーの装備（約 34 ドローコール）の結合（同一ボーンに付く剛体を 1 メッシュに）。
 - 環境メッシュの距離 LOD、草の距離フェード（`grassCount` は既に品質別）。
 - 敵が増えたときの GPU インスタンシング（スキニングのインスタンス化は three では未対応）。
+
+## 実機での計測と切り分け（#231）
+
+ドローコール・三角形の予算（上記）だけでは、モバイル GPU の**フィルレート・フラグメント負荷**は分からない（ヘッドレス SwiftShader は GPU 時間の参考にならない）。実機（Xperia 1 V など）では次の手順で切り分ける。
+
+### 1. 計測 HUD `?perf`
+
+`?perf` を付けると左上に軽量 HUD が出る（`?debug` と違い、操作パネルやカテゴリ別内訳は出さない）。
+
+```
+30.1 fps avg / 24.8 1% low (target 30)   直近 300 フレームの平均 fps と、最も遅い 1% のフレームの fps
+frame 33.2 ms (worst1% 40.3)             フレーム時間（rAF 間隔）
+cpu 6.1 ms / gpu 24.0 ms                 JS の描画 CPU 時間（中央値）/ GPU 時間（timestamp-query 対応時のみ。非対応は gpu n/a）
+625x282 @0.68                            実際の描画バッファ解像度と倍率
+dyn scale 0.80                           動的解像度の現在値（固定時は (fixed)）
+quality medium (mobile) msaa off bloom on
+draw 129 / tri 224627
+pipelines 43                             起動からのレンダーパイプライン生成数（遊んでいる間に増え続けたらバグ）
+toggles: noParticles flatMat             有効な切り分けトグル
+```
+
+- `gpu` が `frame` よりずっと小さいなら CPU（または vsync・ドライバ）が律速、`gpu` ≒ `frame` なら GPU が律速。
+- `dyn scale` が下限（モバイル 0.4）に張り付いたまま fps が足りないなら、解像度以外（固定負荷）が原因。
+
+### 2. 切り分けトグル
+
+`?perf` に加えて、1 つずつ足して fps（`frame ms`・`gpu ms`）の変化を見る。URL 例（`<URL>` はゲームの URL）:
+
+| クエリ | 効果 | 例 |
+| --- | --- | --- |
+| `?scale=<0.25..1>` | 動的解像度を切って内部解像度の倍率を固定 | `<URL>/?perf&scale=0.5` |
+| `?quality=low\|medium\|high` | 品質プリセットを強制 | `<URL>/?perf&quality=low` |
+| `?nomsaa` | MSAA を切る | `<URL>/?perf&nomsaa` |
+| `?nobloom` | ブルームを省く | `<URL>/?perf&nobloom` |
+| `?noshadow` | シャドウマップを描かない | `<URL>/?perf&noshadow` |
+| `?nograss` | 草を置かない | `<URL>/?perf&nograss` |
+| `?noparticles` | パーティクル（炎・灰・火の粉・ヒット）を描かない | `<URL>/?perf&noparticles` |
+| `?nolights` | 篝火の点光源を置かない（点光源はすべてのマテリアルのフラグメントに掛かる） | `<URL>/?perf&nolights` |
+| `?flatmat` | 不透明メッシュの TSL マテリアル（地形・石積み・闘技場・亡者など）を単色の MeshStandard に差し替える（見た目は壊れる） | `<URL>/?perf&flatmat` |
+
+切り分けの進め方の例:
+
+1. `?perf` だけで fps / gpu ms を記録（基準）。
+2. `?perf&scale=0.5` → fps がほぼ線形に上がればフィルレート律速。ほとんど変わらなければ固定負荷（影・頂点・CPU）が支配的。
+3. `?perf&scale=0.25&nomsaa&nobloom&noshadow&nograss&noparticles&nolights&flatmat`（全部入り）で、固定負荷の下限を確認。そこから 1 つずつ戻して、戻した瞬間に fps が落ちるものが原因。
+4. `cpu` が大きいなら JS 側（`pipelines` が増え続けていないかも見る）。
+
+トグルは `src/render/perfToggles.ts`（preset を落とすもの）と `src/render/perf.view.ts`（`?perf` HUD・`?noparticles`・`?flatmat`）、`src/render/renderer.ts`（`?noshadow`・GPU 時間）にある。
+
+### 3. 動的解像度（`DynamicResolution`）の挙動
+
+目標 fps（モバイル 30 / PC 60）を割ると内部解像度の倍率を下げる（モバイルは 0.8 から開始、下限 0.4。余裕があるときだけ 0.1 ずつ上げる）。#231 で次を直した（`src/render/dynamicResolution.test.ts`）。
+
+- **1fps 級の低速で何も下がらない**: 1 フレーム 1000ms 超を外れ値として捨てていたため、極端に遅い端末では全フレームが捨てられ、解像度が一切下がらなかった。単発の外れ値（タブ復帰・ロード）だけ捨て、連続するなら本当の低速として評価する。窓が埋まるのを待たず、蓄積 1 秒（最低 2 フレーム）で評価する。
+- **起動直後・変更直後のカクつき**: 起動直後 6 フレームと、解像度変更直後 2 フレームは評価に入れない。1 フレームを目標の 6 倍までに丸め、単発のスパイク（シェーダコンパイル）で下げすぎない。
+- **上げ下げの往復**: 上げた直後に目標を割ったら、次に上げるまでの待ちを 2 倍（最大 8 倍）にする。
+
+### 4. モバイル既定値の見直し（medium）
+
+| 項目 | 変更前 | 変更後 | 理由 |
+| --- | --- | --- | --- |
+| MSAA | on | off | 内部解像度が高く、エッジの差が小さい割に、MSAA はレンダーターゲットと帯域を 4 倍にする |
+| maxPixels | 1.8M | 1.1M | フィルレート。見た目は少しやわらかくなる |
+| 影マップ | 2048 | 1536 | 影パスの帯域。半径 24m で約 32px/m。PCF でぼかすので差は小さい |
+| 動的解像度の開始 / 下限 | 1.0 / 0.5 | 0.8 / 0.4 | 起動直後に最大解像度で重いフレームを出さない。足りないときにもっと下げられる |
+
+PC（`high`）と `low` の値は変えていない。ヘッドレスでは、ウォームアップ後にパイプラインが増え続けないこと（`e2e/perfProbe.spec.ts`）と、JS の描画 CPU がフレームあたり約 7ms であることを確認した。
