@@ -36,6 +36,8 @@ export interface BossStageDef extends EnemyAttackDef {
    * 通常攻撃では崩れず仰け反りもしない。区間外は `poiseBonus`（既定 +30）。
    */
   readonly superArmor?: FrameWindow;
+  /** 未ガードで命中したときの後退距離（m。盾打ちの 3m など。重い被弾のプレイヤーの転倒に効く）。 */
+  readonly knockback?: number;
 }
 
 /** 技の前に行う移動（接近）。省略すると、いまの位置のまま予備動作に入る。 */

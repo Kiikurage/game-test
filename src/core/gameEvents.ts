@@ -139,6 +139,15 @@ export interface GameEventMap {
     readonly db: number;
     readonly frames: number;
   };
+  /**
+   * ボスの叩きつけ（跳躍叩きつけの着地など）。着地の衝撃の演出（パーティクル・破片）が購読する。
+   * 画面振動は game 側が `slamAt`（カメラ演出）で出すので、ここでは出さない。
+   */
+  bossSlam: {
+    readonly position: Vec3Like;
+    /** 衝撃の円の半径（m）。 */
+    readonly radius: number;
+  };
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {
     readonly cue: string;

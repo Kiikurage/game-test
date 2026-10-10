@@ -353,7 +353,11 @@ describe('マーカー表 (anim/data/bossClips.json)', () => {
   );
 
   it('has one entry per stage and phase, matching the frame data', () => {
-    expect(bossClipEvents.entries).toHaveLength(defs.length);
+    // 技 4・5 のエントリは `bossMoves45.test.ts` が見る
+    const basic = bossClipEvents.entries.filter((e) =>
+      /^boss\.(overhead|sweep|combo3)\./.test(e.id),
+    );
+    expect(basic).toHaveLength(defs.length);
     for (const { phase, stage } of defs) {
       const entry = findBossClipEvents(`boss.${stage.id}.p${phase}`);
       if (!entry) throw new Error(`no marker entry for ${stage.id} P${phase}`);

@@ -466,6 +466,7 @@ export class Boss implements BossMoveActor {
       damage: stage.damage,
       poiseDamage: stage.poiseDamage,
       guardStaminaCost: stage.guardStaminaCost,
+      ...(stage.knockback !== undefined && { knockback: stage.knockback }),
     });
     this.enter('attack');
     this.stateFrames = 0;
