@@ -6,6 +6,8 @@ export interface StaminaContext {
   readonly guarding?: boolean;
   /** 走り・ダッシュ中（回復しない。待ち時間は進む）。 */
   readonly sprinting?: boolean;
+  /** 強攻撃の溜め中（回復しない。待ち時間は進む）。 */
+  readonly charging?: boolean;
 }
 
 /**
@@ -13,7 +15,7 @@ export interface StaminaContext {
  *
  * - 消費は動作**開始時**に `consume`。0 でクランプする。0 のときは新規に動作を開始できない
  *   （`canStart`）が、消費の結果 0 になる動作そのものは開始できる。
- * - 回復は、最後の消費から 45F 経過後に毎秒 40（0.667/F）。ガード中は毎秒 20。走り・ダッシュ中は回復しない。
+ * - 回復は、最後の消費から 45F 経過後に毎秒 40（0.667/F）。ガード中は毎秒 20。走り・ダッシュ中と強攻撃の溜め中は回復しない。
  *   消費で 0 になった場合は待ちが 60F。
  * - ダッシュなどの継続消費は `drain`（毎ステップ `毎秒 × dt`）。
  * - 0 に達した瞬間（HUD の点滅・SE・息切れ用）は `onEmpty` で購読する。
@@ -90,7 +92,7 @@ export class Stamina {
       this.delay--;
       return;
     }
-    if (context.sprinting) return;
+    if (context.sprinting || context.charging) return;
     const perSecond = context.guarding ? STAMINA.guardRegenPerSecond : this.regenPerSecond;
     this.current = Math.min(this.max, this.current + perSecond * dt);
   }
