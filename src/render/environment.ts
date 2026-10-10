@@ -10,6 +10,11 @@ import {
   Fn,
   cameraPosition,
   clamp,
+  floor,
+  fract,
+  hash,
+  length,
+  step,
   dot,
   float,
   fog,
@@ -29,6 +34,7 @@ import {
 } from 'three/tsl';
 import type { QualityPreset } from './quality';
 import { SHADOW_PROXY_LAYER } from './layers';
+import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
 
 /** 太陽（シャドウカメラ）をフォーカスからどれだけ離すか（m）。 */
 const SHADOW_LIGHT_DISTANCE = 90;
@@ -58,6 +64,69 @@ export const ATMOSPHERE = {
   hazeSun: 0xf0b877,
 } as const;
 
+/** 時間帯・場所ごとのライティング・空・フォグのまとまり（`Environment.setMood` が 2 つの間を補間する）。 */
+export interface Mood {
+  readonly sunColor: number;
+  /** 空の太陽の光芒・雲の縁・遠景の逆光に使う色（ライトの色 `sunColor` とは別。夜は暗くする）。 */
+  readonly skyTint: number;
+  readonly sunIntensity: number;
+  readonly skyLight: number;
+  readonly groundLight: number;
+  readonly hemiIntensity: number;
+  readonly fillLight: number;
+  readonly fillIntensity: number;
+  readonly zenith: number;
+  readonly midSky: number;
+  readonly horizon: number;
+  readonly hazeFar: number;
+  readonly hazeSun: number;
+  /** 距離フォグの密度。 */
+  readonly fogDensity: number;
+  /** 星の量 0..1。 */
+  readonly stars: number;
+}
+
+/** 既定の黄昏（フィールド）。 */
+export const DUSK_MOOD: Mood = {
+  sunColor: ATMOSPHERE.sunColor,
+  skyTint: ATMOSPHERE.sunColor,
+  sunIntensity: ATMOSPHERE.sunIntensity,
+  skyLight: ATMOSPHERE.skyLight,
+  groundLight: ATMOSPHERE.groundLight,
+  hemiIntensity: ATMOSPHERE.hemiIntensity,
+  fillLight: ATMOSPHERE.fillLight,
+  fillIntensity: ATMOSPHERE.fillIntensity,
+  zenith: ATMOSPHERE.zenith,
+  midSky: ATMOSPHERE.midSky,
+  horizon: ATMOSPHERE.horizon,
+  hazeFar: ATMOSPHERE.hazeFar,
+  hazeSun: ATMOSPHERE.hazeSun,
+  fogDensity: 0.0085,
+  stars: 0,
+};
+
+/**
+ * 闘技場（仕様書 7.2 節: 夕闇からほぼ夜。太陽は黄昏の 1/4（仕様の 2.0 → 0.5 と同じ比）、環境光は青。太陽は冷たい月明かり、補助光は篝火の暖色）。
+ * 主光源は篝火・熾火・たいまつ（画面側の暖色）で、太陽・環境光は暗い青に寄せる。
+ */
+export const ARENA_MOOD: Mood = {
+  sunColor: 0x9ab0f0,
+  skyTint: 0x6a3a52,
+  sunIntensity: ATMOSPHERE.sunIntensity * 0.35,
+  skyLight: 0x7684b8,
+  groundLight: 0x302c44,
+  hemiIntensity: 0.8,
+  fillLight: 0xff7440,
+  fillIntensity: 0.8,
+  zenith: 0x0a1030,
+  midSky: 0x2a2658,
+  horizon: 0x8a4e72,
+  hazeFar: 0x232a4a,
+  hazeSun: 0x3c2c4c,
+  fogDensity: 0.0115,
+  stars: 1,
+};
+
 /** 太陽へ向かう単位ベクトル。 */
 export function sunDirection(out = new Vector3()): Vector3 {
   const { sunAzimuth: az, sunElevation: el } = ATMOSPHERE;
@@ -69,6 +138,13 @@ export interface Environment {
   readonly hemisphere: HemisphereLight;
   /** 影のカバー範囲の中心をプレイヤー付近へ追従させる（毎フレーム呼ぶ）。 */
   followShadowFocus(focus: Vector3): void;
+  /**
+   * ライティング・空・フォグを `DUSK_MOOD`（t = 0）から `mood`（t = 1）へ補間して設定する。
+   * uniform / ライトの値を書き換えるだけでシェーダは変わらない（毎フレーム呼んでよい）。
+   */
+  setMood(mood: Mood, t: number): void;
+  /** 視線方向（ワールド）に対する空の色。背景と同じ式・同じ uniform（闘技場の背景の幕が使う）。 */
+  skyAt(dir: Node<'vec3'>): Node<'vec3'>;
 }
 
 /**
@@ -84,44 +160,59 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   const zenith = uniform(new Color(ATMOSPHERE.zenith));
   const midSky = uniform(new Color(ATMOSPHERE.midSky));
   const horizon = uniform(new Color(ATMOSPHERE.horizon));
-  const hazeFar = uniform(new Color(ATMOSPHERE.hazeFar));
-  const hazeSun = uniform(new Color(ATMOSPHERE.hazeSun));
-  const sunTint = uniform(sunColor);
+  // フォグ色と太陽色は遠景（skyline）と共有（闘技場のムード切り替えで同時に動く）
+  const hazeFar = sharedHazeFar;
+  const hazeSun = sharedHazeSun;
+  const sunTint = sharedSunTint;
+  const starAmount = uniform(0);
+  sunTint.value.copy(sunColor);
 
-  const skyColor = Fn(() => {
-    const dir = positionWorldDirection;
-    const h = dir.y;
-    const mu = clamp(dot(dir, sunDirNode), 0, 1);
+  const skyAt = (dirNode: Node<'vec3'>): Node<'vec3'> =>
+    Fn(() => {
+      const dir = dirNode;
+      const h = dir.y;
+      const mu = clamp(dot(dir, sunDirNode), 0, 1);
 
-    // 地平線の金色 → 中空の灰緑 → 天頂の青灰
-    const up = clamp(h, 0, 1);
-    let col = mix(horizon, midSky, smoothstep(0.0, 0.28, up));
-    col = mix(col, zenith, smoothstep(0.15, 0.85, up));
-    // 太陽側の地平線ほど強く染まる
-    col = mix(col, horizon.mul(1.15), pow(mu, 3).mul(smoothstep(0.5, 0.0, up)));
-    // 太陽の周囲の光芒（大気散乱）+ 太陽円盤（HDR。ブルームで滲む）
-    const glow = pow(mu, 8).mul(0.55).add(pow(mu, 90).mul(1.4));
-    const disc = smoothstep(0.99955, 0.99985, mu).mul(24);
-    col = col.add(sunTint.mul(glow.add(disc)));
+      // 地平線の金色 → 中空の灰緑 → 天頂の青灰
+      const up = clamp(h, 0, 1);
+      let col = mix(horizon, midSky, smoothstep(0.0, 0.28, up));
+      col = mix(col, zenith, smoothstep(0.15, 0.85, up));
+      // 太陽側の地平線ほど強く染まる
+      col = mix(col, horizon.mul(1.15), pow(mu, 3).mul(smoothstep(0.5, 0.0, up)));
+      // 太陽の周囲の光芒（大気散乱）+ 太陽円盤（HDR。ブルームで滲む）
+      const glow = pow(mu, 8).mul(0.55).add(pow(mu, 90).mul(1.4));
+      const disc = smoothstep(0.99955, 0.99985, mu).mul(24);
+      // 夜（星が出るムード）では太陽の円盤・光芒を消す
+      col = col.add(sunTint.mul(glow.add(disc)).mul(float(1).sub(starAmount)));
 
-    // 薄い雲の筋（太陽に照らされた縁が金色になる）
-    const cloudUV = vec2(dir.x, dir.z)
-      .div(max(h.add(0.18), 0.06))
-      .mul(1.2);
-    const cloud = mx_fractal_noise_float(vec3(cloudUV.x, cloudUV.y.mul(3.2), 0.0), 4, 2.0, 0.5)
-      .mul(0.5)
-      .add(0.5);
-    const cloudMask = smoothstep(0.58, 0.88, cloud)
-      .mul(smoothstep(0.02, 0.3, h))
-      .mul(smoothstep(0.85, 0.4, h))
-      .mul(0.5);
-    const cloudLit = mix(midSky.mul(0.85), sunTint.mul(1.1), pow(mu, 2).mul(0.7).add(0.15));
-    col = mix(col, cloudLit, cloudMask);
+      // 薄い雲の筋（太陽に照らされた縁が金色になる）
+      const cloudUV = vec2(dir.x, dir.z)
+        .div(max(h.add(0.18), 0.06))
+        .mul(1.2);
+      const cloud = mx_fractal_noise_float(vec3(cloudUV.x, cloudUV.y.mul(3.2), 0.0), 4, 2.0, 0.5)
+        .mul(0.5)
+        .add(0.5);
+      const cloudMask = smoothstep(0.58, 0.88, cloud)
+        .mul(smoothstep(0.02, 0.3, h))
+        .mul(smoothstep(0.85, 0.4, h))
+        .mul(0.5);
+      const cloudLit = mix(midSky.mul(0.85), sunTint.mul(1.1), pow(mu, 2).mul(0.7).add(0.15));
+      col = mix(col, cloudLit, cloudMask);
 
-    // 地平線より下は霞の色で塗りつぶす（フォグと連続させる）
-    return mix(hazeFar.mul(0.9), col, smoothstep(-0.06, 0.02, h));
-  })();
-  scene.backgroundNode = skyColor;
+      // 星（天頂付近にまばらに。闘技場のムードでだけ出る）
+      const grid = dir.mul(240);
+      const cell = floor(grid);
+      const seed = hash(cell.x.add(cell.y.mul(57.3)).add(cell.z.mul(131.7)));
+      const star = step(0.9988, seed)
+        .mul(smoothstep(0.42, 0.0, length(fract(grid).sub(0.5))))
+        .mul(hash(seed.mul(91.7)).mul(0.7).add(0.5))
+        .mul(smoothstep(0.32, 0.75, up));
+      col = col.add(vec3(0.8, 0.86, 1.0).mul(star).mul(starAmount).mul(2.2));
+
+      // 地平線より下は霞の色で塗りつぶす（フォグと連続させる）
+      return mix(hazeFar.mul(0.9), col, smoothstep(-0.06, 0.02, h));
+    })();
+  scene.backgroundNode = skyAt(positionWorldDirection);
 
   // --- フォグ（距離 + 高さ）。太陽側は金色の霞、反対側は灰青の霞 ---
   const fogColor = Fn(() => {
@@ -129,7 +220,8 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
     const mu = clamp(dot(viewDir, sunDirNode), 0, 1);
     return mix(hazeFar, hazeSun, pow(mu, 2.5));
   })();
-  const distanceFog = densityFogFactor(float(0.0085));
+  const fogDensity = uniform(DUSK_MOOD.fogDensity);
+  const distanceFog = densityFogFactor(fogDensity);
   const heightFog = exponentialHeightFogFactor(float(0.0025), float(3));
   // 2 つのフォグ係数を「透過率の積」で合成する
   const transmittance = (f: unknown): Node<'float'> => float(1).sub(f as Node<'float'>);
@@ -190,5 +282,33 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   };
   followShadowFocus(new Vector3());
 
-  return { sun, hemisphere, followShadowFocus };
+  const from = DUSK_MOOD;
+  const tmpA = new Color();
+  const tmpB = new Color();
+  const lerpColor = (out: Color, a: number, b: number, t: number): Color =>
+    out.copy(tmpA.set(a)).lerp(tmpB.set(b), t);
+  let lastT = 0;
+  const setMood = (mood: Mood, t: number): void => {
+    const k = Math.min(1, Math.max(0, t));
+    if (k === lastT && (k === 0 || k === 1)) return;
+    lastT = k;
+    const num = (a: number, b: number): number => a + (b - a) * k;
+    lerpColor(sun.color, from.sunColor, mood.sunColor, k);
+    sun.intensity = num(from.sunIntensity, mood.sunIntensity);
+    lerpColor(hemisphere.color, from.skyLight, mood.skyLight, k);
+    lerpColor(hemisphere.groundColor, from.groundLight, mood.groundLight, k);
+    hemisphere.intensity = num(from.hemiIntensity, mood.hemiIntensity);
+    lerpColor(fill.color, from.fillLight, mood.fillLight, k);
+    fill.intensity = num(from.fillIntensity, mood.fillIntensity);
+    lerpColor(zenith.value, from.zenith, mood.zenith, k);
+    lerpColor(midSky.value, from.midSky, mood.midSky, k);
+    lerpColor(horizon.value, from.horizon, mood.horizon, k);
+    lerpColor(hazeFar.value, from.hazeFar, mood.hazeFar, k);
+    lerpColor(hazeSun.value, from.hazeSun, mood.hazeSun, k);
+    lerpColor(sunTint.value, from.skyTint, mood.skyTint, k);
+    fogDensity.value = num(from.fogDensity, mood.fogDensity);
+    starAmount.value = num(from.stars, mood.stars);
+  };
+
+  return { sun, hemisphere, followShadowFocus, setMood, skyAt };
 }

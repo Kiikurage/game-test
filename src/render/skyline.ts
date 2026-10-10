@@ -27,7 +27,8 @@ import {
   vec3,
   vertexColor,
 } from 'three/tsl';
-import { ATMOSPHERE, sunDirection } from './environment';
+import { sunDirection } from './environment';
+import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
 import { valueNoise } from './terrain';
 
 /** 遠景の山並みの 1 層。半径が大きいほど遠く、霞に溶ける。 */
@@ -92,8 +93,8 @@ export function createRidgeGeometry(layer: RidgeLayer, segments = 320): BufferGe
 
 /** 霞・太陽側の金色・天頂側の灰青を、視線と太陽の向きで混ぜた色（フォグ色と同じ式）。 */
 function createHazeColor(sunDirNode: Node<'vec3'>): Node<'vec3'> {
-  const hazeFar = uniform(new Color(ATMOSPHERE.hazeFar));
-  const hazeSun = uniform(new Color(ATMOSPHERE.hazeSun));
+  const hazeFar = sharedHazeFar;
+  const hazeSun = sharedHazeSun;
   return Fn(() => {
     const viewDir = normalize(positionWorld.sub(cameraPosition));
     const mu = clamp(dot(viewDir, sunDirNode), 0, 1);
@@ -105,7 +106,7 @@ function createRidgeMaterial(layer: RidgeLayer, sunDirNode: Node<'vec3'>): MeshB
   const material = new MeshBasicNodeMaterial({ fog: false });
   const haze = createHazeColor(sunDirNode);
   const near = uniform(new Color(0x2e333c));
-  const sunTint = uniform(new Color(ATMOSPHERE.sunColor));
+  const sunTint = sharedSunTint;
   const top = layer.base + layer.amplitude;
   material.colorNode = Fn(() => {
     const viewDir = normalize(positionWorld.sub(cameraPosition));
