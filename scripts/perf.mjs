@@ -43,9 +43,9 @@ try {
     const f0 = await page.evaluate(() => window.__game.frames);
     await page.waitForFunction((n) => window.__game.frames > n + 20, f0, { timeout: 120_000 });
     const r = await page.evaluate(() => ({
-      draws: window.__game.render.drawCalls,
-      tris: window.__game.render.triangles,
-      profile: window.__game.render.profile(),
+      draws: window.__game.dev.renderInfo().drawCalls,
+      tris: window.__game.dev.renderInfo().triangles,
+      profile: window.__game.dev.renderProfile(),
     }));
     rows.push({ name: v.name, ...r });
   }

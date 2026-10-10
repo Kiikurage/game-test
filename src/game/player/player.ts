@@ -16,6 +16,8 @@ import {
   HitReactor,
   PLAYER_REACTOR,
   knockdownInvulnerable,
+  type GuardOutcome,
+  type GuardQuery,
   type HitEvent,
   type HitReaction,
 } from '../combat';
@@ -41,23 +43,36 @@ import {
 } from './movement';
 import { Flask } from './flask';
 import {
+  DEFAULT_GUARD_PARAMS,
+  GuardCounterWindow,
+  guardOutcomeAt,
+  isWithinGuardArc,
+  type GuardParams,
+} from './guard';
+import {
   PLAYER_STATE_GRAPH,
+  isAttackState,
   isDodgeState,
+  isGuardState,
   isHealState,
   isLightAttackState,
   isReactionState,
   type LightAttackId,
+  type PlayerAttackId,
   type PlayerStateId,
 } from './playerStates';
 import { Stamina, type StaminaContext } from './stamina';
 
 export {
   PLAYER_STATE_GRAPH,
+  isAttackState,
   isDodgeState,
+  isGuardState,
   isHealState,
   isLightAttackState,
   isReactionState,
   type LightAttackId,
+  type PlayerAttackId,
   type PlayerStateId,
 };
 
@@ -80,7 +95,7 @@ export type PlayerEvent =
   | { readonly type: 'healApply'; readonly amount: number }
   /** 瓶 0 本での空振り（回復なし・SE のみ）。 */
   | { readonly type: 'healEmpty' }
-  | { readonly type: 'attackStart'; readonly id: LightAttackId }
+  | { readonly type: 'attackStart'; readonly id: PlayerAttackId }
   | { readonly type: 'land'; readonly fallHeight: number }
   | { readonly type: 'staminaEmpty' };
 
@@ -107,6 +122,17 @@ export interface PlayerAnimationState {
   readonly lockedOn: boolean;
   /** 向き（ヨー）。 */
   readonly yaw: number;
+  /** ガードの見た目の段階（上半身の盾の構え。ガード系の状態でなければ none）。 */
+  readonly guard: GuardPresentation;
+}
+
+/**
+ * ガードの見た目: `raise` 構え中（F1–構え完了）、`hold` 保持、`hit` 被ガードのスタン中、`release` 解除の硬直、
+ * `none` ガードしていない。`frame` は構えに入ってからのフレーム（`hit` では被ガードからのフレーム）。
+ */
+export interface GuardPresentation {
+  readonly phase: 'none' | 'raise' | 'hold' | 'hit' | 'release';
+  readonly frame: number;
 }
 
 interface ActionCancels {
@@ -155,7 +181,7 @@ const NEXT_LIGHT: Readonly<Record<LightAttackId, LightAttackId | null>> = {
  * 軽攻撃の前進量の配分（フレームごとの移動距離 m）。発生 + 持続の間に、中ほどを厚く（踏み込み）、
  * 振り終わり（硬直）では止まる。合計が仕様の前進量（0.5 / 0.5 / 1.0 m）になる。
  */
-function attackLungeProfile(id: LightAttackId): number[] {
+function attackLungeProfile(id: PlayerAttackId): number[] {
   const a = PLAYER_ACTIONS[id];
   const n = a.startup + a.active;
   const w: number[] = [];
@@ -163,10 +189,11 @@ function attackLungeProfile(id: LightAttackId): number[] {
   const sum = w.reduce((x, y) => x + y, 0);
   return w.map((x) => (x / sum) * a.moveDistance);
 }
-const LUNGE: Readonly<Record<LightAttackId, readonly number[]>> = {
+const LUNGE: Readonly<Record<PlayerAttackId, readonly number[]>> = {
   light1: attackLungeProfile('light1'),
   light2: attackLungeProfile('light2'),
   light3: attackLungeProfile('light3'),
+  guardCounter: attackLungeProfile('guardCounter'),
 };
 
 /**
@@ -233,6 +260,26 @@ export class Player {
   private lastAttack: LightAttackId | null = null;
   private lastAttackStartStep = 0;
   private attackSerial = 0;
+
+  /** ガードのフレーム・窓（入力補助 11.2 節で差し替えられる。実際の差し替えは E10-1）。 */
+  guardParams: GuardParams = DEFAULT_GUARD_PARAMS;
+  /** 構えに入ってからのフレーム（F1 起点）。解除から復帰した場合は構えをやり直さず、ジャストガード窓の後から続く。 */
+  private guardAge = 0;
+  /** ガード被弾のスタンの残り（歩行・解除ができない。ロール・ガードカウンターは可）。 */
+  private guardStun = 0;
+  /** 解除の硬直中に、ボタンを一度離したか（押しっぱなしでの攻撃入力による解除では復帰しない）。 */
+  private releaseSawUp = false;
+  /** 解除からの復帰で入る構えか（構えをやり直さない）。 */
+  private guardResume = false;
+  private readonly counterWindow = new GuardCounterWindow(
+    () => this.guardParams.counterWindowFrames,
+  );
+  /** ガードカウンターが出せる間 true（デバッグ・テスト用）。 */
+  get guardCounterOpen(): boolean {
+    return this.counterWindow.open;
+  }
+  /** ガードを崩された回数の累計（Game がガード崩しの SE を出す判定に使う）。 */
+  guardBreakCount = 0;
 
   constructor(
     physics: Physics,
@@ -304,8 +351,14 @@ export class Player {
    */
   receiveHit(event: HitEvent, awayX: number, awayZ: number): HitReaction {
     const reaction = this.reactor.react(event, awayX, awayZ);
+    if (event.guard !== 'none') {
+      this.receiveGuardedHit(event);
+      return reaction;
+    }
     if (reaction.kind === 'flinch' || reaction.kind === 'knockdown') {
-      // 転倒中の軽い追撃は転倒を中断しない（被弾後無敵の切れた F37 以降）
+      // 転倒中の軽い追撃は転倒を中断しない（被弾後無敵の切れた F37 以降）。
+      // ガード崩し中は姿勢が崩れたまま（行動不能は崩しの 54F が決める。被ダメージ 1.5 倍は崩し中の対象が受ける）。
+      if (this.state === 'guardBreak') return reaction;
       if (!(this.state === 'knockdown' && reaction.kind === 'flinch')) {
         this.enterReaction(reaction.kind, reaction.frames);
       }
@@ -313,11 +366,62 @@ export class Player {
     return reaction;
   }
 
+  /**
+   * ガードされた命中（2.3 節）: スタミナを消費し、被ガードのスタンとカウンター窓を始める。
+   * 消費でスタミナが 0 になればガード崩し。ジャストガードはスタンなし（すぐに反撃できる）。
+   */
+  private receiveGuardedHit(event: HitEvent): void {
+    this.stamina.consume(event.guardStaminaCost);
+    this.counterWindow.hit();
+    if (event.guard === 'guard') this.guardStun = this.guardParams.stunFrames;
+    if (this.stamina.empty && this.state === 'guard') this.enterGuardBreak();
+  }
+
+  private enterGuardBreak(): void {
+    this.fsm.transition('guardBreak');
+    this.markers.begin(undefined);
+    this.guardStun = 0;
+    this.counterWindow.close();
+    this.dashing = false;
+    this.dashLatch = false;
+    this.guardBreakCount++;
+  }
+
+  /**
+   * ガード判定（`HitTarget.guard`）。構え完了（F6）以降、正面 120° からの攻撃だけ防ぐ。構えに入ってから
+   * 10F 以内（F6–F15）ならジャストガード。背面・側面・構え完了前・ガード以外の状態は `none`。
+   */
+  guardOutcome(query: GuardQuery): GuardOutcome {
+    if (this.state !== 'guard') return 'none';
+    const params = this.guardParams;
+    const outcome = guardOutcomeAt(this.guardAge, params);
+    if (outcome === 'none') return 'none';
+    const a = query.attackerPosition;
+    if (
+      !isWithinGuardArc(this.position.x, this.position.z, this.yaw, a.x, a.z, params.frontArcDeg)
+    ) {
+      return 'none';
+    }
+    return outcome;
+  }
+
+  /** 構えに入ってからのフレーム（ガード系の状態のとき。デバッグ・テスト用）。 */
+  get guardFrame(): number {
+    return this.guardAge;
+  }
+
+  /** ガード被弾のスタンの残りフレーム（デバッグ・テスト用）。 */
+  get guardStunRemaining(): number {
+    return this.guardStun;
+  }
+
   /** HP が 0 になった。以降は入力を受け付けず、リスポーン（`teleport`）まで動かない。 */
   die(): void {
     if (this.state === 'dead') return;
     this.fsm.transition('dead');
     this.markers.begin(undefined);
+    this.guardStun = 0;
+    this.counterWindow.close();
     this.dashing = false;
     this.dashLatch = false;
   }
@@ -331,6 +435,7 @@ export class Player {
     else this.fsm.transition(kind);
     this.markers.begin(undefined);
     this.reactionFrames = frames;
+    this.guardStun = 0;
     this.dashing = false;
     this.dashLatch = false;
   }
@@ -360,6 +465,11 @@ export class Player {
     );
   }
 
+  /** ガード崩し中か（被ダメージ 1.5 倍。`HitTarget.staggered`）。 */
+  get guardBroken(): boolean {
+    return this.state === 'guardBreak';
+  }
+
   /** アニメーション・デバッグ用の描画情報。 */
   get animation(): PlayerAnimationState {
     const v = this.actualVelocity;
@@ -382,7 +492,18 @@ export class Player {
       },
       lockedOn: this.lockedOn,
       yaw: this.yaw,
+      guard: this.guardPresentation(),
     };
+  }
+
+  private guardPresentation(): GuardPresentation {
+    const params = this.guardParams;
+    if (this.state === 'guardRelease') return { phase: 'release', frame: this.stateFrame };
+    if (this.state !== 'guard') return { phase: 'none', frame: 0 };
+    if (this.guardStun > 0) {
+      return { phase: 'hit', frame: params.stunFrames - this.guardStun + 1 };
+    }
+    return { phase: this.guardAge < params.raiseFrames ? 'raise' : 'hold', frame: this.guardAge };
   }
 
   /** スポーン・リスポーン・テレポート。補間もスナップする。 */
@@ -397,6 +518,10 @@ export class Player {
     this.airFrames = 0;
     this.lastGroundY = position.y;
     this.fsm.reset('idle');
+    this.guardStun = 0;
+    this.guardAge = 0;
+    this.guardResume = false;
+    this.counterWindow.close();
     this.reactor.reset();
     this.slide.x = 0;
     this.slide.z = 0;
@@ -424,6 +549,7 @@ export class Player {
     }
     this.stepCount++;
     this.reactor.step();
+    this.counterWindow.step();
     this.reactor.consumeSlide(this.slide);
     const snap = frame.input.snapshot;
 
@@ -484,6 +610,7 @@ export class Player {
       case 'light1':
       case 'light2':
       case 'light3':
+      case 'guardCounter':
         return this.updateAttack(this.state, frame);
       case 'heal':
       case 'healEmpty':
@@ -491,6 +618,12 @@ export class Player {
       case 'flinch':
       case 'knockdown':
         return this.updateReaction();
+      case 'guard':
+        return this.updateGuard(dt, snap, frame);
+      case 'guardRelease':
+        return this.updateGuardRelease(dt, snap, frame);
+      case 'guardBreak':
+        return this.updateGuardBreak();
       case 'dead':
         // 倒れたまま動かない
         this.velocity.x = 0;
@@ -543,6 +676,24 @@ export class Player {
         this.events.push({ type: 'attackStart', id: next });
         break;
       }
+      case 'guardCounter':
+        this.lastAttack = null;
+        this.stamina.consume(PLAYER_ACTIONS.guardCounter.staminaCost);
+        this.counterWindow.close();
+        this.guardStun = 0;
+        this.attackSerial++;
+        this.events.push({ type: 'attackStart', id: next });
+        break;
+      case 'guard':
+        this.lastAttack = null;
+        this.guardStun = 0;
+        this.guardAge = this.guardResume ? this.guardParams.justWindow.end : 0;
+        if (!this.guardResume) this.counterWindow.close();
+        this.guardResume = false;
+        break;
+      case 'guardRelease':
+        this.guardStun = 0;
+        break;
       default:
         break;
     }
@@ -560,11 +711,23 @@ export class Player {
     const attack = this.tryLightAttack(frame, this.nextComboAttack());
     if (attack) return attack;
 
+    // ガード（保持入力。行動不能中に押していても、動作可能になった瞬間に構える）
+    const guard = this.tryGuard(frame, snap);
+    if (guard) return guard;
+
     const heal = this.tryHeal(frame);
     if (heal) return heal;
 
     this.computeLocomotion(dt, snap, frame, 1);
     return null;
+  }
+
+  /** ガードボタンが押されていて、構えを始められるなら 'guard'（スタミナ 0 では新規に構えられない。2.1 節）。 */
+  private tryGuard(frame: PlayerFrame, snap: InputSnapshot): 'guard' | null {
+    if (!snap.buttons.guard.held || !this.stamina.canStart()) return null;
+    // 構え前の古い攻撃入力が残っていて、構えた瞬間に解除されないようにする
+    frame.input.clearBuffer('lightAttack');
+    return 'guard';
   }
 
   /** 地上で軽攻撃入力を受けたときに出す動作。前の攻撃のコンボ窓（持続終了 + 4F 〜 全体 + 12F）の中なら次段。 */
@@ -590,7 +753,7 @@ export class Player {
    * 軽攻撃（light1〜3）。前進（発生 + 持続の間）・旋回制限・キャンセル（ロール / 次段）・終了。
    * 動作の全体（発生 + 持続 + 硬直）が終わった次のステップで移動系へ戻り、そのステップから入力を受け付ける。
    */
-  private updateAttack(id: LightAttackId, frame: PlayerFrame): PlayerStateId | null {
+  private updateAttack(id: PlayerAttackId, frame: PlayerFrame): PlayerStateId | null {
     const f = this.stateFrame;
     const data = PLAYER_ACTIONS[id];
 
@@ -604,10 +767,15 @@ export class Player {
       const dodge = this.tryDodge(frame);
       if (dodge) return dodge;
     }
-    const next = NEXT_LIGHT[id];
+    const next = id === 'guardCounter' ? null : NEXT_LIGHT[id];
     if (next && this.fsm.canCancelTo('lightAttack')) {
       const chain = this.tryLightAttack(frame, next);
       if (chain) return chain;
+    }
+    // ガード: 持続終了の 6F 後から（軽攻撃のキャンセル窓）
+    if (this.fsm.canCancelTo('guard')) {
+      const guard = this.tryGuard(frame, frame.input.snapshot);
+      if (guard) return guard;
     }
 
     if (f > totalFrames(data)) return this.afterAttackState();
@@ -621,7 +789,7 @@ export class Player {
 
   /** 攻撃判定との接続用: いま出している軽攻撃（なければ null）。`PlayerAttackDriver` が読む。 */
   get attack(): PlayerAttackInfo | null {
-    if (!isLightAttackState(this.state)) return null;
+    if (!isAttackState(this.state)) return null;
     return {
       id: this.state,
       serial: this.attackSerial,
@@ -658,7 +826,7 @@ export class Player {
 
   /**
    * 回復（54F）/ 空振り（20F）。移動 1.0 m/s・向きは通常どおり。回復は F30 からロール、F36 から攻撃へ
-   * キャンセル可（F1–F25 はロール・攻撃・ガードへ不可。ガードは #53 が窓を使って繋ぐ）。
+   * キャンセル可（F1–F25 はロール・攻撃・ガードへ不可）。F36 からはガードへもキャンセル可。
    */
   private updateDrinking(
     id: 'heal' | 'healEmpty',
@@ -672,6 +840,11 @@ export class Player {
     if (this.fsm.canCancelTo('lightAttack')) {
       const attack = this.tryLightAttack(frame, 'light1');
       if (attack) return attack;
+    }
+    // F36 からガードへキャンセル可（ボタン保持）
+    if (this.fsm.canCancelTo('guard')) {
+      const guard = this.tryGuard(frame, frame.input.snapshot);
+      if (guard) return guard;
     }
     if (this.stateFrame > totalFrames(PLAYER_ACTIONS[id])) return this.afterAttackState();
     this.driftVelocity(dt);
@@ -706,9 +879,10 @@ export class Player {
     snap: InputSnapshot,
     frame: PlayerFrame,
     speedFactor: number,
-    mode: 'ground' | 'air' | 'land' = 'ground',
+    mode: 'ground' | 'air' | 'land' | 'guard' = 'ground',
   ): void {
     const airborne = mode === 'air';
+    const guarding = mode === 'guard';
     const p = tuning.player;
     const m = this.moveMagnitude;
     const wantsDash =
@@ -717,6 +891,7 @@ export class Player {
       !this.dashLocked &&
       this.stamina.canStartAction &&
       !airborne &&
+      !guarding &&
       speedFactor >= 1;
 
     let tx = 0;
@@ -744,6 +919,15 @@ export class Player {
     }
     tx *= speedFactor;
     tz *= speedFactor;
+    if (guarding) {
+      // ガード中の移動は 1.8 m/s（ロックオン中 1.4 m/s）まで
+      const cap = frame.lockTarget ? MOVEMENT.guardLockOn : MOVEMENT.guard;
+      const sp = Math.hypot(tx, tz);
+      if (sp > cap) {
+        tx *= cap / sp;
+        tz *= cap / sp;
+      }
+    }
 
     const topSpeed = p.run;
     const accel = airborne ? p.airAccel : topSpeed / (p.accelFrames / 60);
@@ -783,7 +967,11 @@ export class Player {
 
   /** 歩行サイクルの位相を進める（移動系の状態だけ）。足の接地で `footstep` を発火する。 */
   private advanceGait(dt: number): void {
-    const locomoting = this.state === 'idle' || this.state === 'move' || this.state === 'dash';
+    const locomoting =
+      this.state === 'idle' ||
+      this.state === 'move' ||
+      this.state === 'dash' ||
+      isGuardState(this.state);
     if (!locomoting) {
       this.gait.lastDelta = 0;
       return;
@@ -814,6 +1002,11 @@ export class Player {
       if (attack) return attack;
     }
 
+    // F26 からガードへキャンセル可（ボタン保持）
+    if (this.fsm.canCancelTo('guard')) {
+      const guard = this.tryGuard(frame, snap);
+      if (guard) return guard;
+    }
     // F26 から回復へキャンセル可（先行入力 6F）。
     if (this.fsm.canCancelTo('heal')) {
       const heal = this.tryHeal(frame);
@@ -890,6 +1083,93 @@ export class Player {
     return null;
   }
 
+  // ---- ガード（2.3 節）----
+
+  /**
+   * ガードの構え・保持。ロール / バックステップへは F1 から即時、ガード被弾から 30F 以内の攻撃入力はガードカウンター。
+   * それ以外の攻撃入力・ボタンを離す操作は解除（8F の硬直）へ。被ガードのスタン中は歩行・解除ができない。
+   */
+  private updateGuard(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
+    this.guardAge++;
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+
+    const dodge = this.tryDodge(frame);
+    if (dodge) return dodge;
+
+    if (
+      this.counterWindow.open &&
+      this.stamina.canStart(PLAYER_ACTIONS.guardCounter.staminaCost) &&
+      frame.input.consumeBuffered('lightAttack')
+    ) {
+      return 'guardCounter';
+    }
+
+    const stunned = this.guardStun > 0;
+    if (stunned) this.guardStun--;
+    if (!stunned && (!snap.buttons.guard.held || frame.input.hasBuffered('lightAttack'))) {
+      this.releaseSawUp = !snap.buttons.guard.held;
+      return 'guardRelease';
+    }
+
+    if (stunned) {
+      // スタンの間は止まる（押し戻しは slide が担う）
+      this.tmpVelocity.x = 0;
+      this.tmpVelocity.y = 0;
+      approachVelocity(
+        this.velocity,
+        this.tmpVelocity,
+        MOVEMENT.run / (MOVEMENT.accelFrames / 60),
+        MOVEMENT.run / (MOVEMENT.stopFrames / 60),
+        dt,
+      );
+    } else {
+      this.computeLocomotion(dt, snap, frame, 1, 'guard');
+    }
+    return null;
+  }
+
+  /**
+   * 解除の硬直（8F）。ボタンを離してから再び押すと、構えをやり直さず即ガードへ復帰する（残りの硬直はスキップ）。
+   * 硬直が終わったら、先行入力の通常攻撃（= ガード解除の 8F 後に出る攻撃）か、移動系へ。
+   */
+  private updateGuardRelease(
+    dt: number,
+    snap: InputSnapshot,
+    frame: PlayerFrame,
+  ): PlayerStateId | null {
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!snap.buttons.guard.held) this.releaseSawUp = true;
+    if (
+      snap.buttons.guard.held &&
+      this.releaseSawUp &&
+      this.stamina.canStart() &&
+      !frame.input.hasBuffered('lightAttack')
+    ) {
+      this.guardResume = true;
+      return 'guard';
+    }
+    if (this.stateFrame > this.guardParams.releaseFrames) {
+      const attack = this.tryLightAttack(frame, 'light1');
+      if (attack) return attack;
+      return this.moveMagnitude > 0 ? 'move' : 'idle';
+    }
+    // 解除の硬直中は新しい動作ができない。歩行は続く（ガード中と同じ速度）。
+    this.computeLocomotion(dt, snap, frame, 1, 'guard');
+    return null;
+  }
+
+  /** ガード崩し: 54F の行動不能。終わったら移動・待機・落下へ。 */
+  private updateGuardBreak(): PlayerStateId | null {
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    this.turnRate = 0;
+    if (this.stateFrame > this.guardParams.breakFrames) {
+      if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+      return this.moveMagnitude > 0 ? 'move' : 'idle';
+    }
+    return null;
+  }
+
   // ---- 向き・スタミナ・移動 ----
 
   private applyFacing(frame: PlayerFrame, dt: number): void {
@@ -897,8 +1177,15 @@ export class Player {
       this.yaw = turnToward(this.yaw, this.dodgeDirYaw, this.turnRate, this.turnResponse, dt);
       return;
     }
-    if (this.state === 'backstep' || this.state === 'dead' || isReactionState(this.state)) return;
-    if (isLightAttackState(this.state)) {
+    if (
+      this.state === 'backstep' ||
+      this.state === 'guardBreak' ||
+      this.state === 'dead' ||
+      isReactionState(this.state)
+    ) {
+      return;
+    }
+    if (isAttackState(this.state)) {
       this.applyAttackFacing(frame, dt);
       return;
     }
@@ -923,7 +1210,7 @@ export class Player {
    * 持続・硬直中は向き固定（振り抜く方向がぶれない。ロールで躱される余地にもなる）。
    */
   private applyAttackFacing(frame: PlayerFrame, dt: number): void {
-    const id = this.state as LightAttackId;
+    const id = this.state as PlayerAttackId;
     if (this.stateFrame > PLAYER_ACTIONS[id].startup) return;
     let target: number | null = null;
     if (frame.lockTarget) target = this.toTargetYaw;
@@ -944,7 +1231,7 @@ export class Player {
       this.dashing ||
       (this.state === 'move' &&
         Math.hypot(this.velocity.x, this.velocity.y) > tuning.player.walk + 0.3);
-    return { sprinting };
+    return { sprinting, guarding: this.state === 'guard' };
   }
 
   private moveBody(dt: number): void {
@@ -1017,7 +1304,9 @@ export class Player {
       this.state !== 'roll' &&
       this.state !== 'backstep' &&
       this.state !== 'land' &&
-      !isLightAttackState(this.state) &&
+      !isAttackState(this.state) &&
+      this.state !== 'guardRelease' &&
+      this.state !== 'guardBreak' &&
       !isHealState(this.state) &&
       !isReactionState(this.state)
     );

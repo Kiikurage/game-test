@@ -10,6 +10,8 @@
  * 座標は篝火を原点・+x 東・+z 北（m）。向き（ヨー）は前方 = (sin yaw, cos yaw)。
  */
 import type { GameOptions } from '../game';
+import { GridNavigator } from '../enemy/gridNavigator';
+import { NavGrid } from '../enemy/navGrid';
 import type { BoxSpec } from './playground';
 
 /** 足音用の地表素材。 */
@@ -712,14 +714,30 @@ export function validateLevel(data: LevelData): string[] {
   return problems;
 }
 
+/** レベルごとのナビゲーション格子（静的な部分。門の開閉の状態は `NavGrid` が持つので Game ごとに作り直す）。 */
+const navGridTemplates = new WeakMap<Level, NavGrid>();
+
+/** 敵の経路問い合わせ（格子 A*）を作る。格子の生成は重い（数十 ms）ので、レベルごとに 1 回だけ。 */
+export function createLevelNavigator(level: Level): GridNavigator {
+  let grid = navGridTemplates.get(level);
+  if (!grid) {
+    grid = NavGrid.build(level);
+    navGridTemplates.set(level, grid);
+  }
+  return new GridNavigator(grid.clone());
+}
+
 /**
- * `Game.create` へ渡すオプション（地形メッシュ・静的な箱・開始位置）。円柱は `game.addStaticCylinders(level.cylinders)` で足す。
+ * `Game.create` へ渡すオプション（地形メッシュ・静的な箱・開始位置・敵の経路）。円柱は `game.addStaticCylinders(level.cylinders)` で足す。
  * 地形メッシュは描画（render/levelView）と同じ配列。
  */
 export function levelGameOptions(
   level: Level,
 ): Required<
-  Pick<GameOptions, 'terrain' | 'terrainHeight' | 'boxes' | 'dummies' | 'spawn' | 'enemies'>
+  Pick<
+    GameOptions,
+    'terrain' | 'terrainHeight' | 'boxes' | 'dummies' | 'spawn' | 'enemies' | 'enemyNavigator'
+  >
 > {
   return {
     terrain: { vertices: level.terrain.vertices, indices: level.terrain.indices },
@@ -728,5 +746,6 @@ export function levelGameOptions(
     dummies: [],
     spawn: level.data.playerSpawn,
     enemies: level.data.enemies,
+    enemyNavigator: createLevelNavigator(level),
   };
 }

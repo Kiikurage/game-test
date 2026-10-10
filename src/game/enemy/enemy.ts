@@ -785,7 +785,7 @@ export class Enemy implements LockOnTarget {
     const dz = z - this.position.z;
     const distance = Math.hypot(dx, dz);
     if (distance <= arrival) return true;
-    const next = this.deps.navigator.nextPoint(this.position, { x, z }, tmpNav);
+    const next = this.deps.navigator.nextPoint(this.position, { x, z }, tmpNav, this);
     if (!next) return false;
     const nx = next.x - this.position.x;
     const nz = next.z - this.position.z;

@@ -33,6 +33,7 @@ export const ENVIRONMENT_IDS = [
   'WallFullA',
   'WallFullB',
   'WallFullWindow',
+  'WallFullBeam',
   'WallMid',
   'WallLow',
   'WallRubble',

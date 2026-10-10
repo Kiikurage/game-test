@@ -39,16 +39,16 @@ const SHADOW_LIGHT_DISTANCE = 90;
  */
 export const ATMOSPHERE = {
   /** 太陽の方位（rad, x 軸基準で xz 平面）と仰角（rad）。低い太陽が長い影を落とす。 */
-  sunAzimuth: -2.45,
+  sunAzimuth: 0.82,
   sunElevation: 0.17,
   sunColor: 0xffc27a,
   sunIntensity: 3.4,
   /** 半球光: 空側は青みを抑えた灰青、地面側は暖かい土色の照り返し。 */
   skyLight: 0x8c9cae,
   groundLight: 0x5a4430,
-  hemiIntensity: 1.2,
+  hemiIntensity: 1.7,
   fillLight: 0xc8b8a0,
-  fillIntensity: 0.7,
+  fillIntensity: 0.95,
   /** 空のグラデーション。 */
   zenith: 0x4f6a80,
   midSky: 0x9fa89f,

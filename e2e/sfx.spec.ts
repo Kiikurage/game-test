@@ -4,6 +4,7 @@ import { startGame } from './helpers';
 test('loads the title-group SFX from the manifest and accepts play requests without errors', async ({
   page,
 }) => {
+  test.setTimeout(150_000); // 初回フレームまで SwiftShader のコンパイルで遅いことがある
   const errors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
@@ -44,7 +45,7 @@ test('loads the title-group SFX from the manifest and accepts play requests with
   // 少し待ってもメインループが回り続け、エラーが出ない
   const before = await page.evaluate(() => window.__game?.frames ?? 0);
   await expect
-    .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 30_000 })
+    .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 90_000 })
     .toBeGreaterThan(before);
   expect(errors).toEqual([]);
 });

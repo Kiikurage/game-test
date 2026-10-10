@@ -129,6 +129,25 @@ describe('enemy attacks in the game (Rapier)', () => {
     expect(game.playerTarget.health.current).toBe(PLAYER_STATS.hp);
   });
 
+  it('guards a real enemy attack: chip damage only, no flinch, and the guard counter opens', async () => {
+    const { game, input, run, runUntilAttack } = await setup();
+    const hp0 = game.playerTarget.health.current;
+    input.press('guard'); // ボタン保持（敵の攻撃が出る頃には構え・ジャストガード窓を過ぎている）
+    const id = runUntilAttack();
+    const def = UNDEAD_SOLDIER_ATTACKS[id];
+    for (let i = 0; i < def.startup + def.active + 4 && game.hitCount === 0; i++) run(1);
+    expect(game.hitCount).toBe(1);
+    const e = game.hitLog.at(-1);
+    expect(e?.targetId).toBe('player');
+    expect(e?.guard).toBe('guard');
+    expect(game.playerTarget.health.current).toBe(hp0 - Math.floor(def.damage * 0.1));
+    expect(game.player.state).toBe('guard');
+    run(7); // ヒットストップ明け
+    expect(game.player.state).toBe('guard');
+    expect(game.player.guardCounterOpen).toBe(true);
+    expect(game.player.dead).toBe(false);
+  });
+
   it('freezes a hit enemy for the hit-stop and applies the knockback to its movement', async () => {
     const { game, enemy, run } = await setup();
     game.teleportPlayer(0, 30, Math.PI); // 気付かれない距離

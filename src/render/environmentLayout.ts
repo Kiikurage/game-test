@@ -77,6 +77,7 @@ const WALL_FULL: readonly ModuleSpec[] = [
   { id: 'WallFullA', height: 3.6 },
   { id: 'WallFullB', height: 3.6 },
   { id: 'WallFullWindow', height: 3.6 },
+  { id: 'WallFullBeam', height: 3.6 },
 ];
 const WALL_MID: ModuleSpec = { id: 'WallMid', height: 2.8 };
 const WALL_LOW: ModuleSpec = { id: 'WallLow', height: 2 };
@@ -353,9 +354,10 @@ function layoutWall(
     }
     let spec: ModuleSpec;
     if (prop.height >= 3.3) {
-      // 窓は端を避けて 3 つに 1 つ
       const windowSlot = n >= 3 && i > 0 && i < n - 1 && i % 3 === 1;
-      spec = windowSlot ? (WALL_FULL[2] as ModuleSpec) : (WALL_FULL[h < 0.5 ? 0 : 1] as ModuleSpec);
+      // 窓は端を避けて 3 つに 1 つ。残りは欠けの違う 2 種と、崩れた屋根の梁が突き出す 1 種
+      const variant = h < 0.35 ? 0 : h < 0.7 ? 1 : 3;
+      spec = windowSlot ? (WALL_FULL[2] as ModuleSpec) : (WALL_FULL[variant] as ModuleSpec);
     } else if (prop.height >= 2.4) {
       spec = WALL_MID;
     } else {

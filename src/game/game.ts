@@ -27,6 +27,9 @@ import {
   HitResolver,
   PlayerAttackDriver,
   PLAYER_HEARTBOXES,
+  capsule,
+  capsuleShape,
+  vec3,
   UprightTarget,
   uprightHeartbox,
   type HitEvent,
@@ -34,6 +37,7 @@ import {
 } from './combat';
 import { PLAYER_STATS } from './data';
 import { TimeScale } from './timeScale';
+import { createGameSystems, type GameSystem } from './systems';
 import { tuning } from './tuning';
 import {
   CAMERA_QUERY_GROUPS,
@@ -49,6 +53,9 @@ import {
   type BoxSpec,
   type DummySpec,
 } from './world/playground';
+
+// `*.system.ts`（登録式のゲームシステム。systems.ts 参照）を自動で読み込む。新機能は game.ts を編集しない。
+import.meta.glob('./**/*.system.ts', { eager: true });
 
 /** 何も入力しない InputReader（入力システムなしで Game を作るテスト・起動時用）。 */
 export const NULL_INPUT: InputReader = (() => {
@@ -96,7 +103,7 @@ export interface GameOptions {
   readonly dummies?: readonly DummySpec[];
   /** 敵の配置（レベルデータの `enemies`）。省略時は敵なし。 */
   readonly enemies?: readonly EnemySpawn[];
-  /** 敵の経路問い合わせ。省略時は直線（ナビゲーションメッシュは #43 で差し替える）。 */
+  /** 敵の経路問い合わせ。省略時は直線。レベルでは `levelGameOptions` が格子ナビゲータを渡す。 */
   readonly enemyNavigator?: Navigator;
   /** プレイヤーの開始位置と向き（ヨー）。省略時はテストシーンの広場。 */
   readonly spawn?: { readonly x: number; readonly z: number; readonly yaw: number };
@@ -209,6 +216,8 @@ export class Game {
   private readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
   private readonly boxColliders = new Map<string, RAPIER.Collider>();
+  /** 登録式のシステム（`systems.ts`）。コンストラクタの最後に生成する。 */
+  private systems: readonly GameSystem[] = [];
 
   private constructor(
     private readonly physics: Physics,
@@ -281,6 +290,8 @@ export class Game {
     this.cameraCollision = this.createCameraCollision(rapier);
     this.camera.reset(this.player.feet, this.spawnYaw);
     this.combat.addTarget(this.playerTarget);
+    // ガード判定（構え完了・正面 120°・ジャストガード）はプレイヤーが決める（#53）
+    this.playerTarget.guard = (query) => this.player.guardOutcome(query);
     this.syncPlayerTarget();
     this.registerFreezable('player', {
       freeze: (frames) => {
@@ -291,8 +302,13 @@ export class Game {
       this.hitCount++;
       this.hitLog.push(e);
       if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
+      const guardBreaks = this.player.guardBreakCount;
       const reaction = this.applyReaction(e);
       if (reaction) this.reactEnemy(e.targetId, reaction, e);
+      // ガードを崩された（ガード中にスタミナが 0 になった）: 崩しの SE
+      if (e.targetId === 'player' && this.player.guardBreakCount > guardBreaks) {
+        this.events.emit('hit', { kind: 'guardBreak', source: 'player', position: e.position });
+      }
       if (e.targetId === 'player' && e.killed) this.player.die();
       this.applyHitStop(e);
       this.events.emit('hit', {
@@ -300,6 +316,7 @@ export class Game {
         source: e.attackerId === 'player' ? 'player' : 'enemy',
         position: e.position,
       });
+      for (const system of this.systems) system.onHit?.(e);
     });
 
     // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
@@ -335,6 +352,7 @@ export class Game {
     this.events.on('hit', (e) => {
       if (e.position) this.enemies.noises.emit(e.position, 'combat');
     });
+    this.systems = createGameSystems(this);
   }
 
   /** 敵をロックオン対象・被弾側（ハートボックスと強靭度）として登録する。 */
@@ -401,6 +419,7 @@ export class Game {
     const collider = this.boxColliders.get(id);
     if (!collider) return false;
     collider.setEnabled(enabled);
+    this.enemies.navigator.setGateClosed?.(id, enabled); // 敵の経路も門の開閉に合わせる
     return true;
   }
 
@@ -478,6 +497,7 @@ export class Game {
     this.attackDriver.update(player);
     // 攻撃側（プレイヤー）が凍結中は、仮の攻撃のフレームも進めない
     if (!player.fsm.isFrozenStep) this.debugSwing.update(player.feet, player.yaw);
+    for (const system of this.systems) system.update?.(dt);
     this.combat.step();
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
@@ -714,6 +734,8 @@ export class Game {
     const { player, playerTarget } = this;
     playerTarget.place(player.feet.x, player.feet.y, player.feet.z, player.yaw);
     playerTarget.invulnerable = player.invulnerable;
+    // ガード崩し中は被ダメージ 1.5 倍（2.3 節）
+    playerTarget.staggered = player.guardBroken;
   }
 
   /** 攻撃者から命中位置までを地形・静的物が遮っているか（壁越しに当てない）。 */
@@ -789,6 +811,43 @@ export class Game {
     this.camera.reset(this.player.feet, yaw);
   }
 
+  /**
+   * デバッグ・E2E 用: 敵の攻撃を 1 発、プレイヤーへ当てる（実際の敵の攻撃動作が入るまでのダミー）。
+   * `from` は攻撃者のいる方向（プレイヤーの向きに対して。front = 正面、back = 背面、left / right = 側面）。
+   * 攻撃者はプレイヤーから 1.5m 離れた位置にいる。ガード判定・削り・スタミナ消費・ヒットストップ・
+   * 被弾リアクションは本物の命中と同じ経路を通る。命中イベントの配列を返す。
+   */
+  debugHitPlayer(
+    options: {
+      readonly from?: 'front' | 'back' | 'left' | 'right';
+      readonly damage?: number;
+      readonly poiseDamage?: number;
+      readonly guardStaminaCost?: number;
+      /** 攻撃者の方位を、プレイヤーの正面からの角度（度、右が正）で直接指定する。`from` より優先。 */
+      readonly bearingDeg?: number;
+    } = {},
+  ): HitEvent[] {
+    const { player } = this;
+    const bearings = { front: 0, right: 90, back: 180, left: -90 } as const;
+    const bearing = ((options.bearingDeg ?? bearings[options.from ?? 'front']) * Math.PI) / 180;
+    const dir = player.yaw + bearing;
+    const p = player.feet;
+    const origin = vec3(p.x + Math.sin(dir) * 1.5, p.y, p.z + Math.cos(dir) * 1.5);
+    const attack = this.combat.startAttack('debug-enemy', 'enemy', {
+      id: 'debug-swing',
+      damage: options.damage ?? 30,
+      poiseDamage: options.poiseDamage ?? 20,
+      guardStaminaCost: options.guardStaminaCost ?? 20,
+    });
+    const shape = capsuleShape(
+      capsule(vec3(p.x - 0.1, p.y + 1, p.z - 0.1), vec3(p.x + 0.1, p.y + 1, p.z + 0.1), 0.15),
+      origin,
+    );
+    const events = this.combat.resolve(attack, shape);
+    this.combat.endAttack(attack);
+    return events;
+  }
+
   /** プレイヤーを初期位置へ戻す（デバッグ・リスポーン）。 */
   respawn(): void {
     this.playerTarget.health.refill();
@@ -812,6 +871,12 @@ export class Game {
         grounded: p.grounded,
         stamina: p.stamina.current,
         invulnerable: p.invulnerable,
+        guard: {
+          phase: p.animation.guard.phase,
+          frame: p.guardFrame,
+          counterOpen: p.guardCounterOpen,
+          breaks: p.guardBreakCount,
+        },
       },
       camera: {
         position: {
@@ -857,6 +922,13 @@ export interface GameDebugState {
     readonly grounded: boolean;
     readonly stamina: number;
     readonly invulnerable: boolean;
+    /** ガードの状態（見た目の段階・構えのフレーム・ガードカウンターの受付中・崩された回数）。 */
+    readonly guard: {
+      readonly phase: string;
+      readonly frame: number;
+      readonly counterOpen: boolean;
+      readonly breaks: number;
+    };
   };
   readonly camera: {
     readonly position: { readonly x: number; readonly y: number; readonly z: number };

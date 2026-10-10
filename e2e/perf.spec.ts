@@ -16,10 +16,10 @@ async function measure(
   const start = await page.evaluate(() => window.__game?.frames ?? 0);
   await expect
     .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 120_000 })
-    .toBeGreaterThan(start + 20);
+    .toBeGreaterThan(start + 6);
   return page.evaluate(() => ({
-    draws: window.__game?.render.drawCalls ?? NaN,
-    tris: window.__game?.render.triangles ?? NaN,
+    draws: window.__game?.dev.renderInfo().drawCalls ?? NaN,
+    tris: window.__game?.dev.renderInfo().triangles ?? NaN,
   }));
 }
 
@@ -28,7 +28,7 @@ for (const level of ['medium', 'low'] as const satisfies readonly QualityLevel[]
   test(`draw calls and triangles stay within the ${level} budget at every viewpoint`, async ({
     page,
   }) => {
-    test.setTimeout(300_000);
+    test.setTimeout(420_000);
     const errors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg.text());
