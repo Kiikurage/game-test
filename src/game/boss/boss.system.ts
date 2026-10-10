@@ -64,6 +64,19 @@ export class BossSystem {
     heart.place(boss.position.x, boss.position.y, boss.position.z, boss.yaw);
   }
 
+  /** 撃破済み（セーブの `bosses`）か。撃破済みのボスは出さない（`spawnUnlessDefeated`）。 */
+  get isDefeated(): boolean {
+    return this.game.save.get().bosses.includes(BOSS_ID);
+  }
+
+  /**
+   * 撃破済み（セーブ）でなければボスを出す。撃破済みなら何も出さず null（以降ボスは復活しない。仕様書 8.4 節）。
+   * ゲーム本編の配置（入場演出 E5-6・待機位置 E5-8a）はこちらを呼ぶ。確認用の `spawn` はセーブを見ない。
+   */
+  spawnUnlessDefeated(options: BossSpawnOptions): Boss | null {
+    return this.isDefeated ? null : this.spawn(options);
+  }
+
   spawn(options: BossSpawnOptions): Boss {
     this.remove();
     const { game } = this;

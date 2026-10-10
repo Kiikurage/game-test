@@ -20,6 +20,7 @@ import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import { BossAnimator, bossMoveState } from './bossAnimator';
 import { BOSS_GLOW_STYLE, bossWeaponGlow } from './bossWeaponGlow';
 import { BossTransitionFx } from './bossTransitionFx';
+import { BossDefeatFx } from './bossDefeatFx';
 import { toModelSpeed, BOSS_LOCOMOTION } from './bossGait';
 import type { Boss } from '../../game/boss/boss';
 import { bossSystemOf } from '../../game/boss/boss.system';
@@ -106,6 +107,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
   let model: BossCharacter | undefined;
   let animator: BossAnimator | undefined;
   let transitionFx: BossTransitionFx | undefined;
+  let defeatFx: BossDefeatFx | undefined;
   const gait = new GaitClock();
   const last = new Vector3();
   let lastValid = false;
@@ -177,13 +179,15 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
       model.bindParticles(view.particles);
       animator = new BossAnimator(model, assets);
       transitionFx = new BossTransitionFx(game, view, model);
+      defeatFx = new BossDefeatFx(game, view, model);
       body.visible = false;
       front.visible = false;
       eye.visible = false;
     },
     update: (dt) => {
       const boss = system.boss;
-      root.visible = boss !== null && boss.alive;
+      // 撃破後も、灰になって消え切るまで体を見せる（#86）
+      root.visible = boss !== null && (boss.alive || (defeatFx?.visible ?? false));
       bands.visible = root.visible;
       if (model) model.root.visible = root.visible;
       if (!boss) {
@@ -205,6 +209,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
         model.root.position.y += leap?.height ?? 0;
         // 回転斬り（技 6）はヨーに回転を足す
         model.root.rotation.y = boss.yaw + (spinStateOf(boss)?.angle ?? 0);
+        defeatFx?.update(dt, boss); // 撃破の崩壊・ディゾルブ・熾火（#86）
         const visible = model.updateLod(
           view.camera,
           view.shadowFocusTarget?.position ?? game.player.feet,
@@ -213,7 +218,10 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
         if (model.phase !== boss.phase) model.setPhase(boss.phase);
         gait.advance(toModelSpeed(speed), dt, { profile: BOSS_LOCOMOTION });
         // 画面にも影にも出ないときはアニメーションを省く
-        if (visible) animator.update(dt, bossAnimState(boss, speed, gait));
+        if (visible) {
+          const base = bossAnimState(boss, speed, gait);
+          animator.update(dt, defeatFx?.animState(base) ?? base);
+        }
         transitionFx?.applyPose();
         model.lateUpdate(dt);
         // 予兆中は斧の縁が光る（種別で色・強さが違う。技の最中でなければ消す）
