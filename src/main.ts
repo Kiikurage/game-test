@@ -17,6 +17,7 @@ import { createTerrainCollisionMesh } from './render/testScene';
 import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
 import { EnvironmentAssets } from './render/assets/environment';
 import { createLevel, levelGameOptions } from './game/world/level';
+import { SaveStore, getLocalStorage } from './core/persistence';
 import { terrainHeight } from './render/terrain';
 import { createDevHooks, isShowcaseRequested, type DevHooks } from './devHooks';
 
@@ -90,6 +91,7 @@ export async function createGameApp(
         : createLevel(ASHEN_FOUNDATION);
     const game = await Game.create({
       input,
+      save: new SaveStore(getLocalStorage()),
       ...(level
         ? levelGameOptions(level)
         : { terrain: createTerrainCollisionMesh(), terrainHeight }),

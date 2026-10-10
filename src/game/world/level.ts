@@ -736,7 +736,14 @@ export function levelGameOptions(
 ): Required<
   Pick<
     GameOptions,
-    'terrain' | 'terrainHeight' | 'boxes' | 'dummies' | 'spawn' | 'enemies' | 'enemyNavigator'
+    | 'terrain'
+    | 'terrainHeight'
+    | 'boxes'
+    | 'dummies'
+    | 'spawn'
+    | 'enemies'
+    | 'enemyNavigator'
+    | 'interactables'
   >
 > {
   return {
@@ -747,5 +754,6 @@ export function levelGameOptions(
     spawn: level.data.playerSpawn,
     enemies: level.data.enemies,
     enemyNavigator: createLevelNavigator(level),
+    interactables: level.data.interactables,
   };
 }
