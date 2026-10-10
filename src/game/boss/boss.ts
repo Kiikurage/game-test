@@ -175,6 +175,9 @@ export class Boss implements BossMoveActor {
   private readonly homeZ: number;
   private readonly homeYaw: number;
   private engaged = false;
+  /** 入場演出の残りフレーム（0 なら演出中ではない）。演出中は無敵で、0 になった瞬間に `engage()` する。 */
+  private introLeft = 0;
+  private introLength = 0;
   /** このフェーズで崩しを使い切った（フェーズごとに 1 回まで）。 */
   private breakUsed = false;
   /** HP が閾値以下になった。次の硬直（技が終わった瞬間）でフェーズ移行を始める。 */
@@ -284,9 +287,26 @@ export class Boss implements BossMoveActor {
     return this.stateId === 'transition' ? this.stateFrames : -1;
   }
 
-  /** 無敵か（フェーズ移行中）。被弾側（`UprightTarget.invulnerable`）へ写す。 */
+  /** 無敵か（フェーズ移行中・入場演出中）。被弾側（`UprightTarget.invulnerable`）へ写す。 */
   get invulnerable(): boolean {
-    return this.stateId === 'transition';
+    return this.stateId === 'transition' || this.introLeft > 0;
+  }
+
+  /** 入場演出の経過フレーム（開始 = 0。演出中でなければ -1）。描画（兜を上げて身構える）が読む。 */
+  get introFrame(): number {
+    return this.introLeft > 0 ? this.introLength - this.introLeft : -1;
+  }
+
+  /**
+   * 入場演出を始める（霧の門の入場 #85）。`frames` の間は無敵で動かず、終わった瞬間に `engage()`（HP バー表示）する。
+   * 戦闘前（`dormant`）でなければ何もしない。始めたら true。
+   */
+  beginIntro(frames: number): boolean {
+    if (this.stateId !== 'dormant' || this.engaged || this.introLeft > 0 || frames <= 0)
+      return false;
+    this.introLength = frames;
+    this.introLeft = frames;
+    return true;
   }
 
   /** このフェーズでまだ崩せるか。 */
@@ -337,6 +357,7 @@ export class Boss implements BossMoveActor {
     this.transitionPending = false;
     this.afterTransition = false;
     this.engaged = false;
+    this.introLeft = 0;
     this.history.length = 0;
     this.lastWeights = null;
     this.freezeLeft = 0;
@@ -432,6 +453,7 @@ export class Boss implements BossMoveActor {
     // プレイヤー状態の追跡は戦闘前・凍結中も続ける（背後・ロール連打を正しく数える）
     this.tracker.update(this.position.x, this.position.z, this.yaw, player);
     if (this.stateId === 'dead' || this.stateId === 'dormant') {
+      if (this.introLeft > 0 && this.stateId === 'dormant' && --this.introLeft === 0) this.engage();
       this.syncTransform();
       return;
     }
