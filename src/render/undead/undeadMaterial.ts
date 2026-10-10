@@ -14,6 +14,7 @@ import {
   luminance,
   mix,
   mx_noise_float,
+  normalWorld,
   positionLocal,
   positionWorld,
   saturate,
@@ -264,12 +265,33 @@ function createUndeadMaterial(
     const rustMask = smoothstep(-0.25, 0.35, mx_noise_float(noiseCoord(11).add(3.7)));
     const iron = vec3(0.17, 0.16, 0.15).mul(lum.mul(0.8).add(0.5));
     const rusty = vec3(rust.r, rust.g, rust.b).mul(lum.mul(0.9).add(0.35));
+    const steel = variant.steel ?? 0;
+    const bakedColor = vertexColor().rgb;
+    // 冷たい鋼寄せ（ボス）: 錆の茶を彩度を落として青灰へ。上向きの面には灰が薄く積もる
+    const coolSteel = vec3(luminance(bakedColor))
+      .mul(vec3(0.9, 1.0, 1.16))
+      .mul(1.35);
+    const dust = smoothstep(0.55, 1.0, normalWorld.y).mul(0.05 * steel);
     albedo = baked
-      ? mix(vertexColor().rgb, vec3(rust.r, rust.g, rust.b).mul(0.35), 0.08).mul(1.25)
+      ? mix(mix(bakedColor, coolSteel, steel), vec3(rust.r, rust.g, rust.b).mul(0.35), 0.08)
+          .mul(1.25)
+          .add(vec3(0.5, 0.48, 0.45).mul(dust))
       : mix(iron, rusty, rustMask);
     material.metalness = 0.45;
     material.roughness = 0.72;
-    emissive = emberGlow.mul(crack.mul(0.7).add(rustMask.oneMinus().mul(0.06)));
+    // 熾火: 鎧の継ぎ目に沿った太めの亀裂（約 4 周期/m。細かいノイズだと全面がキラキラして見える）。
+    // 武器は刃（+X 側）が熾火色に焼ける（大斧の刃。ローカル +X が刃、+Y が柄の先）。
+    const seamCoord = positionLocal.mul(src.map ? 14 : 5.5);
+    const seamLine = float(1).sub(smoothstep(0.0, 0.04, abs(mx_noise_float(seamCoord))));
+    // 全面に網目が出ないよう、低周波のむらで「よく焼けた所」だけに絞る
+    const seamHeat = smoothstep(-0.15, 0.3, mx_noise_float(seamCoord.mul(0.23).add(7.3)));
+    const seam = seamLine.mul(seamHeat);
+    const blade = isWeapon
+      ? smoothstep(0.18, 0.4, positionLocal.x)
+          .mul(smoothstep(0.45, 0.62, positionLocal.y))
+          .mul(1.6)
+      : float(0);
+    emissive = emberGlow.mul(seam.mul(1.1).add(blade).add(rustMask.oneMinus().mul(0.03)));
   }
 
   // ディゾルブ: ワールド座標のノイズがしきい値を下回った所から消える。縁は熾火色に光り、焦げた灰色になる。

@@ -332,6 +332,30 @@ look.setEmber(1);                                                    // ボス�
 - 注意（#10 のバグ修正）: glb の小物ノードは頂点量子化のためノード自身に平行移動・スケールを持つ。`Character.attach` がそれを上書きして剣・盾がずれていたため、ソケットの姿勢はホルダー（`Group`）に持たせるようにした。
 - 確認用: `?equip=soldier|shieldbearer|boss|all`（`?view=front&dist=8.5` と併用。boss は dist 12 程度）。
 
+### 7.7b ボスのモデル（Issue #57）
+
+ボス「門番の骸 オルグ」= UBC の騎士を一様に 2.2 倍（身長 約 4.0m）にし、`LOADOUTS.boss` の装備と亡者マテリアルを付けたもの。**新しいメッシュ・テクスチャは追加していない**（雑魚と同じ knight.glb・equipment.glb を共有）。実装は `src/render/assets/bossCharacter.ts`（モデル）と `src/render/boss/`（歩幅・見た目の時間変化・盾の飛翔・確認表示）。
+
+```ts
+const { assets, equipment } = await BossCharacter.load();              // 雑魚と共有するなら CharacterAssets / EquipmentAssets を渡す
+const boss = BossCharacter.create(assets, equipment);                   // root: 足元が原点・+Z 向き・身長 約 4.0m
+scene.add(boss.root);
+boss.bindParticles(view.particles);                                     // 足元の熾火（フェーズ 2）
+const animator = new BossAnimator(boss, assets);                        // 移動（立ち・歩き・走り）。技・移行の状態は AI 側で足す
+// 毎フレーム: root の位置・向き → animator.update(dt, bossMoveState(speed, gaitClock)) → boss.lateUpdate(dt)
+boss.setPhase(2);                                                       // 盾なし・斧を両手持ち・熾火（即時）
+const shield = boss.detachShield(scene);                                // 盾を体から切り離す（演出用）
+if (shield) thrown = new ThrownShield(shield, { velocity, spin });      // 飛んで地面に刺さる（簡易物理。thrown.update(dt)）
+boss.setEmber(emberAtTransitionFrame(frame));                           // 移行演出中の熾火の補間（F60〜F100）
+```
+
+- **見た目**: 肌は暗い灰色（`BOSS_VARIANT`）、体型は等倍（プロポーションを変えない）、眼は雑魚の 1.5 倍の強さ。フェーズ 2 は眼が橙に変わり、鎧の継ぎ目に沿った亀裂・肌の亀裂・大斧の刃が熾火色に光り、足元に熾火のパーティクル（`ParticleSystem.acquireEmberField`）。発光は `emberPulse` で鼓動する。
+- **斧の持ち方**: `setGrip('twoHand')` で斧をキャラクターのルート直下へ移し、`lateUpdate` が毎フレーム「右手を通り、左手の方向を向く」姿勢に合わせる（手が近い片手向けクリップでは右手ソケットの向きのまま）。盾は `lowerarm_l` のホルダーを `detachShield` でシーンへ移す（ワールド姿勢を保つ）。
+- **歩幅・足滑り**（`bossGait.ts`）: 拡大で 1 歩が 2.2 倍になるため、歩行位相の時計に**モデル空間の速度（実速度 ÷ 2.2）**を渡す。歩き 2.4 m/s は歩きクリップ 100%（1 サイクル 1.47s・1 歩 1.76m）、走り 4.2 / 4.8 m/s は歩き + 走りクリップを約 10% / 13% 混ぜる（1 サイクル 約 0.98 / 0.90s・1 歩 約 2.05 / 2.15m）。走りクリップを全開にすると 1 歩 4.7m のスローモーションになるため。足の接地速度は `?bossmodel=…&gait=walk|run1|run2` で計測できる（`window.__bossGait`。接地中の足の後退速度の中央値。実測: 歩き 2.04 / 走り 4.01 / フェーズ 2 の走り 4.71 m/s に対し移動速度 2.4 / 4.2 / 4.8 m/s。`e2e/bossModel.spec.ts` が 25% 以内を検証）。足音は `BOSS_FOOTSTEP`（`foot_l` / `foot_r`、ピッチ比 0.48、音量・画面揺れの指定）。
+- **被弾判定**: `src/game/combat/bossHeartboxes.ts` の `BOSS_HEARTBOXES`（脚部 半径 0.75m + 胴 半径 0.9m、頭部判定なし）を `UprightTarget` に渡す。
+- **予算**: 全身 24,366 tris（騎士 21,252 + 装備 3,114。25,000 以下）、テクスチャは騎士の 7 枚（約 17.3MB、24MB 以下。雑魚と共有）、追加テクスチャ 0。ドローコール: 騎士 9 メッシュ + 装備 12 ≒ 21（影パスで倍）。ボスは常に近距離（闘技場は直径 32m）なので簡略メッシュ（LOD）には切り替えない。
+- 確認用: `?scene=test&bossmodel=1|2&cam=combat|up|front|three|side|back|wide&dist=6`（`clip=<名前>&t=<秒>` で任意のポーズ、`throw=1` で盾の投げ捨て、`grip=`、`ember=`）。
+
 ### 7.8 探索用の簡易メッシュ（Issue #108）
 
 探索・脇道要素（仕様書 14.4 / 14.5 / 14.7 節）の小物。**すべて自作**（`scripts/assets/exploration.mjs` がコードで生成。素材由来のライセンスなし、テクスチャなし）。
