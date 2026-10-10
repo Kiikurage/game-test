@@ -1,7 +1,7 @@
 {
   "version": 1,
   "format": "ogg-opus",
-  "totalBytes": 4728933,
+  "totalBytes": 4734638,
   "budgetBytes": 8388608,
   "sounds": [
     {
@@ -183,6 +183,18 @@
       "channels": 1,
       "bytes": 27402,
       "duration": 4.007
+    },
+    {
+      "id": "sfx.player-heavy-charge-full",
+      "file": "sfx.player-heavy-charge-full.ogg",
+      "bus": "sfx",
+      "kind": "se",
+      "loop": false,
+      "priority": 80,
+      "gain": 1,
+      "channels": 1,
+      "bytes": 5705,
+      "duration": 0.506
     },
     {
       "id": "sfx.breathless",

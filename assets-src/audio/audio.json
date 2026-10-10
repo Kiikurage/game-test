@@ -107,6 +107,13 @@
       "license": "synth-game-test"
     },
     {
+      "id": "sfx.player-heavy-charge-full",
+      "source": "se/sfx.player-heavy-charge-full.wav",
+      "kind": "se",
+      "priority": 80,
+      "license": "synth-game-test"
+    },
+    {
       "id": "sfx.breathless",
       "source": "se/sfx.breathless.wav",
       "kind": "se",

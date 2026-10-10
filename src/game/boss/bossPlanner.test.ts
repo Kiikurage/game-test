@@ -242,3 +242,61 @@ describe('PlayerTracker', () => {
     expect(t.rollStreak).toBe(1);
   });
 });
+
+describe('近距離で後退された時の跳躍（6.3 節 技 5）', () => {
+  /** 距離を 1F ごとに指定して追跡させる（ボスは原点・向き 0、プレイヤーは +z 側）。 */
+  function track(distances: number[]): PlayerTracker {
+    const t = new PlayerTracker();
+    for (const d of distances) t.update(0, 0, 0, { x: 0, z: d, healing: false, rolling: false });
+    return t;
+  }
+  const line = (from: number, to: number, frames: number): number[] =>
+    Array.from({ length: frames }, (_, i) => from + ((to - from) * (i + 1)) / frames);
+
+  it('detects a player who was close and got 1.5m+ away within 60F', () => {
+    expect(track([...Array<number>(10).fill(2.5), ...line(2.5, 4.5, 20)]).retreated).toBe(true);
+    // ちょうど 1.5m 離れた
+    expect(track([2.5, 2.5, 4.0]).retreated).toBe(true);
+    expect(track([2.5, 2.5, 3.9]).retreated).toBe(false);
+  });
+
+  it('does not trigger for a player who was never close, or who drifted away slowly', () => {
+    expect(track([...Array<number>(10).fill(5), ...line(5, 8, 20)]).retreated).toBe(false);
+    // 近距離から 60F より長くかけて離れた（窓の外では近距離でなくなる）
+    expect(track([2.5, ...line(2.5, 6, 200)]).retreated).toBe(false);
+  });
+
+  it('forgets the retreat on reset', () => {
+    const t = track([2.5, 2.5, 5]);
+    expect(t.retreated).toBe(true);
+    t.reset();
+    expect(t.retreated).toBe(false);
+  });
+
+  it('lets the boss pick the leap at close range only when retreated (weight 40, P1 and P2)', () => {
+    for (const phase of PHASES) {
+      const plain = computeWeights(ctx(phase, 'close'));
+      expect(plain.entries.find((e) => e.id === 'leap')?.weight).toBe(0);
+      const w = computeWeights(ctx(phase, 'close', { retreated: true }));
+      expect(w.entries.find((e) => e.id === 'leap')?.weight).toBe(
+        BOSS_CORRECTION.retreatLeapWeight,
+      );
+      expect(w.entries.find((e) => e.id === 'leap')?.probability).toBeGreaterThan(0);
+    }
+  });
+
+  it('raises the mid-range leap weight to at least 40 (P2: 20 -> 40) and keeps a larger table value', () => {
+    expect(
+      computeWeights(ctx(2, 'mid', { retreated: true })).entries.find((e) => e.id === 'leap')
+        ?.weight,
+    ).toBe(40);
+    expect(
+      computeWeights(ctx(1, 'mid', { retreated: true })).entries.find((e) => e.id === 'leap')
+        ?.weight,
+    ).toBe(40);
+    expect(
+      computeWeights(ctx(1, 'far', { retreated: true })).entries.find((e) => e.id === 'leap')
+        ?.weight,
+    ).toBe(100);
+  });
+});

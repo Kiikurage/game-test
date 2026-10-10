@@ -1,5 +1,4 @@
 import type {
-  FootstepGait,
   GameEventBus,
   GameEventMap,
   GameEventName,
@@ -7,6 +6,7 @@ import type {
   SoundSource,
   Vec3Like,
 } from '../core/gameEvents';
+import { footstepPlayRequest } from './footstep';
 import type { PlayRequest, SfxPlayer } from './sfxPlayer';
 
 /** 発生源ごとの優先度（仕様書 10.2 節: プレイヤー被弾・ガード > ボス > 敵 > 足音 > 環境）。 */
@@ -15,13 +15,6 @@ export const SOURCE_PRIORITY: Readonly<Record<SoundSource, number>> = {
   boss: 70,
   enemy: 50,
   world: 10,
-};
-
-/** 足音の歩き方ごとの音量倍率（素材は共通。歩き / 走り / ロールで音量を変える）。 */
-export const GAIT_VOLUME: Readonly<Record<FootstepGait, number>> = {
-  walk: 0.55,
-  run: 0.85,
-  roll: 0.7,
 };
 
 /** `hit` イベントの種別 → cue（素材 ID またはバリエーショングループ名）。 */
@@ -39,7 +32,7 @@ function spatialPosition(source: SoundSource, position?: Vec3Like): Vec3Like | u
 
 /**
  * game のイベントを再生要求へ変換する（純粋関数）。
- * cue の命名: 足音 `sfx.footstep-<surface>`（`sfx.footstep-stone1..4` のように連番でバリエーション）、
+ * cue の命名: 足音は `footstep.ts`（`sfx.footstep-<surface>`。`sfx.footstep-stone1..4` のように連番でバリエーション）、
  * ヒット `HIT_CUE`、汎用 `sound` は cue をそのまま使う。
  */
 export function toPlayRequest<K extends GameEventName>(
@@ -47,15 +40,8 @@ export function toPlayRequest<K extends GameEventName>(
   payload: GameEventMap[K],
 ): PlayRequest | undefined {
   switch (name) {
-    case 'footstep': {
-      const p = payload as GameEventMap['footstep'];
-      const position = spatialPosition(p.source, p.position);
-      return {
-        cue: `sfx.footstep-${p.surface}`,
-        volume: GAIT_VOLUME[p.gait],
-        ...(position && { position }),
-      };
-    }
+    case 'footstep':
+      return footstepPlayRequest(payload as GameEventMap['footstep']);
     case 'hit': {
       const p = payload as GameEventMap['hit'];
       const position = spatialPosition(p.source, p.position);
