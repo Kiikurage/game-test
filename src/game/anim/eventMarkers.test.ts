@@ -315,8 +315,8 @@ describe('戻りクリップ（tail）', () => {
     expect(swingEndElapsed(getPlayerClipEvents('player.light1'))).toBeCloseTo(19.5, 6);
     // 軽 2: 16F（0.533s）を playbackRate 1.6 で → 20 フレーム
     expect(swingEndElapsed(getPlayerClipEvents('player.light2'))).toBeCloseTo(20, 6);
-    // 軽 3: 60F（2.0s）を playbackRate 2.5 で → 48 フレーム（全体 52 以内）
-    expect(swingEndElapsed(getPlayerClipEvents('player.light3'))).toBeCloseTo(48, 6);
+    // 軽 3（突き。派生クリップ Sword_Thrust）: 26F（0.867s）を playbackRate 1 で → 52 フレーム（= 全体）
+    expect(swingEndElapsed(getPlayerClipEvents('player.light3'))).toBeCloseTo(52, 6);
     expect(swingEndElapsed(first({ clipRange: { startFrame: 0, endFrame: 300 } }))).toBe(36);
   });
 

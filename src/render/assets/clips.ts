@@ -42,7 +42,13 @@ export const CLIP_NAMES = [
   'Consume',
 ] as const;
 
-export type ClipName = (typeof CLIP_NAMES)[number];
+/**
+ * glb には無く、読み込み時に既存クリップから作る派生クリップ（`CharacterAssets.load` が登録する）。
+ * `Sword_Thrust`: 軽 3 の突き（`anim/thrustClip.ts`。元は Sword_Regular_C）。
+ */
+export const DERIVED_CLIP_NAMES = ['Sword_Thrust'] as const;
+
+export type ClipName = (typeof CLIP_NAMES)[number] | (typeof DERIVED_CLIP_NAMES)[number];
 
 /** ループ再生するクリップ（名前が `_Loop` で終わるものと、剣の構え待機）。 */
 export function isLoopingClip(name: ClipName): boolean {

@@ -8,6 +8,11 @@ import { WEAPON_CAPSULE } from './weaponPose';
 
 const DEG = Math.PI / 180;
 
+/** 突き（light3）の判定: 手元の高さ、判定開始時の握りの位置（体の前 m）、弧に対する左右の振れの割合。 */
+const THRUST_HEIGHT = 1.25;
+const THRUST_GRIP_START = 0.6;
+const THRUST_SWEEP_RATIO = 0.25;
+
 /** プレイヤー側が毎ステップ渡す、いま出している攻撃の情報（`Player.attack`）。 */
 export interface PlayerAttackInfo {
   readonly id: PlayerAttackId;
@@ -39,7 +44,9 @@ function set(v: Vec3, x: number, y: number, z: number): void {
  *
  * - light1 横斬り（Sword_Regular_A）: 体の右下から左上へ斬り上げながら水平に 110° 振る（仰角 −25° → +35°）。
  * - light2（Sword_Regular_B）: 左から右へ、肩の高さで水平に 90° 振る（やや斬り下ろし気味に仰角 +10° → −15°）。
- * - light3 突き（Sword_Regular_C）: 剣を引いた位置から正面へ突き出す。剣先は体の前 1.2m → 2.2m（射程 2.2m）、左右 ±20°（弧 40°）。
+ * - light3 突き（派生クリップ Sword_Thrust + 描画側の IK 補正）: 脇に引いた剣を胸の高さ（1.25m）で正面へ真っ直ぐ突き出す。
+ *   剣先は体の前 1.7m → 2.2m（射程 2.2m）。刺突は直進するので、左右の振れは弧 40° の 1/4（±5°）に留め、横の広さは
+ *   武器カプセルの半径 0.25m が受け持つ（見た目の刃と判定の向きを揃える）。
  */
 export function lightAttackCapsule(
   id: LightAttackId,
@@ -52,14 +59,13 @@ export function lightAttackCapsule(
   const arc = PLAYER_ACTIONS[id].arcDeg * DEG;
   out.radius = WEAPON_CAPSULE.radius;
   if (id === 'light3') {
-    const dir = yaw + arc / 2 - arc * p;
+    const dir = yaw + (arc * THRUST_SWEEP_RATIO) / 2 - arc * THRUST_SWEEP_RATIO * p;
     const sx = Math.sin(dir);
     const sz = Math.cos(dir);
     const reach = PLAYER_ACTIONS.light3.range;
-    const from = 0.1;
-    const s = from + (reach - len - from) * p;
-    set(out.a, feet.x + sx * s, feet.y + 1.2, feet.z + sz * s);
-    set(out.b, feet.x + sx * (s + len), feet.y + 1.2, feet.z + sz * (s + len));
+    const s = THRUST_GRIP_START + (reach - len - THRUST_GRIP_START) * p;
+    set(out.a, feet.x + sx * s, feet.y + THRUST_HEIGHT, feet.z + sz * s);
+    set(out.b, feet.x + sx * (s + len), feet.y + THRUST_HEIGHT, feet.z + sz * (s + len));
     return out;
   }
   // 水平方向の振り（bearing は右が正）と仰角
