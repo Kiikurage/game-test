@@ -15,6 +15,7 @@ import { GaitClock } from '../../game/anim/locomotion';
 import { BossCharacter } from '../assets/bossCharacter';
 import { findBossClipEvents } from '../../game/anim/bossClips';
 import { leapStateOf } from '../../game/boss/moves/leap.move';
+import { spinStateOf } from '../../game/boss/moves/spin.move';
 import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import { BossAnimator, bossMoveState } from './bossAnimator';
 import { toModelSpeed, BOSS_LOCOMOTION } from './bossGait';
@@ -198,7 +199,8 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
         lastValid = true;
         model.root.position.copy(p);
         model.root.position.y += leap?.height ?? 0;
-        model.root.rotation.y = boss.yaw;
+        // 回転斬り（技 6）はヨーに回転を足す
+        model.root.rotation.y = boss.yaw + (spinStateOf(boss)?.angle ?? 0);
         const visible = model.updateLod(
           view.camera,
           view.shadowFocusTarget?.position ?? game.player.feet,

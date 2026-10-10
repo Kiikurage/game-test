@@ -738,7 +738,10 @@ export class Boss implements BossMoveActor {
     }
     if (f === hitStart) this.emitPillarHits(run, stage);
     if (f >= hitStart && f <= hitEnd) {
-      this.deps.combat.resolve(run.attack, this.shapeOf(run, stage));
+      const shape = this.shapeOf(run, stage);
+      // 判定が前フレームから飛ぶ F（灰の波の次の線の発生など）は、スイープせずその姿勢だけで判定する
+      if (run.move.hooks?.discontinuous?.(ctx)) this.deps.combat.prime(run.attack, shape);
+      this.deps.combat.resolve(run.attack, shape);
       // 突進: 持続の間に `moveDistance` を均等に進む
       if (stage.moveDistance > 0 && stage.active > 0) {
         const step = stage.moveDistance / stage.active;
