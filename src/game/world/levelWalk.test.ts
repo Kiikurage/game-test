@@ -172,6 +172,53 @@ describe('walking the level D to F (physics)', () => {
     expect(along()).toBeGreaterThan(0.2);
   });
 
+  /** 目標へ向かって前進入力だけを一定時間押し続ける（途中で止められても構わない）。 */
+  function pushToward(
+    from: readonly [number, number],
+    to: readonly [number, number],
+    seconds = 14,
+  ): void {
+    game.teleportPlayer(from[0], from[1], 0);
+    run(10);
+    input.setMove(0, 1);
+    for (let i = 0; i < seconds * 10; i++) {
+      aim(Math.atan2(to[0] - pos().x, to[1] - pos().z));
+      run(6);
+    }
+    input.setMove(0, 0);
+    run(5);
+  }
+
+  it('cannot bypass the catacomb D by walking around it from the chapel (outer cliff)', () => {
+    // 礼拝堂の東の崩れ口から中庭の真ん中へ、D を通らず直進しようとする。外周の崖・D の岩盤で止まる
+    pushToward([61, 26], [94, 52]);
+    expect(pos().x, `stopped at ${pos().x}, ${pos().z}`).toBeLessThan(79);
+    // 北回り（D の北側）
+    pushToward([56, 33], [90, 60]);
+    expect(pos().x, `stopped at ${pos().x}, ${pos().z}`).toBeLessThan(79);
+  }, 30_000);
+
+  it('cannot get around the closed iron gate G1 along the lane walls', () => {
+    const gate = level.gates.find((g) => g.def.id === 'G1');
+    if (!gate) throw new Error('no G1');
+    // G1 の南 5m（ショートカットの道上）から、門の北側 (80, 40) を直線で目指す
+    pushToward([76, 27], [80, 40]);
+    expect(pos().z, `stopped at ${pos().x}, ${pos().z}`).toBeLessThan(gate.def.z + 0.5);
+    // 道の西側の外（D の岩盤の南）から
+    pushToward([72, 27], [80, 40]);
+    expect(pos().z, `stopped at ${pos().x}, ${pos().z}`).toBeLessThan(gate.def.z + 0.5);
+  }, 30_000);
+
+  it('cannot get around the closed fog gate from the courtyard', () => {
+    expect(game.setBoxEnabled('fog-gate', true)).toBe(true);
+    // 中庭の北東（霧の門の手前）から闘技場の中心を目指す。門の外側を回り込めない
+    pushToward([101, 64], [122, 86]);
+    expect(
+      Math.hypot(pos().x - 122, pos().z - 86),
+      `stopped at ${pos().x}, ${pos().z}`,
+    ).toBeGreaterThan(17);
+  }, 30_000);
+
   it('reports false for an unknown collider id', () => {
     expect(game.setBoxEnabled('no-such-box', true)).toBe(false);
   });

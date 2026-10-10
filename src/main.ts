@@ -18,6 +18,7 @@ import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
 import { EnvironmentAssets } from './render/assets/environment';
 import { createLevel, levelGameOptions } from './game/world/level';
 import { SaveStore, getLocalStorage } from './core/persistence';
+import { COMBAT_DEBUG_ENEMIES } from './game/world/combatDebug';
 import { terrainHeight } from './render/terrain';
 import { createDevHooks, isShowcaseRequested, type DevHooks } from './devHooks';
 
@@ -84,17 +85,21 @@ export async function createGameApp(
     const gameRenderer = await createRenderer(root, quality);
     rendererTask.done();
     const input = new InputSystem(root);
-    // 既定はレベル「灰の礎」。`?scene=test` で従来のテストシーン（雰囲気確認用）
+    // 既定はレベル「灰の礎」。`?scene=test` で従来のテストシーン（雰囲気確認用）、
+    // `?scene=combat` はテストシーンに亡者兵 1 体を置いた戦闘デバッグシーン
+    const sceneParam = new URLSearchParams(location.search).get('scene');
     const level =
-      new URLSearchParams(location.search).get('scene') === 'test'
-        ? null
-        : createLevel(ASHEN_FOUNDATION);
+      sceneParam === 'test' || sceneParam === 'combat' ? null : createLevel(ASHEN_FOUNDATION);
     const game = await Game.create({
       input,
       save: new SaveStore(getLocalStorage()),
       ...(level
         ? levelGameOptions(level)
-        : { terrain: createTerrainCollisionMesh(), terrainHeight }),
+        : {
+            terrain: createTerrainCollisionMesh(),
+            terrainHeight,
+            ...(sceneParam === 'combat' && { enemies: COMBAT_DEBUG_ENEMIES }),
+          }),
       // `?enemies=0`: 敵を配置しない（敵に邪魔されない移動の E2E・地形の確認用）
       ...(new URLSearchParams(location.search).get('enemies') === '0' && { enemies: [] }),
     });
@@ -143,6 +148,9 @@ export async function createGameApp(
       }
     }
     await view.loadPlugins();
+    // 初回描画のシェーダコンパイルをローディング中に済ませる（開始直後の長いカクつきを防ぐ）
+    view.resize();
+    await view.warmUp();
     assetsTask.done();
 
     new ResizeObserver(() => {

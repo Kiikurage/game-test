@@ -34,6 +34,8 @@ export interface AreaDef {
   readonly name: string;
   readonly shape: AreaShape;
   readonly surface: SurfaceKind;
+  /** 外周封鎖（`LevelData.perimeter`）で、この範囲の外側に残す余白（m）。省略時は `perimeter.areaMargin`。 */
+  readonly perimeterMargin?: number;
   /** 指定すると、範囲（+ margin）を この高さの平らな床にならす。省略時は地形なりのまま。 */
   readonly floor?: {
     readonly height: number;
@@ -72,6 +74,26 @@ export interface TerrainParams {
   /** 地形メッシュの格子の間隔（m）と、プレイ範囲の外側へ余分に張る幅（m）。 */
   readonly cellSize: number;
   readonly meshMargin: number;
+}
+
+/** 外周封鎖で通行領域に足す折れ線（脇道など。幅 = 半幅 × 2）。 */
+export interface OpenPath {
+  readonly id: string;
+  readonly points: readonly (readonly [number, number])[];
+  readonly halfWidth: number;
+}
+
+/**
+ * 外周の封鎖（#176）。通行領域 = メインルート・ショートカット（半幅 + `routeMargin`）、エリア（形状 + `areaMargin`）、
+ * 脇道（`openPaths`）の和。その外側は地形を `rise`（m）まで立ち上げ、`width`（m）で崖にする。
+ * 崖は勾配が `maxSlopeDeg` を超えるので、プレイヤーも敵（ナビ格子）も登れない。通行領域の内側の地形は変えない。
+ */
+export interface PerimeterParams {
+  readonly rise: number;
+  readonly width: number;
+  readonly routeMargin: number;
+  readonly areaMargin: number;
+  readonly openPaths: readonly OpenPath[];
 }
 
 export type BlockStyle =
@@ -194,6 +216,8 @@ export interface LevelData {
     readonly maxZ: number;
   };
   readonly terrain: TerrainParams;
+  /** 外周の封鎖。省略時は封鎖しない（開けた地形）。 */
+  readonly perimeter?: PerimeterParams;
   readonly areas: readonly AreaDef[];
   readonly route: readonly RoutePoint[];
   /** メインルートから分かれる道（ショートカットなど）。メインルートと同じ規則で地形をならす。 */
@@ -251,6 +275,8 @@ export interface Level {
   readonly heightAt: (x: number, z: number) => number;
   /** 道（メインルート）の重み 0..1。地面の見た目（踏み固められた土）に使う。 */
   readonly pathWeight: (x: number, z: number) => number;
+  /** 通行領域までの距離（m。領域内は 0。`perimeter` がなければ常に 0）。0 より大きい所は崖・岩壁。 */
+  readonly openDistance: (x: number, z: number) => number;
   readonly surfaceAt: (x: number, z: number) => SurfaceKind;
   readonly terrain: TerrainMesh;
   /** 見える静的物の箱（壁・墓石・階段など）。 */
@@ -349,12 +375,61 @@ function createRouteSegments(route: readonly RoutePoint[]): RouteSegment[] {
   return segments;
 }
 
+/** 通行領域までの距離（領域内 0）。`perimeter` がなければ常に 0。 */
+function createOpenDistance(data: LevelData): (x: number, z: number) => number {
+  const perimeter = data.perimeter;
+  if (!perimeter) return () => 0;
+  // 線分: [ax, az, bx, bz, 始点の半幅, 終点の半幅]
+  const segs: [number, number, number, number, number, number][] = [];
+  for (const route of [data.route, ...(data.extraRoutes ?? [])]) {
+    for (let i = 0; i + 1 < route.length; i++) {
+      const a = route[i];
+      const b = route[i + 1];
+      if (!a || !b) continue;
+      const m = perimeter.routeMargin;
+      segs.push([a.x, a.z, b.x, b.z, a.halfWidth + m, b.halfWidth + m]);
+    }
+  }
+  for (const path of perimeter.openPaths) {
+    for (let i = 0; i + 1 < path.points.length; i++) {
+      const a = path.points[i];
+      const b = path.points[i + 1];
+      if (!a || !b) continue;
+      segs.push([a[0], a[1], b[0], b[1], path.halfWidth, path.halfWidth]);
+    }
+  }
+  const areas = data.areas.map((a) => ({
+    shape: a.shape,
+    margin: a.perimeterMargin ?? perimeter.areaMargin,
+  }));
+  return (x, z) => {
+    let best = Infinity;
+    for (const [ax, az, bx, bz, wa, wb] of segs) {
+      const len2 = (bx - ax) ** 2 + (bz - az) ** 2;
+      const t = Math.min(1, Math.max(0, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / len2));
+      const d =
+        Math.hypot(x - (ax + (bx - ax) * t), z - (az + (bz - az) * t)) - (wa + (wb - wa) * t);
+      if (d < best) best = d;
+      if (best <= 0) return 0;
+    }
+    for (const a of areas) {
+      const d = distanceToShape(a.shape, x, z) - a.margin;
+      if (d < best) best = d;
+      if (best <= 0) return 0;
+    }
+    return Math.max(0, best);
+  };
+}
+
 /** 高さ関数と道の重み関数を作る（純粋関数。外から呼べるようにレベル全体は作らない版）。 */
 export function createTerrainFunctions(data: LevelData): {
   heightAt: (x: number, z: number) => number;
   pathWeight: (x: number, z: number) => number;
+  openDistance: (x: number, z: number) => number;
 } {
   const { terrain: p, bounds } = data;
+  const perimeter = data.perimeter;
+  const openDistance = createOpenDistance(data);
   const segments = [
     ...createRouteSegments(data.route),
     ...(data.extraRoutes ?? []).flatMap((r) => createRouteSegments(r)),
@@ -416,13 +491,24 @@ export function createTerrainFunctions(data: LevelData): {
       h += (f.height - h) * w;
     }
 
+    // 外周封鎖: 通行領域の外側を岩壁として立ち上げる（高さは岩肌のむらで 0.75..1.25 倍）
+    if (perimeter) {
+      const d = openDistance(x, z);
+      if (d > 0) {
+        const n = valueNoise(x / 5 + 2.4, z / 5 - 7.9);
+        // 立ち上がりは足元が急（登れない）で、頂で緩む。通行領域の間の細い尾根も低くならない
+        const t = 1 - Math.min(1, d / perimeter.width);
+        h += perimeter.rise * (0.75 + 0.5 * n) * (1 - t * t * t);
+      }
+    }
+
     // 外周の低い崖（プレイ範囲の端から cliffWidth の間で立ち上がる）。範囲の外は更に上がり続ける。
     const edge = Math.min(x - bounds.minX, bounds.maxX - x, z - bounds.minZ, bounds.maxZ - z);
     h += p.cliffHeight * (1 - smoothstep(0, p.cliffWidth, edge)) + Math.max(0, -edge);
     return h;
   };
 
-  return { heightAt, pathWeight };
+  return { heightAt, pathWeight, openDistance };
 }
 
 /** 地形メッシュ（`cellSize` 格子。頂点 (ix, iz) は x = minX + ix * cellSize）。 */
@@ -597,7 +683,7 @@ function placeGates(
 
 /** データからレベルを組み立てる。 */
 export function createLevel(data: LevelData): Level {
-  const { heightAt, pathWeight } = createTerrainFunctions(data);
+  const { heightAt, pathWeight, openDistance } = createTerrainFunctions(data);
   const areaOrder = data.areas;
   const surfaceAt = (x: number, z: number): SurfaceKind => {
     for (const area of areaOrder) if (insideShape(area.shape, x, z)) return area.surface;
@@ -608,6 +694,7 @@ export function createLevel(data: LevelData): Level {
     data,
     heightAt,
     pathWeight,
+    openDistance,
     surfaceAt,
     terrain: buildTerrainMesh(data, heightAt),
     boxes,
