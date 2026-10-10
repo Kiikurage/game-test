@@ -56,6 +56,17 @@ export interface EnemyAttackDef extends AttackDef {
   readonly range: number;
   /** 強い攻撃（予備動作 34F 以上が必要。5.1 節）。 */
   readonly heavy?: boolean;
+  /**
+   * 連続攻撃の 2 発目（A1 の連続など）。直前の攻撃の動きでプレイヤーは身構えているので、
+   * 予備動作の下限だけ緩める（`ENEMY_ATTACK_RULES.minFollowUpStartup`）。
+   */
+  readonly followUp?: boolean;
+  /** 予備動作中に向きを追尾する速度（度/秒）。省略時は `ENEMY_ATTACK_RULES.trackDegPerSecond`。 */
+  readonly trackDegPerSecond?: number;
+  /** 向きの追尾を終えるフレーム（これ以降は向き固定）。省略時は発生 × `ENEMY_ATTACK_RULES.trackRatio`。 */
+  readonly trackEndFrame?: number;
+  /** 攻撃中の強靭度加算（既定は `POISE.enemyAttackingBonus` = 30）。スーパーアーマー持ちの攻撃は大きくする。 */
+  readonly poiseBonus?: number;
 }
 
 // ---- プレイヤー動作 ----
