@@ -71,7 +71,7 @@ registerBossMove({
 - 地面の予告（円・線）は `hooks` の中で `render/telegraph` へつなぐ（描画側のイベント経由。game から render を import しない）。
 - 検証: `checkBossMove(def)` を技ごとにテストする（`checkEnemyAttack` を各段に当てる + 2 段目以降の `followUp`・スーパーアーマー区間・追尾終了）。
   追尾終了はボス用に「判定の 12F 前まで」（`BOSS_MIN_LOCKED_FRAMES`。雑魚の「発生の 60%」はボスの技表と合わない）。
-  注意: 仕様の三連撃 P2 の 2 段目は発生 16F で、`ENEMY_ATTACK_RULES.minFollowUpStartup`（20F）を下回る。E5-3 で仕様か基準のどちらかを調整すること。
+  連続攻撃（`followUp`）の発生の下限はボス用に 16F（`BOSS_MIN_FOLLOW_UP_STARTUP`。雑魚の 20F は仕様の三連撃 P2 の 2 段目 16F と合わないため、E5-3 で仕様を優先して調整した）。
 
 ## 確認用
 
