@@ -59,16 +59,6 @@ describe('decideHitStop（4.1 節の表）', () => {
     expect(decideHitStop({ event: event('heavyCharged'), ...PLAYER_ATTACKS }, c).frames).toBe(12);
   });
 
-  it('フル溜め強攻撃だけ画面振動 0.4°', () => {
-    const c = cfg();
-    expect(decideHitStop({ event: event('heavyCharged'), ...PLAYER_ATTACKS }, c).shake).toEqual({
-      amplitudeDeg: 0.4,
-      frames: c.chargedShakeFrames,
-    });
-    expect(decideHitStop({ event: event('heavy'), ...PLAYER_ATTACKS }, c).shake).toBeNull();
-    expect(decideHitStop({ event: event('light1'), ...PLAYER_ATTACKS }, c).shake).toBeNull();
-  });
-
   it('その他のプレイヤー動作（走り攻撃・ガードカウンターなど）は強攻撃（溜めなし）と同じ 8F', () => {
     const c = cfg();
     for (const id of ['runAttack', 'guardCounter', 'backstab', 'plunge']) {
@@ -125,7 +115,6 @@ describe('decideHitStop（4.1 節の表）', () => {
     expect(decideHitStop({ event: event('light1', 'none', true), ...PLAYER_ATTACKS }, c)).toEqual({
       frames: 0,
       slowMotion: null,
-      shake: null,
       flash: null,
     });
   });

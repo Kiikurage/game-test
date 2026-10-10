@@ -49,11 +49,6 @@ export const BOSS_KILL_SLOWMO = { timeScale: 0.3, frames: 60 } as const;
 
 /** ヒットストップに添える演出の長さ（4.1 節）。敵の攻撃がプレイヤーに命中: 赤フラッシュ 4F、ジャストガード: 白い閃光 2F。 */
 export const HIT_FLASH = { redFrames: 4, whiteFrames: 2 } as const;
-/** フル溜め強攻撃の画面振動の長さ（フレーム）。 */
-export const HEAVY_CHARGED_SCREEN_SHAKE_FRAMES = 10;
-
-/** 強攻撃（フル溜め）命中時の画面振動（度）。 */
-export const HEAVY_CHARGED_SCREEN_SHAKE_DEG = 0.4;
 
 // ---- ダメージ計算（4.2）----
 
