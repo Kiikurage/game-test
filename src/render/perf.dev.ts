@@ -1,4 +1,5 @@
 import { registerDevHooks } from '../devHooks';
+import { perfProbe, type PerfProbe } from './perfProbe';
 import type { RenderProfile } from './renderProfile';
 
 declare module '../devHooks' {
@@ -7,6 +8,8 @@ declare module '../devHooks' {
     renderInfo(): { drawCalls: number; triangles: number };
     /** カテゴリ別の描画負荷の内訳（メイン / シャドウ別の draws・tris。見積り）。 */
     renderProfile(): RenderProfile;
+    /** パイプライン生成回数と CPU 時間（ウォームアップ後にパイプライン数が増え続けない回帰テスト用。#231）。 */
+    perfProbe(): PerfProbe;
   }
 }
 
@@ -16,4 +19,5 @@ registerDevHooks('perf', ({ view }) => ({
     triangles: view.renderStats.triangles,
   }),
   renderProfile: () => view.profile(),
+  perfProbe: () => ({ ...perfProbe }),
 }));
