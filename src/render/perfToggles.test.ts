@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPerfToggles, parsePerfToggles } from './perfToggles';
+import { applyPerfToggles, parseFlatMatGroups, parsePerfToggles } from './perfToggles';
 import { QUALITY_PRESETS, selectQuality } from './quality';
 
 describe('parsePerfToggles', () => {
@@ -14,8 +14,19 @@ describe('parsePerfToggles', () => {
     const t = parsePerfToggles(
       '?perf&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat',
     );
-    expect(Object.values(t).every(Boolean)).toBe(true);
+    const { flatMatGroups, ...flags } = t;
+    expect(Object.values(flags).every(Boolean)).toBe(true);
+    expect(flatMatGroups).toBeNull(); // ?flatmat だけなら全グループ
     expect(parsePerfToggles('?noshadow=0').noShadow).toBe(false);
+  });
+
+  it('reads flatmat groups', () => {
+    const t = parsePerfToggles('?flatmat=terrain,masonry,unknown');
+    expect(t.flatMat).toBe(true);
+    expect([...(t.flatMatGroups ?? [])].sort()).toEqual(['masonry', 'terrain']);
+    expect(parseFlatMatGroups('all')).toBeNull();
+    expect(parseFlatMatGroups('1')).toBeNull();
+    expect(parsePerfToggles('?flatmat=0').flatMat).toBe(false);
   });
 });
 

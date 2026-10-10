@@ -13,7 +13,6 @@ import {
   instanceIndex,
   min,
   mix,
-  mx_noise_float,
   positionLocal,
   positionWorld,
   normalWorld,
@@ -27,10 +26,12 @@ import {
 } from 'three/tsl';
 import type { EnvironmentGroup } from './assets/environment';
 import { bumpedNormal, rockSurface } from './cliff/rockSurface';
+import { bakedNoise, getMaterialDetail } from './bakedNoise';
+import { tagMaterial } from './materialGroups';
 
 /**
  * 環境・地面のマテリアル（TSL）。頂点カラーに、ワールド座標のノイズで細かな明暗のむらを足す
- * （テクスチャなし。1 ピクセルあたりノイズ 1〜2 回）。
+ * （焼いたノイズテクスチャの参照。1 ピクセルあたり 1〜2 回。#236）。
  */
 
 /** 石・木・土: 頂点カラー × ワールド座標の低コストなむら。 */
@@ -41,16 +42,20 @@ export function createSoftMaterial(): MeshStandardNodeMaterial {
     metalness: 0,
   });
   const p = positionWorld;
-  const coarse = mx_noise_float(p.mul(2.3));
-  const fine = mx_noise_float(p.mul(9.1));
+  const detail = getMaterialDetail();
+  const coarse = bakedNoise(p.mul(2.3));
+  const fine = detail >= 1 ? bakedNoise(p.mul(9.1)) : float(0);
   const factor = float(0.86).add(coarse.mul(0.2)).add(fine.mul(0.12));
   material.colorNode = vec4(vec3(factor), 1);
-  return material;
+  return tagMaterial(material, 'env');
 }
 
 /** 錆びた鉄。 */
 export function createMetalMaterial(): MeshStandardNodeMaterial {
-  return new MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.68, metalness: 0.45 });
+  return tagMaterial(
+    new MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.68, metalness: 0.45 }),
+    'env',
+  );
 }
 
 /** 発光（ランタン・たいまつの炎・刻印）。HDR（ブルームに乗る）。 */
@@ -92,35 +97,41 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
     .mul(tone)
     .mul(smoothstep(0.0, 0.2, edge).mul(0.18).add(0.82));
 
-  // 敷石は途中で欠け、土が覗く（斑に抜ける）
-  const patch = smoothstep(-0.5, 0.2, mx_noise_float(positionWorld.mul(0.7)));
+  // 敷石は途中で欠け、土が覗く（斑に抜ける）。medium 以下は土の低周波ノイズと共有する
+  const detail = getMaterialDetail();
+  const coarse = bakedNoise(positionWorld.mul(0.55));
+  const patch = smoothstep(-0.5, 0.2, detail >= 2 ? bakedNoise(positionWorld.mul(0.7)) : coarse);
 
-  const coarse = mx_noise_float(positionWorld.mul(0.55));
-  const mid = mx_noise_float(positionWorld.mul(2.6));
-  const fine = mx_noise_float(positionWorld.mul(11));
-  const dirt = float(0.84).add(coarse.mul(0.26)).add(mid.mul(0.16)).add(fine.mul(0.1));
+  const mid = bakedNoise(positionWorld.mul(2.6));
+  const fine = detail >= 2 ? bakedNoise(positionWorld.mul(11)) : float(0);
+  const dirt = float(0.84)
+    .add(coarse.mul(0.26))
+    .add(mid.mul(0.16))
+    .add(fine.mul(detail >= 2 ? 0.1 : 0));
 
   // 踏み固められた道: 縁は湿って暗い轍、中は砂利の粒が明るく光る。道の外は草の根が張って暗い斑が出る
-  const pebble = smoothstep(0.35, 0.6, mx_noise_float(positionWorld.mul(23)));
+  const pebble = smoothstep(0.35, 0.6, bakedNoise(positionWorld.mul(23)));
   const rut = smoothstep(0.25, 0.6, path).mul(float(1).sub(smoothstep(0.6, 0.95, path)));
+  const treadNoise = detail >= 2 ? bakedNoise(positionWorld.mul(5.5)) : mid;
   const tread = float(1)
     .sub(rut.mul(0.22))
     .add(pebble.mul(path).mul(0.45))
-    .sub(mx_noise_float(positionWorld.mul(5.5)).mul(path).mul(0.12));
+    .sub(treadNoise.mul(path).mul(0.12));
   const verge = float(1).sub(
     smoothstep(0.0, 0.3, path)
       .mul(float(1).sub(smoothstep(0.3, 0.6, path)))
       .mul(0.12),
   );
 
-  // 急斜面の岩肌（崖。#176 #190）: 地層・節理・割れ目の色と、法線の凹凸（岩塊メッシュと同じ関数）
+  // 急斜面の岩肌（崖。#176 #190）: 地層・節理・割れ目の色と、法線の凹凸（岩塊メッシュと同じ関数）。
+  // medium 以下は法線の凹凸（微分 4 回 + 高さ場）を省き、岩肌のノイズも減らす（`rockSurface` の detail）
   const rockMask = smoothstep(0.93, 0.74, normalWorld.y);
   const rock = rockSurface(positionWorld, {
     damp: attribute('damp', 'float'),
     up: normalWorld.y,
   });
   const rocky = mix(vec3(1), rock.tone, rockMask);
-  material.normalNode = bumpedNormal(rock.height, rockMask.mul(0.6));
+  if (detail >= 2) material.normalNode = bumpedNormal(rock.height, rockMask.mul(0.6));
 
   const factor = mix(
     dirt.mul(tread).mul(verge).mul(rocky),
@@ -128,7 +139,7 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
     stone.mul(patch),
   );
   material.colorNode = vec4(factor, 1);
-  return material;
+  return tagMaterial(material, 'terrain');
 }
 
 /** 枯れ草: 根元が暗く、先が明るい。風でゆっくり揺れる（インスタンスごとの位相）。 */

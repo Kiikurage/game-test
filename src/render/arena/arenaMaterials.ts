@@ -1,6 +1,8 @@
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 import type { Node } from 'three/webgpu';
 import { torchGlow, type Torch } from './arenaTorches';
+import { bakedNoise, getMaterialDetail } from '../bakedNoise';
+import { tagMaterial } from '../materialGroups';
 import {
   abs,
   atan,
@@ -18,7 +20,6 @@ import {
   max,
   min,
   mix,
-  mx_noise_float,
   normalize,
   normalView,
   normalWorld,
@@ -39,7 +40,8 @@ import {
  *  - 目地・ひびの線は `fwidth`（画面上の 1 ピクセルあたりの変化量）で幅を決める解析的アンチエイリアス。遠景でちらつかない。
  *  - 凹凸（目地の窪み・孔・ひび）は高さ → 法線の摂動（Mikkelsen の勾配法）で出す。テクスチャ・追加パスなし。
  *  - 粒・孔など細かい成分は、1 ピクセルが大きくなる（遠景）ほど消す。
- *  - ノイズは 1 ピクセルあたり 5〜7 回（ミドル〜ハイエンドのモバイルで余裕のある範囲）。
+ *  - ノイズは焼いたテクスチャの参照（`bakedNoise`。#236）。high は 1 ピクセルあたり 10〜14 回、
+ *    medium/low は粒・孔・縁の細かい欠け・ひびの歪み（3 → 1）を省いて 5〜7 回。
  */
 
 type F = Node<'float'>;
@@ -91,25 +93,28 @@ interface StoneOutput {
 
 function shadeStone(i: StoneInput): StoneOutput {
   const { edge, cell, p } = i;
+  const high = getMaterialDetail() >= 2;
   const aa = fwidth(edge).add(0.0015);
   // 1 ピクセルが大きいほど細部を消す（遠景のちらつき・モアレの抑制）
   const fine: F = float(1).sub(smoothstep(0.012, 0.05, aa));
 
   // 欠けた縁: 目地の位置を細かいノイズで揺らす
   const edgeN = edge
-    .add(mx_noise_float(p.mul(9.5)).mul(0.014))
-    .add(mx_noise_float(p.mul(31)).mul(0.005).mul(fine));
+    .add(bakedNoise(p.mul(9.5)).mul(0.014))
+    .add(high ? bakedNoise(p.mul(31)).mul(0.005).mul(fine) : float(0));
   const onStone: F = smoothstep(i.jointW.sub(aa.mul(0.9)), i.jointW.add(aa.mul(0.9)), edgeN);
 
   // 石ごとの明暗と色味（寒色寄り ↔ 暖色寄り）
   const tone: F = float(0.5).add(hash(cell).mul(0.85));
   const hue = mix(vec3(0.83, 0.92, 1.05), vec3(1.07, 0.97, 0.8), hash(cell.add(17.3)));
   // 石の中の染み（低周波）と粒（高周波）、孔
-  const stain: F = mx_noise_float(p.mul(0.85).add(cell.mul(1.7)))
+  const stain: F = bakedNoise(p.mul(0.85).add(cell.mul(1.7)))
     .mul(0.5)
     .add(0.5);
-  const grain: F = mx_noise_float(p.mul(23)).mul(fine);
-  const pit: F = smoothstep(0.52, 0.74, mx_noise_float(p.mul(8.1).add(cell))).mul(fine);
+  const grain: F = high ? bakedNoise(p.mul(23)).mul(fine) : float(0);
+  const pit: F = high
+    ? smoothstep(0.52, 0.74, bakedNoise(p.mul(8.1).add(cell))).mul(fine)
+    : float(0);
   // 縁は丸く欠けて暗い（接触面の陰）、縁のすぐ内側はわずかに明るい（角の摩耗）
   const edgeShade: F = mix(float(0.68), float(1), smoothstep(0.0, 0.17, edgeN));
   const edgeWear: F = float(1).add(
@@ -131,12 +136,15 @@ function shadeStone(i: StoneInput): StoneOutput {
   const hasCrack: F = step(float(1 - i.cracks * 0.55), crackSeed);
   // 細かい揺らぎでひびを折れ線に（なめらかな曲線にしない）
   const q: V3 = p.mul(2.6).add(cell.mul(3.1));
-  const warp = vec3(
-    mx_noise_float(q.mul(2.9)),
-    mx_noise_float(q.mul(2.9).add(7.3)),
-    mx_noise_float(q.mul(2.9).add(13.1)),
-  ).mul(0.4);
-  const cn: F = abs(mx_noise_float(q.add(warp)));
+  // medium/low はノイズ 1 回で 3 軸を同じ向きに歪める（折れ線の形が少し単調になる）
+  const warp = high
+    ? vec3(
+        bakedNoise(q.mul(2.9)),
+        bakedNoise(q.mul(2.9).add(7.3)),
+        bakedNoise(q.mul(2.9).add(13.1)),
+      ).mul(0.4)
+    : vec3(bakedNoise(q.mul(2.9)).mul(0.4));
+  const cn: F = abs(bakedNoise(q.add(warp)));
   const cnAA = fwidth(cn).add(0.002);
   const crackW = 0.016;
   const crackLine: F = float(1)
@@ -144,16 +152,22 @@ function shadeStone(i: StoneInput): StoneOutput {
     .mul(hasCrack)
     .mul(onStone);
   // 石をまたぐ大きなひび（床だけ。一部の範囲にだけ走る）
-  const bn: F = abs(
-    mx_noise_float(
-      p
-        .mul(0.75)
-        .add(warp.mul(0.6))
-        .add(vec3(5.1, 1.3, 9.7)),
-    ),
-  );
+  // medium/low は床の大きなひびを省く（ノイズ 2 回）
+  const bigOn = high && i.bigCracks > 0;
+  const bn: F = bigOn
+    ? abs(
+        bakedNoise(
+          p
+            .mul(0.75)
+            .add(warp.mul(0.6))
+            .add(vec3(5.1, 1.3, 9.7)),
+        ),
+      )
+    : float(1);
   const bnAA = fwidth(bn).add(0.0015);
-  const bigMask: F = smoothstep(0.12, 0.4, mx_noise_float(p.mul(0.13).add(vec3(1.9, 8.1, 3.3))));
+  const bigMask: F = bigOn
+    ? smoothstep(0.12, 0.4, bakedNoise(p.mul(0.13).add(vec3(1.9, 8.1, 3.3))))
+    : float(0);
   const bigCrack: F = float(1)
     .sub(smoothstep(0.012, float(0.012).add(bnAA.mul(1.6)), bn))
     .mul(i.bigCracks)
@@ -165,7 +179,7 @@ function shadeStone(i: StoneInput): StoneOutput {
   const mossNoise: F = smoothstep(
     0.0,
     0.5,
-    mx_noise_float(p.mul(2.4).add(cell)).add(i.grime.mul(0.9)).sub(0.15),
+    bakedNoise(p.mul(2.4).add(cell)).add(i.grime.mul(0.9)).sub(0.15),
   );
   const moss: F = mossNoise.mul(i.grime);
   stone = mix(stone, stone.mul(vec3(0.62, 0.78, 0.5)), moss.mul(0.7));
@@ -180,7 +194,7 @@ function shadeStone(i: StoneInput): StoneOutput {
     .sub(pit.mul(0.004))
     .sub(cracks.mul(0.006))
     .add(grain.mul(0.0018))
-    .add(mx_noise_float(p.mul(2.6).add(cell)).mul(0.004));
+    .add((high ? bakedNoise(p.mul(2.6).add(cell)) : stain.sub(0.5).mul(2)).mul(0.004));
   const roughness: F = mix(float(1), float(0.93).sub(stain.mul(0.1)).add(moss.mul(0.07)), onStone);
   return { color, height, roughness };
 }
@@ -240,14 +254,14 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNode
     );
   }
   const ped: F = float(1).sub(smoothstep(o.pedestalRadius, o.pedestalRadius + 1.4, r));
-  const patchy: F = mx_noise_float(p.mul(0.33)).mul(0.5).add(0.5);
+  const patchy: F = bakedNoise(p.mul(0.33)).mul(0.5).add(0.5);
   const grime: F = max(max(wall.mul(0.85), near.mul(0.7)), ped.mul(0.5)).mul(
     mix(float(0.7), float(1.25), patchy),
   );
   const wallAO: F = float(1).sub(smoothstep(o.radius - 1.4, o.radius + 0.1, r).mul(0.48));
 
   // 戦いの焦げ跡（大きな暗い斑）と、台座を囲む彫り込みの輪・目盛り
-  const scorch: F = smoothstep(0.34, 0.7, mx_noise_float(p.mul(0.16).add(vec3(2.2, 0.7, 6.1))));
+  const scorch: F = smoothstep(0.34, 0.7, bakedNoise(p.mul(0.16).add(vec3(2.2, 0.7, 6.1))));
   const inlayR: F = abs(r.sub(4.4));
   const inlayAA = fwidth(r).mul(1.2).add(0.01);
   const inlay: F = float(1).sub(smoothstep(0.07, float(0.07).add(inlayAA), inlayR));
@@ -269,7 +283,7 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNode
   material.roughnessNode = shade.roughness;
   material.normalNode = bumpNormal(shade.height, 1);
   material.emissiveNode = color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 2.1));
-  return material;
+  return tagMaterial(material, 'arena');
 }
 
 /** 石積み（壁・柱・台座）の設定。 */
@@ -310,7 +324,7 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): MeshStandard
   // 汚れ: 床に近いほど濃く、天端も雨だれで少し濃い
   const h: F = p.y.sub(o.floorY);
   const low: F = float(1).sub(smoothstep(0.1, 1.5, h));
-  const drip: F = mx_noise_float(vec3(s.mul(2.1), v.mul(0.25), 3.3))
+  const drip: F = bakedNoise(vec3(s.mul(2.1), v.mul(0.25), 3.3))
     .mul(0.5)
     .add(0.5);
   const grime: F = max(low.mul(0.95), drip.mul(0.38)).mul(o.grime);
@@ -330,5 +344,5 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): MeshStandard
   material.roughnessNode = shade.roughness;
   material.normalNode = bumpNormal(shade.height, 1);
   material.emissiveNode = shade.color.mul(torchGlow(p, normalWorld, o.torches, 2.1));
-  return material;
+  return tagMaterial(material, 'arena');
 }

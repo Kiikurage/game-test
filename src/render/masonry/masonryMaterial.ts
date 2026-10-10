@@ -15,7 +15,6 @@ import {
   min,
   mix,
   mod,
-  mx_noise_float,
   normalView,
   normalWorld,
   positionView,
@@ -28,6 +27,8 @@ import {
   vec3,
   vec4,
 } from 'three/tsl';
+import { bakedNoise } from '../bakedNoise';
+import { tagMaterial } from '../materialGroups';
 
 /**
  * 石積みマテリアル（TSL。1 マテリアルで地下墓所・中庭の壁・柱・噴水・石棺・門柱をまかなう）。
@@ -38,7 +39,9 @@ import {
  * - 目地と欠けは高さ場として法線を揺らす（`detail` ≥ 1。low はなし）。
  * - 壁のたいまつの光は、ライトを増やさず `torches`（位置 + 強度）を距離減衰で足す（`emissive`。影は付かない）。
  *
- * `detail`: 0 = low（法線・細かいノイズなし）、1 = medium、2 = high（ノイズを 1 つ増やす）。
+ * ノイズは `bakedNoise`（焼いたテクスチャの参照。#236）。
+ * `detail`: 0 = low（法線・細かいノイズなし）、1 = medium（ノイズ 5 回: 目地の揺れ・粒・縦の汚れ・染み・苔）、
+ * 2 = high（欠け・孔・細かい粒を足して 8〜9 回）。
  */
 export interface MasonryMaterialOptions {
   readonly detail: 0 | 1 | 2;
@@ -87,7 +90,7 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
   // --- 目地までの距離（m）。目地の縁は低周波のノイズで揺らす（定規で引いた線にしない）---
   const dx = min(fc, float(1).sub(fc)).mul(len);
   const dy = min(fr, float(1).sub(fr)).mul(rowH);
-  const wobble = mx_noise_float(vec3(mu.x.mul(7.1), mu.y.mul(7.1), float(1.7))).mul(0.011);
+  const wobble = bakedNoise(vec3(mu.x.mul(7.1), mu.y.mul(7.1), float(1.7))).mul(0.011);
   const e = min(dx, dy).add(wobble);
   // 画素の大きさ（m）。目地の線は fwidth で解析的にアンチエイリアスし、遠くでは平均の暗さへ溶かす
   const footprint = max(fwidth(mu.x), fwidth(mu.y));
@@ -109,14 +112,14 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
 
   // --- 粒・欠け・汚れ ---
   const gp = vec3(mu.x.mul(6.3), mu.y.mul(6.3), blockSeed.mul(0.37));
-  const n1 = mx_noise_float(gp);
+  const n1 = bakedNoise(gp);
   const grain = detail > 0 ? n1.mul(0.11) : float(0);
-  const chipN = detail > 0 ? mx_noise_float(gp.mul(2.6)) : float(0);
+  const chipN = detail > 1 ? bakedNoise(gp.mul(2.6)) : float(0);
   const chip = smoothstep(0.4, 0.7, chipN);
-  const streak = mx_noise_float(vec3(mu.x.mul(0.85), mu.y.mul(0.16), float(3.3)));
-  const patch = mx_noise_float(vec3(mu.x.mul(0.5), mu.y.mul(0.45), float(8.2)));
+  const streak = bakedNoise(vec3(mu.x.mul(0.85), mu.y.mul(0.16), float(3.3)));
+  const patch = bakedNoise(vec3(mu.x.mul(0.5), mu.y.mul(0.45), float(8.2)));
   const fineN =
-    detail > 1 ? mx_noise_float(vec3(mu.x.mul(21), mu.y.mul(21), blockSeed)).mul(0.07) : float(0);
+    detail > 1 ? bakedNoise(vec3(mu.x.mul(21), mu.y.mul(21), blockSeed)).mul(0.07) : float(0);
 
   // --- 角の欠け（面の端 0.3m 以内を不規則に明るく荒く）---
   const cornerD = min(mx.x, mx.y).add(n1.mul(0.08));
@@ -125,7 +128,7 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
   // --- 地面付近の湿り（暗く、苔）---
   const g = mx.z;
   const damp = smoothstep(1.7, 0.0, g.add(n1.mul(0.35)).add(patch.mul(0.4)));
-  const mossN = mx_noise_float(vec3(mu.x.mul(2.4), mu.y.mul(2.4), float(9.1)));
+  const mossN = bakedNoise(vec3(mu.x.mul(2.4), mu.y.mul(2.4), float(9.1)));
   const moss = damp
     .mul(smoothstep(0.0, 0.55, mossN.add(0.15)))
     .mul(smoothstep(1.1, 0.0, g))
@@ -160,7 +163,8 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
     const relief = smoothstep(0.0, 0.07, e)
       .mul(0.014)
       .add(smoothstep(0.0, 0.02, e).mul(0.006));
-    const pits = mx_noise_float(vec3(mu.x.mul(13), mu.y.mul(13), row)).mul(0.006);
+    const pits =
+      detail > 1 ? bakedNoise(vec3(mu.x.mul(13), mu.y.mul(13), row)).mul(0.006) : float(0);
     const height = relief.add(pits).add(chip.mul(-0.004)).mul(fade);
     const dhx = dFdx(height);
     const dhy = dFdy(height);
@@ -196,5 +200,5 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
     }
     material.emissiveNode = albedo.mul(sum);
   }
-  return material;
+  return tagMaterial(material, 'masonry');
 }

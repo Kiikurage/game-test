@@ -1,4 +1,5 @@
 import { MeshStandardNodeMaterial, type Material, type Mesh, type Object3D } from 'three/webgpu';
+import { materialGroupOf, type MaterialGroup } from './materialGroups';
 import { perfProbe } from './perfProbe';
 import type { GameRenderer } from './renderer';
 import { registerViewPlugin } from './viewPlugins';
@@ -16,6 +17,9 @@ interface BackendLike {
 class FlatMaterials {
   private readonly cache = new Map<Material, Material>();
 
+  /** groups が null なら全グループ。 */
+  constructor(private readonly groups: ReadonlySet<MaterialGroup> | null) {}
+
   apply(root: Object3D): void {
     root.traverse((obj) => {
       if (!(obj as { isMesh?: boolean }).isMesh) return;
@@ -26,6 +30,7 @@ class FlatMaterials {
       mesh.userData.flatMat = true;
       // 透明・加算のもの（炎・霧・光だまり・パーティクル）は対象外（それは ?noparticles 側）
       if (original.transparent) return;
+      if (this.groups && !this.groups.has(materialGroupOf(original))) return;
       let flat = this.cache.get(original);
       if (!flat) {
         const color = (original as { color?: { getHex(): number } }).color;
@@ -73,7 +78,7 @@ registerViewPlugin('perf', ({ view, gameRenderer }) => {
   };
 
   if (toggles.noParticles) view.particles.root.visible = false;
-  const flat = toggles.flatMat ? new FlatMaterials() : null;
+  const flat = toggles.flatMat ? new FlatMaterials(toggles.flatMatGroups) : null;
 
   const hud = toggles.perf ? mountPerfHud(gameRenderer) : null;
   let untilFlat = 0;

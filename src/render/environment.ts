@@ -20,7 +20,6 @@ import {
   fog,
   max,
   mix,
-  mx_fractal_noise_float,
   normalize,
   positionWorld,
   positionWorldDirection,
@@ -33,6 +32,7 @@ import {
   densityFogFactor,
 } from 'three/tsl';
 import type { QualityPreset } from './quality';
+import { bakedFractal } from './bakedNoise';
 import { SHADOW_PROXY_LAYER } from './layers';
 import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
 
@@ -174,6 +174,8 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   const starAmount = uniform(0);
   sunTint.value.copy(sunColor);
 
+  // 雲のノイズのオクターブ数（背景は全画面を塗るので、モバイルでは減らす。#236）
+  const cloudOctaves = preset.level === 'high' ? 4 : preset.level === 'medium' ? 2 : 1;
   const skyAt = (dirNode: Node<'vec3'>): Node<'vec3'> =>
     Fn(() => {
       const dir = dirNode;
@@ -196,7 +198,7 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
       const cloudUV = vec2(dir.x, dir.z)
         .div(max(h.add(0.18), 0.06))
         .mul(1.2);
-      const cloud = mx_fractal_noise_float(vec3(cloudUV.x, cloudUV.y.mul(3.2), 0.0), 4, 2.0, 0.5)
+      const cloud = bakedFractal(vec3(cloudUV.x, cloudUV.y.mul(3.2), 0.0), cloudOctaves)
         .mul(0.5)
         .add(0.5);
       const cloudMask = smoothstep(0.58, 0.88, cloud)

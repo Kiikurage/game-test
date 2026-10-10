@@ -10,7 +10,6 @@ import {
   max,
   min,
   mix,
-  mx_noise_float,
   normalize,
   normalView,
   positionView,
@@ -20,6 +19,7 @@ import {
   vec3,
 } from 'three/tsl';
 import type { Node } from 'three/webgpu';
+import { bakedNoise, getMaterialDetail, type MaterialDetail } from '../bakedNoise';
 
 /**
  * 岩肌の表面（TSL。ワールド座標ベース。テクスチャなし。#190）。
@@ -30,7 +30,8 @@ import type { Node } from 'three/webgpu';
  *  - 割れ目: 縦に長いノイズの細い暗線。雨だれの縦縞と粒状の凹凸を重ねる
  *
  * `tone` は頂点色（岩の基調色）に掛ける係数、`height` は凹凸（m。法線の摂動に使う）。
- * ノイズは 4 回（歪み・割れ目・雨だれ・粒）。
+ * ノイズは焼いたテクスチャの参照（`bakedNoise`）。detail 2（high）は 4 回（歪み・雨だれ・粒・尾根）、
+ * detail 1 は割れ目・雨だれを省いて 3 回（歪み・粒・尾根）、detail 0 は 1 回（歪み）。
  */
 export interface RockSurface {
   readonly tone: Node<'vec3'>;
@@ -50,9 +51,14 @@ export interface RockSurfaceInputs {
   readonly up: Node<'float'>;
 }
 
-export function rockSurface(p: Node<'vec3'>, inputs: RockSurfaceInputs): RockSurface {
+export function rockSurface(
+  p: Node<'vec3'>,
+  inputs: RockSurfaceInputs,
+  detail: MaterialDetail = getMaterialDetail(),
+): RockSurface {
+  const full = detail >= 2;
   // 地形のむらに沿って層をうねらせる
-  const warp = mx_noise_float(p.mul(0.3));
+  const warp = bakedNoise(p.mul(0.3));
   const yy = p.y.mul(0.85).add(warp.mul(0.7)).add(p.x.mul(0.05)).sub(p.z.mul(0.04));
   const layer = floor(yy);
   const lf = fract(yy);
@@ -127,18 +133,21 @@ export function rockSurface(p: Node<'vec3'>, inputs: RockSurfaceInputs): RockSur
   const crackFade = float(1).sub(
     smoothstep(rockCrackFar.mul(0.5), rockCrackFar, positionView.length()),
   );
-  const crack = float(1)
-    .sub(smoothstep(crackHalf.sub(crackPx), crackHalf.add(crackPx), cDist))
-    .mul(crackContrast)
-    .mul(crackHere)
-    .mul(layerFade)
-    .mul(crackFade);
-  const streak = mx_noise_float(vec3(p.x.mul(1.6), p.y.mul(0.22), p.z.mul(1.6)));
-  const grain = mx_noise_float(p.mul(5.3));
+  const crack = full
+    ? float(1)
+        .sub(smoothstep(crackHalf.sub(crackPx), crackHalf.add(crackPx), cDist))
+        .mul(crackContrast)
+        .mul(crackHere)
+        .mul(layerFade)
+        .mul(crackFade)
+    : float(0);
+  const streak = full ? bakedNoise(vec3(p.x.mul(1.6), p.y.mul(0.22), p.z.mul(1.6))) : float(-1);
+  const grain = detail >= 1 ? bakedNoise(p.mul(5.3)) : float(0);
   // 稜線の立った尾根と谷（丸いうねりだけだと粘土のように見えるので、角ばった凹凸を足す）
-  const ridge = float(1).sub(
-    abs(mx_noise_float(p.mul(vec3(1.7, 1.0, 1.7)).add(vec3(7.1, 0, 3.3)))),
-  );
+  const ridge =
+    detail >= 1
+      ? float(1).sub(abs(bakedNoise(p.mul(vec3(1.7, 1.0, 1.7)).add(vec3(7.1, 0, 3.3)))))
+      : float(0.6);
   const ridgeSharp = smoothstep(0.5, 1.0, ridge);
 
   const height = bulge
