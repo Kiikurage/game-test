@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
+import { holdKey, startGame, stepCount, tapKey, waitSteps } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で起動する。 */
 async function boot(page: Page): Promise<void> {
@@ -36,23 +36,23 @@ async function walkThrough(page: Page, waypoints: readonly (readonly [number, nu
   await page.keyboard.down('KeyW');
   try {
     for (const [wx, wz] of waypoints) {
-      const deadline = Date.now() + 40_000;
+      const deadlineSteps = (await stepCount(page)) + 40 * 60; // シミュレーション時間で 40 秒
       for (;;) {
         const p = (await sim(page)).player;
         const dx = wx - p.position.x;
         const dz = wz - p.position.z;
         if (Math.hypot(dx, dz) < 1.5) break;
         expect(
-          Date.now(),
+          await stepCount(page),
           `timed out before (${wx}, ${wz}) at ${JSON.stringify(p.position)}`,
-        ).toBeLessThan(deadline);
+        ).toBeLessThan(deadlineSteps);
         // 目標方向 - 現在のカメラ向き。カメラ前方（-sin/-cos ではなく、ヨーの前方 = (sin, cos)）へ合わせる
         const camYaw = (await sim(page)).camera.yaw;
         const want = Math.atan2(dx, dz);
         let diff = want - camYaw;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         if (Math.abs(diff) > 0.12) await aimCamera(page, want - p.yaw);
-        await page.waitForTimeout(80);
+        await waitSteps(page, 5);
       }
     }
   } finally {
@@ -108,9 +108,7 @@ test('the chapel walls block the player (no walking through them)', async ({ pag
   await page.evaluate(() => {
     window.__game?.dev.teleport(36, 22, Math.PI / 2);
   });
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2500);
-  await page.keyboard.up('KeyW');
+  await holdKey(page, 'KeyW', 150);
   const p = (await sim(page)).player.position;
   expect(p.x).toBeLessThan(39.8);
 });
@@ -157,11 +155,11 @@ test('rolling in the 2.5m catacomb corridor does not pass through its walls', as
   await page.evaluate(() => {
     window.__game?.dev.teleport(62, 42, Math.PI / 2);
   });
-  await page.waitForTimeout(500);
+  await waitSteps(page, 30);
   await page.keyboard.down('KeyW');
   await tapKey(page, 'Space');
   await expect.poll(async () => (await sim(page)).events.rollStart).toBe(1);
-  await page.waitForTimeout(1500);
+  await waitSteps(page, 90);
   await page.keyboard.up('KeyW');
   const p = (await sim(page)).player.position;
   expect(p.x).toBeGreaterThan(60.75);

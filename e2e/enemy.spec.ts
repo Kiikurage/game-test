@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { startGame, tapKey } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で起動する（`?debug` で敵の可視化も確認）。 */
 async function boot(page: Page): Promise<string[]> {
@@ -144,7 +144,7 @@ test('rolling at the right moment dodges a soldier attack (invulnerability frame
   // 発生の 3F 前までは立ったまま。そこで右へロール（無敵 F4–F15 が判定を覆う）
   await advance(page, startup - 3);
   await page.keyboard.down('KeyD');
-  await page.keyboard.press('Space'); // 短押し = 離した時点でロール確定
+  await tapKey(page, 'Space'); // 短押し = 離した時点でロール確定
   await advance(page, 1);
   await page.keyboard.up('KeyD');
   const rolling = await page.evaluate(() => window.__game?.sim);

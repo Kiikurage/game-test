@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
+import { startGame, tapKey, waitSteps } from './helpers';
 
 async function boot(page: Page): Promise<void> {
   // ソフトウェア描画（SwiftShader）でも入力ステップが回るよう、描画を最小品質・低解像度にする
@@ -78,7 +78,7 @@ test.describe('gamepad', () => {
     await page.evaluate(() => {
       (window as unknown as { __pad: FakePad }).__pad.axes = [0.1, -0.1, 0, 0];
     });
-    await page.waitForTimeout(150);
+    await waitSteps(page, 10);
     expect((await input(page))?.move).toEqual({ x: 0, y: 0 });
     expect((await input(page))?.device).toBe('kbm');
 
@@ -207,7 +207,7 @@ test.describe('touch (mobile landscape)', () => {
     await dispatch(cdp, 'touchStart', [{ id: 5, x: 520, y: 150 }]);
     for (let i = 1; i <= 8; i++) {
       await dispatch(cdp, 'touchMove', [{ id: 5, x: 520 + i * 10, y: 150 - i * 4 }]);
-      await page.waitForTimeout(60);
+      await page.waitForTimeout(60); // ドラッグ速度（実時間）でフリックと区別されるため、実時間の間隔が仕様
     }
     await dispatch(cdp, 'touchEnd', []);
     await expect

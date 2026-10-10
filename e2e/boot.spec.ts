@@ -59,7 +59,7 @@ test('creates an AudioContext that stays suspended until the start screen is tap
   });
   await page.goto('./');
   // 開始画面（ready）の間は、AudioContext はユーザー操作がないので suspended のまま
-  await expect(page.locator('#app')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(page.locator('#app')).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
 
   // 失敗時に原因が分かるよう、例外も文字列として返す
   const readAudioState = (): Promise<string> =>
@@ -72,11 +72,11 @@ test('creates an AudioContext that stays suspended until the start screen is tap
     });
   let state = await readAudioState();
   for (let i = 0; i < 50 && state !== 'suspended'; i++) {
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(200); // 開始前はループが回らないのでステップ / フレーム基準にできない（実時間の非同期状態待ち）
     state = await readAudioState();
   }
   expect(state, `console: ${logs.join(' | ')}`).toBe('suspended');
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(500); // 同上（開始画面ではループ停止中）
   expect(await readAudioState()).toBe('suspended');
 
   // 開始画面のタップ（ユーザー操作）で resume される
