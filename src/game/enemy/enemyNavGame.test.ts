@@ -89,7 +89,8 @@ describe('enemy navigation in the game (Rapier)', () => {
         minY = Math.min(minY, enemy.position.y);
       });
       expect(minY).toBeGreaterThan(-0.5);
-      expect(enemy.state).toBe('approach');
+      // 追いついたあとは攻撃（#54）に入るので、接近・攻撃・硬直のどれでもよい
+      expect(['approach', 'attack', 'recover']).toContain(enemy.state);
       expect(distance()).toBeLessThan(3.6);
     });
 
