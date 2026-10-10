@@ -57,10 +57,11 @@ describe('environment.glb', () => {
 describe('environment layout (areas A to C)', () => {
   const trianglesOf = (id: EnvironmentId): number => manifest.environment.items[id]?.triangles ?? 0;
 
-  it('replaces every collider of A to C and the tower except stairs', () => {
+  it('replaces every collider of A to C and the tower except stairs and the waterway', () => {
     for (const box of level.boxes) {
       if (!isEnvironmentZone(box.x, box.z)) continue;
-      if (box.style === 'stairs') {
+      // 階段・地下水路（#111）・腐った床板は環境メッシュに置き換えない（水路・床板は waterway.view.ts が描く）
+      if (box.style === 'stairs' || box.style === 'waterway' || box.style === 'hatch') {
         expect(layout.coveredIds.has(box.id)).toBe(false);
       } else {
         expect(layout.coveredIds.has(box.id), box.id).toBe(true);
