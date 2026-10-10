@@ -12,6 +12,7 @@
 //   open     ボス撃破後（セーブ済みを含む）。霧は消え、通れる。入場演出もボスの再戦もない。
 // 遷移: closed → entering → sealed → open（unseal）。プレイヤーが死亡すると entering / sealed → closed（霧が戻る。ボスは
 // 同じ `death` / `rest` イベントで自分を戻す）。`unseal()` は撃破の解除で、どの状態からでも open にする。
+import type { EventBus } from '../../core/gameEvents';
 import { BOSS_ID } from '../boss/boss.system';
 import { FOG_GATE } from '../data/fogGate';
 import type { Game } from '../game';
@@ -87,6 +88,14 @@ export class FogGate {
     game.events.on('rest', (e) => {
       if (e.cause === 'respawn') this.reset();
     });
+    // ボス撃破演出（#86）の `bossDefeatCue`（cue: 'fogClear'、F300）で解除する。イベント定義が main に入る前後どちらでも
+    // 動くよう、キーを文字列で購読する（定義が入ったら型付きの購読へ置き換えてよい）。
+    (game.events as unknown as EventBus<Record<string, { readonly cue?: string }>>).on(
+      'bossDefeatCue',
+      (e) => {
+        if (e.cue === 'fogClear') this.unseal();
+      },
+    );
   }
 
   get id(): string {

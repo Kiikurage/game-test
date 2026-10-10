@@ -68,7 +68,15 @@ function nearFade(near: number, far: number): F {
  */
 export function createFogWallMaterial(
   u: FogUniforms,
-  options: { seed: number; flow: number; width: number; height: number; strength: number },
+  options: {
+    seed: number;
+    flow: number;
+    width: number;
+    height: number;
+    strength: number;
+    /** モバイル品質: ノイズを 2 回に減らす。 */
+    lite?: boolean;
+  },
 ): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial({
     fog: false,
@@ -84,8 +92,13 @@ export function createFogWallMaterial(
   const p = vec3(uvn.x.mul(width), uvn.y.mul(height).sub(t), time.mul(0.11).mul(flow).add(seed));
   const lowN: F = mx_noise_float(p.mul(vec3(0.7, 0.42, 0.7)));
   const midN: F = mx_noise_float(p.mul(vec3(1.7, 1.05, 1.7)).add(vec3(3.1, 0.0, 8.7)));
-  const hiN: F = mx_noise_float(p.mul(vec3(4.2, 2.6, 4.2)).add(vec3(9.4, 1.3, 2.2)));
-  const fbm: F = lowN.mul(0.55).add(midN.mul(0.3)).add(hiN.mul(0.15)).mul(0.5).add(0.5);
+  const sum: F = options.lite
+    ? lowN.mul(0.65).add(midN.mul(0.35))
+    : lowN
+        .mul(0.55)
+        .add(midN.mul(0.3))
+        .add(mx_noise_float(p.mul(vec3(4.2, 2.6, 4.2)).add(vec3(9.4, 1.3, 2.2))).mul(0.15));
+  const fbm: F = sum.mul(0.5).add(0.5);
   // 揺らぎ: 縦の帯が横に流れる
   const sway: F = sin(uvn.y.mul(5.5).add(time.mul(1.3).mul(flow)).add(lowN.mul(3.0)))
     .mul(0.5)

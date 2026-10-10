@@ -19,6 +19,10 @@ const WALL_HEIGHT = 7.5;
 const PILLAR_AHEAD = 1.2;
 const PILLAR_RADIUS = { top: 3.0, bottom: 4.0 };
 const MIST_RADIUS = 6;
+/** 柱は門からこの距離（m）より遠いと描かない（ランドマークは礼拝堂から見える 90m 弱まで。遠い視点の描画予算を守る）。 */
+const PILLAR_FAR = 100;
+/** 霧の壁・地表の霧は門からこの距離（m）より遠いと描かない。 */
+const WALL_FAR = 60;
 /** 霧が現れる / 消える速さ（1/秒）。 */
 const FADE_IN = 1.4;
 const FADE_OUT = 0.45;
@@ -59,6 +63,7 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
         width: WALL_WIDTH,
         height: WALL_HEIGHT,
         strength: i === 0 ? 1 : 0.7,
+        lite: quality === 'low',
       }),
     );
     mesh.name = `fogGate:wall${i}`;
@@ -109,10 +114,10 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
     // 円柱の中心は高さの半分。足元は門の足元より 1m 下
     mesh.position.set(0, baseY - placed.y + height / 2, 0);
     mesh.renderOrder = 5 + i;
-    mesh.frustumCulled = false;
     pillar.add(mesh);
   }
   root.add(pillar);
+  const near = root.children.filter((c) => c !== pillar);
   view.scene.add(root);
 
   // 入場演出のヴェール（DOM。画面全体を青白い霧が覆う）
@@ -162,6 +167,10 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
             : 0;
       uniforms.surge.value += (surgeTarget - uniforms.surge.value) * Math.min(1, step * 6);
       root.visible = density > 0.003;
+      const { feet } = game.player;
+      const d = Math.hypot(feet.x - def.x, feet.z - def.z);
+      pillar.visible = d < PILLAR_FAR;
+      for (const m of near) m.visible = d < WALL_FAR;
 
       // 画面のヴェール
       const v = gate.veil;
@@ -171,8 +180,6 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
       }
 
       // 門の周辺のフォグ密度（通常の 0.04 / 0.015 倍まで）
-      const { feet } = game.player;
-      const d = Math.hypot(feet.x - def.x, feet.z - def.z);
       const w = smooth(
         (FOG_GATE.localFogOuterM - d) / (FOG_GATE.localFogOuterM - FOG_GATE.localFogInnerM),
       );

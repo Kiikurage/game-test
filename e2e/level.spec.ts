@@ -118,6 +118,8 @@ test('the player can walk from the bonfire through C, the catacomb D and the cou
 }) => {
   test.setTimeout(480_000);
   await boot(page);
+  // 霧の門は最初は閉じている（#66。入場演出は fogGate.spec.ts）。通行可能性の検証なので解除しておく
+  await page.evaluate(() => window.__game?.dev.fogGateControl('unseal'));
   // メインルート全体を入力（W 押しっぱなし + 向き）だけで走破する。テレポートはしない
   const route: [number, number][] = [
     [10, 0],

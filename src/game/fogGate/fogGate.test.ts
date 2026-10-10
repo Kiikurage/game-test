@@ -212,6 +212,19 @@ describe('fog gate', () => {
     expect(gate.state).toBe('open');
   });
 
+  it('unseals on the boss defeat fogClear cue (#86), whichever branch lands first', async () => {
+    const { game, gate, run } = await setup();
+    run(2);
+    gate.seal();
+    const bus = game.events as unknown as {
+      emit(name: string, payload: unknown): void;
+    };
+    bus.emit('bossDefeatCue', { cue: 'text' });
+    expect(gate.state).toBe('sealed');
+    bus.emit('bossDefeatCue', { cue: 'fogClear' });
+    expect(gate.state).toBe('open');
+  });
+
   it('notifies state changes', async () => {
     const { gate, run } = await setup();
     const seen: string[] = [];
