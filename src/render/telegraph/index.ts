@@ -13,6 +13,7 @@ import {
   float,
   dot,
   exp,
+  fwidth,
   length,
   mix,
   mx_noise_float,
@@ -148,12 +149,17 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
     const wob2 = sin(sAlong.mul(7.3).add(sd.mul(3.1)))
       .mul(0.5)
       .add(0.5);
-    const wMain = float(0.05).add(wob.mul(0.045)).add(wob2.mul(0.025)).mul(taper);
+    // 1px あたりの長さ（m）。芯の幅を画面上で 2〜4px に保つ
+    const px = fwidth(m).max(0.002);
+    // 太さのむらは「にじみ」の幅で出す（芯は細いまま）
+    const bleedW = float(0.025).add(wob.mul(0.04)).add(wob2.mul(0.025)).mul(taper).add(px.mul(2));
+    const coreHalf = px.mul(1.3).mul(mix(float(0.75), float(1.25), wob2));
     let core: Node<'float'> = float(1)
-      .sub(smoothstep(wMain.mul(0.45), wMain, dMain))
+      .sub(smoothstep(coreHalf.mul(0.45), coreHalf, dMain))
       .mul(reached);
-    let halo: Node<'float'> = float(1)
-      .sub(smoothstep(wMain, wMain.mul(9), dMain))
+    let bleed: Node<'float'> = exp(dMain.div(bleedW).mul(-1)).mul(reached);
+    let scorch: Node<'float'> = float(1)
+      .sub(smoothstep(0.0, bleedW.mul(8), dMain))
       .mul(reached);
 
     // 枝（2 節の折れ線）
@@ -188,17 +194,26 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
       const c = b.add(d2.mul(len * 0.45).mul(g));
       const [dA, hA] = segDist(p2, a, b);
       const [dB, hB] = segDist(p2, b, c);
-      const w1 = float(0.04).mul(float(1).sub(hA.mul(0.35)));
-      const w2 = float(0.026)
-        .mul(0.65)
-        .mul(float(1).sub(hB.mul(0.85)));
-      const c1 = float(1).sub(smoothstep(w1.mul(0.4), w1, dA));
-      const c2 = float(1).sub(smoothstep(w2.mul(0.4), w2, dB));
+      const taperB = float(1)
+        .sub(hA.mul(0.3))
+        .mul(float(1).sub(hB.mul(0.6)));
+      const hwB = px.mul(1.0).mul(taperB);
+      const d = dA.min(dB);
       const grown = smoothstep(0.0, 0.1, g);
-      core = core.max(c1.max(c2).mul(grown).mul(0.85));
-      halo = halo.max(
+      core = core.max(
         float(1)
-          .sub(smoothstep(w1, w1.mul(5), dA.min(dB)))
+          .sub(smoothstep(hwB.mul(0.4), hwB.max(0.0015), d))
+          .mul(grown)
+          .mul(0.9),
+      );
+      bleed = bleed.max(
+        exp(d.div(bleedW.mul(0.55)).mul(-1))
+          .mul(grown)
+          .mul(0.65),
+      );
+      scorch = scorch.max(
+        float(1)
+          .sub(smoothstep(0.0, bleedW.mul(4), d))
           .mul(grown)
           .mul(0.7),
       );
@@ -207,26 +222,38 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
     // 細かいひび: ノイズの零交差（格子にならず不規則に枝分かれして見える）
     const warp = mx_noise_float(vec2(m, sAlong).mul(1.3).add(sd)).mul(0.35);
     const nz = mx_noise_float(vec2(m.add(warp), sAlong.sub(warp)).mul(2.1).add(sd.mul(0.7)));
+    const hairNear = float(1)
+      .sub(smoothstep(0.12, 0.55, dMain))
+      .mul(reached);
     const hair = float(1)
-      .sub(smoothstep(0.0, 0.04, abs(nz)))
-      .mul(float(1).sub(smoothstep(0.12, 0.55, dMain)))
-      .mul(reached)
-      .mul(smoothstep(0.1, 0.5, dMain.add(0.1)));
-    core = core.max(hair.mul(0.55));
+      .sub(smoothstep(0.0, px.mul(1.2).div(1.6).max(0.004), abs(nz)))
+      .mul(hairNear);
+    core = core.max(hair.mul(0.3));
+    bleed = bleed.max(hair.mul(0.15));
 
+    // 熾火の明滅: 場所と時間でずれる不規則な脈動（ゆっくり）
+    const f = u.frame;
+    const flick = float(0.8).add(
+      sin(f.mul(0.13).add(sAlong.mul(0.9)).add(sd))
+        .mul(sin(f.mul(0.047).sub(sAlong.mul(0.4)).add(sd.mul(2))))
+        .mul(0.2),
+    );
+    const slow = mix(float(0.7), float(1), u.blink);
     const edgeMask = float(1).sub(smoothstep(0.78, 1.0, abs(m).div(hw)));
-    const tipHot = exp(tipDist.max(0).mul(-1.4)).mul(reached);
-    const pulse = mix(float(0.6), float(1), u.blink);
-    const heat = clamp(core.mul(0.75).add(tipHot.mul(core).mul(0.6)), 0, 1).mul(pulse);
-    const scorch = halo.mul(0.62).mul(edgeMask);
-    const aCore = core
-      .mul(0.92)
-      .mul(edgeMask)
-      .mul(mix(float(0.7), float(1), pulse));
-    material.opacityNode = clamp(scorch.add(aCore), 0, 0.92).mul(u.appear).mul(u.fade);
-    const hot = mix(emberDim, emberHot, heat).mul(0.62);
-    const white = mix(hot, vec3(0.62, 0.34, 0.1), clamp(tipHot.mul(core), 0, 1).mul(0.6));
-    material.colorNode = mix(vec3(0.02, 0.012, 0.01), white, clamp(core.mul(1.4), 0, 1));
+    const tipHot = exp(tipDist.max(0).mul(-1.6)).mul(reached);
+
+    // 芯: 高温の黄橙（HDR）。にじみ: 深い赤橙 → 暗赤。外へ急速に減衰。周囲の地面は焦げて暗い
+    const coreCol = vec3(1.0, 0.7, 0.28)
+      .mul(float(3).add(tipHot.mul(1.5)))
+      .mul(flick);
+    const orange = vec3(0.8, 0.18, 0.02);
+    const deepRed = vec3(0.42, 0.05, 0.03);
+    const bleedCol = mix(deepRed, orange, bleed).mul(bleed.mul(1.3)).mul(flick).mul(slow);
+    const emissive = bleedCol.add(coreCol.mul(core)).mul(edgeMask);
+    const charA = scorch.mul(0.55).mul(edgeMask);
+    const alpha = clamp(charA.add(bleed.mul(0.6)).add(core), 0, 0.95);
+    material.opacityNode = alpha.mul(u.appear).mul(u.fade);
+    material.colorNode = vec3(0.012, 0.008, 0.007).mul(charA).add(emissive).div(alpha.max(0.02));
   }
   return material;
 }
