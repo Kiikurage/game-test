@@ -5,6 +5,11 @@ export const PERF_VIEWPOINTS = [
   { name: 'graveyard', x: 14, z: 6, yaw: Math.PI / 2 },
   { name: 'chapel-gate', x: 34, z: 17, yaw: Math.PI / 2 },
   { name: 'chapel-interior', x: 50, z: 22, yaw: Math.PI / 2 },
+  // 地下墓所（通路の入口・L 字の角の先）と中庭（西の入口・霧の門側）
+  { name: 'crypt-entrance', x: 62, z: 38, yaw: 0 },
+  { name: 'crypt-bend', x: 66, z: 48.5, yaw: Math.PI / 2 },
+  { name: 'courtyard-entrance', x: 85, z: 51, yaw: 1.2 },
+  { name: 'courtyard-gate', x: 99, z: 60, yaw: 0.5 },
   // 闘技場の入口（#45: 床・壁・柱・台座・たいまつがすべて視界に入る）
   { name: 'arena', x: 114.5, z: 77.5, yaw: Math.PI / 4 },
 ];
