@@ -177,22 +177,40 @@ test.describe('mobile', () => {
       .poll(async () => (await launch(page)).calls)
       .toEqual(['requestFullscreen', 'orientation.lock']);
     expect((await launch(page)).lockArgs).toEqual(['landscape']);
-    // 案内のタップでは開始しない（横向きになってから開始画面をタップする）
-    await expect(page.locator('#app')).toHaveAttribute('data-state', 'ready');
-    await expect(hint).toContainText('タッチして横画面にする');
+    // 1 タップで横向き化と開始まで進む
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    await expect(page.getByTestId('start-screen')).toHaveCount(0);
 
     // すでにフルスクリーンなら再度呼ばない
     await page.touchscreen.tap(200, 450);
     await page.waitForTimeout(200);
     expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
 
-    // 横向きになったら案内は消え、開始タップでは没入化を繰り返さない
+    // 端末が横向きになっても停止せず、没入化を繰り返さない
     await page.setViewportSize({ width: 915, height: 412 });
     await expect(hint).toBeHidden();
-    await page.touchscreen.tap(450, 200);
+    await page.waitForTimeout(2000);
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
     expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
     expect(errors).toEqual([]);
+  });
+
+  test('portrait: one tap on the hint resumes from the resume screen too', async ({ page }) => {
+    await installMocks(page);
+    await openAndWaitReady(page);
+    await page.touchscreen.tap(450, 200);
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    await expect.poll(() => simFrame(page), { timeout: 30_000 }).toBeGreaterThan(5);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'paused', {
+      timeout: 10_000,
+    });
+    await page.evaluate(() => {
+      (window as unknown as MockWindow).__exitFullscreen();
+    });
+    await page.touchscreen.tap(200, 450); // 案内 1 タップで横向き化 + 再開
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    expect((await launch(page)).calls.filter((c) => c === 'requestFullscreen')).toHaveLength(2);
   });
 
   test('portrait: tapping the hint while loading enters landscape fullscreen', async ({ page }) => {
@@ -233,12 +251,11 @@ test.describe('mobile', () => {
     await openAndWaitReady(page);
     const hint = page.getByTestId('orientation-hint');
     await page.touchscreen.tap(200, 450);
+    // 失敗しても開始する（縦のまま）
+    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
     await expect(hint).toContainText('端末を横向きにしてください');
     expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
     expect(warnings.some((w) => w.includes('[immersive] orientation failed'))).toBe(true);
-    // 失敗後のタップは開始画面に届き、縦のままでも開始できる
-    await page.touchscreen.tap(200, 450);
-    await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
     // 縦のまま「開始 → 一時停止 → 開始…」のループに入らない（判定タイミングを十分に待つ）
     await page.waitForTimeout(3000);
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
@@ -262,9 +279,8 @@ test.describe('mobile', () => {
     await openAndWaitReady(page);
     const hint = page.getByTestId('orientation-hint');
     await page.touchscreen.tap(200, 450); // 没入化は成功するが端末は回らない
-    await expect(hint).toContainText('端末を横向きにしてください', { timeout: 10_000 });
-    await page.touchscreen.tap(200, 450); // 透過して開始画面へ
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
+    await expect(hint).toContainText('端末を横向きにしてください', { timeout: 10_000 });
     await page.waitForTimeout(3000);
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
     expect((await launch(page)).calls).toEqual(['requestFullscreen', 'orientation.lock']);
