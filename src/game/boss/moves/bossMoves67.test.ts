@@ -62,27 +62,32 @@ describe('技 6 回転斬り: frame data (6.3)', () => {
     expect(b?.superArmor).toEqual({ start: 1, end: 22 });
   });
 
-  it('leaves exactly 12F between the rotations', () => {
-    // 判定は 1 回転目が通し F37〜F46、2 回転目が F59〜F68（立ち尽くして当たる F で見る）
-    const r = simulateDodge({ move: 'spin', phase: 2, distance: 2.5 });
-    const first = r.hits.find((h) => h.attackId === 'boss.spin.1');
-    const second = r.hits.find((h) => h.attackId === 'boss.spin.2');
-    expect(first?.moveFrame).toBe(37);
-    expect(second?.moveFrame).toBe(59);
+  it('leaves exactly 12F between the rotations (frame data)', () => {
     const [a, b] = stagesOf(move('spin'), 2);
-    const firstEnd = (a?.startup ?? 0) + (a?.active ?? 0) + (a?.recovery ?? 0);
-    const gap = (second?.moveFrame ?? 0) - firstEnd - 1;
-    expect(gap).toBe(SPIN_GAP);
-    expect(gap).toBe(12);
-    expect(b?.startup).toBe(12);
+    // 1 回転目の判定は段 F37〜F46、2 回転目は 2 段目 F13〜F22。間 = 1 段目の硬直 + 2 段目の発生
+    expect((a?.recovery ?? 0) + (b?.startup ?? 0)).toBe(SPIN_GAP);
+    expect(SPIN_GAP).toBe(12);
+    expect(b?.followUp).toBe(true);
+    expect(b?.chained).toBe(true);
   });
 
-  it('hits twice when standing still (once per rotation)', () => {
+  it('sweeps the whole circle in time order: the blade reaches the front near the end of each rotation', () => {
+    // 正面の相手は 1 回転目の終わり際（通し F44）と 2 回転目の終わり際（F66）に当たる
     const r = simulateDodge({ move: 'spin', phase: 2, distance: 2.5 });
-    expect(r.hits.map((h) => [h.attackId, h.stageFrame])).toEqual([
-      ['boss.spin.1', 37],
-      ['boss.spin.2', 13],
+    expect(r.hits.map((h) => [h.attackId, h.moveFrame])).toEqual([
+      ['boss.spin.1', 44],
+      ['boss.spin.2', 66],
     ]);
+    // 真後ろは早い（斧が最初に通る）
+    const back = simulateDodge({ move: 'spin', phase: 2, distance: 2.5, bearingDeg: 180 });
+    expect(back.hits[0]?.moveFrame).toBeLessThan(44);
+  });
+
+  it('wedges join without gaps: every bearing is hit once per rotation at most', () => {
+    for (const bearingDeg of range(0, 35).map((i) => i * 10)) {
+      const r = simulateDodge({ move: 'spin', phase: 2, distance: 3, bearingDeg });
+      expect(r.hits.length, `bearing ${bearingDeg}`).toBe(2);
+    }
   });
 
   it('turns the model one full turn per rotation and returns to 0', () => {
@@ -101,18 +106,19 @@ describe('技 6 回転斬り: frame data (6.3)', () => {
 });
 
 describe('技 6 回転斬り: dodge simulation', () => {
-  it('rolling away at the end of the first rotation gets out before the second', () => {
-    // 無敵 F4–F15 が 1 回転目の判定 F37–F46 を覆い、隙の 12F で円の外へ出る
+  it('rolling away just before the end of the first rotation works over a window of 8F or more', () => {
+    // 正面の相手は 1 回転目の終わり際（F44）に当たる。無敵 F4–F15 が F44 に重なる入力は F30〜F41（12F）
     const w = findDodgeWindows({ move: 'spin', phase: 2, distance: 2.5 }, { direction: 'away' });
-    expect(w.frames).toEqual(expect.arrayContaining([32, 33, 34]));
-    expect(w.frames).not.toContain(35);
-    expect(w.frames).not.toContain(36);
-    expect(w.windows.some((r) => r.start <= 32 && r.end >= 34)).toBe(true);
+    const end = w.windows.find((r) => r.start <= 30 && r.end >= 41);
+    expect(end, JSON.stringify(w.windows)).toBeDefined();
+    expect(w.frames).not.toContain(42);
+    expect(w.frames).not.toContain(43);
+    expect(w.frames).not.toContain(29);
   });
 
   it('taking the first rotation and rolling through the second dodges only the second', () => {
-    // 1 回目はガード（またはくらう）→ 2 回転目の判定（通し F59–F68）をロール無敵（入力 F55–F56）で覆う
-    for (const f of [55, 56]) {
+    // 1 回目はガード（またはくらう）→ 2 回転目の当たる F66 にロール無敵を重ねる（入力 F52〜F63）
+    for (const f of [52, 58, 63]) {
       const r = simulateDodge({
         move: 'spin',
         phase: 2,
@@ -128,7 +134,7 @@ describe('技 6 回転斬り: dodge simulation', () => {
       move: 'spin',
       phase: 2,
       distance: 2.5,
-      inputs: [{ frame: 58, direction: 'away' }],
+      inputs: [{ frame: 64, direction: 'away' }],
     });
     expect(late.hits.map((h) => h.attackId)).toEqual(['boss.spin.1', 'boss.spin.2']);
   });

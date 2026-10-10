@@ -6,34 +6,46 @@ import {
   RingGeometry,
   Vector3,
 } from 'three/webgpu';
-import { atan, float, length, mix, positionLocal, pow, smoothstep, uniform, vec3 } from 'three/tsl';
+import {
+  atan,
+  exp,
+  float,
+  length,
+  mix,
+  positionLocal,
+  pow,
+  smoothstep,
+  uniform,
+  vec3,
+} from 'three/tsl';
 import { bossSystemOf } from '../../game/boss/boss.system';
-import { SPIN_RADIUS, spinStateOf } from '../../game/boss/moves/spin.move';
+import { SPIN_BLADE_OFFSET, SPIN_RADIUS, spinStateOf } from '../../game/boss/moves/spin.move';
 import { registerViewPlugin } from '../viewPlugins';
 
 /**
  * 回転斬り（技 6）の描画。ゲーム側の状態（`spinStateOf`）を毎フレーム読む。ボス本体の回転は `boss.view.ts` が
  * `spinStateOf(boss).angle` をヨーへ足して行う。ここでは斧の軌跡と、足元の砂塵・火花を出す。
  *
- * - **軌跡**: 腰の高さの平たい輪（半径 2.2〜4.8m）。斧の向きを先頭に、後ろへ 2π の 35% ほど尾を引く（TSL。1 ドローコール）。
+ * - **軌跡**: 腰の高さの外縁の細い輪（半径 3.5〜4.8m）。斧の向きに熾火色の細く明るい縁、後ろへすぐ消える尾（加算合成）（TSL。1 ドローコール）。
  *   判定の持続の間だけ見せ、終わったら 4F で消す。
  * - **砂塵・火花**: 斧の先（半径 4m）に 2F ごとに火花と塵（`particles.hit`）。
  */
 
-/** 斧の向きの、ボスの正面からのずれ（rad。右手に斧を持って振る向き）。 */
-const BLADE_OFFSET = 1.1;
-/** 軌跡の長さ（rad）。 */
-const TRAIL = 2.2;
+/** 軌跡の長さ（rad）。短く、先頭から素早く消える。 */
+const TRAIL = 1.0;
 /** 軌跡が消えるまで（F）。 */
-const FADE_FRAMES = 4;
+const FADE_FRAMES = 3;
 /** 軌跡の高さ（足元から。m）。 */
 const TRAIL_HEIGHT = 1.5;
+/** 軌跡の内側の半径（m）。外縁の細い帯だけ見せる（プレイヤーに平たい膜をかけない）。 */
+const TRAIL_INNER = 3.5;
 
 registerViewPlugin('boss-spin', ({ game, view }) => {
   const head = uniform(0);
   const amount = uniform(0);
-  const geometry = new RingGeometry(2.2, SPIN_RADIUS, 64, 1);
+  const geometry = new RingGeometry(TRAIL_INNER, SPIN_RADIUS, 64, 1);
   geometry.rotateX(-Math.PI / 2);
+  // 加算合成・深度書き込みなし: 下の物を覆わず、明るさを足すだけ
   const material = new MeshBasicNodeMaterial({
     transparent: true,
     depthWrite: false,
@@ -46,15 +58,15 @@ registerViewPlugin('boss-spin', ({ game, view }) => {
     .sub(ang)
     .mod(Math.PI * 2)
     .div(TRAIL);
-  const tail = pow(float(1).sub(behind).max(0), 2.2);
+  // 先頭の細く明るい縁（熾火色）と、すぐ消える尾
+  const edge = exp(behind.mul(-28));
+  const tail = pow(float(1).sub(behind).max(0), 4);
   const r = length(positionLocal.xz);
-  const radial = smoothstep(2.2, SPIN_RADIUS - 0.25, r).mul(
-    smoothstep(SPIN_RADIUS + 0.02, SPIN_RADIUS - 0.3, r)
-      .mul(0.6)
-      .add(0.4),
+  const radial = smoothstep(TRAIL_INNER + 0.2, SPIN_RADIUS - 0.4, r).mul(
+    float(1).sub(smoothstep(SPIN_RADIUS - 0.15, SPIN_RADIUS + 0.02, r)),
   );
-  material.colorNode = mix(vec3(1.0, 0.3, 0.06), vec3(1.7, 0.8, 0.3), tail.mul(radial));
-  material.opacityNode = tail.mul(radial).mul(amount);
+  material.colorNode = mix(vec3(1.0, 0.28, 0.05), vec3(2.2, 1.1, 0.4), edge);
+  material.opacityNode = edge.mul(0.7).add(tail.mul(0.16)).mul(radial).mul(amount);
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
   mesh.renderOrder = 6;
@@ -85,7 +97,7 @@ registerViewPlugin('boss-spin', ({ game, view }) => {
         lastFrame = state.frame;
         return;
       }
-      headAngle = boss.yaw + state.angle + BLADE_OFFSET;
+      headAngle = boss.yaw + state.angle + SPIN_BLADE_OFFSET;
       head.value = headAngle;
       amount.value = state.hitting ? 1 : fade / FADE_FRAMES;
       mesh.visible = true;

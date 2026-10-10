@@ -1,4 +1,4 @@
-import { circleShape } from '../../combat';
+import { sectorShape } from '../../combat';
 import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
 
 /**
@@ -12,7 +12,7 @@ import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bo
  *   （段 F46）から 2 回転目の判定の始まり（2 段目 F13）までが**ちょうど 12F の隙**になる。
  * - スーパーアーマー: 予備動作〜持続（各段）。通常攻撃では崩れない。
  * - 向きの追尾は 1 段目の F24 まで（向き固定の猶予 12F）。2 段目は追わない（全周なので向きは意味を持たないが、回転の見た目の基準）。
- * - 判定は足元から −0.3〜2.5m の高さの全周円（ハートボックスに触れたら当たる。中心距離 5.15m まで）。
+ * - 判定は足元から −0.3〜2.5m の高さで、斧の通った楔（`spinWedge`）が各 F に全周を掃く（方位ごとに当たる F が違う。ハートボックスに触れたら当たる。中心距離 5.15m まで）。
  *
  * 回避: 1 回転目の判定（段 F37〜F46）にロールの無敵（F4〜F15）を重ねて、2 回転目の前（隙の 12F）に円（5.15m）の外へ出る。
  * または、ガードで 1 回目を受けて 2 回転目をロールで躱す。ボスに接近して離れないと当たる。
@@ -33,6 +33,8 @@ export const SPIN_GAP = 12;
 export const SPIN_STARTUP = 36;
 /** 各回転の持続（F）。 */
 export const SPIN_ACTIVE = 10;
+/** 斧の向きの、ボスの正面（モデルのヨー）からのずれ（rad。右手に斧を持って振る向き）。判定の楔・軌跡の基準。 */
+export const SPIN_BLADE_OFFSET = 1.6;
 /** 予備動作で逆向きに捻る角（rad）。1 回転目 / 2 回転目。 */
 export const SPIN_WINDUP = [1.0, 0.5] as const;
 
@@ -88,6 +90,27 @@ export interface SpinState {
 
 const states = new WeakMap<object, SpinState>();
 
+/**
+ * 段 F`frame`（`rotation` 回転目）の判定形状: 斧が前フレームから今フレームまでに通った楔（扇形。半径 `SPIN_RADIUS`）。
+ * 判定は全周を**時間差**で掃く（方位ごとに当たる F が違う）ので、ロールの無敵が重なれば抜けられ、入力窓が広い。
+ * 持続の外（判定前の姿勢の記録など）は角度 0 の楔。
+ */
+export function spinWedge(
+  origin: { readonly x: number; readonly y: number; readonly z: number },
+  yaw: number,
+  rotation: 1 | 2,
+  frame: number,
+) {
+  const stage = rotation === 1 ? SPIN_1 : SPIN_2;
+  const inWindow = frame > stage.startup && frame <= stage.startup + stage.active;
+  const to = spinAngle(rotation, frame);
+  const from = inWindow ? spinAngle(rotation, frame - 1) : to;
+  const centre = yaw + SPIN_BLADE_OFFSET + (from + to) / 2;
+  // 隣のフレームの楔と継ぎ目なく繋がるよう、わずかに広げる
+  const arcDeg = inWindow ? ((to - from) * 180) / Math.PI + 2 : 0;
+  return sectorShape(origin, centre, arcDeg, SPIN_RADIUS, SPIN_HEIGHT.min, SPIN_HEIGHT.max);
+}
+
 /** `boss` の回転斬りの状態（実行中でなければ undefined）。 */
 export function spinStateOf(boss: object): Readonly<SpinState> | undefined {
   return states.get(boss);
@@ -100,7 +123,7 @@ const smooth = (t: number): number => {
 
 /**
  * モデルのヨーへの加算（rad）。`rotation` 回転目の段の F `frame`（F1 起点）。
- * 予備動作: 逆向きに `SPIN_WINDUP` まで捻る → 持続: 捻りから 2π まで急に回る（後半ほど遅い）→ 硬直: 0。
+ * 予備動作: 逆向きに `SPIN_WINDUP` まで捻る → 持続: 捻りから 2π まで等速で回る→ 硬直: 0。
  */
 export function spinAngle(rotation: 1 | 2, frame: number): number {
   const stage = rotation === 1 ? SPIN_1 : SPIN_2;
@@ -108,7 +131,7 @@ export function spinAngle(rotation: 1 | 2, frame: number): number {
   if (frame <= stage.startup) return -windup * smooth(frame / stage.startup);
   if (frame <= stage.startup + stage.active) {
     const u = (frame - stage.startup) / stage.active;
-    return -windup + (Math.PI * 2 + windup) * (1 - (1 - u) * (1 - u));
+    return -windup + (Math.PI * 2 + windup) * u;
   }
   return 0;
 }
@@ -145,7 +168,9 @@ registerBossMove({
       z: ctx.boss.position.z,
       radius: SPIN_RADIUS,
     }),
+    // 楔は毎 F 自分で通った角度を持つので、前フレームの楔とのスイープはしない（二重に掃くと手前の方位まで当たる）
+    discontinuous: () => true,
     shape: (ctx: BossMoveContext) =>
-      circleShape(ctx.boss.position, SPIN_RADIUS, SPIN_HEIGHT.min, SPIN_HEIGHT.max),
+      spinWedge(ctx.boss.position, ctx.boss.yaw, ctx.stageIndex === 0 ? 1 : 2, ctx.frame),
   },
 });
