@@ -559,6 +559,7 @@ export class Boss implements BossMoveActor {
           },
           behind: tracker.behind,
           rollStreak: tracker.rollStreakReached,
+          retreated: tracker.retreated,
         },
         this.deps.random,
       );
