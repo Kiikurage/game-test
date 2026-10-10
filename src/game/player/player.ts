@@ -1458,13 +1458,13 @@ export class Player {
     );
   }
 
-  /** スタミナ回復に影響する行動。走り・ダッシュ中は回復しない（歩き以下は回復する）。 */
+  /** スタミナ回復に影響する行動。走り・ダッシュ中と強攻撃の溜め中は回復しない（歩き以下は回復する）。 */
   private staminaContext(): StaminaContext {
     const sprinting =
       this.dashing ||
       (this.state === 'move' &&
         Math.hypot(this.velocity.x, this.velocity.y) > tuning.player.walk + 0.3);
-    return { sprinting, guarding: this.state === 'guard' };
+    return { sprinting, guarding: this.state === 'guard', charging: this.state === 'heavyCharge' };
   }
 
   private moveBody(dt: number): void {
