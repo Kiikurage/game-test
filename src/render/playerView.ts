@@ -1,5 +1,6 @@
 import { Quaternion, Timer, Vector3, type Mesh, type Scene } from 'three/webgpu';
 import type { Game } from '../game/game';
+import type { GuardPresentation } from '../game/player/player';
 import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
@@ -78,6 +79,27 @@ export class PlayerView {
     return view;
   }
 
+  /**
+   * ガードの上半身: 構え `Sword_Block`（盾が下から上がる前半）→ 保持 `Idle_Shield_Loop` → 被ガードのスタン `Shield_OneShot`。
+   * 下半身は移動のまま（ガードしながら歩ける）。解除の硬直（`release`）は上書きを外してクロスフェードで戻す。
+   */
+  private applyGuardPose(guard: GuardPresentation): void {
+    switch (guard.phase) {
+      case 'raise':
+        // 構え完了（6F = 0.1s）に、Sword_Block の盾が上がりきるまで（0.2s）を合わせる
+        this.animator.setUpperBody('Sword_Block', 1, Math.min(0.2, (guard.frame / 6) * 0.2));
+        break;
+      case 'hold':
+        this.animator.setUpperBody('Idle_Shield_Loop', 1, (guard.frame / 60) % 2.5);
+        break;
+      case 'hit':
+        this.animator.setUpperBody('Shield_OneShot', 1, Math.min(0.8, (guard.frame / 60) * 2));
+        break;
+      default:
+        this.animator.setUpperBody(null);
+    }
+  }
+
   /** 毎フレーム呼ぶ。alpha: 直前ステップ→最新ステップの補間係数。 */
   update(alpha: number): void {
     this.timer.update();
@@ -89,6 +111,7 @@ export class PlayerView {
     if (this.character.root.visible ? arm < 0.9 : arm > 1.2) {
       this.character.root.visible = !this.character.root.visible;
     }
+    this.applyGuardPose(player.animation.guard);
     this.animator.update(dt, player.animation, alpha);
     // ロックオン中の横移動は、体を移動方向へ向ける（上半身は背骨で対象へ戻す）
     this.offset.setFromAxisAngle(Y_AXIS, this.animator.bodyYawOffset);

@@ -16,6 +16,8 @@ import { createTestScene, type ColliderCylinder } from './testScene';
 import { ParticleSystem } from './particles';
 import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
 import { CombatDebugView } from './combatDebugView';
+import { NavDebugView } from './navDebugView';
+import { GridNavigator } from '../game/enemy/gridNavigator';
 
 /**
  * Game の状態を three のシーンとして描画する。
@@ -57,6 +59,8 @@ export class GameView {
   private lastRenderMs = 0;
   /** ?debug のときだけ作る判定の可視化（ハートボックス・ヒットボックス）。 */
   private readonly combatDebug: CombatDebugView | null = null;
+  /** ?debug のときだけ作る敵のナビゲーション（歩ける範囲・経路）の可視化。 */
+  private readonly navDebug: NavDebugView | null = null;
 
   constructor(
     private readonly game: Game,
@@ -96,12 +100,29 @@ export class GameView {
     if (new URLSearchParams(window.location.search).has('debug')) {
       this.combatDebug = new CombatDebugView(game.combat);
       this.scene.add(this.combatDebug.root);
+      const navigator = game.enemies.navigator;
+      if (navigator instanceof GridNavigator) {
+        this.navDebug = new NavDebugView(navigator);
+        this.scene.add(this.navDebug.root);
+      }
     }
     // 命中の火花・塵・黒い飛沫（ヒットストップと同じステップ。ガードは火花のみで足りるので弱める）
     game.events.on('hitStop', (e) => {
       this.tmpPosition.set(e.position.x, e.position.y, e.position.z);
       this.tmpNormal.set(e.normal.x, e.normal.y, e.normal.z);
-      const power = e.kind === 'guard' ? 0.6 : e.frames >= 8 ? 1.4 : 1;
+      // ガード: 盾が弾くので、火花は盾の面（体の左前、胸の高さ）から攻撃側へ跳ね返る。ジャストガード（8F）は強めに散らす
+      if (e.kind === 'guard' && e.toPlayer) {
+        const { feet, yaw } = game.player;
+        const fx = Math.sin(yaw);
+        const fz = Math.cos(yaw);
+        this.tmpPosition.set(
+          feet.x + fx * 0.6 - fz * 0.2,
+          feet.y + 1.15,
+          feet.z + fz * 0.6 + fx * 0.2,
+        );
+        this.tmpNormal.set(-e.normal.x, e.normal.y, -e.normal.z).normalize();
+      }
+      const power = e.kind === 'guard' ? (e.frames >= 8 ? 1.5 : 0.9) : e.frames >= 8 ? 1.4 : 1;
       this.particles.hit(this.tmpPosition, this.tmpNormal, power);
     });
     this.scene.add(this.telegraphs.root);
@@ -178,6 +199,7 @@ export class GameView {
     this.telegraphDemo?.update(Math.min(dt, 0.1));
     this.telegraphs.update(dt);
     this.combatDebug?.update();
+    this.navDebug?.update();
     if (this.drawEnabled) this.postProcess.render();
     this.gameRenderer.endFrame();
   }

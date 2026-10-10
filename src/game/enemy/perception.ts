@@ -178,7 +178,7 @@ export function hearingGainPerSecond(audible: Noise | null): number {
  */
 export function playerMotion(state: string, speed: number): PlayerMotion {
   if (state === 'dash' || state === 'roll' || state === 'backstep') return 'dash';
-  if (state === 'move') {
+  if (state === 'move' || state === 'guard') {
     if (speed >= RUN_NOISE_MIN_SPEED) return 'run';
     if (speed >= WALK_NOISE_MIN_SPEED) return 'walk';
   }

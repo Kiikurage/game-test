@@ -272,9 +272,16 @@ describe('サンプルデータ（軽攻撃 1）', () => {
   const e = getPlayerClipEvents('player.light1');
 
   it('ローダで読み込め、仕様書 2.3 節と一致する', () => {
-    expect(playerClipEvents.entries.map((x) => x.id)).toEqual(
-      expect.arrayContaining(['player.light1', 'player.roll', 'player.backstep']),
-    );
+    // 後続のチケットが動作（ガードカウンターなど）を足すので、先頭の 5 件だけ順序を固定する
+    const ids = playerClipEvents.entries.map((x) => x.id);
+    expect(ids.slice(0, 5)).toEqual([
+      'player.light1',
+      'player.light2',
+      'player.light3',
+      'player.roll',
+      'player.backstep',
+    ]);
+    expect(ids).toContain('player.guardCounter');
     expect(e.spec).toEqual({ startup: 12, active: 4, recovery: 20 });
     expect(totalFrames(e)).toBe(36);
     expect(e.markers).toEqual([

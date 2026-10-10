@@ -23,6 +23,7 @@ import {
   uv,
   vec2,
   vec3,
+  vertexColor,
 } from 'three/tsl';
 import {
   characterLightNode,
@@ -100,10 +101,18 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
     const weapon = isWeaponObject(mesh);
     const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const converted = sources.map((src) => {
-      const key = `${src.uuid}:${role}:${weapon}`;
+      const baked = hasBakedColor(mesh, src as MeshStandardMaterial);
+      const key = `${src.uuid}:${role}:${weapon}:${baked}`;
       let m = cache.get(key);
       if (!m) {
-        m = createUndeadMaterial(src as MeshStandardMaterial, role, variant, controls, weapon);
+        m = createUndeadMaterial(
+          src as MeshStandardMaterial,
+          role,
+          variant,
+          controls,
+          weapon,
+          baked,
+        );
         cache.set(key, m);
         created.push(m);
       }
@@ -156,6 +165,11 @@ function roleOf(mesh: Mesh): UndeadRole {
   return 'cloth';
 }
 
+/** 頂点カラー（装備メッシュの錆・汚れ。#154）を持つか。持つ場合は頂点カラーをそのまま地の色に使う。 */
+function hasBakedColor(mesh: Mesh, src: MeshStandardMaterial): boolean {
+  return src.vertexColors && 'color' in mesh.geometry.attributes;
+}
+
 function isHiddenBy(meshName: string, variant: UndeadVariant): boolean {
   const hidden: string[] = [];
   if (!variant.hood) hidden.push(...OUTFIT_MESHES.hood);
@@ -170,6 +184,7 @@ function createUndeadMaterial(
   variant: UndeadVariant,
   controls: Controls,
   isWeapon: boolean,
+  baked: boolean,
 ): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial();
   material.name = `Undead_${role}_${src.name}`;
@@ -242,11 +257,16 @@ function createUndeadMaterial(
     emissive = emberGlow.mul(crack).mul(0.9);
   } else {
     const rust = new Color(variant.rust);
+    // 装備メッシュ: 錆は #154 の頂点カラー（エッジ・下面・雨垂れに集まる低コントラストの色）に焼き込み済みなので、
+    // ノイズで混ぜ直さず（迷彩状のまだらになる）そのまま使う。亡者らしく少しだけ変種の錆色へ寄せる。
+    // UV の無い元素材の小物・肩当て（頂点カラー無し）は従来どおりノイズで鉄と錆を混ぜる。
     // 錆: ノイズで鉄の暗色と赤茶の錆を混ぜる。ボスは錆の縁が熾火で光る。
     const rustMask = smoothstep(-0.25, 0.35, mx_noise_float(noiseCoord(11).add(3.7)));
     const iron = vec3(0.17, 0.16, 0.15).mul(lum.mul(0.8).add(0.5));
     const rusty = vec3(rust.r, rust.g, rust.b).mul(lum.mul(0.9).add(0.35));
-    albedo = mix(iron, rusty, rustMask);
+    albedo = baked
+      ? mix(vertexColor().rgb, vec3(rust.r, rust.g, rust.b).mul(0.35), 0.08).mul(1.25)
+      : mix(iron, rusty, rustMask);
     material.metalness = 0.45;
     material.roughness = 0.72;
     emissive = emberGlow.mul(crack.mul(0.7).add(rustMask.oneMinus().mul(0.06)));
