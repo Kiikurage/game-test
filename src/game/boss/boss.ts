@@ -1,4 +1,5 @@
 import { Quaternion, Vector3 } from 'three/webgpu';
+import type { GameEventBus } from '../../core/gameEvents';
 import { InterpolatedTransform } from '../../core/interpolated';
 import {
   sectorShape,
@@ -11,9 +12,11 @@ import { POISE, totalFrames, trackEndFrame } from '../data';
 import { turnToward, yawOf } from '../player/movement';
 import {
   BOSS_AI,
+  BOSS_BATTLE,
   BOSS_CORRECTION,
   BOSS_STATS,
   BOSS_SUPER_ARMOR_BONUS,
+  BOSS_WALL,
   type BossMoveId,
   type BossPhase,
   type DistanceBand,
@@ -26,6 +29,7 @@ import {
   type BossMoveRegistry,
   type BossStageDef,
 } from './bossMove';
+import { pinnedAgainstWall, sectorTouchesCircle, type Circle2D } from './bossBattle';
 import {
   PlayerTracker,
   chooseBossMove,
@@ -50,6 +54,10 @@ export type BossStateId =
   | 'reposition'
   /** 強靭度崩し。 */
   | 'staggered'
+  /** 壁に追い詰められた対象に、近距離技の前に 1 歩下がる（6.6 節）。 */
+  | 'stepBack'
+  /** フェーズ移行（`BOSS_BATTLE.transitionFrames` の間、無敵で行動しない。演出は E5-6）。 */
+  | 'transition'
   | 'dead';
 
 export interface BossInit {
@@ -71,6 +79,10 @@ export interface BossDeps {
   readonly poise?: Poise;
   /** アリーナの円（中心と半径）。省略時は制限なし。 */
   readonly arena?: { readonly x: number; readonly z: number; readonly radius: number };
+  /** 柱（円）。攻撃は柱を貫通し、判定が触れると `bossPillarHit` を発行する。 */
+  readonly pillars?: readonly Circle2D[];
+  /** イベントバス（`Game.events`）。交戦開始・HP 変化・フェーズ境界・撃破・リセットを発行する。省略時は発行しない。 */
+  readonly events?: GameEventBus;
 }
 
 /** デバッグ表示・E2E 用の状態。 */
@@ -95,6 +107,10 @@ export interface BossDebugInfo {
   readonly weights: BossWeights | null;
   /** ビートの残り F。 */
   readonly beatLeft: number;
+  /** このフェーズで崩しを使い切ったか（使い切ると強靭度ダメージは無効）。 */
+  readonly breakUsed: boolean;
+  /** フェーズ移行が待機中か（HP が閾値以下。次の硬直で始まる）。 */
+  readonly transitionPending: boolean;
   readonly player: {
     readonly behindFrames: number;
     readonly rollStreak: number;
@@ -149,6 +165,19 @@ export class Boss implements BossMoveActor {
   private approachMax = 0;
   private distanceNow = Number.POSITIVE_INFINITY;
   private readonly quat = new Quaternion();
+  /** 待機位置（`reset()` で戻る）。 */
+  private readonly homeX: number;
+  private readonly homeZ: number;
+  private readonly homeYaw: number;
+  private engaged = false;
+  /** このフェーズで崩しを使い切った（フェーズごとに 1 回まで）。 */
+  private breakUsed = false;
+  /** HP が閾値以下になった。次の硬直（技が終わった瞬間）でフェーズ移行を始める。 */
+  private transitionPending = false;
+  /** 移行の直後の最初の選択（遠距離帯の技 = 跳躍・灰の波で再開する）。 */
+  private afterTransition = false;
+  /** 壁際の 1 歩下がりをしたので、次の技の接近を飛ばす。 */
+  private steppedBack = false;
 
   constructor(
     init: BossInit,
@@ -157,6 +186,9 @@ export class Boss implements BossMoveActor {
     this.id = init.id;
     this.position = new Vector3(init.x, init.y, init.z);
     this.yaw = init.yaw;
+    this.homeX = init.x;
+    this.homeZ = init.z;
+    this.homeYaw = init.yaw;
     this.syncTransform();
     this.transform.snap();
   }
@@ -194,6 +226,8 @@ export class Boss implements BossMoveActor {
       stageFrame: run?.frame ?? 0,
       weights: this.lastWeights,
       beatLeft: this.stateId === 'beat' ? Math.max(0, this.beatLength - this.stateFrames) : 0,
+      breakUsed: this.breakUsed,
+      transitionPending: this.transitionPending,
       player: {
         behindFrames: this.tracker.behindFrames,
         rollStreak: this.tracker.rollStreak,
@@ -206,12 +240,96 @@ export class Boss implements BossMoveActor {
 
   /** 戦闘を始める（最初はビートから）。 */
   engage(): void {
-    if (this.stateId === 'dormant') this.enterBeat();
+    if (this.stateId !== 'dormant') return;
+    if (!this.engaged) {
+      this.engaged = true;
+      this.deps.events?.emit('bossEngaged', {
+        id: this.id,
+        hp: this.hp,
+        maxHp: this.maxHp,
+        phase: this.phase,
+        boundaries: [BOSS_BATTLE.phase2Hp],
+      });
+    }
+    this.enterBeat();
   }
 
-  /** フェーズを切り替える（E5-7 が呼ぶ。移行演出はそちら）。 */
+  /** 交戦中か（`engage()` 済みで、リセットされていない）。 */
+  get isEngaged(): boolean {
+    return this.engaged;
+  }
+
+  /** 無敵か（フェーズ移行中）。被弾側（`UprightTarget.invulnerable`）へ写す。 */
+  get invulnerable(): boolean {
+    return this.stateId === 'transition';
+  }
+
+  /** このフェーズでまだ崩せるか。 */
+  get canBreak(): boolean {
+    return !this.breakUsed;
+  }
+
+  /**
+   * フェーズを切り替える（移行の終わりと確認用の dev フックが呼ぶ）。新しいフェーズでは崩しが 1 回使えるようになる
+   * （強靭度は最大へ戻る）。
+   */
   setPhase(phase: BossPhase): void {
     this.phase = phase;
+    this.breakUsed = false;
+    this.transitionPending = false;
+    this.deps.poise?.reset();
+  }
+
+  /** HP を更新する（被弾側の HP の写し）。減ったら `bossHpChanged`（減少量つき）を発行する。 */
+  setHp(hp: number): void {
+    const clamped = Math.max(0, Math.min(this.maxHp, hp));
+    if (clamped === this.hp) return;
+    const damage = Math.max(0, this.hp - clamped);
+    this.hp = clamped;
+    this.deps.events?.emit('bossHpChanged', {
+      id: this.id,
+      hp: clamped,
+      maxHp: this.maxHp,
+      damage,
+      phase: this.phase,
+    });
+  }
+
+  /**
+   * リセット（プレイヤーの死亡・篝火の休憩。E5-8a が使う）: HP 満タン・フェーズ 1・待機位置へ戻り、`engage()` まで動かない。
+   * 撃破済みでも復活する（撃破済みボスを戻すかどうかは呼び出し側が決める）。交戦中だったら `bossReset` を発行する。
+   * 被弾側の HP・強靭度は呼び出し側（`BossSystem.reset`）が戻す。
+   */
+  reset(cause: 'death' | 'rest' | 'removed' = 'death'): void {
+    const wasEngaged = this.engaged;
+    this.cancelRun();
+    this.pending = null;
+    this.position.set(this.homeX, this.position.y, this.homeZ);
+    this.yaw = this.homeYaw;
+    this.hp = this.maxHp;
+    this.phase = 1;
+    this.breakUsed = false;
+    this.transitionPending = false;
+    this.afterTransition = false;
+    this.steppedBack = false;
+    this.engaged = false;
+    this.history.length = 0;
+    this.lastWeights = null;
+    this.freezeLeft = 0;
+    this.staggerLeft = 0;
+    this.tracker.reset();
+    this.deps.poise?.reset();
+    this.enter('dormant');
+    this.syncTransform();
+    this.transform.snap();
+    if (wasEngaged) {
+      this.deps.events?.emit('bossReset', {
+        id: this.id,
+        cause,
+        hp: this.maxHp,
+        maxHp: this.maxHp,
+      });
+    }
   }
 
   /** ヒットストップ（`Game.registerFreezable`）。 */
@@ -219,19 +337,45 @@ export class Boss implements BossMoveActor {
     this.freezeLeft = Math.max(this.freezeLeft, Math.floor(frames));
   }
 
-  /** 強靭度崩し: 技を打ち切って `frames` ステップ行動不能にする。 */
+  /**
+   * 強靭度崩し: 技を打ち切って `frames` ステップ行動不能にする。崩しは**フェーズごとに 1 回まで**で、崩した後は
+   * そのフェーズの間、強靭度ダメージが無効になる（`Poise.damageDisabled`）。2 回目以降は何もしない。
+   */
   stagger(frames: number): void {
-    if (!this.alive) return;
+    if (!this.alive || this.stateId === 'transition' || this.breakUsed) return;
+    this.breakUsed = true;
+    if (this.deps.poise) this.deps.poise.damageDisabled = true;
     this.cancelRun();
     this.staggerLeft = frames;
     this.enter('staggered');
   }
 
+  /** 撃破（HP 0）。`bossDefeated` を発行する。 */
   kill(): void {
     if (!this.alive) return;
     this.cancelRun();
-    this.hp = 0;
+    this.setHp(0);
     this.enter('dead');
+    this.deps.events?.emit('bossDefeated', {
+      id: this.id,
+      position: { x: this.position.x, y: this.position.y, z: this.position.z },
+    });
+  }
+
+  /** 撃破イベントなしで取り除く（デバッグ・シーン切替）。交戦中だったら `bossReset`（cause `removed`）だけ発行する。 */
+  dispose(): void {
+    if (!this.alive) return;
+    this.cancelRun();
+    this.enter('dead');
+    if (this.engaged) {
+      this.engaged = false;
+      this.deps.events?.emit('bossReset', {
+        id: this.id,
+        cause: 'removed',
+        hp: this.maxHp,
+        maxHp: this.maxHp,
+      });
+    }
   }
 
   moveBy(dx: number, dz: number): void {
@@ -274,9 +418,37 @@ export class Boss implements BossMoveActor {
     }
     this.stateFrames++;
 
+    // HP がフェーズ 2 の閾値以下になったら移行を予約する（技の最中なら、その技は最後まで出す）
+    if (this.phase === 1 && this.hp <= BOSS_BATTLE.phase2Hp) {
+      this.transitionPending = true;
+    }
+    // 技の外（ビート・接近・歩み寄り・1 歩下がり）なら、すぐ移行する
+    if (
+      this.transitionPending &&
+      (this.stateId === 'beat' ||
+        this.stateId === 'approach' ||
+        this.stateId === 'reposition' ||
+        this.stateId === 'stepBack')
+    ) {
+      this.cancelRun();
+      this.beginTransition();
+      this.syncTransform();
+      return;
+    }
+
     switch (this.stateId) {
       case 'beat':
         this.updateBeat(dt);
+        break;
+      case 'stepBack':
+        this.updateStepBack();
+        break;
+      case 'transition':
+        if (this.stateFrames >= BOSS_BATTLE.transitionFrames) {
+          this.setPhase(2);
+          this.afterTransition = true;
+          this.enterBeat();
+        }
         break;
       case 'approach':
         this.updateApproach(dt);
@@ -303,7 +475,27 @@ export class Boss implements BossMoveActor {
     this.stateFrames = 0;
   }
 
+  /** フェーズ移行を始める（無敵・行動停止。`bossPhaseBoundary` を発行する。演出は購読側）。 */
+  private beginTransition(): void {
+    this.transitionPending = false;
+    this.pending = null;
+    this.deps.poise?.reset();
+    this.enter('transition');
+    this.deps.events?.emit('bossPhaseBoundary', {
+      id: this.id,
+      from: 1,
+      to: 2,
+      hp: this.hp,
+      transitionFrames: BOSS_BATTLE.transitionFrames,
+    });
+  }
+
   private enterBeat(): void {
+    // 技の終わり・崩しの終わりなど、硬直が明けたところでフェーズ移行を始める
+    if (this.transitionPending && this.phase === 1 && this.alive) {
+      this.beginTransition();
+      return;
+    }
     const [min, max] = BOSS_AI.beatFrames[this.phase];
     this.beatLength = min + Math.floor(this.deps.random() * (max - min + 1));
     this.enter('beat');
@@ -332,20 +524,25 @@ export class Boss implements BossMoveActor {
   private selectMove(): void {
     const band = distanceBand(this.distanceNow);
     const tracker = this.tracker;
-    const choice = chooseBossMove(
-      {
-        phase: this.phase,
-        band,
-        history: this.history,
-        available: (id) => {
-          const m = this.deps.moves.get(id);
-          return m !== undefined && m.phases.includes(this.phase);
+    const choose = (forBand: DistanceBand) =>
+      chooseBossMove(
+        {
+          phase: this.phase,
+          band: forBand,
+          history: this.history,
+          available: (id) => {
+            const m = this.deps.moves.get(id);
+            return m !== undefined && m.phases.includes(this.phase);
+          },
+          behind: tracker.behind,
+          rollStreak: tracker.rollStreakReached,
         },
-        behind: tracker.behind,
-        rollStreak: tracker.rollStreakReached,
-      },
-      this.deps.random,
-    );
+        this.deps.random,
+      );
+    // フェーズ移行の直後は距離に関わらず遠距離帯の技（跳躍・灰の波）で再開する（6.5 節）。なければ通常の選択
+    let choice = this.afterTransition ? choose('far') : choose(band);
+    if (this.afterTransition && !choice.id) choice = choose(band);
+    this.afterTransition = false;
     this.lastWeights = choice.weights;
     // ロール連打の補正は「次の近距離技」で使い切る（選ばれた技が何であっても）
     if (band === 'close' && tracker.rollStreakReached) tracker.consumeRollStreak();
@@ -357,7 +554,31 @@ export class Boss implements BossMoveActor {
     this.history.push(move.id);
     if (this.history.length > BOSS_AI.historyLength) this.history.shift();
     this.pending = { move, rollBonus: choice.weights.rollBonus && move.id === 'combo3' };
+    // 壁際に追い詰められた対象には、近距離技の発生前に 1 歩下がって射程を調整する（6.6 節）
+    const arena = this.deps.arena;
+    if (
+      arena &&
+      band === 'close' &&
+      pinnedAgainstWall(arena, this.position, { x: this.target.x, z: this.target.z })
+    ) {
+      this.enter('stepBack');
+      return;
+    }
     this.beginMove();
+  }
+
+  /** 対象から離れる向きに `BOSS_WALL.stepBackDistance` を下がる（アリーナの縁で止まる）。終わったら技を始める（接近は飛ばす）。 */
+  private updateStepBack(): void {
+    const dx = this.position.x - this.target.x;
+    const dz = this.position.z - this.target.z;
+    const len = Math.hypot(dx, dz);
+    const step = BOSS_WALL.stepBackDistance / BOSS_WALL.stepBackFrames;
+    if (len > 1e-3) this.moveBy((dx / len) * step, (dz / len) * step);
+    this.distanceNow = Math.hypot(this.target.x - this.position.x, this.target.z - this.position.z);
+    if (this.stateFrames >= BOSS_WALL.stepBackFrames) {
+      this.steppedBack = true;
+      this.beginMove();
+    }
   }
 
   private beginMove(): void {
@@ -382,7 +603,9 @@ export class Boss implements BossMoveActor {
     };
     move.hooks?.onStart?.(this.moveContext());
     const a = move.approach;
-    if (a && this.distanceNow > a.stopRange) {
+    const skipApproach = this.steppedBack;
+    this.steppedBack = false;
+    if (a && !skipApproach && this.distanceNow > a.stopRange) {
       this.approachMax = a.maxFrames ?? BOSS_AI.approachMaxFrames;
       this.enter('approach');
     } else {
@@ -491,6 +714,7 @@ export class Boss implements BossMoveActor {
       this.deps.combat.prime(run.attack, this.shapeOf(run, stage));
       run.primed = true;
     }
+    if (f === hitStart) this.emitPillarHits(run, stage);
     if (f >= hitStart && f <= hitEnd) {
       this.deps.combat.resolve(run.attack, this.shapeOf(run, stage));
       // 突進: 持続の間に `moveDistance` を均等に進む
@@ -504,11 +728,35 @@ export class Boss implements BossMoveActor {
     // 段の終わり: 次の段があれば続ける（フェーズ移行待ちの 2 発目以降の中止は E5-7）
     this.deps.combat.endAttack(run.attack);
     run.attack = null;
-    if (run.stageIndex + 1 < run.stages.length) {
+    // フェーズ移行待ちなら 2 発目以降の追撃は出さず、ここで技を終える（移行が始まる）
+    if (run.stageIndex + 1 < run.stages.length && !this.transitionPending) {
       this.beginStage(run.stageIndex + 1);
       return;
     }
     this.endMove(false);
+  }
+
+  /** 判定の開始時に、扇形が柱に触れていれば `bossPillarHit` を発行する（攻撃は柱で遮られない。破片の演出のフック）。 */
+  private emitPillarHits(run: MoveRun, stage: BossStageDef): void {
+    const { pillars, events } = this.deps;
+    if (!pillars || !events || run.move.hooks?.shape) return;
+    pillars.forEach((pillar, index) => {
+      if (!sectorTouchesCircle(this.position, this.yaw, stage.arcDeg, stage.range, pillar)) return;
+      const dx = pillar.x - this.position.x;
+      const dz = pillar.z - this.position.z;
+      const len = Math.hypot(dx, dz) || 1;
+      events.emit('bossPillarHit', {
+        id: this.id,
+        pillar: index,
+        // 柱の表面（ボス側）、ボスの腰の高さ
+        position: {
+          x: pillar.x - (dx / len) * pillar.radius,
+          y: this.position.y + 1.5,
+          z: pillar.z - (dz / len) * pillar.radius,
+        },
+        moveId: run.move.id,
+      });
+    });
   }
 
   /** 強靭度の加算: スーパーアーマー区間は大きく、予備動作〜持続は +30、硬直は 0。変わったときだけ与える。 */

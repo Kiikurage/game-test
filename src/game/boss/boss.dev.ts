@@ -17,7 +17,7 @@ declare module '../../devHooks' {
     bossRemove(): void;
     /** ボスの状態（距離帯・選択重み・直前の技など）。いなければ null。 */
     bossDebug(): BossDebugInfo | null;
-    /** ボスのフェーズを切り替える（確認用。移行演出は E5-7）。 */
+    /** ボスのフェーズを切り替える（確認用。移行の演出なしで即時。崩しは 1 回使えるように戻る）。 */
     bossPhase(phase: BossPhase): void;
   }
 }
