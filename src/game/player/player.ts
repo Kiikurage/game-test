@@ -1014,7 +1014,7 @@ export class Player {
     }
 
     // F26 から移動へキャンセル可（移動入力があるとき）。入力がなければ F32 まで硬直。
-    if (f >= ROLL_FRAMES || (f >= ROLL_MOVE_CANCEL && this.moveMagnitude > 0.001)) {
+    if (f > ROLL_FRAMES || (f >= ROLL_MOVE_CANCEL && this.moveMagnitude > 0.001)) {
       return this.afterDodgeState(snap);
     }
     return null;
@@ -1032,7 +1032,7 @@ export class Player {
       const attack = this.tryLightAttack(frame, 'light1');
       if (attack) return attack;
     }
-    if (f >= BACKSTEP_FRAMES) return this.moveMagnitude > 0 ? 'move' : 'idle';
+    if (f > BACKSTEP_FRAMES) return this.moveMagnitude > 0 ? 'move' : 'idle';
     return null;
   }
 
