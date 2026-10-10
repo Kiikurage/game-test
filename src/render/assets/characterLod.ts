@@ -38,11 +38,13 @@ export interface SimplifiedPart {
   readonly skinIndex: Uint16Array;
   readonly skinWeight: Float32Array;
   readonly indices: Uint32Array;
+  /** 元ジオメトリの頂点カラー（RGB。装備メッシュの焼き込み色）。無ければ空。 */
+  readonly colors: Float32Array;
 }
 
 /** パーツごとの頂点色を `colors`（RGB、頂点 `offset` から `part.count` 個）へ書く関数。 */
 export type PartColorizer = (
-  mesh: SkinnedMesh,
+  mesh: Mesh,
   part: SimplifiedPart,
   colors: Float32Array,
   offset: number,
@@ -148,6 +150,7 @@ export function simplifyPart(
     skinIndex: new Uint16Array(count * 4),
     skinWeight: new Float32Array(count * 4),
     indices,
+    colors: new Float32Array(0),
   };
   for (let old = 0; old < n; old++) {
     const i = remap[old] ?? -1;
@@ -162,6 +165,56 @@ export function simplifyPart(
     out.skinWeight.set(attributes.subarray(old * 7 + 3, old * 7 + 7), i * 4);
   }
   return out;
+}
+
+/** ボーンに固定された剛体メッシュ（装備）を、そのボーン 1 本に重み 1 でスキニングされる頂点データにする。位置・法線はメッシュのローカル空間のまま。 */
+function rigidPart(mesh: Mesh): SimplifiedPart | null {
+  const g = mesh.geometry;
+  const position = attr(g, 'position');
+  const normal = attr(g, 'normal');
+  const uv = attr(g, 'uv');
+  const color = attr(g, 'color');
+  const index = g.getIndex();
+  if (!position || !normal) return null;
+  const count = position.count;
+  const positions = new Float32Array(count * 3);
+  const normals = new Float32Array(count * 3);
+  const colors = new Float32Array(color ? count * 3 : 0);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = position.getX(i);
+    positions[i * 3 + 1] = position.getY(i);
+    positions[i * 3 + 2] = position.getZ(i);
+    normals[i * 3] = normal.getX(i);
+    normals[i * 3 + 1] = normal.getY(i);
+    normals[i * 3 + 2] = normal.getZ(i);
+    if (color) {
+      colors[i * 3] = color.getX(i);
+      colors[i * 3 + 1] = color.getY(i);
+      colors[i * 3 + 2] = color.getZ(i);
+    }
+  }
+  const indices = new Uint32Array(index ? index.count : count);
+  for (let i = 0; i < indices.length; i++) indices[i] = index ? index.getX(i) : i;
+  const skinWeight = new Float32Array(count * 4);
+  for (let i = 0; i < count; i++) skinWeight[i * 4] = 1;
+  return {
+    count,
+    positions,
+    normals,
+    uvs: new Float32Array(uv ? count * 2 : 0),
+    skinIndex: new Uint16Array(count * 4),
+    skinWeight,
+    indices,
+    colors,
+  };
+}
+
+function visibleInTree(obj: Object3D, root: Object3D): boolean {
+  for (let o: Object3D | null = obj; o; o = o.parent) {
+    if (!o.visible) return false;
+    if (o === root) break;
+  }
+  return true;
 }
 
 /** 詳細メッシュ（`hi`）と簡略メッシュ（`proxy`）の表示を切り替える。 */
@@ -295,10 +348,40 @@ export class CharacterLodBuilder {
       const base = boneInverses[remaps.get(mesh)?.[0] ?? 0];
       xforms.set(mesh, base && own ? base.clone().invert().multiply(own) : new Matrix4());
     }
-    const parts: { mesh: SkinnedMesh; part: SimplifiedPart }[] = [];
+    const parts: {
+      mesh: Mesh;
+      part: SimplifiedPart;
+      x: Matrix4;
+      /** 剛体（装備）なら、スケルトンの関節番号。 */
+      rigidBone?: number;
+    }[] = [];
     for (const mesh of skinned) {
       const part = this.part(mesh);
-      if (part) parts.push({ mesh, part });
+      if (part) parts.push({ mesh, part, x: xforms.get(mesh) ?? new Matrix4() });
+    }
+    // 剛体の装備（胸当て・肩当て・兜・武器など）も 1 本の関節に重み 1 で結合する
+    root.updateMatrixWorld(true);
+    for (const mesh of all) {
+      if ((mesh as { isSkinnedMesh?: boolean }).isSkinnedMesh === true) continue;
+      if (!visibleInTree(mesh, root)) continue;
+      let bone: Bone | null = null;
+      for (let o: Object3D | null = mesh.parent; o; o = o.parent) {
+        if ((o as { isBone?: boolean }).isBone === true) {
+          bone = o as Bone;
+          break;
+        }
+      }
+      const u = bone ? unified.get(bone) : undefined;
+      const base = u === undefined ? undefined : boneInverses[u];
+      if (!bone || u === undefined || !base) continue;
+      const part = rigidPart(mesh);
+      if (!part) continue;
+      // 結合後のスキニング: 関節のワールド · base · x · p = メッシュのワールド · p となるよう x = base⁻¹ · (関節ワールド⁻¹ · メッシュワールド)
+      const x = base
+        .clone()
+        .invert()
+        .multiply(bone.matrixWorld.clone().invert().multiply(mesh.matrixWorld));
+      parts.push({ mesh, part, x, rigidBone: u });
     }
     if (parts.length === 0) return null;
 
@@ -316,8 +399,7 @@ export class CharacterLodBuilder {
     const v = new Vector3();
     let vOffset = 0;
     let iOffset = 0;
-    for (const { mesh, part } of parts) {
-      const x = xforms.get(mesh) ?? new Matrix4();
+    for (const { mesh, part, x, rigidBone } of parts) {
       const normalMatrix = new Matrix3().getNormalMatrix(x);
       for (let i = 0; i < part.count; i++) {
         v.fromArray(part.positions, i * 3).applyMatrix4(x);
@@ -327,9 +409,14 @@ export class CharacterLodBuilder {
           .normalize();
         v.toArray(normals, (vOffset + i) * 3);
       }
-      const remap = remaps.get(mesh);
+      const remap = rigidBone === undefined ? remaps.get(mesh as SkinnedMesh) : undefined;
       for (let i = 0; i < part.skinIndex.length; i++) {
-        skinIndex[vOffset * 4 + i] = remap?.[part.skinIndex[i] ?? 0] ?? 0;
+        skinIndex[vOffset * 4 + i] =
+          rigidBone !== undefined
+            ? i % 4 === 0
+              ? rigidBone
+              : 0
+            : (remap?.[part.skinIndex[i] ?? 0] ?? 0);
       }
       skinWeight.set(part.skinWeight, vOffset * 4);
       for (let i = 0; i < part.indices.length; i++)

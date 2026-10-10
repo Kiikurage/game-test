@@ -72,7 +72,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       burstDensity: 0.5,
       bonfireLight: false,
     },
-    characterLod: { nearDistance: 5 },
+    characterLod: { nearDistance: 8 },
     resolution: { maxPixelRatio: 1.5, maxPixels: 1_000_000 },
   },
   medium: {
@@ -93,7 +93,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       burstDensity: 0.75,
       bonfireLight: true,
     },
-    characterLod: { nearDistance: 6 },
+    characterLod: { nearDistance: 12 },
     resolution: { maxPixelRatio: 2, maxPixels: 1_800_000 },
   },
   high: {

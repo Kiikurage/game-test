@@ -4,7 +4,6 @@ import {
   type Mesh,
   type MeshStandardMaterial,
   type Object3D,
-  type SkinnedMesh,
   type Texture,
 } from 'three/webgpu';
 import type { PartColorizer } from '../assets/characterLod';
@@ -23,7 +22,7 @@ export interface UndeadPartSource {
 export function captureUndeadSources(root: Object3D): Map<Mesh, UndeadPartSource> {
   const sources = new Map<Mesh, UndeadPartSource>();
   root.traverse((obj) => {
-    if ((obj as { isSkinnedMesh?: boolean }).isSkinnedMesh !== true) return;
+    if ((obj as { isMesh?: boolean }).isMesh !== true) return;
     const mesh = obj as Mesh;
     const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as
       (Material & Partial<MeshStandardMaterial>) | undefined;
@@ -58,7 +57,7 @@ export function createUndeadColorizer(
   const cloth = new Color(variant.cloth);
   const rust = new Color(variant.rust);
   const tex: [number, number, number] = [1, 1, 1];
-  return (mesh: SkinnedMesh, part, colors, offset, heights) => {
+  return (mesh, part, colors, offset, heights) => {
     const src = sources.get(mesh);
     for (let i = 0; i < part.count; i++) {
       let r = 1;
@@ -93,11 +92,18 @@ export function createUndeadColorizer(
         og = (lum + (g - lum) * 0.35) * cloth.g * k;
         ob = (lum + (b - lum) * 0.35) * cloth.b * k;
       } else {
-        const iron = lum * 0.8 + 0.5;
-        const rusty = lum * 0.9 + 0.35;
-        or = 0.17 * iron * 0.6 + rust.r * rusty * 0.4;
-        og = 0.16 * iron * 0.6 + rust.g * rusty * 0.4;
-        ob = 0.15 * iron * 0.6 + rust.b * rusty * 0.4;
+        if (part.colors.length > 0) {
+          // 装備メッシュの焼き込み頂点カラー（undeadMaterial と同じ: 錆色へ 8% 寄せて 1.25 倍）
+          or = ((part.colors[i * 3] ?? 0) * 0.92 + rust.r * 0.35 * 0.08) * 1.25;
+          og = ((part.colors[i * 3 + 1] ?? 0) * 0.92 + rust.g * 0.35 * 0.08) * 1.25;
+          ob = ((part.colors[i * 3 + 2] ?? 0) * 0.92 + rust.b * 0.35 * 0.08) * 1.25;
+        } else {
+          const iron = lum * 0.8 + 0.5;
+          const rusty = lum * 0.9 + 0.35;
+          or = 0.17 * iron * 0.6 + rust.r * rusty * 0.4;
+          og = 0.16 * iron * 0.6 + rust.g * rusty * 0.4;
+          ob = 0.15 * iron * 0.6 + rust.b * rusty * 0.4;
+        }
       }
       const o = (offset + i) * 3;
       colors[o] = or;
