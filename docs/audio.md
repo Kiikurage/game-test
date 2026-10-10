@@ -67,6 +67,15 @@ bgm → duck → lowpass ┘
 - ヒット SE はヒットストップ開始と同じ tick で `hit` を発行する。`SfxPlayer.play` はデコード済みなら同期的に `start()` するので 0F 遅延で鳴る。
 - 位置（`position`）はプレイヤー以外の発生源だけ定位に使う（プレイヤー自身の音はカメラ近傍のため非定位）。
 
+### 足音の接続（E7-3a）
+
+- 発火: アニメーションの `footstep` マーカー（プレイヤー）と敵のマーカーが、`Game` から `footstep` イベントになる。素材は `Game.footstepSurface(x, z)` が足元から引く。
+- 素材の判定: `render/footstep/footstep.view.ts` が `Game.footstepSurface` を `createFootstepSurfaceResolver(level)`（`game/world/footstepSurface.ts`）へ差し替える。レベルのエリア定義（`Level.surfaceAt`。エリア外は草）の `SurfaceKind` を `FootstepSurface` へ写す（`underground` → `crypt`）。切替は足音単位（クロスフェードなし）。
+- 再生要求: `audio/footstep.ts` の `footstepPlayRequest`（`sfxEvents.toPlayRequest` が呼ぶ）。cue は発生源ごとの `FOOTSTEP_PROFILES[source]`（`cue(surface)` / `volume` / `rate` / `priority`）で決まり、音量は `GAIT_VOLUME[gait]` に `profile.volume` を掛ける。
+- 敵・ボスの足音を専用素材に変えるときは、`FOOTSTEP_PROFILES.enemy` / `.boss` を差し替えるだけでよい（例: `{ cue: () => 'sfx.boss.step', volume: 1.2, rate: 0.7, priority: 70 }`）。位置つき要求は定位される。
+- 地下墓所（D）の反響は、残響を焼き込んだ `crypt` 素材へ切り替えることで出す（ランタイムのリバーブ送りは使わない）。
+- 足音 16 本は `title` グループで先読みする。E2E は `window.__game.dev.footstepLog()`（`footstep.dev.ts`）で再生要求の cue を確認する。
+
 ### cue とバリエーション
 
 - cue は素材 ID、またはバリエーショングループ名。グループ名は ID 末尾の連番を除いたもの（`sfx.footstep-stone1`〜`4` → `sfx.footstep-stone`）。素材を足すだけでバリエーションが増える。
