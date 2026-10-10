@@ -1,6 +1,7 @@
 import {
   Color,
   MeshStandardNodeMaterial,
+  type ColorRepresentation,
   type Material,
   type Mesh,
   type MeshStandardMaterial,
@@ -14,6 +15,7 @@ import {
   luminance,
   mix,
   mx_noise_float,
+  normalLocal,
   normalWorld,
   positionLocal,
   positionWorld,
@@ -27,6 +29,7 @@ import {
   vertexColor,
 } from 'three/tsl';
 import {
+  RIM,
   characterLightNode,
   createRimControls,
   isWeaponObject,
@@ -68,10 +71,10 @@ export interface UndeadLook {
   setEmber(amount: number): void;
   readonly ember: number;
   /**
-   * 武器のリムライトを強める（0..1）。敵の攻撃予備動作（テレグラフ演出, #62）用。
-   * 縁の光だけが強まり、世界のライティングには影響しない。
+   * 武器の縁を光らせる（強さ 0..1、色は省略時は直前の色）。敵の攻撃予備動作（テレグラフ演出, #62）用。
+   * 縁の加算の光だけで、世界のライティングには影響しない。このインスタンスの武器だけが光る。
    */
-  setWeaponTelegraph(amount: number): void;
+  setWeaponTelegraph(amount: number, color?: ColorRepresentation): void;
   readonly weaponTelegraph: number;
   /** 生成したマテリアルを解放する。 */
   dispose(): void;
@@ -146,9 +149,10 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
     get weaponTelegraph() {
       return telegraph;
     },
-    setWeaponTelegraph(amount) {
+    setWeaponTelegraph(amount, color) {
       telegraph = clampProgress(amount);
       controls.rim.weapon.value = telegraph;
+      if (color !== undefined) controls.rim.weaponColor.value.set(color);
     },
     dispose() {
       for (const m of created) m.dispose();
@@ -156,7 +160,7 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
   };
 }
 
-function roleOf(mesh: Mesh): UndeadRole {
+export function roleOf(mesh: Mesh): UndeadRole {
   const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
   const name = material?.name ?? '';
   if (name === 'MI_Regular_Male' || name === 'MI_Head') return 'skin';
@@ -313,6 +317,12 @@ function createUndeadMaterial(
 
   material.colorNode = albedo;
   material.emissiveNode = emissive;
+  // テレグラフ中は刃を少し太らせる（追加の描画なし。頂点位置のオフセットだけ）
+  if (isWeapon) {
+    material.positionNode = positionLocal.add(
+      normalLocal.mul(controls.rim.weapon.mul(RIM.telegraphInflate)),
+    );
+  }
   // 完全に消えた画素を捨てる（ブレンド無し、半透明パスにならない）
   material.opacityNode = n.greaterThan(threshold).select(float(1), float(0));
   material.alphaTest = 0.5;
