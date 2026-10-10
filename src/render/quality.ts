@@ -49,6 +49,8 @@ export interface QualityPreset {
   readonly particles: ParticleQuality;
   /** キャラクターの LOD 距離。 */
   readonly characterLod: CharacterLodQuality;
+  /** 外周の崖の岩塊・枯れ草の配置密度（0..1。low は間引く。#190）。 */
+  readonly cliffDetail: number;
   /** 内部解像度の上限（動的解像度の最大値を決める）。 */
   readonly resolution: ResolutionLimits;
 }
@@ -73,6 +75,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       bonfireLight: false,
     },
     characterLod: { nearDistance: 8 },
+    cliffDetail: 0.3,
     resolution: { maxPixelRatio: 1.5, maxPixels: 1_000_000 },
   },
   medium: {
@@ -94,6 +97,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       bonfireLight: true,
     },
     characterLod: { nearDistance: 12 },
+    cliffDetail: 0.5,
     resolution: { maxPixelRatio: 2, maxPixels: 1_800_000 },
   },
   high: {
@@ -115,6 +119,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       bonfireLight: true,
     },
     characterLod: { nearDistance: 14 },
+    cliffDetail: 1,
     resolution: { maxPixelRatio: 2, maxPixels: 4_000_000 },
   },
 };

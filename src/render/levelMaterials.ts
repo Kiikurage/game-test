@@ -26,6 +26,7 @@ import {
   color,
 } from 'three/tsl';
 import type { EnvironmentGroup } from './assets/environment';
+import { bumpedNormal, rockSurface } from './cliff/rockSurface';
 
 /**
  * 環境・地面のマテリアル（TSL）。頂点カラーに、ワールド座標のノイズで細かな明暗のむらを足す
@@ -112,29 +113,21 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
       .mul(0.12),
   );
 
-  // 急斜面の岩肌: 縦に走る地層の縞と割れ目、粒状の凹凸（のっぺりした崖を避ける）
+  // 急斜面の岩肌（崖。#176 #190）: 地層・節理・割れ目の色と、法線の凹凸（岩塊メッシュと同じ関数）
   const rockMask = smoothstep(0.93, 0.74, normalWorld.y);
-  const strata = mx_noise_float(
-    vec3(positionWorld.x.mul(0.35), positionWorld.y.mul(2.4), positionWorld.z.mul(0.35)),
-  );
-  const grain = mx_noise_float(positionWorld.mul(4.3));
-  // 崖（外周封鎖、#176）の近景でのっぺりしないよう、地層の縞を強め、縦の割れ目（暗い線）を足す
-  const crack = smoothstep(
-    0.1,
-    0.0,
-    mx_noise_float(
-      vec3(positionWorld.x.mul(0.9), positionWorld.y.mul(0.35), positionWorld.z.mul(0.9)),
-    ).abs(),
-  );
-  const rockTone = float(0.72).add(strata.mul(0.5)).add(grain.mul(0.18)).sub(crack.mul(0.28));
-  const rocky = mix(float(1), rockTone, rockMask);
+  const rock = rockSurface(positionWorld, {
+    damp: attribute('damp', 'float'),
+    up: normalWorld.y,
+  });
+  const rocky = mix(vec3(1), rock.tone, rockMask);
+  material.normalNode = bumpedNormal(rock.height, rockMask.mul(0.6));
 
   const factor = mix(
     dirt.mul(tread).mul(verge).mul(rocky),
-    flag.mul(dirt.mul(0.5).add(0.5)),
+    flag.mul(dirt.mul(0.5).add(0.5)).mul(vec3(1)),
     stone.mul(patch),
   );
-  material.colorNode = vec4(vec3(factor), 1);
+  material.colorNode = vec4(factor, 1);
   return material;
 }
 
