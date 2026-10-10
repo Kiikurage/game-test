@@ -45,7 +45,7 @@ const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
   underground: [0.1, 0.1, 0.11],
 };
 const PATH_COLOR: readonly [number, number, number] = [0.2, 0.155, 0.105];
-const ROCK_COLOR: readonly [number, number, number] = [0.12, 0.112, 0.105];
+const ROCK_COLOR: readonly [number, number, number] = [0.19, 0.18, 0.17];
 const MOSS_COLOR: readonly [number, number, number] = [0.085, 0.115, 0.05];
 const MUD_COLOR: readonly [number, number, number] = [0.085, 0.065, 0.048];
 const ASH_COLOR: readonly [number, number, number] = [0.12, 0.115, 0.11];
@@ -78,6 +78,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   const colors = new Float32Array(count * 3);
   const stone = new Float32Array(count);
   const pathAttr = new Float32Array(count);
+  const damp = new Float32Array(count);
   const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
   for (let i = 0; i < count; i++) {
     const x = vertices[i * 3] ?? 0;
@@ -86,6 +87,10 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
     const path = level.pathWeight(x, z);
     const stoneAmt = stoneAmount(level, x, z);
     stone[i] = stoneAmt;
+    // 崖の足元ほど湿る（足元は垂直に近く、d = 0.7m で高さ約 3.6m）
+    const openD = level.openDistance(x, z);
+    const dt = Math.min(1, Math.max(0, (openD - 0.05) / 0.65));
+    damp[i] = openD > 0 ? 1 - dt * dt * (3 - 2 * dt) : 0;
     pathAttr[i] = path * (1 - stoneAmt);
     // 低周波の色むら + 苔・泥の斑
     const broad = valueNoise(x * 0.09 + 4, z * 0.09 - 2);
@@ -93,7 +98,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
     const n = 0.8 + 0.4 * (0.6 * broad + 0.4 * patch);
     const mossAmt = Math.max(0, patch - 0.52) * 2.2 * (1 - path) * (1 - stoneAmt * 0.6);
     const mudAmt = Math.max(0, 0.42 - broad) * 1.6 * (1 - stoneAmt);
-    const steep = Math.min(1, Math.max(0, (0.9 - normals.getY(i)) / 0.2));
+    const steep = Math.min(1, Math.max(0, (0.93 - normals.getY(i)) / 0.19));
     // 篝火の周りは灰で白っぽく、石畳は縁ほど土・草に侵される
     const ashAmt = Math.max(0, 1 - Math.hypot(x, z) / 3.2) * 0.8;
     for (let c = 0; c < 3; c++) {
@@ -108,6 +113,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
   geometry.setAttribute('stone', new Float32BufferAttribute(stone, 1));
   geometry.setAttribute('path', new Float32BufferAttribute(pathAttr, 1));
+  geometry.setAttribute('damp', new Float32BufferAttribute(damp, 1));
   return geometry;
 }
 
