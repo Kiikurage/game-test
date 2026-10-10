@@ -15,5 +15,6 @@
 | [hit-stop.md](hit-stop.md) | ヒットストップ・撃破スローモーション（タイムスケール）・付随演出イベントの構成と、敵・ボス向けの使い方、`?debug` の調整値（#49） |
 | [hit-reaction.md](hit-reaction.md) | 強靭度・被弾リアクション・ノックバック・被弾後無敵の構成と、敵・ボス向けの使い方（#50） |
 | [boss-ai.md](boss-ai.md) | ボス AI 基盤（距離帯別の重み付き選択・ビート・補正）と技フレームワーク（技の追加手順・検証・スタブ・確認用 `?scene=test&boss`）、回避検証ツール（`?debug&scene=boss`・`dodgeSim.ts` の自動検証 API）（#63 / #79） |
+| [boss-clip-sync.md](boss-clip-sync.md) | ボス技の判定フレームと実クリップの照合（クリップ範囲・当たり・`holdFrames`）、予兆の武器発光（色の選択理由）、跳躍の着地の押し出し（#214） |
 | [performance.md](performance.md) | 描画負荷の予算（draws / tris）・計測方法（`?debug`・`npm run perf`）・削減策（キャラクター LOD と影の簡略メッシュ・グレーボックス結合）と before/after（#180） |
 | [enemy-attack.md](enemy-attack.md) | 敵の攻撃実行（予備動作・旋回追尾・判定）・攻撃トークン・周回待機・亡者兵 A1〜A3・テレグラフ品質の検証（#54） |

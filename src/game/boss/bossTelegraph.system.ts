@@ -20,7 +20,7 @@ export function bossTelegraphOf(
 /**
  * ボスの技の予備動作が始まった瞬間（各段の頭。三連撃は段ごと）に、段の種別（`EnemyAttackDef.telegraph`）に応じた
  * 予備動作の SE を `sound` イベントで出す。雑魚の `enemy-telegraph` と同じ cue（`TELEGRAPH_CUE`）を使う。
- * 武器の発光（リムライト）はボスのモデル（E5-1）が入ってから `bossTelegraphOf` で描画側から引く。
+ * 武器の発光（リムライト）は描画側（`render/boss/bossWeaponGlow.ts`）が `bossTelegraphOf` で引く（#214）。
  */
 registerGameSystem('boss-telegraph', (game) => {
   let lastKey: string | null = null;

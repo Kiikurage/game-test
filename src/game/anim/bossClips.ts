@@ -6,7 +6,7 @@ import bossClipsJson from './data/bossClips.json';
  * 例: `boss.overhead.1.p2`）。フェーズ 2 の「全技のアニメーション再生 1.15 倍」は、同じクリップ範囲・当たりフレームのまま
  * 仕様のフレーム数（P2 の発生・硬直）から `playbackRate` が決まることで表れる。
  *
- * 値は仮置き（クリップ内の当たりフレームは未確認）。ボスのモデル・アニメーション（E5-1 / #57）が入ったら実クリップで合わせる。
+ * クリップ内の当たりフレーム・再生範囲は実クリップの計測に合わせてある（#214。根拠と一覧は docs/boss-clip-sync.md）。
  */
 export const bossClipEvents = parseClipEventTable(bossClipsJson);
 
