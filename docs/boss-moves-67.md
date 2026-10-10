@@ -9,7 +9,7 @@ src/game/boss/moves/spin.move.ts      技 6 回転斬り。spinStateOf(boss) = �
 src/game/boss/moves/ashWave.move.ts   技 7 灰の波。ashWaveStateOf(boss)、ashShape（F ごとの線分カプセル）
 src/game/boss/bossMoves67.system.ts   演出の発火（画面振動・bossSlam・SE）
 src/render/boss/bossSpin.view.ts      斧の軌跡（TSL の平たい輪）・火花
-src/render/boss/bossAshWave.view.ts   予告線 3 本・灰の棘（InstancedMesh 1 ドローコール）・灰
+src/render/boss/bossAshWave.view.ts   予告の亀裂 3 本（熾火の蛇行する亀裂・枝・細かいひび。先端が根元から伸びる。見た目のみ）・灰の棘（InstancedMesh 1 ドローコール）・灰
 src/game/anim/data/bossClips.json     マーカー表（boss.spin.1/2.p2、boss.ashWave.1.p2）
 ```
 

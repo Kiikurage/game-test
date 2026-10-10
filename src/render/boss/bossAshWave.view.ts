@@ -14,6 +14,7 @@ import {
   ASH_LINE_ANGLES_DEG,
   ASH_WIDTH,
   ashLineStart,
+  ASH_TELEGRAPH_FRAME,
   ashLineYaw,
   ashTelegraphVisible,
   ashWaveStateOf,
@@ -131,8 +132,8 @@ registerViewPlugin('boss-ash-wave', ({ game, view }) => {
   const h = positionGeometry.y.clamp(0, 1);
   // 根元は灰色、先は炭のように黒く焦げている。根元と割れ目に熾火が灯る
   material.colorNode = mix(
-    vec3(0.1, 0.095, 0.095),
-    vec3(0.006, 0.005, 0.005),
+    vec3(0.05, 0.047, 0.045),
+    vec3(0.004, 0.003, 0.003),
     smoothstep(0.25, 0.85, h),
   );
   const around = atan(positionGeometry.x, positionGeometry.z);
@@ -203,7 +204,14 @@ registerViewPlugin('boss-ash-wave', ({ game, view }) => {
           lines[i] = t;
         } else if (visible && t && (!state.locked || !placedLocked)) {
           t.placeLine(origin.x, origin.z, yaw, ASH_LENGTH, ASH_WIDTH);
-        } else if (!visible && t && state.frame > ashLineStart(i)) {
+        }
+        // 亀裂の先端は予告の開始から棘が出る少し前まで、根元から先へ伸びる（見た目のみ）
+        if (t && visible) {
+          const span = Math.max(1, ashLineStart(i) - 4 - ASH_TELEGRAPH_FRAME);
+          const p = Math.min(1, Math.max(0, (state.frame + sub - ASH_TELEGRAPH_FRAME) / span));
+          t.setGrow(1 - (1 - p) * (1 - p));
+        }
+        if (!visible && t && state.frame > ashLineStart(i)) {
           view.telegraphs.release(t);
           lines[i] = null;
         }
