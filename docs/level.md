@@ -22,7 +22,7 @@ src/render/levelView.ts            Level から地形・静的物・篝火・マ
 
 - 敵の配置は `enemies`、アイテムは `items`、インタラクト対象は `interactables`（いずれもエリア内の座標。`validateLevel` がエリア内か検査）。敵は `Game` が `level.data.enemies` から生成する（[enemy-ai.md](enemy-ai.md)）。アイテムは現状、描画側が目印を置くだけ。
 - 壁や階段は `props` に足す（`block` / `stairs` / `cylinder`）。階段の 1 段は 0.35m 以下。
-- 脇道（14 章）: 霊廟（屋根 2.2m）と裏手の石段 7 段は `side_roof` 用に置いてある。ほかは未作成。
+- 脇道（14 章）: 高所の足場（霊廟の屋根・北崖の岩棚・北壁の上）は #110 で作成済み（下の「脇道の足場」）。`side_waterway`・`side_wall` は未作成。
 - `?scene=test` で従来のテストシーン。`window.__game.dev.freeCam([x,y,z], [tx,ty,tz])` で俯瞰撮影（`null` で戻す）。`dev.teleport` は地形の高さに合わせて置く。
 
 ## 環境メッシュ（#34）
@@ -68,3 +68,16 @@ src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit /
 - **ライティング**: `Environment.setMood(mood, t)`（`environment.ts`）が `DUSK_MOOD` から `ARENA_MOOD` へ補間する（太陽・半球光・補助光・空・フォグ・遠景の色を uniform / ライトの値の書き換えだけで変える。シェーダの再コンパイルなし）。重み `t` は `arenaMoodWeight`（霧の門の通路を進む約 20m で smootherstep）を指数でなじませる（約 0.5 秒。リスポーンの瞬間移動でも急に切り替わらない）。仕様書 7.2 節の「太陽強度 0.5」は仕様の黄昏（2.0）に対する比（1/4）で、実装の黄昏（3.4）に対しては 0.85。
 - **石の質感**: 目地・ひびの線は `fwidth` による解析的 AA、遠景では粒・孔を消す。石ごとの明暗・色味、欠けた縁、染み、苔、床に近い汚れ、壁際・柱の根元の接触 AO、石をまたぐ大きなひび（床のみ）、焦げ跡、台座を囲む彫り込みの輪。凹凸は高さ → 法線の摂動（追加テクスチャ・パスなし）。
 - **負荷**: 床 1 + 壁 1 + 柱 4 本結合 1 + 台座 1 + 燭台 1 + 炎 1 = 6 ドローコール（影パスは壁・柱・台座・燭台の 4）。`dev.arenaInfo()` に三角形数が出る。計測視点 `arena`（闘技場の入口）を `scripts/perfViewpoints.mjs` に追加し、`e2e/perf.spec.ts` の予算検査に含めた。
+
+## 脇道の足場（#110: `side_roof` / `side_ledge`）
+
+仕様 14.1.1 / 14.1.2。座標・寸法は初期値（グレーボックス）。すべてレベルデータ（`ashenFoundation.ts`）にあり、見た目（`levelView`）と当たり（`Game`）が同じデータを読む。
+
+- **屋根**: 霊廟 (27..31, 14..18) の上面は足元の石段の足元 + 2.2m（`ROOF_BASE`）。裏手の石段は 1 段 0.275m × 8 段（幅 1.2m）。プレイヤーの実効の自動乗り越えは 0.28m 程度（0.3m の段で止まることを実測）なので、仕様の 0.3m × 7 段から変えた。南縁 (29, 13.8) は B の巡回路の真上。
+- **岩棚**: 幅 1.2m。0.5m ごとの小さな段（`ledge-<区間>-<番号>`、style `stairs`）を積んで、地形（約 3.4m）から北壁の上（6.2m）まで一定勾配（約 10°、最大 20° 以内）で上る。中心線は `LEDGE_POINTS`: (35,19) → (33,22) → (33,25) → (35.5,27.5) → (38,29.8) → (39.6,32)。仕様の (44,26) は礼拝堂の内側なので、折れ曲がりを礼拝堂の西の外壁沿いへ取り直した。B の北の柵の欠け（32..34）を通る。
+- **壁上の回廊**: `wall-top`（x 40..54、z 31.5..33、幅 1.5m、床 6.2m = 礼拝堂の床 + 2.8m）。x 46..54 が仕様の回廊で、x 40..46 は岩棚の終端。鐘 (50,32)・護符 (52,32.5) は `sidePaths` の `spots`（置き場所の確保のみ）。落下ポイントは (47, 50, 53) の 3 か所で、着地点 (x, 30.8) は `spots` の `drop-w/m/e`。
+- **透明壁**（`LevelData.guards` → `Level.guardBoxes`。描画しない。`levelGameOptions` が `boxes` に含める）: 岩棚の両脇（曲がりの外側は 0.8m 延長）、回廊の北側全長、南側は落下ポイント 3 か所（幅 1.5m）以外、東端。落下ダメージはない（高さ ≦ 3m）。
+- **敵のナビ格子**: 足場の箱・石段に `navSolid: true`（`BlockProp` / `StairsProp`）を付けると、`NavGrid` は低くても固体として扱い、敵は屋根・岩棚・壁上・石段に入らない。壁上から礼拝堂内へ落ちた先（落下ポイントの着地点付近）は、通常の礼拝堂内のナビ格子とつながっている。
+- **足場の範囲（装飾の除外領域）**: `LevelData.sidePaths`（`SidePathDef`: `id` / 中心線 `points` + `halfWidth`（透明壁の外面まで）/ 矩形 `rects` / `spots`）。`Level.sidePathDistance(x, z, ids?)`（または `sidePathDistance(data, x, z, ids?)`）が範囲までの距離を返す（範囲内は 0）。外周の崖の岩塊（#190）など、足場を塞いではいけない配置は、この距離が 0 より十分大きい所にだけ置くこと。外周封鎖の通行領域（`SIDE_PATHS` の `side_ledge`）も同じ `LEDGE_POINTS` から作る。
+- 検証: `levelSidePath.test.ts`（寸法・勾配・段差・範囲、ナビ格子に含まれないこと、屋根・岩棚・壁上の走破・3 か所の落下・往復・縁から落ちないこと）と `e2e/sidePath.spec.ts`（入力注入で B → 屋根 → 岩棚 → 壁上 → 3 か所の落下）。
+- 撮影した俯瞰: `docs/images/side-path/`（`roof-south` / `roof-top` / `ledge` / `wall-top` / `overview`）。
