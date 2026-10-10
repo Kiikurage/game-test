@@ -39,6 +39,8 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     'light1',
     'light2',
     'light3',
+    'heal',
+    'healEmpty',
   ],
 };
 

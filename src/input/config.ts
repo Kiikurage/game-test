@@ -1,7 +1,16 @@
 /** 入力まわりの調整値。感度・時間・しきい値はここに集約する。 */
 
-/** 先行入力バッファの保持時間（秒）。 */
+/** 先行入力バッファの既定の保持時間（秒）。 */
 export const INPUT_BUFFER_SECONDS = 0.15;
+/**
+ * アクション別の先行入力フレーム数（仕様書 2.4 節: 攻撃 10F・ロール 8F・回復 6F）。押したステップを含めて
+ * この数のステップのあいだ消費できる。`game/data` の `INPUT_BUFFER_FRAMES` と一致する（テストで保証）。
+ */
+export const INPUT_BUFFER_FRAMES = { lightAttack: 10, heavyAttack: 10, dodge: 8, item: 6 } as const;
+/** 上のフレーム数を秒へ（浮動小数の境界を避けるため半フレーム足す）。他のアクションは `INPUT_BUFFER_SECONDS`。 */
+export const INPUT_BUFFER_SECONDS_BY_ACTION: Readonly<Record<string, number>> = Object.fromEntries(
+  Object.entries(INPUT_BUFFER_FRAMES).map(([action, frames]) => [action, (frames - 1 + 0.5) / 60]),
+);
 /** 先行入力バッファの対象にするアクション（ガード・ロックオンは状態系なので対象外）。 */
 export const BUFFERED_ACTIONS = [
   'lightAttack',
