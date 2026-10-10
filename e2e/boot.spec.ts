@@ -15,6 +15,8 @@ function collectErrors(page: Page): string[] {
 }
 
 test('renders with the WebGPU backend and no console errors', async ({ page }) => {
+  // CI の SwiftShader は初回のシェーダーコンパイルで 30 秒近く描画が止まるので、フレーム待ちは余裕を持たせる
+  test.setTimeout(150_000);
   const errors = collectErrors(page);
   await page.goto('./');
 
@@ -26,10 +28,10 @@ test('renders with the WebGPU backend and no console errors', async ({ page }) =
 
   // メインループが回り、固定ステップのシミュレーションが進んでいる
   await expect
-    .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 30_000 })
+    .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 90_000 })
     .toBeGreaterThan(5);
   await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
+    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
     .toBeGreaterThan(5);
 
   expect(errors).toEqual([]);
