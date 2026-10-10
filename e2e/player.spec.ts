@@ -439,3 +439,61 @@ test('left clicks chain the 3-hit light combo and each swing hits the dummy once
   expect(after.events.attackStart).toBe(3);
   expect(after.player.stamina).toBeLessThan(100); // 3 段で 48 消費（回復待ち 45F のあと戻り始める）
 });
+
+test('holding guard blocks a frontal hit (chip damage, stamina cost, 4F hit-stop) but not one from behind', async ({
+  page,
+}) => {
+  await boot(page);
+  await teleport(page, 0, -2, Math.PI);
+  await page.keyboard.down('ShiftLeft');
+  // 構え完了（F6）を過ぎて保持へ
+  // ジャストガードの窓（F6–F15）を過ぎるまで待つ
+  await expect
+    .poll(async () => (await sim(page)).player.guard.frame, { timeout: 30_000 })
+    .toBeGreaterThan(16);
+  const before = await sim(page);
+  expect(before.player.state).toBe('guard');
+
+  await page.evaluate(() => {
+    window.__game?.dev.hitPlayer({ from: 'front', damage: 30, guardStaminaCost: 20 });
+  });
+  const guarded = await sim(page);
+  expect(guarded.combat.playerHp).toBe(before.combat.playerHp - 3); // 30 の 10%
+  expect(guarded.player.stamina).toBeLessThanOrEqual(before.player.stamina - 20 + 1);
+  expect(guarded.combat.lastHitStopFrames).toBe(4);
+  expect(guarded.player.state).not.toBe('flinch');
+
+  // 背面は通常ダメージ・仰け反り
+  await page.keyboard.up('ShiftLeft');
+  await expect.poll(async () => (await sim(page)).player.state, { timeout: 30_000 }).toBe('idle');
+  await page.keyboard.down('ShiftLeft');
+  // ジャストガードの窓（F6–F15）を過ぎるまで待つ
+  await expect
+    .poll(async () => (await sim(page)).player.guard.frame, { timeout: 30_000 })
+    .toBeGreaterThan(16);
+  const hp = (await sim(page)).combat.playerHp;
+  await page.evaluate(() => {
+    window.__game?.dev.hitPlayer({ from: 'back', damage: 30 });
+  });
+  const back = await sim(page);
+  expect(back.combat.playerHp).toBe(hp - 30);
+  await page.keyboard.up('ShiftLeft');
+});
+
+test('guard break when stamina runs out while guarding', async ({ page }) => {
+  await boot(page);
+  await teleport(page, 0, -2, Math.PI);
+  await page.keyboard.down('ShiftLeft');
+  // ジャストガードの窓（F6–F15）を過ぎるまで待つ
+  await expect
+    .poll(async () => (await sim(page)).player.guard.frame, { timeout: 30_000 })
+    .toBeGreaterThan(16);
+  await page.evaluate(() => {
+    window.__game?.dev.hitPlayer({ from: 'front', guardStaminaCost: 500 });
+  });
+  const s = await sim(page);
+  expect(s.player.state).toBe('guardBreak');
+  expect(s.player.guard.breaks).toBe(1);
+  expect(s.player.stamina).toBe(0);
+  await page.keyboard.up('ShiftLeft');
+});

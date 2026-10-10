@@ -96,7 +96,19 @@ export class GameView {
     game.events.on('hitStop', (e) => {
       this.tmpPosition.set(e.position.x, e.position.y, e.position.z);
       this.tmpNormal.set(e.normal.x, e.normal.y, e.normal.z);
-      const power = e.kind === 'guard' ? 0.6 : e.frames >= 8 ? 1.4 : 1;
+      // ガード: 盾が弾くので、火花は盾の面（体の左前、胸の高さ）から攻撃側へ跳ね返る。ジャストガード（8F）は強めに散らす
+      if (e.kind === 'guard' && e.toPlayer) {
+        const { feet, yaw } = game.player;
+        const fx = Math.sin(yaw);
+        const fz = Math.cos(yaw);
+        this.tmpPosition.set(
+          feet.x + fx * 0.6 - fz * 0.2,
+          feet.y + 1.15,
+          feet.z + fz * 0.6 + fx * 0.2,
+        );
+        this.tmpNormal.set(-e.normal.x, e.normal.y, -e.normal.z).normalize();
+      }
+      const power = e.kind === 'guard' ? (e.frames >= 8 ? 1.5 : 0.9) : e.frames >= 8 ? 1.4 : 1;
       this.particles.hit(this.tmpPosition, this.tmpNormal, power);
     });
     this.scene.add(this.telegraphs.root);
