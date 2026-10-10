@@ -1,5 +1,5 @@
 import { PLAYER_ACTIONS, activeWindow } from '../data';
-import type { LightAttackId } from '../player/playerStates';
+import type { LightAttackId, PlayerAttackId } from '../player/playerStates';
 import { vec3, type Capsule, type Vec3 } from './geometry';
 import { playerAttackProfile } from './debugSwing';
 import type { ActiveAttack, HitEvent, HitResolver } from './hitResolver';
@@ -10,7 +10,7 @@ const DEG = Math.PI / 180;
 
 /** プレイヤー側が毎ステップ渡す、いま出している攻撃の情報（`Player.attack`）。 */
 export interface PlayerAttackInfo {
-  readonly id: LightAttackId;
+  readonly id: PlayerAttackId;
   /** 動作ごとに増える通し番号（1 スイング = 1 インスタンスの切れ目）。 */
   readonly serial: number;
   /** 動作開始からのフレーム（F1 起点）。 */
@@ -83,6 +83,25 @@ export function lightAttackCapsule(
 }
 
 /**
+ * ガードカウンター（盾の打撃）の判定カプセル。盾は体の左前で縦に構えられ、打ち出すと前へ 0.55m → 1.1m に出る
+ * （半径 0.3m の縦長カプセル。前進 0.8m と合わせて、体の前 1.9m 程度まで届く）。
+ * `p` は持続中の進行（0 = 判定開始直前、1 = 持続の最終フレーム）。
+ */
+export function guardCounterCapsule(feet: Vec3, yaw: number, p: number, out: Capsule): Capsule {
+  const sx = Math.sin(yaw);
+  const sz = Math.cos(yaw);
+  // 左（前方から見て −right）へ 0.15m ずらす。right = (cos yaw, −sin yaw)
+  const side = -0.15;
+  const dist = 0.55 + 0.55 * p;
+  const x = feet.x + sx * dist + sz * side;
+  const z = feet.z + sz * dist - sx * side;
+  set(out.a, x, feet.y + 0.7, z);
+  set(out.b, x, feet.y + 1.5, z);
+  out.radius = 0.3;
+  return out;
+}
+
+/**
  * プレイヤーの攻撃動作と判定（`HitResolver`）をつなぐ。毎ステップ `update` を呼ぶ（`Player.update` の後）。
  *
  * - 動作が変わる（`serial` が変わる）ごとに `startAttack` / `endAttack`（1 スイング 1 ヒット）。
@@ -129,8 +148,12 @@ export class PlayerAttackDriver {
     }
   }
 
-  private shape(id: LightAttackId, source: AttackSource, p: number): CapsuleShape {
-    lightAttackCapsule(id, source.feet, source.yaw, p, this.scratch);
+  private shape(id: PlayerAttackId, source: AttackSource, p: number): CapsuleShape {
+    if (id === 'guardCounter') {
+      guardCounterCapsule(source.feet, source.yaw, p, this.scratch);
+    } else {
+      lightAttackCapsule(id, source.feet, source.yaw, p, this.scratch);
+    }
     return capsuleShape(this.scratch, source.feet);
   }
 

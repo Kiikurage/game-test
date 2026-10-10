@@ -49,6 +49,17 @@ interface DebugState {
     pose(layer: PlayerAnimLayer | null, time?: number): void;
     /** ?debug 用の仮の攻撃（軽攻撃 1 の判定）を 1 回出す。判定の動作確認・撮影用。 */
     swing(): void;
+    /**
+     * 敵の攻撃を 1 発プレイヤーへ当てる（ガード・削り・ブレイクの確認用ダミー。`from` は攻撃者の方向、
+     * `bearingDeg` は正面からの角度。本物の命中と同じ経路を通る）。
+     */
+    hitPlayer(options?: {
+      from?: 'front' | 'back' | 'left' | 'right';
+      damage?: number;
+      poiseDamage?: number;
+      guardStaminaCost?: number;
+      bearingDeg?: number;
+    }): void;
     /** プレイヤーを `frames` ステップ凍結する（ヒットストップの確認用）。 */
     hitStop(frames: number): void;
     /** タイムスケールを `scale` 倍にして `frames` ステップ続ける（スローモーションの確認用）。 */
@@ -241,7 +252,10 @@ async function bootstrap(): Promise<void> {
           paused = p;
         },
         advance: (steps) => {
-          for (let i = 0; i < steps; i++) game.update(1 / 60);
+          for (let i = 0; i < steps; i++) {
+            input.step(1 / 60); // ループと同じく、入力スナップショットを確定してから game が読む
+            game.update(1 / 60);
+          }
         },
         view: (yawOffset, distance, pitchDeg) => {
           if (distance !== undefined) tuning.camera.distance = distance;
@@ -254,6 +268,9 @@ async function bootstrap(): Promise<void> {
         },
         swing: () => {
           game.debugSwing.start();
+        },
+        hitPlayer: (options) => {
+          game.debugHitPlayer(options);
         },
         hitStop: (frames) => {
           game.player.hitStop(frames);

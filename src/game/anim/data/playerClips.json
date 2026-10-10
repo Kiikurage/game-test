@@ -68,6 +68,17 @@
         { "type": "footstep", "frame": 10 },
         { "type": "cancelOpen", "frame": 18 }
       ]
+    },
+    {
+      "id": "player.guardCounter",
+      "clip": "Shield_Dash",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 33 },
+      "spec": { "startup": 14, "active": 5, "recovery": 28 },
+      "markers": [
+        { "type": "hitStart", "frame": 15 },
+        { "type": "hitEnd", "frame": 19 }
+      ]
     }
   ]
 }
