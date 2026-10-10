@@ -95,6 +95,10 @@ export class FakeInput implements InputReader {
     return at !== undefined && this.step - at <= (this.bufferSteps[action] ?? 9);
   }
 
+  holdBuffer(): void {
+    for (const [action, at] of this.bufferedAt) this.bufferedAt.set(action, at + 1);
+  }
+
   clearBuffer(action?: Action): void {
     if (action) this.bufferedAt.delete(action);
     else this.bufferedAt.clear();

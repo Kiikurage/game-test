@@ -626,6 +626,7 @@ export class Player {
     this.markerEvents.length = 0;
     // ヒットストップ中は状態フレーム・移動・スタミナ回復を含めて丸ごと止める
     if (this.fsm.consumeFreeze()) {
+      frame.input.holdBuffer?.(dt); // 先行入力の期限も凍結分だけ延ばす（4.1 節）
       this.syncTransform();
       return;
     }

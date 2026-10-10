@@ -118,7 +118,10 @@ export function decideHitStop(input: HitStopInput, config: HitStopConfig): HitSt
     }
   }
 
-  // 撃破（トドメ）: 12F + スロー。プレイヤーの死亡は演出側（8.1 節）が `TimeScale` を直接使う。
+  // プレイヤーの死亡も 12F（8.1 節 F0。スローは入れない）
+  if (event.killed && input.targetIsPlayer) frames = Math.max(frames, config.kill);
+
+  // 撃破（トドメ）: 12F + スロー。
   let slowMotion: HitStopDecision['slowMotion'] = null;
   if (event.killed && !input.targetIsPlayer) {
     frames = Math.max(frames, config.kill);
