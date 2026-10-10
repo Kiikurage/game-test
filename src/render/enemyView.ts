@@ -30,6 +30,8 @@ interface EnemyEntry {
   readonly variant: UndeadVariantId;
   /** 体格の倍率（亡者バリアント × 種別）。 */
   readonly scale: Vector3;
+  /** ディゾルブ中（復活したら戻す）。 */
+  dissolving: boolean;
 }
 
 /**
@@ -85,6 +87,7 @@ export class EnemyViews {
         look,
         variant,
         scale,
+        dissolving: false,
       });
     }
     const views = new EnemyViews(scene, entries);
@@ -128,9 +131,14 @@ export class EnemyViews {
         e.look.setWeaponTelegraph(0);
       }
       if (!enemy.alive) {
+        e.dissolving = true;
         e.look.setDissolve(
           dissolveProgress(enemy.deadFrames - DISSOLVE_DELAY_FRAMES, DISSOLVE_FRAMES.soldier),
         );
+      } else if (e.dissolving) {
+        // 篝火の休憩で復活した
+        e.dissolving = false;
+        e.look.setDissolve(0);
       }
     }
     if (this.debug && camera) this.debug.update(alpha, camera);
