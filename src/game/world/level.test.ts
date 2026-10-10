@@ -101,7 +101,7 @@ describe('terrain', () => {
     expect(level.heightAt(32, 12)).toBeGreaterThan(level.heightAt(22, 6));
   });
 
-  it('is climbable (<= 38 degrees) everywhere except the outer cliff', () => {
+  it('is climbable (<= 38 degrees) everywhere in the open region', () => {
     const inset = ASHEN_FOUNDATION.terrain.cliffWidth + 2;
     const h = (ix: number, iz: number) => terrain.vertices[(iz * terrain.cols + ix) * 3 + 1] ?? 0;
     let maxDeg = 0;
@@ -110,6 +110,8 @@ describe('terrain', () => {
       for (let ix = 0; ix < terrain.cols - 1; ix++) {
         const x = terrain.minX + ix * terrain.cellSize;
         const z = terrain.minZ + iz * terrain.cellSize;
+        // 外周封鎖の崖（通行領域の外側。#176）は登れない
+        if ([0, 1].some((i) => [0, 1].some((j) => level.openDistance(x + i, z + j) > 0))) continue;
         if (
           x < bounds.minX + inset ||
           x > bounds.maxX - inset ||
