@@ -1,8 +1,6 @@
 import {
   BOSS_KILL_SLOWMO,
   CAMERA,
-  HEAVY_CHARGED_SCREEN_SHAKE_DEG,
-  HEAVY_CHARGED_SCREEN_SHAKE_FRAMES,
   HIT_FLASH,
   HIT_STOP,
   KILL_SLOWMO,
@@ -80,8 +78,6 @@ export type Tuning = {
     killSlowmoFrames: number;
     bossKillSlowmoFrames: number;
     /** フル溜め強攻撃の画面振動（度・フレーム）。 */
-    chargedShakeDeg: number;
-    chargedShakeFrames: number;
     redFlashFrames: number;
     whiteFlashFrames: number;
   };
@@ -179,8 +175,6 @@ function createTuning(): Tuning {
       killSlowmoScale: KILL_SLOWMO.timeScale,
       killSlowmoFrames: KILL_SLOWMO.frames,
       bossKillSlowmoFrames: BOSS_KILL_SLOWMO.frames,
-      chargedShakeDeg: HEAVY_CHARGED_SCREEN_SHAKE_DEG,
-      chargedShakeFrames: HEAVY_CHARGED_SCREEN_SHAKE_FRAMES,
       redFlashFrames: HIT_FLASH.redFrames,
       whiteFlashFrames: HIT_FLASH.whiteFrames,
     },

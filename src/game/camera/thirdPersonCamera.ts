@@ -1,4 +1,5 @@
 import { Matrix4, Vector3 } from 'three/webgpu';
+import { CameraEffects } from './cameraEffects';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputDevice } from '../../core/input';
 import { LOCK_ON } from '../data';
@@ -63,6 +64,11 @@ export class ThirdPersonCamera {
    * 書き込むのは演出（`death.system.ts`）だけで、通常は 0。
    */
   readonly presentation = { fovOffsetDeg: 0, armOffsetM: 0, pivotDropM: 0 };
+  /**
+   * 被弾・強攻撃・ボスの叩きつけ・フェーズ移行などのカメラ演出（3.3 節）。振動・FOV・距離を、`updatePlacement` の
+   * 最終段で基準の姿勢へ加算する（ロックオン・衝突解決には干渉しない）。発火は `cameraEffects.system.ts`。
+   */
+  readonly effects = new CameraEffects();
 
   /** 向き（ラジアン）。ピッチは下向きが正。 */
   yaw = 0;
@@ -77,10 +83,6 @@ export class ThirdPersonCamera {
   private resetFrames = 0;
   private strafeFrames = 0;
   private initialized = false;
-  private shakeFrames = 0;
-  private shakeTotal = 1;
-  private shakeAmplitude = 0;
-  private shakeSeed = 1;
   /** 壁際で腕が縮んだときの見下ろし補正（ラジアン、平滑化済み）。視点を上げてプレイヤーの背中で画面が埋まるのを避ける。 */
   private collisionPitch = 0;
   private armTarget: number = tuning.camera.distance;
@@ -110,15 +112,6 @@ export class ThirdPersonCamera {
     this.transform.snap();
   }
 
-  /** 画面揺れを加える（被弾・叩きつけ演出。3.3 節）。振幅は度、持続はフレーム。 */
-  addShake(amplitudeDeg: number, frames: number): void {
-    if (amplitudeDeg * frames >= this.shakeAmplitude * this.shakeFrames) {
-      this.shakeAmplitude = amplitudeDeg * DEG;
-      this.shakeFrames = frames;
-      this.shakeTotal = frames;
-    }
-  }
-
   /**
    * 1 固定ステップの前半: 入力とロックオン状態から向き（ヨー・ピッチ）とアーム長の目標を更新する。
    * プレイヤーの更新より前に呼び、移動の基準方向（`yaw`）にこのステップの回転入力を反映する。
@@ -145,7 +138,10 @@ export class ThirdPersonCamera {
    */
   updatePlacement(dt: number, input: CameraFrameInput, collision: CameraCollision): void {
     const cam = tuning.camera;
-    const distance = this.armTarget;
+    const fx = this.effects.step();
+    // 演出の引き・寄りはアーム長の目標へ足す（壁への押し込みは通常どおり衝突解決が行う）
+    const distance = Math.max(1, this.armTarget + fx.armOffsetM);
+    this.fovDeg += fx.fovOffsetDeg;
 
     this.updatePivot(dt, input.playerPosition, collision);
 
@@ -175,16 +171,6 @@ export class ThirdPersonCamera {
     tmpEye.copy(this.pivot).addScaledVector(tmpDir, this.armLength);
 
     // 向き: フリーは yaw/pitch そのまま、ロックオンはプレイヤーと対象の混合点を見る
-    let shakeYaw = 0;
-    let shakePitch = 0;
-    if (this.shakeFrames > 0) {
-      const k = (this.shakeFrames / this.shakeTotal) * this.shakeAmplitude;
-      this.shakeSeed = (this.shakeSeed * 16807) % 2147483647;
-      shakeYaw = ((this.shakeSeed / 2147483647) * 2 - 1) * k;
-      this.shakeSeed = (this.shakeSeed * 16807) % 2147483647;
-      shakePitch = ((this.shakeSeed / 2147483647) * 2 - 1) * k;
-      this.shakeFrames--;
-    }
     if (input.lockTarget) {
       chestPosition(input.lockTarget, tmpChest);
       const w = tuning.lockOn.playerWeight;
@@ -198,12 +184,14 @@ export class ThirdPersonCamera {
     } else {
       tmpDir.copy(tmpForward);
     }
-    if (shakeYaw !== 0 || shakePitch !== 0) {
-      const y = yawOf(tmpDir.x, tmpDir.z) + shakeYaw;
-      const p = Math.asin(Math.min(1, Math.max(-1, -tmpDir.y))) + shakePitch;
+    // 振動を除いた向き。ロックオン対象の選択・解除時の連続性はこれを使う
+    this.forward.copy(tmpDir);
+    // 最終段: 振動はロックオン・衝突解決の後の向きへ加算する（基準の姿勢・forward には反映しない）
+    if (fx.shakeYaw !== 0 || fx.shakePitch !== 0) {
+      const y = yawOf(tmpDir.x, tmpDir.z) + fx.shakeYaw;
+      const p = Math.asin(Math.min(1, Math.max(-1, -tmpDir.y))) + fx.shakePitch;
       this.forwardFromAngles(y, p, tmpDir);
     }
-    this.forward.copy(tmpDir);
 
     tmpLook.copy(tmpEye).add(tmpDir);
     tmpMatrix.lookAt(tmpEye, tmpLook, UP);

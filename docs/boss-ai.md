@@ -138,6 +138,54 @@ registerBossMove({
   スタブ技での重み分布の収束・接近・複数段・スーパーアーマー・追尾）、`bossGame.test.ts`（Game 結合: 被弾側の登録・通常攻撃で中断しない・崩しで中断）、
   `bossRules.test.ts`（フェーズ移行・崩し 1 回・イベント・リセット・壁際・柱）、`bossRulesGame.test.ts`（Game 結合: 120F・1.5 倍・移行中の無敵・イベント・死亡 / 休憩でのリセット）、`bossBattle.test.ts`（幾何）。
 
+## 回避検証ツール（E5-9 / #79）
+
+技の回避可能性・フレームを個別に検証・調整するツール。UI と、Vitest から使える純粋なシミュレーション API の 2 つ。
+
+### デバッグ UI（`?debug&scene=boss`）
+
+テストシーンにボスだけを AI オフで出す（`?scene=test&boss` は従来どおり AI を回す確認シーン）。`?debug` なしでは UI は出ない（E2E で確認）。
+左下のパネルで操作する（`src/render/boss/bossDebug.view.ts`。状態と操作は `src/game/boss/bossDebug.ts` の `BossDebugTool`）。
+
+- 技の一覧は `BOSS_MOVES` + スタブから毎回作る（`registerBossMove` した技は自動で一覧に出る。スタブは名前に「（仮）」）。
+- フェーズ 1 / 2、ボスとの距離・向き（ボスの正面を 0° として右が正）、連続発動（技が終わって 60F 後にもう一度）、AI オン / オフ、接近の有無。
+- 表示: 技名・段・段内 F と通し F・発生 / 持続 / 硬直・追尾終了・判定の有無、プレイヤーのロール / バックステップの F と無敵 F、
+  **回避できる入力フレーム**（下記シミュレーションで求めた左右ロール・前ロール・バックステップの窓）と、仕様書 6.3 節「回避の想定」の要約を並べて表示。
+- 判定形状は `?debug` の判定表示（CombatDebugView）がそのまま出る。スロー再生は `game.timeScale`（`BossDebugTool.set('slow', 0.25)`）、
+  一時停止・フレーム送りは dev フックの `pause` / `advance(1)`（#51 の戦闘デバッグも同じ仕組みを使える）。
+- dev フック: `window.__game.dev.bossTool()`（`set` / `fire` / `reset` / `info`）。
+
+### 自動検証 API（`src/game/boss/dodgeSim.ts`）
+
+three.js・Rapier を使わない。本物の `Boss`（技のフレームデータ・追尾・判定形状）と `HitResolver` を回し、プレイヤーは「入力フレームまで立ち止まり、
+入力でロール / バックステップする」だけのモデル（無敵 F・移動距離は `PLAYER_ACTIONS`、平地・壁なし）。
+
+- `simulateDodge({ move, phase, distance, bearingDeg, inputs, moves?, trace? })` → `{ dodged, hits[{ moveFrame, stage, stageFrame, damage }], frames, trace? }`
+- `canDodge(scenario, input)` — 1 回の入力で当たらなければ true。
+- `findDodgeWindows(scenario, { action, direction, from, to })` → `{ frames, windows: [{ start, end }] }` — 入力フレームを総当たりして回避できる窓を返す。
+- フレームは技の 1 段目 F1 = 1 の通し番号。入力フレーム = ロール F1（無敵は F4–F15）。方向 `toward` / `away` / `left` / `right` はプレイヤーがボスを向いたときの向き（`left` = ボスの右手側）。
+- `Boss.startMove(id, { skipApproach })` と `Boss.aiEnabled`（false なら技の後にビートへ進まず待機）を足している。
+
+```ts
+// src/game/boss/moves/overhead.move.test.ts の例（後続の技チケット向け）
+import { expect, it } from 'vitest';
+import { canDodge, findDodgeWindows, simulateDodge } from '../dodgeSim';
+
+it('大上段は左右ロールを F36–F46 で入力して回避できる', () => {
+  const scenario = { move: 'overhead', phase: 1, distance: 2.5 } as const;
+  for (const direction of ['left', 'right'] as const) {
+    const { frames } = findDodgeWindows(scenario, { direction, from: 1, to: 60 });
+    for (let f = 36; f <= 46; f++) expect(frames).toContain(f);
+    expect(frames).not.toContain(47); // 無敵が持続の頭（F49）に間に合わない
+  }
+  expect(simulateDodge(scenario).hits[0]).toMatchObject({ moveFrame: 49, damage: 110 });
+  expect(canDodge(scenario, { frame: 40, action: 'backstep' })).toBe(false); // 射程 4.5m に届く
+});
+```
+
+注意: 窓は「入力フレームを 1 つ指定して全段を避けられるか」。複数段の技は `inputs` に段ごとの入力を並べて `simulateDodge` で確かめる。
+ロール開始前のプレイヤーは立ち止まっている（追尾の効きは位置・距離に依存するので、`distance` / `bearingDeg` を変えて確かめる）。
+
 ## 未対応
 
 - 技 4〜7（盾打ち・跳躍・回転斬り・灰の波）、モデル（#57）、入場演出・開始前無敵（E5-6）、フェーズ移行・撃破の**演出**（E5-6）、アリーナ（円形・柱）の生成と `arena` / `pillars` の受け渡し（E5-6）。

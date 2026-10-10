@@ -151,6 +151,11 @@ export class Boss implements BossMoveActor {
   yaw: number;
   hp: number = BOSS_STATS.hp;
   phase: BossPhase = 1;
+  /**
+   * AI の有効 / 無効（回避検証ツール用。既定 true）。false の間は、技が終わっても次のビート・選択へ進まず待機（`dormant`）する。
+   * 技は `startMove` で明示的に出す。
+   */
+  aiEnabled = true;
 
   private stateId: BossStateId = 'dormant';
   private stateFrames = 0;
@@ -176,8 +181,6 @@ export class Boss implements BossMoveActor {
   private transitionPending = false;
   /** 移行の直後の最初の選択（遠距離帯の技 = 跳躍・灰の波で再開する）。 */
   private afterTransition = false;
-  /** 壁際の 1 歩下がりをしたので、次の技の接近を飛ばす。 */
-  private steppedBack = false;
 
   constructor(
     init: BossInit,
@@ -254,6 +257,23 @@ export class Boss implements BossMoveActor {
     this.enterBeat();
   }
 
+  /**
+   * 指定した技を今すぐ始める（回避検証ツール・検証 API 用。AI の選択・ビートは通らない）。実行中の技は打ち切る。
+   * `skipApproach` を true にすると接近を飛ばし、いまの位置から予備動作に入る（F1 = 技の 1 段目の F1）。
+   * 使えない技（未登録・そのフェーズで使えない）なら false。
+   */
+  startMove(id: BossMoveId, options: { skipApproach?: boolean } = {}): boolean {
+    if (!this.alive) return false;
+    const move = this.deps.moves.get(id);
+    if (!move || !move.phases.includes(this.phase)) return false;
+    this.cancelRun();
+    this.history.push(move.id);
+    if (this.history.length > BOSS_AI.historyLength) this.history.shift();
+    this.pending = { move, rollBonus: false };
+    this.beginMove(options.skipApproach ?? false);
+    return true;
+  }
+
   /** 交戦中か（`engage()` 済みで、リセットされていない）。 */
   get isEngaged(): boolean {
     return this.engaged;
@@ -311,7 +331,6 @@ export class Boss implements BossMoveActor {
     this.breakUsed = false;
     this.transitionPending = false;
     this.afterTransition = false;
-    this.steppedBack = false;
     this.engaged = false;
     this.history.length = 0;
     this.lastWeights = null;
@@ -491,6 +510,10 @@ export class Boss implements BossMoveActor {
   }
 
   private enterBeat(): void {
+    if (!this.aiEnabled) {
+      this.enter('dormant');
+      return;
+    }
     // 技の終わり・崩しの終わりなど、硬直が明けたところでフェーズ移行を始める
     if (this.transitionPending && this.phase === 1 && this.alive) {
       this.beginTransition();
@@ -576,12 +599,11 @@ export class Boss implements BossMoveActor {
     if (len > 1e-3) this.moveBy((dx / len) * step, (dz / len) * step);
     this.distanceNow = Math.hypot(this.target.x - this.position.x, this.target.z - this.position.z);
     if (this.stateFrames >= BOSS_WALL.stepBackFrames) {
-      this.steppedBack = true;
-      this.beginMove();
+      this.beginMove(true);
     }
   }
 
-  private beginMove(): void {
+  private beginMove(skipApproach = false): void {
     const pending = this.pending;
     if (!pending) return;
     this.pending = null;
@@ -603,8 +625,6 @@ export class Boss implements BossMoveActor {
     };
     move.hooks?.onStart?.(this.moveContext());
     const a = move.approach;
-    const skipApproach = this.steppedBack;
-    this.steppedBack = false;
     if (a && !skipApproach && this.distanceNow > a.stopRange) {
       this.approachMax = a.maxFrames ?? BOSS_AI.approachMaxFrames;
       this.enter('approach');
