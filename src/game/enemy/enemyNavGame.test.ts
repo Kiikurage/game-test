@@ -34,6 +34,7 @@ describe('enemy navigation in the game (Rapier)', () => {
     /** 鐘を鳴らし続けて `frames` ステップ進める。`each` は毎ステップ後に呼ぶ。 */
     const callFor = (frames: number, each?: () => void) => {
       for (let i = 0; i < frames; i++) {
+        game.playerTarget.health.refill(); // 動かないプレイヤーが倒れて再開（敵の復活）しないように
         game.emitNoise(
           { x: game.player.feet.x, y: game.player.feet.y, z: game.player.feet.z },
           'bell',
