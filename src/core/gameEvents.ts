@@ -86,6 +86,31 @@ export interface GameEventMap {
     readonly hp: number;
     readonly position?: Vec3Like;
   };
+  /**
+   * 状況アクション（近くの「調べる」対象）の変化。`prompt` が null なら表示しない。HUD（E6-2b）が購読して
+   * 「[E] 休む」のようなプロンプトを出す。実行中・実行不能の間は null。
+   */
+  interactPrompt: {
+    readonly prompt: { readonly id: string; readonly kind: string; readonly label: string } | null;
+  };
+  /** 篝火に火が灯った（初回点火の完了）。バナー「篝火に火が灯った」（`bannerSeconds` 秒）が購読する（E6-3b）。 */
+  bonfireLit: {
+    readonly id: string;
+    readonly position: Vec3Like;
+    readonly bannerSeconds: number;
+  };
+  /**
+   * 休憩（篝火で休む）またはリスポーン（死亡後）。HP・瓶・敵の復活は発行側が済ませている。
+   * ボス（E5）はこれを購読し、`defeatedBosses` に自分がいなければ HP 全回復・待機位置へ戻る。
+   * スポーン管理（E4-6）は敵の配置の検証などに使える。
+   */
+  rest: {
+    readonly cause: 'rest' | 'respawn';
+    readonly bonfireId: string;
+    readonly position: Vec3Like;
+    /** 撃破済みボスの ID（セーブ由来）。 */
+    readonly defeatedBosses: readonly string[];
+  };
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */
   sound: {
     readonly cue: string;
