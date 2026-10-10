@@ -102,15 +102,32 @@ export function rockSurface(p: Node<'vec3'>, inputs: RockSurfaceInputs): RockSur
     smoothstep(0.0, jointW, edge).mul(layerFade),
   );
 
-  // 縦に長い細い割れ目（遠くで消える）と雨だれ、粒
-  const crackNoise = mx_noise_float(
-    vec3(p.x.mul(0.8).add(p.z.mul(0.6)).add(warp.mul(1.4)).mul(0.55), p.y.mul(0.1), float(3.7)),
+  // 割れ目: 層ごとの、ほぼ垂直な直線の節理（傾きは ±15° 以内、層の境で止まる。層ごとに位置・間隔がずれる）。遠くで消える
+  const crackSpacing = hash(layer.add(33)).mul(2.0).add(1.3);
+  const crackTilt = hash(layer.add(44))
+    .sub(0.5)
+    .mul(2 * 0.27 * 1.18);
+  const crackAlong = p.x
+    .mul(0.8)
+    .add(p.z.mul(0.6))
+    .add(warp.mul(0.35))
+    .add(hash(layer.add(55)).mul(13))
+    .add(lf.mul(crackTilt));
+  const cu = crackAlong.div(crackSpacing);
+  const cDist = min(fract(cu), float(1).sub(fract(cu))).mul(crackSpacing);
+  const crackW = max(float(0.05), fwidth(crackAlong).mul(2.5));
+  // 全ての層・全ての線に割れ目があるわけではない
+  const crackHere = smoothstep(0.35, 0.55, hash(layer.add(66))).mul(
+    smoothstep(0.4, 0.5, hash(floor(cu).add(layer.mul(13)).add(2000))),
   );
-  const crackW = max(float(0.02), fwidth(crackNoise).mul(1.5));
   const crackFade = float(1).sub(
     smoothstep(rockCrackFar.mul(0.5), rockCrackFar, positionView.length()),
   );
-  const crack = smoothstep(crackW, 0.0, abs(crackNoise)).mul(crackFade);
+  const crack = float(1)
+    .sub(smoothstep(crackW.mul(0.3), crackW, cDist))
+    .mul(crackHere)
+    .mul(layerFade)
+    .mul(crackFade);
   const streak = mx_noise_float(vec3(p.x.mul(1.6), p.y.mul(0.22), p.z.mul(1.6)));
   const grain = mx_noise_float(p.mul(5.3));
   // 稜線の立った尾根と谷（丸いうねりだけだと粘土のように見えるので、角ばった凹凸を足す）
