@@ -14,7 +14,7 @@ import type { Enemy, EnemyDebugInfo } from './enemy/enemy';
 import { directNavigator, type Navigator } from './enemy/navigation';
 import { motionNoise, playerMotion } from './enemy/perception';
 import { createPhysics, type Physics } from './physics';
-import { Player } from './player/player';
+import { Player, type PlayerEvent } from './player/player';
 import {
   DebugSwing,
   decideHitStop,
@@ -170,6 +170,9 @@ export class Game {
   readonly eventCounts = {
     rollStart: 0,
     backstepStart: 0,
+    healStart: 0,
+    healApply: 0,
+    healEmpty: 0,
     attackStart: 0,
     land: 0,
     staminaEmpty: 0,
@@ -268,7 +271,7 @@ export class Game {
 
     // 地形・足場を問い合わせパイプラインへ反映してからプレイヤーを置く
     physics.step(1 / 60);
-    this.player = new Player(physics, this.spawnPosition, this.spawnYaw);
+    this.player = new Player(physics, this.spawnPosition, this.spawnYaw, this.playerTarget.health);
     this.cameraCollision = this.createCameraCollision(rapier);
     this.camera.reset(this.player.feet, this.spawnYaw);
     this.combat.addTarget(this.playerTarget);
@@ -442,6 +445,7 @@ export class Game {
     });
     for (const e of player.events) {
       this.eventCounts[e.type]++;
+      this.publishPlayerEvent(e);
       if (e.type === 'land' && e.fallHeight >= LAND_NOISE_MIN_HEIGHT) {
         this.enemies.noises.emit(player.feet, 'land');
       }
@@ -626,6 +630,27 @@ export class Game {
     });
   }
 
+  /** 回復瓶のイベントを、音（`sound`）と HUD・パーティクル用の `heal` へ流す。 */
+  private publishPlayerEvent(e: PlayerEvent): void {
+    const feet = this.player.feet;
+    const position = { x: feet.x, y: feet.y, z: feet.z };
+    switch (e.type) {
+      case 'healStart':
+        this.events.emit('sound', { cue: 'sfx.heal-drink', position });
+        break;
+      case 'healApply':
+        this.events.emit('sound', { cue: 'sfx.heal-glow', position });
+        this.events.emit('heal', {
+          amount: e.amount,
+          hp: this.playerTarget.health.current,
+          position,
+        });
+        break;
+      default:
+        break;
+    }
+  }
+
   /** アニメーションのイベントマーカーをイベントバスへ流す。足音は音のイベント（`footstep`）にも変換する。 */
   private publishMarker(owner: string, e: AnimMarkerEvent, feet: Vector3): void {
     this.markerCounts[e.type]++;
@@ -741,6 +766,8 @@ export class Game {
     this.player.teleport(this.spawnPosition, this.spawnYaw);
     this.camera.reset(this.player.feet, this.spawnYaw);
     this.lockOn.release('external');
+    // 死亡・篝火では回復瓶を最大数まで補充する（2.1 節）
+    this.player.flask.refill();
   }
 
   /** E2E / デバッグ用の状態。 */
@@ -779,6 +806,7 @@ export class Game {
       combat: {
         hits: this.hitCount,
         playerHp: this.playerTarget.health.current,
+        flask: this.player.flask.count,
         lastHitTarget: this.hitLog.at(-1)?.targetId ?? null,
         hitStops: this.hitStopCount,
         lastHitStopFrames: this.lastHitStopFrames,
@@ -810,7 +838,17 @@ export interface GameDebugState {
   };
   readonly lockOn: { readonly targetId: string | null; readonly lastEvent: string };
   readonly events: Readonly<
-    Record<'rollStart' | 'backstepStart' | 'attackStart' | 'land' | 'staminaEmpty', number>
+    Record<
+      | 'rollStart'
+      | 'backstepStart'
+      | 'attackStart'
+      | 'healStart'
+      | 'healApply'
+      | 'healEmpty'
+      | 'land'
+      | 'staminaEmpty',
+      number
+    >
   >;
   /** イベントマーカーの種別ごとの発火回数。 */
   readonly markers: Readonly<Record<MarkerType, number>>;
@@ -820,6 +858,7 @@ export interface GameDebugState {
   readonly combat: {
     readonly hits: number;
     readonly playerHp: number;
+    readonly flask: number;
     readonly lastHitTarget: string | null;
     /** ヒットストップの累計回数・直近の凍結フレーム数・プレイヤーの凍結の残り・現在のタイムスケール。 */
     readonly hitStops: number;

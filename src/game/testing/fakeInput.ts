@@ -10,7 +10,7 @@ const IDLE: ButtonState = { pressed: false, held: false, released: false };
 
 /**
  * テスト用の InputReader。`set*` で次のステップの入力を書き換え、`endStep` で押下・離上を消す
- * （実際の InputSystem と同様に、バッファは 9F = 0.15 秒保持する）。
+ * （実際の InputSystem と同様に、バッファはアクション別のフレーム数だけ保持する）。
  */
 export class FakeInput implements InputReader {
   private move = { x: 0, y: 0 };
@@ -23,8 +23,13 @@ export class FakeInput implements InputReader {
   >;
   private readonly bufferedAt = new Map<Action, number>();
   private step = 0;
-  /** バッファの保持ステップ数（INPUT_BUFFER_SECONDS = 0.15s）。 */
-  private readonly bufferSteps = 9;
+  /** バッファを保持するステップ数（押したステップの後ろ）。仕様 2.4 節の先行入力フレーム数 − 1（攻撃 10F・ロール 8F・回復 6F）。 */
+  private readonly bufferSteps: Readonly<Partial<Record<Action, number>>> = {
+    lightAttack: 9,
+    heavyAttack: 9,
+    dodge: 7,
+    item: 5,
+  };
 
   get snapshot(): InputSnapshot {
     return {
@@ -87,7 +92,7 @@ export class FakeInput implements InputReader {
 
   hasBuffered(action: Action): boolean {
     const at = this.bufferedAt.get(action);
-    return at !== undefined && this.step - at <= this.bufferSteps;
+    return at !== undefined && this.step - at <= (this.bufferSteps[action] ?? 9);
   }
 
   clearBuffer(action?: Action): void {

@@ -18,6 +18,7 @@ const SPEC_TABLE = {
   roll: { total: 32, stamina: 20, damage: undefined, poise: 0 },
   backstep: { total: 22, stamina: 12, damage: undefined, poise: 0 },
   heal: { total: 54, stamina: 0, damage: undefined, poise: 0 },
+  healEmpty: { total: 20, stamina: 0, damage: undefined, poise: 0 },
 } as const;
 
 describe('プレイヤーのアクションデータ', () => {

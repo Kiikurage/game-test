@@ -7,11 +7,15 @@ import type { Action } from '../core/input';
 export class InputBuffer {
   private readonly expiresAt = new Map<Action, number>();
 
-  constructor(private readonly windowSeconds: number) {}
+  constructor(
+    private readonly windowSeconds: number,
+    /** アクション別の保持時間（なければ `windowSeconds`）。 */
+    private readonly perAction: Readonly<Record<string, number>> = {},
+  ) {}
 
   /** `now` 時点で action が押された。保持期限を更新する。 */
   push(action: Action, now: number): void {
-    this.expiresAt.set(action, now + this.windowSeconds);
+    this.expiresAt.set(action, now + (this.perAction[action] ?? this.windowSeconds));
   }
 
   has(action: Action, now: number): boolean {

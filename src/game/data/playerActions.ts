@@ -194,6 +194,18 @@ export const PLAYER_ACTIONS = {
     ],
     note: '回復中の移動 1.0 m/s。F26 より前に被弾して仰け反ると回復は失われ瓶だけ消費',
   },
+  healEmpty: {
+    id: 'healEmpty',
+    // 残数 0 で入力したときの空振り動作（回復なし・SE のみ）。全体 20F
+    startup: 20,
+    active: 0,
+    recovery: 0,
+    staminaCost: 0,
+    poiseDamage: 0,
+    moveDistance: 0,
+    cancels: [],
+    note: '空振り（瓶 0 本で入力）。回復しない。移動 1.0 m/s',
+  },
 } as const satisfies Record<PlayerActionId, PlayerActionData>;
 
 /** 落下攻撃の倍率: 未発見の敵に対して（2.3 節「未発見の敵 3.30」）。 */
@@ -205,7 +217,7 @@ export const HEAVY_CHARGE_MOVE_SPEED = 1.0;
 /** ロール終了時（F32）にボタンが押されていればダッシュへ移行する。 */
 export const ROLL_DASH_TRANSITION_FRAME = 32;
 
-/** 空振りの回復動作（残数 0 で入力）。回復なし・SE のみ。 */
+/** 空振りの回復動作（残数 0 で入力）の全体フレーム。回復なし・SE のみ。 */
 export const HEAL_EMPTY_FRAMES = 20;
 
 export const PLAYER_ACTION_IDS = Object.keys(PLAYER_ACTIONS) as PlayerActionId[];
