@@ -155,7 +155,7 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
   };
 }
 
-function roleOf(mesh: Mesh): UndeadRole {
+export function roleOf(mesh: Mesh): UndeadRole {
   const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
   const name = material?.name ?? '';
   if (name === 'MI_Regular_Male' || name === 'MI_Head') return 'skin';
