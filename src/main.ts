@@ -161,6 +161,7 @@ export async function createGameApp(
       mountDebugHud(gameRenderer.stats, {
         quality: quality.preset.level,
         targetFps: quality.targetFps,
+        profile: () => view.profile(),
       });
       // 操作感の調整値（プレイヤー・カメラ・ロックオン）を実行中に書き換えられる
       mountTuningPanel(tuning, resetTuning);
