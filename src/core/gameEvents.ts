@@ -71,6 +71,17 @@ export interface BossBattleEvents {
     readonly id: string;
     readonly position: Vec3Like;
   };
+  /**
+   * 撃破演出の節目（#86 / 8.4 節）。`bossDefeated`（F0）の後、シミュレーションの F に同期して発行する（`frame` = 撃破からのステップ数）。
+   * 撃破テキスト（E6-3b）は `text`、霧の門の `unseal()` は `fogClear`、操作の復帰は `control` を購読する。
+   * 描画（崩壊・ディゾルブ・熾火・篝火の点火）は `bossDefeatOf(game).frame` を読む。
+   */
+  bossDefeatCue: {
+    readonly id: string;
+    readonly cue: BossDefeatCue;
+    readonly frame: number;
+    readonly position: Vec3Like;
+  };
   /** リセット（HP 満タン・フェーズ 1・待機位置へ。HP バーを消す）。`death` = プレイヤーの死亡、`rest` = 篝火の休憩、`removed` = 取り除いた。 */
   bossReset: {
     readonly id: string;
@@ -87,6 +98,10 @@ export interface BossBattleEvents {
     readonly moveId: string;
   };
 }
+
+/** 撃破演出の節目（F0 / F62 / F72 / F150 / F300 / F360。`BOSS_DEFEAT_FRAMES`）。 */
+export type BossDefeatCue =
+  'defeat' | 'touchdown' | 'collapse' | 'text' | 'fogClear' | 'bonfire' | 'control';
 
 export interface GameEventMap {
   /** 足音。 */
@@ -227,6 +242,15 @@ export interface GameEventMap {
   bossPhaseBoundary: BossBattleEvents['bossPhaseBoundary'];
   bossTransition: BossBattleEvents['bossTransition'];
   bossDefeated: BossBattleEvents['bossDefeated'];
+  bossDefeatCue: BossBattleEvents['bossDefeatCue'];
+  /** BGM をフェードアウトする指示（ボス撃破の崩壊 F72 から 90F。再生の実処理は audio 層。購読は E7-4b）。 */
+  bgmFadeOut: {
+    readonly frames: number;
+  };
+  /** 闘技場の台座の篝火で休憩した（垂直スライス終了画面 E6-4b へ遷移する合図）。 */
+  verticalSliceEnd: {
+    readonly bonfireId: string;
+  };
   bossReset: BossBattleEvents['bossReset'];
   bossPillarHit: BossBattleEvents['bossPillarHit'];
   /** 汎用: 素材 ID またはバリエーショングループ名（例 `sfx.boss-roar`）を直接指定して鳴らす。 */

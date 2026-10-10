@@ -31,10 +31,11 @@ const MAX_EMBER_FIELDS = 2;
 export class Bonfire {
   private readonly flames: ContinuousLayer;
   private readonly sparks: ContinuousLayer;
-  private readonly light: PointLight | null;
   private lit = 0;
   private target = 1;
   readonly position = { x: 0, y: 0, z: 0 };
+  /** 光の強さへの倍率（点火の閃光など。既定 1）。 */
+  boost = 1;
 
   constructor(root: Group, q: ParticleQuality, time: TimeUniform, index: number) {
     this.flames = new ContinuousLayer(bonfireFlameSpec(q.bonfireFlames, 5100 + index), time);
@@ -42,12 +43,6 @@ export class Bonfire {
     this.flames.intensity = 0;
     this.sparks.intensity = 0;
     root.add(this.flames.mesh, this.sparks.mesh);
-    if (q.bonfireLight) {
-      this.light = new PointLight(0xff8a3c, 0, 14, 2);
-      root.add(this.light);
-    } else {
-      this.light = null;
-    }
   }
 
   place(x: number, y: number, z: number): void {
@@ -56,7 +51,6 @@ export class Bonfire {
     this.position.z = z;
     this.flames.center.set(x, y, z);
     this.sparks.center.set(x, y, z);
-    this.light?.position.set(x, y + 0.9, z);
   }
 
   /** 点火 / 消火（炎は約 0.6 秒でフェードする）。 */
@@ -77,24 +71,32 @@ export class Bonfire {
   reset(): void {
     this.lit = 0;
     this.target = 1;
+    this.boost = 1;
+  }
+
+  /** 点灯の度合い 0..1（炎のフェード）。 */
+  get litAmount(): number {
+    return this.lit;
+  }
+
+  /** この篝火が光源になるときの強さ（ゆらぎ・点火の閃光 `boost` を含む）。 */
+  lightIntensity(t: number): number {
+    // 複数の周波数を重ねたゆらぎ（炎の呼吸）
+    const f =
+      0.82 +
+      0.1 * Math.sin(t * 9.3) +
+      0.06 * Math.sin(t * 17.1 + 1.3) +
+      0.04 * Math.sin(t * 31.7 + 2.1);
+    return 38 * this.lit * f * this.boost;
   }
 
   /** @internal */
-  tick(dt: number, t: number): void {
+  tick(dt: number): void {
     const step = dt / 0.6;
     if (this.lit < this.target) this.lit = Math.min(this.target, this.lit + step);
     else if (this.lit > this.target) this.lit = Math.max(this.target, this.lit - step);
     this.flames.intensity = this.lit;
     this.sparks.intensity = this.lit;
-    if (this.light) {
-      // 複数の周波数を重ねたゆらぎ（炎の呼吸）
-      const f =
-        0.82 +
-        0.1 * Math.sin(t * 9.3) +
-        0.06 * Math.sin(t * 17.1 + 1.3) +
-        0.04 * Math.sin(t * 31.7 + 2.1);
-      this.light.intensity = 38 * this.lit * f;
-    }
   }
 }
 
@@ -162,6 +164,11 @@ export class ParticleSystem {
   private readonly time: TimeUniform = uniform(0);
   private clock = 0;
   private readonly ash: ContinuousLayer | null;
+  /**
+   * 篝火の光源。シーン内の PointLight は合計 1 灯に保ち（モバイルの負荷。ライト数が変わるとシェーダも作り直しになる）、
+   * プレイヤーに最も近い、灯っている篝火へ付け替える。
+   */
+  private readonly bonfireLight: PointLight | null;
   private readonly bursts: Record<keyof typeof BURST_SPECS, BurstLayer>;
   private readonly bonfirePool = new SlotPool(MAX_BONFIRES);
   private readonly bonfires: (Bonfire | null)[] = new Array<Bonfire | null>(MAX_BONFIRES).fill(
@@ -174,6 +181,12 @@ export class ParticleSystem {
 
   constructor(private readonly quality: ParticleQuality) {
     this.root.name = 'particles';
+    if (quality.bonfireLight) {
+      this.bonfireLight = new PointLight(0xff8a3c, 0, 14, 2);
+      this.root.add(this.bonfireLight);
+    } else {
+      this.bonfireLight = null;
+    }
     if (quality.ambientAsh > 0) {
       this.ash = new ContinuousLayer(ambientAshSpec(quality.ambientAsh), this.time);
       this.root.add(this.ash.mesh);
@@ -201,7 +214,27 @@ export class ParticleSystem {
     this.time.value = this.clock;
     this.ash?.center.copy(follow);
     for (const layer of Object.values(this.bursts)) layer.update(this.clock);
-    for (const b of this.bonfires) b?.tick(step, this.clock);
+    let nearest: Bonfire | null = null;
+    let best = Infinity;
+    for (const b of this.bonfires) {
+      if (!b) continue;
+      b.tick(step);
+      if (b.litAmount <= 0.001) continue;
+      const d = (b.position.x - follow.x) ** 2 + (b.position.z - follow.z) ** 2;
+      if (d < best) {
+        best = d;
+        nearest = b;
+      }
+    }
+    const light = this.bonfireLight;
+    if (light) {
+      if (nearest) {
+        light.position.set(nearest.position.x, nearest.position.y + 0.9, nearest.position.z);
+        light.intensity = nearest.lightIntensity(this.clock);
+      } else {
+        light.intensity = 0;
+      }
+    }
     for (const f of this.fields) f?.tick(step);
   }
 

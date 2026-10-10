@@ -17,3 +17,11 @@ export const BONFIRE = {
   /** 「篝火に火が灯った」バナーの表示時間（秒）。表示は E6-3b。 */
   bannerSeconds: 3,
 } as const;
+
+/**
+ * 闘技場の台座の篝火（仕様書 8.4 節）。レベルデータに配置はあるが、ボスを撃破するまで存在しない（登録されない）。
+ * 撃破の F300 に灯り（`bossDefeatCue` の `bonfire`）、撃破済みのセーブから始めたときは最初から灯っている。
+ */
+export const ARENA_BONFIRE_ID = 'bonfire-arena';
+/** 撃破でこの篝火が現れるボスの ID（`BOSS_ID`。セーブの `bosses` に入る）。 */
+export const ARENA_BOSS_ID = 'boss';
