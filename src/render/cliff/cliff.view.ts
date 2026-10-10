@@ -8,12 +8,12 @@ import {
   type BufferGeometry,
   type Material,
 } from 'three/webgpu';
-import { mix, normalWorld, positionWorld, smoothstep, vec3, vec4 } from 'three/tsl';
+import { float, mix, normalWorld, positionWorld, smoothstep, vec3, vec4 } from 'three/tsl';
 import { registerViewPlugin } from '../viewPlugins';
 import { createGrassMaterial } from '../levelMaterials';
 import { createDryGrassGeometry, createRockPileGeometry } from './cliffGeometry';
 import { layoutCliff, type CliffItem } from './cliffLayout';
-import { rockSurface } from './rockSurface';
+import { rockCrackFar, rockSurface } from './rockSurface';
 
 /**
  * 外周の崖（#176）の岩塊・枯れ草（#190）。崖の基部の瓦礫、斜面の張り出し、上端の岩と枯れ草のシルエットを
@@ -26,7 +26,7 @@ import { rockSurface } from './rockSurface';
 /** 岩塊のマテリアル: 崖と同じ地層・節理の色（`rockSurface`）に、上面の砂埃と凹凸を足す。 */
 function createRockPileMaterial(): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial({ roughness: 0.97, metalness: 0 });
-  const rock = rockSurface(positionWorld);
+  const rock = rockSurface(positionWorld, { damp: float(0.6), up: normalWorld.y });
   const base = vec3(0.19, 0.18, 0.17);
   const dust = vec3(0.24, 0.215, 0.18);
   const top = smoothstep(0.55, 0.95, normalWorld.y);
@@ -63,12 +63,14 @@ function buildInstanced(
 }
 
 /** この距離（m）より遠いバケットは描かない（ドローコール・三角形の節約。遠景の岩は崖の色で足りる）。 */
-const ROCK_FAR = 30;
-const GRASS_FAR = 26;
+const ROCK_FAR = 24;
+const GRASS_FAR = 22;
 
 registerViewPlugin('cliff', ({ view, gameRenderer, level }) => {
   const root = new Group();
   root.name = 'cliff';
+  // 割れ目の暗線は low では 25m 以内だけ（遠くでチラつかせない）
+  rockCrackFar.value = gameRenderer.quality.preset.level === 'low' ? 25 : 45;
   const buckets: { mesh: InstancedMesh; far: number }[] = [];
   // `?cliff=0`: 岩塊・枯れ草を出さない（変更前との負荷・見た目の比較用）
   const enabled = new URLSearchParams(globalThis.location.search).get('cliff') !== '0';

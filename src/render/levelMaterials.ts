@@ -115,7 +115,10 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
 
   // 急斜面の岩肌（崖。#176 #190）: 地層・節理・割れ目の色と、法線の凹凸（岩塊メッシュと同じ関数）
   const rockMask = smoothstep(0.93, 0.74, normalWorld.y);
-  const rock = rockSurface(positionWorld);
+  const rock = rockSurface(positionWorld, {
+    damp: attribute('damp', 'float'),
+    up: normalWorld.y,
+  });
   const rocky = mix(vec3(1), rock.tone, rockMask);
   material.normalNode = bumpedNormal(rock.height, rockMask.mul(0.6));
 

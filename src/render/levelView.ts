@@ -78,6 +78,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   const colors = new Float32Array(count * 3);
   const stone = new Float32Array(count);
   const pathAttr = new Float32Array(count);
+  const damp = new Float32Array(count);
   const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
   for (let i = 0; i < count; i++) {
     const x = vertices[i * 3] ?? 0;
@@ -86,6 +87,10 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
     const path = level.pathWeight(x, z);
     const stoneAmt = stoneAmount(level, x, z);
     stone[i] = stoneAmt;
+    // 崖の足元ほど湿る（足元は垂直に近く、d = 0.7m で高さ約 3.6m）
+    const openD = level.openDistance(x, z);
+    const dt = Math.min(1, Math.max(0, (openD - 0.05) / 0.65));
+    damp[i] = openD > 0 ? 1 - dt * dt * (3 - 2 * dt) : 0;
     pathAttr[i] = path * (1 - stoneAmt);
     // 低周波の色むら + 苔・泥の斑
     const broad = valueNoise(x * 0.09 + 4, z * 0.09 - 2);
@@ -108,6 +113,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
   geometry.setAttribute('stone', new Float32BufferAttribute(stone, 1));
   geometry.setAttribute('path', new Float32BufferAttribute(pathAttr, 1));
+  geometry.setAttribute('damp', new Float32BufferAttribute(damp, 1));
   return geometry;
 }
 

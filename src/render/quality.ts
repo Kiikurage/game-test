@@ -75,7 +75,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       bonfireLight: false,
     },
     characterLod: { nearDistance: 8 },
-    cliffDetail: 0.4,
+    cliffDetail: 0.3,
     resolution: { maxPixelRatio: 1.5, maxPixels: 1_000_000 },
   },
   medium: {
@@ -97,7 +97,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       bonfireLight: true,
     },
     characterLod: { nearDistance: 12 },
-    cliffDetail: 0.75,
+    cliffDetail: 0.5,
     resolution: { maxPixelRatio: 2, maxPixels: 1_800_000 },
   },
   high: {
