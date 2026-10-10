@@ -64,6 +64,15 @@ const AXE_ID = 'GreatAxe';
 /** 両手持ち: 手の間隔がこの範囲（モデル空間の m）で、斧の柄を両手の線に合わせていく。 */
 const TWO_HAND_BLEND = { from: 0.1, to: 0.3 } as const;
 
+/**
+ * 振りの握りの向き（剣のソケットと同じ。`scripts/assets/equipment.mjs` の SWORD_SOCKET）。構え（= 装備のソケット）との間を
+ * `setAxeGrip(0..1)` で補間する。動作ごとの値は `boss/bossAxeGrip.ts`。
+ */
+const AXE_SWING_QUAT = new Quaternion(0.4304, 0.561, 0.4304, 0.561);
+
+/** 握りの値の範囲（構えより手前 = -、振りより先 = +。外挿）。 */
+export const AXE_GRIP_RANGE = { min: -0.6, max: 1.2 } as const;
+
 const smooth = (t: number): number => {
   const k = Math.min(1, Math.max(0, t));
   return k * k * (3 - 2 * k);
@@ -84,7 +93,12 @@ export class BossCharacter {
   private gripValue: BossGrip = 'shield';
   private shieldHolder: Object3D | undefined;
   private axeHolder: Object3D | undefined;
+  /** 現在の斧の向き（手のボーンから見た向き。構え → 振りの補間）。 */
   private readonly axeSocketQuat = new Quaternion();
+  private readonly axeCarryQuat = new Quaternion();
+  private axeGripValue = 0;
+  /** 動作中の片手振り（0..1）。1 のとき、両手持ち（フェーズ 2）でも左手を柄に合わせず右手だけで振る。 */
+  private oneHandedValue = 0;
   /** 盾の見本（体から外れた盾は戻せないので、フェーズ 1 へ戻すときの複製元）。 */
   private readonly shieldTemplate: Object3D;
   private emberValue = 0;
@@ -121,7 +135,8 @@ export class BossCharacter {
     this.shieldHolder = character.root.getObjectByName(`equip:${SHIELD_ID}`) ?? undefined;
     this.axeHolder = character.root.getObjectByName(`equip:${AXE_ID}`) ?? undefined;
     const socket = equipment.getSocket(AXE_ID);
-    this.axeSocketQuat.fromArray(socket.quaternion);
+    this.axeCarryQuat.fromArray(socket.quaternion);
+    this.axeSocketQuat.copy(this.axeCarryQuat);
     if (!this.shieldHolder) throw new Error('boss loadout is missing GreatShield');
     this.shieldTemplate = this.shieldHolder.clone();
   }
@@ -164,7 +179,7 @@ export class BossCharacter {
     const character = assets.createCharacter('knight', { sword: false, shield: false });
     equipment.equipLoadout(character, 'boss');
     const sources = captureUndeadSources(character.root);
-    const look = applyUndeadLook(character.root, BOSS_VARIANT);
+    const look = applyUndeadLook(character.root, BOSS_VARIANT, { shieldGlow: true });
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {
         const mesh = obj as Mesh;
@@ -224,6 +239,18 @@ export class BossCharacter {
     this.emberField?.setActive(this.emberValue > 0.05);
   }
 
+  /** 斧の握りの向き（0 = 構え … 1 = 振り。`boss/bossAxeGrip.ts`）。片手持ちは即座に、両手持ちは次の `lateUpdate` で反映される。 */
+  setAxeGrip(grip: number, oneHanded = 0): void {
+    this.axeGripValue = Math.min(AXE_GRIP_RANGE.max, Math.max(AXE_GRIP_RANGE.min, grip));
+    this.oneHandedValue = Math.min(1, Math.max(0, oneHanded));
+    this.axeSocketQuat.slerpQuaternions(this.axeCarryQuat, AXE_SWING_QUAT, this.axeGripValue);
+    if (this.gripValue === 'shield') this.axeHolder?.quaternion.copy(this.axeSocketQuat);
+  }
+
+  get axeGrip(): number {
+    return this.axeGripValue;
+  }
+
   /** 斧の持ち方。`twoHand` は両手持ち（`lateUpdate` で柄を両手の線に合わせる）、`shield` は右手だけの片手持ち。 */
   setGrip(grip: BossGrip): void {
     if (grip === this.gripValue) return;
@@ -236,7 +263,7 @@ export class BossCharacter {
     } else {
       const socket = this.equipment.getSocket(AXE_ID);
       holder.position.fromArray(socket.position);
-      holder.quaternion.fromArray(socket.quaternion);
+      holder.quaternion.copy(this.axeSocketQuat);
       this.root.getObjectByName(socket.bone)?.add(holder);
     }
   }
@@ -367,7 +394,11 @@ export class BossCharacter {
 
     this.dir.copy(this.pl).sub(this.pr);
     const gap = this.dir.length();
-    const w = smooth((gap - TWO_HAND_BLEND.from) / (TWO_HAND_BLEND.to - TWO_HAND_BLEND.from));
+    // 動作中（握りが「振り」へ寄るほど）は右手だけで振る: 剣の振りのクリップでは左手は柄とは無関係な所を動くので、
+    // 両手の線に合わせると斧が後ろ・上へ跳ねる
+    const w =
+      smooth((gap - TWO_HAND_BLEND.from) / (TWO_HAND_BLEND.to - TWO_HAND_BLEND.from)) *
+      (1 - this.oneHandedValue);
     if (w > 0) {
       this.dir.divideScalar(gap);
       if (this.dir.dot(this.yOne) < 0) this.dir.negate(); // 刃は上側

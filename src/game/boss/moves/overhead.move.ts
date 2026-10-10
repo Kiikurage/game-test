@@ -9,14 +9,14 @@ import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bo
  * テレグラフ: `heavy`（強攻撃。5.1 節の「ガード不能・強攻撃 = 赤橙」）。ガード自体は可能（スタミナ 60 を削られるので非推奨）で
  * ガード不能ではないため `unblockable` にはしない。
  *
- * 判定: 前方 60°・射程 4.5m。扇形の頂点をボスの 1.5m 前（斧の付け根の位置）に置き、そこから 3.0m 伸ばす（ボスの原点から最大 4.5m）。
+ * 判定: 前方 60°・射程 4.2m。扇形の頂点をボスの 1.5m 前（斧の付け根の位置）に置き、そこから 2.7m 伸ばす（ボスの原点から最大 4.2m。#225 で刃先の見た目に合わせて 4.5m から 0.3m 詰めた）。
  * 頂点より手前（斧の内側）は当たらないので、前方ロールで射程の内側へ入って潜り抜けられる（6.3 節「回避の想定」）。
  */
 
 /** 扇形の頂点をボスの前へずらす距離（m）。ボスの体の半径 0.9m + 余裕。これより手前は斧の内側で当たらない。 */
 export const OVERHEAD_APEX_OFFSET = 1.5;
 /** ボスの原点から測った射程（m）。 */
-export const OVERHEAD_REACH = 4.5;
+export const OVERHEAD_REACH = 4.2;
 
 const COMMON = {
   id: 'overhead.1',

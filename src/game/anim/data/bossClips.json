@@ -119,7 +119,7 @@
         "startFrame": 0,
         "endFrame": 14
       },
-      "clipHitFrame": 7,
+      "clipHitFrame": 8,
       "tail": {
         "clip": "Melee_Hook_Rec",
         "startFrame": 0,
@@ -437,7 +437,7 @@
         "startFrame": 0,
         "endFrame": 14
       },
-      "clipHitFrame": 7,
+      "clipHitFrame": 8,
       "tail": {
         "clip": "Melee_Hook_Rec",
         "startFrame": 0,
@@ -464,8 +464,8 @@
       "clip": "Sword_Heavy_Combo",
       "clipFps": 30,
       "clipRange": {
-        "startFrame": 0,
-        "endFrame": 52
+        "startFrame": 17,
+        "endFrame": 30
       },
       "clipHitFrame": 28,
       "spec": {

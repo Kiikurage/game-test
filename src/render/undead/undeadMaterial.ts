@@ -11,6 +11,7 @@ import {
 } from 'three/webgpu';
 import {
   abs,
+  attribute,
   float,
   luminance,
   mix,
@@ -32,6 +33,7 @@ import {
   RIM,
   characterLightNode,
   createRimControls,
+  isShieldObject,
   isWeaponObject,
   type RimControls,
   type WeaponTelegraphStyle,
@@ -81,6 +83,16 @@ export interface UndeadLook {
     style?: WeaponTelegraphStyle,
   ): void;
   readonly weaponTelegraph: number;
+  /**
+   * 盾の縁を光らせる（`applyUndeadLook` の `shieldGlow` のとき。ボスの盾打ち 1 段目の予兆。#225）。武器とは別のユニフォームなので、
+   * 盾だけ・斧だけを独立に光らせられる。引数は `setWeaponTelegraph` と同じ。
+   */
+  setShieldTelegraph(
+    amount: number,
+    color?: ColorRepresentation,
+    style?: WeaponTelegraphStyle,
+  ): void;
+  readonly shieldTelegraph: number;
   /** 生成したマテリアルを解放する。 */
   dispose(): void;
 }
@@ -92,14 +104,25 @@ interface Controls {
   readonly ember: UniformNode<'float', number>;
 }
 
+export interface UndeadLookOptions {
+  /** 盾（`equip:GreatShield`）も予兆の発光の対象にする（ボスの盾打ち。盾は雑魚と共有のメッシュだが、マテリアルはインスタンスごと）。 */
+  readonly shieldGlow?: boolean;
+}
+
 /**
  * キャラクター（`Character.root` など）の全メッシュへ亡者マテリアルを適用する。
  * 追加テクスチャは無し: 元のベースカラー/法線/金属粗さテクスチャに、TSL の色演算と
  * 1〜2 回の Perlin ノイズ（斑・ひび・ディゾルブ）だけを加える。
  * インスタンスごとに新しいマテリアルを作るので、`root` は `SkeletonUtils.clone` 済みであること。
  */
-export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadLook {
+export function applyUndeadLook(
+  root: Object3D,
+  variant: UndeadVariant,
+  options: UndeadLookOptions = {},
+): UndeadLook {
   const controls: Controls = { dissolve: uniform(0), ember: uniform(0), rim: createRimControls() };
+  // 盾の予兆の発光は武器と別のユニフォーム（盾打ちで光るのは盾だけ）
+  const shieldControls: Controls = { ...controls, rim: createRimControls() };
   const created: Material[] = [];
   const cache = new Map<string, Material>();
 
@@ -108,19 +131,22 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
     const mesh = obj as Mesh;
     const role = roleOf(mesh);
     const weapon = isWeaponObject(mesh);
+    const shield = options.shieldGlow === true && isShieldObject(mesh);
+    const hasEdge = mesh.geometry.hasAttribute('_edge');
     const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const converted = sources.map((src) => {
       const baked = hasBakedColor(mesh, src as MeshStandardMaterial);
-      const key = `${src.uuid}:${role}:${weapon}:${baked}`;
+      const key = `${src.uuid}:${role}:${weapon}:${baked}:${shield}:${hasEdge}`;
       let m = cache.get(key);
       if (!m) {
         m = createUndeadMaterial(
           src as MeshStandardMaterial,
           role,
           variant,
-          controls,
+          shield ? shieldControls : controls,
           weapon,
           baked,
+          { shield, hasEdge },
         );
         cache.set(key, m);
         created.push(m);
@@ -134,6 +160,21 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
   let dissolve = 0;
   let ember = 0;
   let telegraph = 0;
+  let shieldTelegraph = 0;
+  const setTelegraph = (
+    rim: RimControls,
+    amount: number,
+    color?: ColorRepresentation,
+    style?: WeaponTelegraphStyle,
+  ): number => {
+    rim.weapon.value = clampProgress(amount);
+    if (color !== undefined) rim.weaponColor.value.set(color);
+    rim.weaponFill.value = style?.fill ?? 1;
+    rim.weaponRim.value = style?.rim ?? 1;
+    rim.weaponSharp.value = style?.sharp ?? 0;
+    rim.weaponEdge.value = style?.edge ?? 0;
+    return rim.weapon.value;
+  };
   return {
     variant,
     buildScale: [variant.build.width, variant.build.height, variant.build.width],
@@ -155,12 +196,13 @@ export function applyUndeadLook(root: Object3D, variant: UndeadVariant): UndeadL
       return telegraph;
     },
     setWeaponTelegraph(amount, color, style) {
-      telegraph = clampProgress(amount);
-      controls.rim.weapon.value = telegraph;
-      if (color !== undefined) controls.rim.weaponColor.value.set(color);
-      controls.rim.weaponFill.value = style?.fill ?? 1;
-      controls.rim.weaponRim.value = style?.rim ?? 1;
-      controls.rim.weaponSharp.value = style?.sharp ?? 0;
+      telegraph = setTelegraph(controls.rim, amount, color, style);
+    },
+    get shieldTelegraph() {
+      return shieldTelegraph;
+    },
+    setShieldTelegraph(amount, color, style) {
+      shieldTelegraph = setTelegraph(shieldControls.rim, amount, color, style);
     },
     dispose() {
       for (const m of created) m.dispose();
@@ -198,6 +240,7 @@ function createUndeadMaterial(
   controls: Controls,
   isWeapon: boolean,
   baked: boolean,
+  glow: { readonly shield: boolean; readonly hasEdge: boolean },
 ): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial();
   material.name = `Undead_${role}_${src.name}`;
@@ -326,13 +369,18 @@ function createUndeadMaterial(
 
   // 逆光・影でも輪郭が読めるリムライトと暗部の持ち上げ（#144）。ディゾルブで消える所は灰色に合わせて弱まる
   emissive = emissive.add(
-    characterLightNode(albedo, controls.rim, isWeapon).mul(float(1).sub(charred)),
+    characterLightNode(
+      albedo,
+      controls.rim,
+      isWeapon || glow.shield,
+      glow.hasEdge ? attribute('_edge', 'vec2').x : undefined,
+    ).mul(float(1).sub(charred)),
   );
 
   material.colorNode = albedo;
   material.emissiveNode = emissive;
   // テレグラフ中は刃を少し太らせる（追加の描画なし。頂点位置のオフセットだけ）
-  if (isWeapon) {
+  if (isWeapon || glow.shield) {
     material.positionNode = positionLocal.add(
       normalLocal.mul(controls.rim.weapon.mul(RIM.telegraphInflate)),
     );

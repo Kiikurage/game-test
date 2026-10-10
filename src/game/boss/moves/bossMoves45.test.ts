@@ -59,7 +59,16 @@ const range = (from: number, to: number): number[] =>
 describe('技 4 盾打ち → 斬り下ろし: frame data (6.3)', () => {
   it('matches the spec table (phase 1 only)', () => {
     expect(table('shieldBash', 1)).toEqual([
-      { startup: 26, active: 5, recovery: 12, damage: 60, poise: 60, guard: 40, arc: 90, range: 3 },
+      {
+        startup: 26,
+        active: 5,
+        recovery: 12,
+        damage: 60,
+        poise: 60,
+        guard: 40,
+        arc: 90,
+        range: 2.6,
+      },
       {
         startup: 36,
         active: 6,
@@ -68,7 +77,7 @@ describe('技 4 盾打ち → 斬り下ろし: frame data (6.3)', () => {
         poise: 70,
         guard: 60,
         arc: 60,
-        range: 4.5,
+        range: 4.2,
       },
     ]);
     expect(move('shieldBash').phases).toEqual([1]);

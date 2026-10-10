@@ -243,11 +243,11 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 2028432,
+  "totalBytes": 2041396,
   "equipment": {
     "file": "equipment.glb",
-    "bytes": 104900,
-    "triangles": 4010,
+    "bytes": 117864,
+    "triangles": 4022,
     "textureMemoryBytes": 0,
     "items": {
       "Sword_Rusty": {
@@ -259,7 +259,7 @@
         "bone": "hand_r"
       },
       "GreatAxe": {
-        "triangles": 200,
+        "triangles": 212,
         "bone": "hand_r"
       },
       "GreatShield": {
@@ -355,7 +355,7 @@
     "loadoutTriangles": {
       "soldier": 948,
       "shieldbearer": 1124,
-      "boss": 2634
+      "boss": 2646
     }
   },
   "exploration": {
