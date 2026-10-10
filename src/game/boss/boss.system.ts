@@ -136,6 +136,15 @@ export class BossSystem {
     boss.setHp(heart.health.current);
   }
 
+  /** ボスに直接ダメージを与える（確認・E2E 用の dev フックから。通常の命中処理は `onHit`）。 */
+  damage(amount: number): void {
+    const { boss, heart } = this;
+    if (!boss || !heart || !boss.alive) return;
+    heart.health.damage(amount);
+    boss.setHp(heart.health.current);
+    if (heart.health.dead) boss.kill();
+  }
+
   onHit(e: HitEvent): void {
     const { boss, heart, game } = this;
     if (!boss || !heart || e.targetId !== BOSS_ID) return;

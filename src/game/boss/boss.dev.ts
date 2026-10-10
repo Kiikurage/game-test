@@ -17,6 +17,8 @@ declare module '../../devHooks' {
     bossRemove(): void;
     /** ボスの状態（距離帯・選択重み・直前の技など）。いなければ null。 */
     bossDebug(): BossDebugInfo | null;
+    /** ボスの HP を `amount` 減らす（確認・E2E 用。HP バーの残像・境界の発光の確認など。0 になれば撃破）。 */
+    bossDamage(amount: number): void;
     /** ボスのフェーズを切り替える（確認用。移行の演出なしで即時。崩しは 1 回使えるように戻る）。 */
     bossPhase(phase: BossPhase): void;
   }
@@ -47,6 +49,9 @@ registerDevHooks('boss', ({ game }) => {
       bossSystemOf(game).remove();
     },
     bossDebug: () => bossSystemOf(game).boss?.debugInfo ?? null,
+    bossDamage: (amount) => {
+      bossSystemOf(game).damage(amount);
+    },
     bossPhase: (phase) => {
       bossSystemOf(game).boss?.setPhase(phase);
     },

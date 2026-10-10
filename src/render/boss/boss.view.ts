@@ -18,6 +18,7 @@ import { leapStateOf } from '../../game/boss/moves/leap.move';
 import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import { BossAnimator, bossMoveState } from './bossAnimator';
 import { bossWeaponGlow } from './bossWeaponGlow';
+import { BossTransitionFx } from './bossTransitionFx';
 import { toModelSpeed, BOSS_LOCOMOTION } from './bossGait';
 import type { Boss } from '../../game/boss/boss';
 import { bossSystemOf } from '../../game/boss/boss.system';
@@ -103,6 +104,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
   // 本物のモデル（読み込めたら仮の見た目を隠す）
   let model: BossCharacter | undefined;
   let animator: BossAnimator | undefined;
+  let transitionFx: BossTransitionFx | undefined;
   const gait = new GaitClock();
   const last = new Vector3();
   let lastValid = false;
@@ -173,6 +175,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
       view.scene.add(model.root);
       model.bindParticles(view.particles);
       animator = new BossAnimator(model, assets);
+      transitionFx = new BossTransitionFx(game, view, model);
       body.visible = false;
       front.visible = false;
       eye.visible = false;
@@ -204,10 +207,12 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
           view.camera,
           view.shadowFocusTarget?.position ?? game.player.feet,
         );
+        transitionFx?.update(dt, boss); // フェーズ移行の演出（盾投げ・咆哮・熾火。#84）
         if (model.phase !== boss.phase) model.setPhase(boss.phase);
         gait.advance(toModelSpeed(speed), dt, { profile: BOSS_LOCOMOTION });
         // 画面にも影にも出ないときはアニメーションを省く
         if (visible) animator.update(dt, bossAnimState(boss, speed, gait));
+        transitionFx?.applyPose();
         model.lateUpdate(dt);
         // 予兆中は斧の縁が光る（種別で色・強さが違う。技の最中でなければ消す）
         const glow = boss.state === 'attack' ? bossWeaponGlow(boss.debugInfo, boss.phase) : null;

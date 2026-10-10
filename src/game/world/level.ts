@@ -124,6 +124,11 @@ export interface BlockProp {
   readonly yawDeg?: number;
   /** 基準の高さ。省略時は足元の地形の最低点。 */
   readonly baseY?: number;
+  /**
+   * true なら、低くても（自動乗り越えの 0.35m 以内でも）敵のナビ格子では通れない固体として扱う。
+   * プレイヤーだけが上がれる足場（脇道の岩棚・壁上回廊・霊廟の石段）に付ける。
+   */
+  readonly navSolid?: boolean;
 }
 
 /** 階段。始点 (x, z) から前方（ヨー）へ登る。1 段の高さは自動乗り越えの 0.35m 以下にすること。 */
@@ -137,6 +142,8 @@ export interface StairsProp {
   readonly stepRise: number;
   readonly stepRun: number;
   readonly width: number;
+  /** true なら敵のナビ格子では通れない（`BlockProp.navSolid` と同じ）。 */
+  readonly navSolid?: boolean;
 }
 
 export type CylinderStyle = 'tree' | 'column' | 'fountain' | 'pedestal';
@@ -205,6 +212,37 @@ export interface GateDef {
   readonly leverId?: string;
 }
 
+/** 軸に平行な矩形（m）。 */
+export interface RectDef {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
+/** 脇道の地点（アイテム・鐘・落下ポイントなど。後続チケットが参照する置き場所）。 */
+export interface SidePathSpot {
+  readonly id: string;
+  readonly x: number;
+  readonly z: number;
+}
+
+/**
+ * 脇道（仕様書 14 章）の高所の足場の範囲。プレイヤーだけが上がれる（敵のナビ格子には含めない）。
+ * 地形の装飾（崖の岩塊など）はこの範囲を避けること: `sidePathDistance` で距離を問い合わせられる。
+ * 範囲 = 折れ線（`points`。中心線）から `halfWidth` 以内 と `rects` の和。
+ */
+export interface SidePathDef {
+  readonly id: string;
+  /** 足場の中心線（x, z）。屋根のように線を持たないものは空。 */
+  readonly points: readonly (readonly [number, number])[];
+  /** 折れ線の半幅（足場の半幅 + 透明壁の厚み）。 */
+  readonly halfWidth: number;
+  /** 屋根・壁上回廊などの矩形の足場。 */
+  readonly rects: readonly RectDef[];
+  readonly spots: readonly SidePathSpot[];
+}
+
 export interface LevelData {
   readonly id: string;
   readonly name: string;
@@ -220,6 +258,10 @@ export interface LevelData {
   readonly perimeter?: PerimeterParams;
   readonly areas: readonly AreaDef[];
   readonly route: readonly RoutePoint[];
+  /** 脇道の高所の足場の範囲（屋根・岩棚・壁上）。敵のナビ格子には含めない。 */
+  readonly sidePaths?: readonly SidePathDef[];
+  /** 見えない衝突壁（脇道の岩棚・壁上の縁など。3m 超の縁を塞ぎ、落下死を作らない）。描画しない。 */
+  readonly guards?: readonly BoxSpec[];
   /** メインルートから分かれる道（ショートカットなど）。メインルートと同じ規則で地形をならす。 */
   readonly extraRoutes?: readonly (readonly RoutePoint[])[];
   /** 門。コライダは `Level.gates[].box`（`Game.setBoxEnabled(id, bool)` で開閉）。 */
@@ -249,6 +291,8 @@ export interface TerrainMesh {
 /** 配置済みの箱（描画用のスタイル付き）。 */
 export interface PlacedBox extends BoxSpec {
   readonly style: BlockStyle;
+  /** 敵のナビ格子では常に固体（`BlockProp.navSolid`）。 */
+  readonly navSolid?: boolean;
 }
 
 export interface PlacedCylinder {
@@ -285,6 +329,10 @@ export interface Level {
   readonly cylinders: readonly PlacedCylinder[];
   /** プレイ範囲の外周の透明壁（描画しない）。 */
   readonly boundaryBoxes: readonly BoxSpec[];
+  /** 脇道の縁の透明壁（`LevelData.guards`。描画しない）。 */
+  readonly guardBoxes: readonly BoxSpec[];
+  /** 脇道（高所の足場）の範囲までの距離（m。範囲内は 0。`sidePaths` がなければ Infinity）。`ids` で脇道を絞れる。 */
+  readonly sidePathDistance: (x: number, z: number, ids?: readonly string[]) => number;
   /** 門（鉄門・霧の門）。コライダは `levelGameOptions().boxes` に含まれる。 */
   readonly gates: readonly PlacedGate[];
 }
@@ -604,6 +652,7 @@ function placeProps(
         hy: (top - bottom) / 2,
         hz: prop.hz,
         yawDeg,
+        ...(prop.navSolid ? { navSolid: true } : {}),
       });
     } else if (prop.kind === 'stairs') {
       const base = heightAt(prop.x, prop.z);
@@ -623,6 +672,7 @@ function placeProps(
           hy: (top - bottom) / 2,
           hz: prop.stepRun / 2,
           yawDeg: prop.yawDeg,
+          ...(prop.navSolid ? { navSolid: true } : {}),
         });
       }
     } else {
@@ -681,6 +731,47 @@ function placeGates(
   });
 }
 
+/** 点から線分までの距離。 */
+function distanceToSegment(
+  x: number,
+  z: number,
+  [ax, az]: readonly [number, number],
+  [bx, bz]: readonly [number, number],
+): number {
+  const len2 = (bx - ax) ** 2 + (bz - az) ** 2;
+  const t =
+    len2 > 0 ? Math.min(1, Math.max(0, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / len2)) : 0;
+  return Math.hypot(x - (ax + (bx - ax) * t), z - (az + (bz - az) * t));
+}
+
+/**
+ * 脇道（高所の足場）の範囲までの距離（m。範囲内は 0）。折れ線は中心線から `halfWidth`、矩形はそのまま。
+ * `ids` を渡すとその脇道だけ。崖の岩塊など、足場を塞いではいけない配置の除外判定に使う
+ * （例: `sidePathDistance(data, x, z) < 1.5` なら置かない）。
+ */
+export function sidePathDistance(
+  data: LevelData,
+  x: number,
+  z: number,
+  ids?: readonly string[],
+): number {
+  let best = Infinity;
+  for (const path of data.sidePaths ?? []) {
+    if (ids && !ids.includes(path.id)) continue;
+    for (let i = 0; i + 1 < path.points.length; i++) {
+      const a = path.points[i];
+      const b = path.points[i + 1];
+      if (!a || !b) continue;
+      best = Math.min(best, Math.max(0, distanceToSegment(x, z, a, b) - path.halfWidth));
+    }
+    for (const r of path.rects) {
+      best = Math.min(best, distanceToShape({ type: 'rect', ...r }, x, z));
+    }
+    if (best <= 0) return 0;
+  }
+  return best;
+}
+
 /** データからレベルを組み立てる。 */
 export function createLevel(data: LevelData): Level {
   const { heightAt, pathWeight, openDistance } = createTerrainFunctions(data);
@@ -700,6 +791,8 @@ export function createLevel(data: LevelData): Level {
     boxes,
     cylinders,
     boundaryBoxes: createBoundaryBoxes(data),
+    guardBoxes: data.guards ?? [],
+    sidePathDistance: (x, z, ids) => sidePathDistance(data, x, z, ids),
     gates: placeGates(data.gates, heightAt),
   };
 }
@@ -795,6 +888,18 @@ export function validateLevel(data: LevelData): string[] {
       problems.push(`${prop.id}: stepRise ${prop.stepRise} exceeds the 0.35m auto-step limit`);
     }
   }
+  const sideIds = new Set<string>();
+  for (const path of data.sidePaths ?? []) {
+    if (sideIds.has(path.id)) problems.push(`duplicate side path id ${path.id}`);
+    sideIds.add(path.id);
+    for (const [x, z] of path.points) {
+      if (!inBounds(x, z)) problems.push(`side path ${path.id} point (${x}, ${z}) is outside`);
+    }
+    for (const spot of path.spots) {
+      checkId(`${path.id}:${spot.id}`);
+      if (!inBounds(spot.x, spot.z)) problems.push(`side path spot ${spot.id} is outside`);
+    }
+  }
   for (const p of data.route) {
     if (!inBounds(p.x, p.z)) problems.push(`route point (${p.x}, ${p.z}) is outside the bounds`);
   }
@@ -836,7 +941,12 @@ export function levelGameOptions(
   return {
     terrain: { vertices: level.terrain.vertices, indices: level.terrain.indices },
     terrainHeight: level.heightAt,
-    boxes: [...level.boxes, ...level.boundaryBoxes, ...level.gates.map((g) => g.box)],
+    boxes: [
+      ...level.boxes,
+      ...level.boundaryBoxes,
+      ...level.guardBoxes,
+      ...level.gates.map((g) => g.box),
+    ],
     dummies: [],
     spawn: level.data.playerSpawn,
     enemies: level.data.enemies,
