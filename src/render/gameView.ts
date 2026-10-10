@@ -64,7 +64,7 @@ export class GameView {
   private readonly particleDemo: ParticleDemo | null = null;
   private lastRenderMs = 0;
   /** ?debug のときだけ作る判定の可視化（ハートボックス・ヒットボックス）。 */
-  private readonly combatDebug: CombatDebugView | null = null;
+  readonly combatDebug: CombatDebugView | null = null;
   /** ?debug のときだけ作る敵のナビゲーション（歩ける範囲・経路）の可視化。 */
   private readonly navDebug: NavDebugView | null = null;
   /** 登録式の描画機能（`viewPlugins.ts`）。 */
