@@ -1,0 +1,110 @@
+/*
+ * ボス HP バー（仕様書 9.1 節）。画面下中央（下端から 48px）、幅 min(50vw, 560px)、高さ 12px、上に名前 16px。
+ * 寸法は `--ui-scale` で縮尺し、セーフエリア（`--safe-b`）の内側に置く。毎フレームの更新は transform / opacity のみ。
+ */
+.boss-bar {
+  --s: var(--ui-scale, 1);
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-b, 0px) + 48px * var(--s));
+  z-index: 4;
+  width: min(50vw, 560px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+}
+
+.boss-bar-name {
+  margin-bottom: calc(5px * var(--s));
+  color: #ece6d6;
+  font-family: var(--font-serif, serif);
+  font-size: calc(16px * var(--s));
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-shadow:
+    0 0 2px rgb(0 0 0 / 0.95),
+    0 1px 4px rgb(0 0 0 / 0.85);
+}
+
+.boss-bar-gauge {
+  position: relative;
+  height: calc(12px * var(--s));
+}
+
+/* フェーズ移行の発光（外側のにじみ） */
+.boss-bar-halo {
+  position: absolute;
+  inset: calc(-3px * var(--s));
+  box-shadow:
+    0 0 calc(14px * var(--s)) calc(2px * var(--s)) rgb(255 255 255 / 0.9),
+    0 0 calc(3px * var(--s)) rgb(255 255 255 / 0.9);
+  opacity: 0;
+  will-change: opacity;
+}
+
+.boss-bar-track {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: rgb(0 0 0 / 0.55);
+  border: 1px solid rgb(138 122 85 / 0.65);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.5);
+}
+
+.boss-bar-track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.55);
+}
+
+.boss-bar-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 50%;
+  transform: scaleX(1);
+  will-change: transform;
+}
+
+.boss-bar-fill--main {
+  background: linear-gradient(to bottom, #d8201f, #8f0d10);
+}
+
+.boss-bar-fill--main::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: rgb(255 255 255 / 0.25);
+}
+
+.boss-bar-fill--ghost {
+  background: rgb(255 255 255 / 0.85);
+}
+
+.boss-bar-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  will-change: opacity;
+}
+
+.boss-bar-ticks {
+  position: absolute;
+  inset: 0;
+}
+
+.boss-bar-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgb(0 0 0 / 0.7);
+  box-shadow: 0 0 0 1px rgb(236 230 214 / 0.35);
+}
