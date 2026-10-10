@@ -191,7 +191,7 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
   far.mesh.position.set(slot.x, def.floorY + 0.05, slot.z);
   view.scene.add(near.mesh, far.mesh);
 
-  // 炎・火の粉・光（パーティクルのエミッタ。光を足すのでシェーダが変わらないよう読み込み時に作っておく）
+  // 炎・火の粉（パーティクルのエミッタ）。光源はシーン全体で 1 灯だけで、最も近い灯っている篝火へ付け替わる
   const emitter: Bonfire = view.particles.acquireBonfire(slot.x, slot.y + 0.12, slot.z);
   emitter.setLit(false);
 
