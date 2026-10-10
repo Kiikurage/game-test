@@ -7,6 +7,7 @@ import { GroundTelegraphs } from './telegraph';
 import { TelegraphDemo, isTelegraphDemoEnabled } from './telegraph/demo';
 import { PlaygroundView } from './playground';
 import { LevelView } from './levelView';
+import { Skyline } from './skyline';
 import type { EnvironmentAssets } from './assets/environment';
 import type { Level } from '../game/world/level';
 import type { PlayerView } from './playerView';
@@ -30,6 +31,8 @@ export class GameView {
   readonly environment: Environment;
   /** レベルを描いているときだけ（`?scene=test` では null）。 */
   readonly levelView: LevelView | null = null;
+  /** 遠景の山並みとランドマーク（レベルを描いているときだけ）。 */
+  private readonly skyline: Skyline | null = null;
   /** ボス技の地面予告（円・直線・影の円）。 */
   readonly telegraphs = new GroundTelegraphs();
   /** パーティクル（環境の灰・篝火・熾火・ヒット/撃破バースト）。 */
@@ -68,6 +71,8 @@ export class GameView {
       this.colliders = [];
       this.levelView = new LevelView(level);
       this.scene.add(this.levelView.root);
+      this.skyline = new Skyline();
+      this.scene.add(this.skyline.root);
     } else {
       const testScene = createTestScene(preset);
       this.colliders = testScene.pillars;
@@ -152,6 +157,7 @@ export class GameView {
   render(alpha: number): void {
     this.gameRenderer.beginFrame(performance.now());
     if (this.useGameCamera) this.syncCamera(alpha);
+    this.skyline?.update(this.camera.position.x, this.camera.position.z);
     this.playerView?.update(alpha);
     this.enemyViews?.update(alpha, this.camera);
     this.playground.update(this.camera);

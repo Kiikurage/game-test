@@ -41,13 +41,13 @@ const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
   underground: [0.1, 0.1, 0.11],
 };
 const PATH_COLOR: readonly [number, number, number] = [0.2, 0.155, 0.105];
-const ROCK_COLOR: readonly [number, number, number] = [0.17, 0.155, 0.14];
+const ROCK_COLOR: readonly [number, number, number] = [0.12, 0.112, 0.105];
 const MOSS_COLOR: readonly [number, number, number] = [0.085, 0.115, 0.05];
 const MUD_COLOR: readonly [number, number, number] = [0.085, 0.065, 0.048];
 const ASH_COLOR: readonly [number, number, number] = [0.12, 0.115, 0.11];
 
 const BLOCK_COLOR: Record<BlockStyle, number> = {
-  wall: 0x8a8378,
+  wall: 0x6f6b66,
   rubble: 0x756f66,
   tower: 0x7b756c,
   altar: 0xa09a8e,
@@ -73,6 +73,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   const count = vertices.length / 3;
   const colors = new Float32Array(count * 3);
   const stone = new Float32Array(count);
+  const pathAttr = new Float32Array(count);
   const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
   for (let i = 0; i < count; i++) {
     const x = vertices[i * 3] ?? 0;
@@ -81,6 +82,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
     const path = level.pathWeight(x, z);
     const stoneAmt = stoneAmount(level, x, z);
     stone[i] = stoneAmt;
+    pathAttr[i] = path * (1 - stoneAmt);
     // 低周波の色むら + 苔・泥の斑
     const broad = valueNoise(x * 0.09 + 4, z * 0.09 - 2);
     const patch = valueNoise(x * 0.31 - 8, z * 0.31 + 3);
@@ -101,6 +103,7 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   }
   geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
   geometry.setAttribute('stone', new Float32BufferAttribute(stone, 1));
+  geometry.setAttribute('path', new Float32BufferAttribute(pathAttr, 1));
   return geometry;
 }
 
