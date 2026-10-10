@@ -72,6 +72,14 @@ export const BOSS_CORRECTION = {
   rollStreakGapFrames: 60,
   /** ロール連打後、近距離技で三連撃を選ぶ確率の加算（絶対値）。 */
   comboBonus: 0.2,
+  /**
+   * 近距離で後退された時の跳躍（6.3 節 技 5）: 直近 `retreatWindowFrames` F のうちに近距離（3.5m 未満）にいて、
+   * そこから `retreatDistance` m 以上離れたら「後退された」とみなし、跳躍の重みを `retreatLeapWeight` 以上にする
+   * （重み表が 0 の近距離でも選べる。表の値のほうが大きければそのまま）。値は本実装の仮置き。
+   */
+  retreatWindowFrames: 60,
+  retreatDistance: 1.5,
+  retreatLeapWeight: 40,
   /** 補正で三連撃を選んだときも保つ、1 技目の予備動作（発生）の下限 F。 */
   comboMinStartup: 30,
 } as const;

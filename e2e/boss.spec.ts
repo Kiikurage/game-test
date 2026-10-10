@@ -21,12 +21,16 @@ test('the boss showcase spawns the boss, which beats, picks moves and shows the 
   expect(initial?.phase).toBe(1);
   expect(initial?.hp).toBe(2400);
 
-  // 約 15 秒分進めると、ビートと技を何度か繰り返す（プレイヤーが死ぬとボスは待機へ戻って履歴が消えるので、死ぬ前に確認する）
-  await page.evaluate(() => {
-    window.__game?.dev.advance(900);
-  });
-  const later = await page.evaluate(() => window.__game?.dev.bossDebug() ?? null);
-  expect(later?.history.length).toBeGreaterThan(3);
+  // 数秒ずつ進めて、ビートを挟んで技を複数回選ぶのを待つ（棒立ちのプレイヤーは技 4・5 などで死ぬとボスが待機へ戻って履歴が消えるので、
+  // 死ぬ前に履歴が貯まったところで確認する）
+  let later = initial;
+  for (let i = 0; i < 12 && (later?.history.length ?? 0) < 2; i++) {
+    await page.evaluate(() => {
+      window.__game?.dev.advance(90);
+    });
+    later = await page.evaluate(() => window.__game?.dev.bossDebug() ?? null);
+  }
+  expect(later?.history.length).toBeGreaterThanOrEqual(2);
   expect(later?.weights?.entries.length).toBeGreaterThan(0);
   expect(['close', 'mid', 'far']).toContain(later?.band);
 
