@@ -8,7 +8,7 @@ import { registerViewPlugin } from '../viewPlugins';
 import { BossAnimator, bossMoveState } from './bossAnimator';
 import { BOSS_GAIT_TABLE, BOSS_LOCOMOTION, BOSS_SPEED, toModelSpeed } from './bossGait';
 import { ThrownShield } from './thrownShield';
-import { BOSS_WEAPON_TELEGRAPH } from './bossWeaponGlow';
+import { BOSS_GLOW_STYLE, BOSS_WEAPON_TELEGRAPH } from './bossWeaponGlow';
 
 /**
  * ボスのモデルの確認表示（`?bossmodel=1|2&scene=test`。フェーズ 1 / 2）。撮影・E2E 用。
@@ -130,7 +130,7 @@ registerViewPlugin('bossShowcase', ({ view, gameRenderer }) => {
       const glowParam = params.get('glow');
       if (glowParam === 'normal' || glowParam === 'heavy') {
         const profile = BOSS_WEAPON_TELEGRAPH[glowParam];
-        boss.look.setWeaponTelegraph(profile.peak, profile.color);
+        boss.look.setWeaponTelegraph(profile.peak, profile.color, BOSS_GLOW_STYLE);
       }
       feet.left = boss.root.getObjectByName('foot_l') ?? undefined;
       feet.right = boss.root.getObjectByName('foot_r') ?? undefined;

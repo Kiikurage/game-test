@@ -17,7 +17,7 @@ import { findBossClipEvents } from '../../game/anim/bossClips';
 import { leapStateOf } from '../../game/boss/moves/leap.move';
 import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import { BossAnimator, bossMoveState } from './bossAnimator';
-import { bossWeaponGlow } from './bossWeaponGlow';
+import { BOSS_GLOW_STYLE, bossWeaponGlow } from './bossWeaponGlow';
 import { BossTransitionFx } from './bossTransitionFx';
 import { toModelSpeed, BOSS_LOCOMOTION } from './bossGait';
 import type { Boss } from '../../game/boss/boss';
@@ -216,7 +216,8 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
         model.lateUpdate(dt);
         // 予兆中は斧の縁が光る（種別で色・強さが違う。技の最中でなければ消す）
         const glow = boss.state === 'attack' ? bossWeaponGlow(boss.debugInfo, boss.phase) : null;
-        if (glow && glow.amount > 0) model.look.setWeaponTelegraph(glow.amount, glow.color);
+        if (glow && glow.amount > 0)
+          model.look.setWeaponTelegraph(glow.amount, glow.color, BOSS_GLOW_STYLE);
         else if (model.look.weaponTelegraph !== 0) model.look.setWeaponTelegraph(0);
       }
       if (overlay) {

@@ -19,7 +19,7 @@ export const BOSS_WEAPON_TELEGRAPH: Readonly<Record<TelegraphKind, WeaponTelegra
   // 灰白に青みを少し: 弱く短い
   normal: { color: 0xd4e4ff, peak: 0.3, fadeFrames: 4, holdThroughActive: false, pulse: 0 },
   // 氷の青: 強く、持続の終わりまで
-  heavy: { color: 0x4f8dff, peak: 0.7, fadeFrames: 14, holdThroughActive: true, pulse: 0 },
+  heavy: { color: 0x4f8dff, peak: 1, fadeFrames: 14, holdThroughActive: true, pulse: 0 },
   // ボスの技にガード不能は無いが、種別の網羅のため heavy と同じ青を脈動させる
   unblockable: {
     color: 0x4f8dff,
@@ -29,6 +29,12 @@ export const BOSS_WEAPON_TELEGRAPH: Readonly<Record<TelegraphKind, WeaponTelegra
     pulse: 0.25,
   },
 };
+
+/**
+ * 刃の面の淡い発光の倍率。0 に近づけて **縁（フレネル）だけを光らせ**、刃の暗い芯と形が読めるようにする
+ * （既定の 1 は刃全体がべったり染まる。仕様書 5.1 節の「リムライト」）。
+ */
+export const BOSS_GLOW_STYLE = { fill: 0, rim: 0.55, sharp: 3 } as const;
 
 export interface BossWeaponGlow {
   /** 発光の強さ（0..1）。 */
