@@ -6,7 +6,7 @@ const PORT = Number(process.env.E2E_PORT ?? 4173);
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 60_000,
+  timeout: 120_000, // 起動時のシェーダ事前コンパイル（SwiftShader で約 20 秒）を含む
   // ソフトウェア描画（SwiftShader）では 1 フレームが数百 ms〜秒かかり、シミュレーションも実時間より遅れる（1 フレーム最大 5 ステップ）。
   // 実時間でなくシミュレーションの進行を待つ poll が多いので、期待値の待機上限は長めにとる。
   expect: { timeout: 30_000 },

@@ -141,6 +141,9 @@ export async function createGameApp(
       }
     }
     await view.loadPlugins();
+    // 初回描画のシェーダコンパイルをローディング中に済ませる（開始直後の長いカクつきを防ぐ）
+    view.resize();
+    await view.warmUp();
     assetsTask.done();
 
     new ResizeObserver(() => {
