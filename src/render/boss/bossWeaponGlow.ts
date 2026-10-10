@@ -17,11 +17,17 @@ import { weaponTelegraphAmount, type WeaponTelegraphProfile } from '../telegraph
  */
 export const BOSS_WEAPON_TELEGRAPH: Readonly<Record<TelegraphKind, WeaponTelegraphProfile>> = {
   // 灰白に青みを少し: 弱く短い
-  normal: { color: 0xd4e4ff, peak: 0.4, fadeFrames: 4, holdThroughActive: false, pulse: 0 },
+  normal: { color: 0xd4e4ff, peak: 0.3, fadeFrames: 4, holdThroughActive: false, pulse: 0 },
   // 氷の青: 強く、持続の終わりまで
-  heavy: { color: 0x6fa8ff, peak: 0.95, fadeFrames: 14, holdThroughActive: true, pulse: 0 },
+  heavy: { color: 0x4f8dff, peak: 0.7, fadeFrames: 14, holdThroughActive: true, pulse: 0 },
   // ボスの技にガード不能は無いが、種別の網羅のため heavy と同じ青を脈動させる
-  unblockable: { color: 0x6fa8ff, peak: 1, fadeFrames: 14, holdThroughActive: true, pulse: 0.25 },
+  unblockable: {
+    color: 0x4f8dff,
+    peak: 0.85,
+    fadeFrames: 14,
+    holdThroughActive: true,
+    pulse: 0.25,
+  },
 };
 
 export interface BossWeaponGlow {
