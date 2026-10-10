@@ -43,6 +43,7 @@ const SURFACE_COLOR: Record<SurfaceKind, readonly [number, number, number]> = {
   stone: [0.2, 0.19, 0.17],
   wood: [0.2, 0.15, 0.1],
   underground: [0.1, 0.1, 0.11],
+  water: [0.06, 0.08, 0.1],
 };
 const PATH_COLOR: readonly [number, number, number] = [0.2, 0.155, 0.105];
 const ROCK_COLOR: readonly [number, number, number] = [0.19, 0.18, 0.17];
@@ -63,6 +64,9 @@ const BLOCK_COLOR: Record<BlockStyle, number> = {
   bonfire: 0x55504a,
   stone: 0x9a968c,
   sarcophagus: 0x7c776d,
+  waterway: 0x56595e,
+  hatch: 0x5a4430,
+  grate: 0x2f2d2b,
 };
 
 /** 地形メッシュ（物理と同じ頂点）。頂点色は地表素材・道・勾配から決める。 */
@@ -227,6 +231,8 @@ export class LevelView {
 
     const materials = new Map<number, MeshStandardNodeMaterial>();
     for (const box of level.boxes) {
+      // 腐った床板・鉄格子は割れる・開く。`waterway.view.ts` が別に描く
+      if (box.style === 'hatch' || box.style === 'grate') continue;
       const mesh = boxMesh(box, materials);
       this.grayboxById.set(box.id, mesh);
       this.root.add(mesh);
