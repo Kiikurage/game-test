@@ -1,8 +1,11 @@
 import type { RenderStats } from '../render/renderer';
+import { formatProfile, type RenderProfile } from '../render/renderProfile';
 
 export interface DebugHudInfo {
   quality: string;
   targetFps: number;
+  /** 指定すると、カテゴリ別の描画負荷（メイン / シャドウ別の draws/tris）も表示する。 */
+  profile?: () => RenderProfile;
 }
 
 /** `?debug` の指定があるか。 */
@@ -23,6 +26,7 @@ export function mountDebugHud(stats: Readonly<RenderStats>, info: DebugHudInfo):
       `${stats.width}x${stats.height} @${stats.pixelRatio.toFixed(2)} (scale ${stats.scale.toFixed(1)})`,
       `draw ${stats.drawCalls} / tri ${stats.triangles}`,
       `quality ${info.quality}`,
+      ...(info.profile ? formatProfile(info.profile()) : []),
     ].join('\n');
   };
   update();

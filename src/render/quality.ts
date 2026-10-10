@@ -22,6 +22,12 @@ export interface ParticleQuality {
   readonly bonfireLight: boolean;
 }
 
+/** キャラクターの LOD（簡略メッシュ）の切り替え距離。 */
+export interface CharacterLodQuality {
+  /** この距離（m）までは詳細メッシュ、それより遠い敵は簡略メッシュ 1 つ（ボスなど大きい敵は体格に比例して延ばす）。 */
+  readonly nearDistance: number;
+}
+
 /** 品質プリセット。描画基盤の各機能のコスト/品質ノブをここに集約する。 */
 export interface QualityPreset {
   readonly level: QualityLevel;
@@ -41,6 +47,8 @@ export interface QualityPreset {
   readonly detailOctaves: number;
   /** パーティクルの個数予算。 */
   readonly particles: ParticleQuality;
+  /** キャラクターの LOD 距離。 */
+  readonly characterLod: CharacterLodQuality;
   /** 内部解像度の上限（動的解像度の最大値を決める）。 */
   readonly resolution: ResolutionLimits;
 }
@@ -64,6 +72,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       burstDensity: 0.5,
       bonfireLight: false,
     },
+    characterLod: { nearDistance: 8 },
     resolution: { maxPixelRatio: 1.5, maxPixels: 1_000_000 },
   },
   medium: {
@@ -84,6 +93,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       burstDensity: 0.75,
       bonfireLight: true,
     },
+    characterLod: { nearDistance: 12 },
     resolution: { maxPixelRatio: 2, maxPixels: 1_800_000 },
   },
   high: {
@@ -104,6 +114,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
       burstDensity: 1,
       bonfireLight: true,
     },
+    characterLod: { nearDistance: 14 },
     resolution: { maxPixelRatio: 2, maxPixels: 4_000_000 },
   },
 };

@@ -91,7 +91,14 @@ A3 の射程は仕様書に数値がないため、剣の長さに合わせて 1
 - `window.__game.dev.advance(steps)`: 入力も 1 ステップずつ確定して進める（`dev.pause(true)` と併用。キーボード入力が `advance` で反映される）。
 - `?debug`: 判定中の扇形（`combatDebugView`）が出る。
 
+## テレグラフ演出（#62）
+
+- `EnemyAttackDef.telegraph`（`normal` / `heavy` / `unblockable`。省略時は `heavy` フラグから決まる。`telegraphKindOf`）。攻撃表は `registerEnemyAttackTable(接頭辞, 表)` で登録し、描画が動作 ID から引く（`enemyAttackByAction`）。
+- `render/telegraph/weaponTelegraph.ts`: Attack の F1 から 0.5 → 1.0 を 8F、判定まで（heavy / unblockable は持続の終わりまで）保持して消える。通常 = 白・弱く短い、heavy = 赤橙・強く長い、unblockable = 赤橙・最強・脈動（色以外でも見分けられる）。
+- `EnemyViews.update` が敵ごとの `UndeadLook.setWeaponTelegraph(量, 色)` を駆動する。武器メッシュの emissive に縁（フレネル）の加算光を足すだけで、追加のドローコール・ポストパスは無い。マテリアルは敵インスタンスごとなので他の敵は連動しない。
+- 予備動作の SE: `enemyTelegraph.system.ts` が Attack の頭に `sound`（`sfx.enemy-telegraph` / `sfx.enemy-telegraph-heavy`）を出す。素材は E7-3c で接続（未登録の cue は無音）。
+- 確認: showcase `?clip=Sword_Attack&t=0.3&undead=gaunt&equip=soldier&light=back|shade&telegraph=1&tkind=normal|heavy|unblockable`。
+
 ## 未対応
 
-- 予備動作の武器の発光（リムライト 0.5 → 1.0 を 8F。通常 = 白、強攻撃 = 赤橙。5.1 節）
 - 盾持ち（S1〜S3・ガード挙動）、ガード判定（#53）、ナビメッシュ（#43）、プレイヤーの死亡演出・HUD

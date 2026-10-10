@@ -24,6 +24,7 @@ import {
 } from './explorationPreview';
 import { PlayerKitAssets, type CapeRig } from '../player/playerKit';
 import { placeCorpsePreview } from '../corpses/corpsePreview';
+import { WEAPON_TELEGRAPH, parseTelegraphKind } from '../telegraph/weaponTelegraph';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
 import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
 
@@ -48,7 +49,7 @@ export interface ShowcaseState {
  *   `&props=sword-hand|sword-back|jar|all|swords|bell|statue|cairn`  探索用メッシュ（#108。騎士に持たせる / 並べて置く。explorationPreview.ts）
  *   `&corpse=sitting|prone|praying|leaning|all|crowd`  遺体ポーズのプレビュー（#109。corpsePreview.ts）
  *   `&light=front|back|side|shade`  太陽に対するカメラ位置（順光 / 逆光 / 横 / 影の中: 太陽との間に遮蔽物を置き、横から撮る）。
- *   `&telegraph=<0..1>`  武器のリムライトの強調（攻撃予備動作の演出フック確認用）
+ *   `&telegraph=<0..1>`  武器の縁の発光の強さ（攻撃予備動作の演出確認用）、`&tkind=normal|heavy|unblockable` で色（既定 normal = 白）
  *   `&rim=0`  キャラクターの補助光（リムライト等）を切る（改善前後の比較用）
  *   `&props=sword-hand|sword-back|jar|all|swords|bell|statue|cairn`  探索用メッシュ（#108。騎士に持たせる / 並べて置く。explorationPreview.ts）
  *   `&player=1`  旅の騎士の装備（#103: 兜・胸甲・陣羽織・肩当て・籠手・脛当て・外套）。外套は `&speed=<m/s>`（既定はクリップから推定）でなびく
@@ -102,7 +103,9 @@ export class CharacterShowcase {
     const lateral = { shieldbearer: 0, soldier: -1.7, boss: 2.6 };
     const dissolve = Number(params.get('dissolve') ?? 0);
     const ember = Number(params.get('ember') ?? 0);
-    const telegraph = Number(params.get('telegraph') ?? 0);
+    const telegraphProfile = WEAPON_TELEGRAPH[parseTelegraphKind(params.get('tkind'))];
+    const telegraph = Number(params.get('telegraph') ?? 0) * telegraphProfile.peak;
+    const telegraphColor = telegraphProfile.color;
     setCharacterLightEnabled(params.get('rim') !== '0');
     const lightMode = params.get('light');
     // light 指定時はキャラクターが太陽に対して決まった向きになるカメラへ振り向く
@@ -144,9 +147,9 @@ export class CharacterShowcase {
         c.root.scale.multiply(new Vector3(...look.buildScale));
         look.setDissolve(dissolve);
         look.setEmber(ember);
-        look.setWeaponTelegraph(telegraph);
+        look.setWeaponTelegraph(telegraph, telegraphColor);
       } else {
-        applyCharacterLight(c.root).setWeaponTelegraph(telegraph);
+        applyCharacterLight(c.root).setWeaponTelegraph(telegraph, telegraphColor);
       }
       return c;
     };
