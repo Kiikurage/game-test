@@ -190,6 +190,22 @@ describe('LockOnController', () => {
     expect(event).toBe('released');
   });
 
+  it('moves on immediately when the target has no death delay (regular enemies, #281)', () => {
+    const c = new LockOnController();
+    const a = dummy('a', 0, 8);
+    a.deathRetargetDelayFrames = 0;
+    const b = dummy('b', 2, 9);
+    b.deathRetargetDelayFrames = 0;
+    c.update(frame([a, b], { toggle: true }));
+    expect(c.target).toBe(a);
+    a.alive = false;
+    expect(c.update(frame([a, b]))).toBe('switched');
+    expect(c.target).toBe(b);
+    b.alive = false;
+    expect(c.update(frame([a, b]))).toBe('released');
+    expect(c.target).toBeNull();
+  });
+
   it('can be released externally (player death)', () => {
     const c = new LockOnController();
     c.update(frame([dummy('t', 0, 8)], { toggle: true }));

@@ -266,6 +266,9 @@ export class Enemy implements LockOnTarget {
     return this.stats.height;
   }
 
+  /** 撃破と同時にロックオンを外す（次の対象がいれば移る。#281）。 */
+  readonly deathRetargetDelayFrames = 0;
+
   get alive(): boolean {
     return this.fsm.state !== 'dead';
   }
@@ -411,6 +414,8 @@ export class Enemy implements LockOnTarget {
 
     if (this.state === 'dead') {
       this.deadFrames++;
+      // 崩れ落ち（Death01）は状態フレームで進む。トドメのヒットストップの間だけ止める（#281。以前は進まず立ったまま消えていた）
+      if (!this.fsm.consumeFreeze()) this.fsm.advance();
       this.syncTransform();
       return;
     }

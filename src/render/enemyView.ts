@@ -18,24 +18,17 @@ import { CharacterAssets } from './assets/characterAssets';
 import { EnemyAnimator } from './assets/enemyAnimator';
 import { EquipmentAssets } from './assets/equipment';
 import { EnemyDebugView } from './enemyDebugView';
-import { enemyAttackByAction } from '../game/data';
+import { enemyAttackByAction, killFeedbackAt } from '../game/data';
 import { WEAPON_TELEGRAPH, enemyTelegraph } from './telegraph/weaponTelegraph';
 import { applyUndeadLook, type UndeadLook } from './undead/undeadMaterial';
 import { createLodBuilder, type CharacterLod } from './assets/characterLod';
 import { createCanvasSampler } from './assets/textureSampler';
 import { captureUndeadSources, createUndeadColorizer } from './undead/undeadLod';
-import {
-  UNDEAD_VARIANTS,
-  createRng,
-  dissolveProgress,
-  pickVariantId,
-  DISSOLVE_FRAMES,
-  type UndeadVariantId,
-} from './undead/variants';
+import { UNDEAD_VARIANTS, createRng, pickVariantId, type UndeadVariantId } from './undead/variants';
 
 const Y_AXIS = new Vector3(0, 1, 0);
-/** 倒れてからディゾルブを始めるまでの待ち（5.2 節: 倒れてから 60F 後に消え始め、60F かけて消える）。 */
-const DISSOLVE_DELAY_FRAMES = 60;
+/** 命中点が分からない撃破（デバッグの `kill` など）で、燃え尽きを始める高さ（身長に対する比）。 */
+const KILL_POINT_FALLBACK_HEIGHT = 0.6;
 
 interface EnemyEntry {
   readonly enemy: Enemy;
@@ -49,8 +42,10 @@ interface EnemyEntry {
   readonly lod: CharacterLod | null;
   /** LOD 切り替えのヒステリシス用（直前に詳細メッシュだったか）。 */
   near: boolean;
-  /** ディゾルブ中（復活したら戻す）。 */
+  /** 撃破の演出中（復活したら戻す）。 */
   dissolving: boolean;
+  /** トドメの命中点（ワールド）。`hitStop` イベントで受け取る。無ければ胸の高さ。 */
+  killPoint: Vector3 | null;
 }
 
 /** 敵の LOD 設定（品質プリセットから `GameView` が渡す）。 */
@@ -144,8 +139,16 @@ export class EnemyViews {
         lod,
         near: false,
         dissolving: false,
+        killPoint: null,
       });
     }
+    // トドメの命中点（燃え尽きの広がりの起点。#281）。死亡処理と同じステップに出る
+    const byId = new Map(entries.map((e) => [e.enemy.id, e]));
+    game.events.on('hitStop', (ev) => {
+      if (!ev.killed) return;
+      const entry = byId.get(ev.targetId);
+      if (entry) entry.killPoint = new Vector3(ev.position.x, ev.position.y, ev.position.z);
+    });
     const views = new EnemyViews(scene, entries);
     views.update(1);
     return views;
@@ -200,13 +203,21 @@ export class EnemyViews {
         e.look.setWeaponTelegraph(0);
       }
       if (!enemy.alive) {
-        e.dissolving = true;
-        e.look.setDissolve(
-          dissolveProgress(enemy.deadFrames - DISSOLVE_DELAY_FRAMES, DISSOLVE_FRAMES.soldier),
-        );
+        // 撃破（#281）: 閃光・眼の消灯・燃え尽き → 20F からディゾルブ（tuning は KILL_FEEDBACK）
+        if (!e.dissolving) {
+          e.dissolving = true;
+          e.killPoint ??= this.position
+            .clone()
+            .setY(this.position.y + enemy.height * KILL_POINT_FALLBACK_HEIGHT);
+        }
+        const k = killFeedbackAt(enemy.deadFrames);
+        e.look.setKillFeedback(k, e.killPoint ?? undefined);
+        e.look.setDissolve(k.dissolve);
       } else if (e.dissolving) {
         // 篝火の休憩で復活した
         e.dissolving = false;
+        e.killPoint = null;
+        e.look.setKillFeedback(killFeedbackAt(-1));
         e.look.setDissolve(0);
       }
     }

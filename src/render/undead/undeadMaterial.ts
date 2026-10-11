@@ -1,6 +1,7 @@
 import {
   Color,
   MeshStandardNodeMaterial,
+  Vector3,
   type ColorRepresentation,
   type Material,
   type Mesh,
@@ -12,13 +13,17 @@ import {
 import {
   abs,
   attribute,
+  cameraPosition,
+  dot,
   float,
   luminance,
   mix,
   normalLocal,
   normalWorld,
+  normalize,
   positionLocal,
   positionWorld,
+  pow,
   saturate,
   smoothstep,
   texture,
@@ -49,6 +54,11 @@ export type UndeadRole = 'skin' | 'cloth' | 'metal';
 const EYE_COLOR = new Color(0x9fd8ff);
 const EMBER_COLOR = new Color(0xff5a14);
 const ASH_COLOR = new Color(0x15110f);
+/** 撃破の閃光（輪郭の白〜橙。#281）と、燃え尽きた灰色。 */
+const KILL_FLASH_CORE = new Color(1, 0.86, 0.62);
+const BURNT_COLOR = new Color(0x4a4744);
+/** 燃え尽きが命中点から全身へ届く半径（m。体格 × 1 の亡者で全身を覆う）。 */
+const BURNOUT_REACH = 2.4;
 
 /** 顔テクスチャ（Head_Skin の MI_Head）上の両眼の UV 座標。 */
 const EYE_UVS = [
@@ -72,6 +82,15 @@ export interface UndeadLook {
   /** ディゾルブ進行度（0 = 無傷、1 = 完全に消失）。範囲外は丸める。 */
   setDissolve(progress: number): void;
   readonly dissolve: number;
+  /**
+   * 撃破の演出（#281）。`flash`: 輪郭の閃光 0..1、`eyeGlow`: 眼の発光の倍率（1 = 生前、0 = 消灯）、
+   * `burnout`: 燃え尽きた灰色と熾火のひびの広がり 0..1（`point`（ワールド。命中点）から全身へ）。
+   * 追加の描画パス・マテリアルの切り替えは無い（ユニフォームの書き換えだけ）。
+   */
+  setKillFeedback(
+    state: { readonly flash: number; readonly eyeGlow: number; readonly burnout: number },
+    point?: { readonly x: number; readonly y: number; readonly z: number },
+  ): void;
   /**
    * 熾火の強さ（0〜1）。ボスのフェーズ 2 用: 眼が橙になり、鎧の継ぎ目・肌の亀裂・武器が熾火色に光る。
    */
@@ -106,6 +125,14 @@ interface Controls {
   readonly rim: RimControls;
   readonly dissolve: UniformNode<'float', number>;
   readonly ember: UniformNode<'float', number>;
+  readonly kill: KillControls;
+}
+
+interface KillControls {
+  readonly flash: UniformNode<'float', number>;
+  readonly eyeGlow: UniformNode<'float', number>;
+  readonly burnout: UniformNode<'float', number>;
+  readonly point: UniformNode<'vec3', Vector3>;
 }
 
 export interface UndeadLookOptions {
@@ -124,7 +151,17 @@ export function applyUndeadLook(
   variant: UndeadVariant,
   options: UndeadLookOptions = {},
 ): UndeadLook {
-  const controls: Controls = { dissolve: uniform(0), ember: uniform(0), rim: createRimControls() };
+  const controls: Controls = {
+    dissolve: uniform(0),
+    ember: uniform(0),
+    rim: createRimControls(),
+    kill: {
+      flash: uniform(0),
+      eyeGlow: uniform(1),
+      burnout: uniform(0),
+      point: uniform(new Vector3()),
+    },
+  };
   // 盾の予兆の発光は武器と別のユニフォーム（盾打ちで光るのは盾だけ）
   const shieldControls: Controls = { ...controls, rim: createRimControls() };
   const created: Material[] = [];
@@ -188,6 +225,13 @@ export function applyUndeadLook(
     setDissolve(progress) {
       dissolve = clampProgress(progress);
       controls.dissolve.value = dissolve;
+    },
+    setKillFeedback(state, point) {
+      const k = controls.kill;
+      k.flash.value = clampProgress(state.flash);
+      k.eyeGlow.value = clampProgress(state.eyeGlow);
+      k.burnout.value = clampProgress(state.burnout);
+      if (point) k.point.value.set(point.x, point.y, point.z);
     },
     get ember() {
       return ember;
@@ -295,6 +339,7 @@ function createUndeadMaterial(
     emissive = eyeColor
       .mul(eyeMask)
       .mul(faceOnly)
+      .mul(controls.kill.eyeGlow)
       .mul(1.6 * variant.eyeGlow);
     emissive = emissive.add(emberGlow.mul(crack).mul(0.6));
   } else if (role === 'cloth') {
@@ -358,6 +403,41 @@ function createUndeadMaterial(
       : float(0);
     emissive = emberGlow.mul(seam.mul(1.1).add(blade).add(rustMask.oneMinus().mul(0.03)));
   }
+
+  // 撃破（#281）: 命中点から全身へ「燃え尽きた」灰色が広がり、熾火色のひびが走る。広がりの先端ほどひびが明るい
+  const kill = controls.kill;
+  const reach = kill.burnout.mul(BURNOUT_REACH);
+  const fromHit = positionWorld.sub(kill.point).length();
+  const burnt = float(1)
+    .sub(smoothstep(reach.sub(0.35), reach, fromHit))
+    .mul(kill.burnout.greaterThan(0).select(1, 0));
+  const front = float(1)
+    .sub(smoothstep(0, 0.6, reach.sub(fromHit)))
+    .mul(burnt);
+  const burnCrack = float(1).sub(smoothstep(0.0, 0.06, abs(bakedNoise(noiseCoord(12).add(5.1)))));
+  albedo = mix(
+    albedo,
+    vec3(BURNT_COLOR.r, BURNT_COLOR.g, BURNT_COLOR.b).mul(lum.mul(0.8).add(0.6)),
+    burnt.mul(0.85),
+  );
+  emissive = emissive.mul(float(1).sub(burnt.mul(0.8))).add(
+    vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b)
+      .mul(burnCrack.max(crack))
+      .mul(burnt.mul(1.4).add(front.mul(2.6))),
+  );
+  // 撃破の閃光: 輪郭（フレネル）を白〜橙に強く光らせ、面全体もわずかに明るくする
+  const flashN = normalize(normalWorld);
+  const flashV = normalize(cameraPosition.sub(positionWorld));
+  const flashRim = pow(float(1).sub(saturate(dot(flashN, flashV))), 1.6);
+  emissive = emissive.add(
+    mix(
+      vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b).mul(1.3),
+      vec3(KILL_FLASH_CORE.r, KILL_FLASH_CORE.g, KILL_FLASH_CORE.b).mul(3.2),
+      flashRim,
+    )
+      .mul(flashRim.mul(1.6).add(0.12))
+      .mul(kill.flash),
+  );
 
   // ディゾルブ: ワールド座標のノイズがしきい値を下回った所から消える。縁は熾火色に光り、焦げた灰色になる。
   const n = saturate(bakedNoise(positionWorld.mul(4.2)).mul(0.9).add(0.5));
