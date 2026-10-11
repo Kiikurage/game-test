@@ -76,6 +76,7 @@ describe('ヒットストップ（4.1）', () => {
       guardSuccess: 4,
       justGuard: 8,
       kill: 12,
+      enemyKill: 6,
       rollDodge: 0,
     });
   });
