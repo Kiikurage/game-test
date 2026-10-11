@@ -11,7 +11,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.7079,
       "channels": 1,
       "bytes": 1793,
       "duration": 0.267
@@ -23,7 +23,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.7499,
       "channels": 1,
       "bytes": 1672,
       "duration": 0.247
@@ -35,7 +35,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.6683,
       "channels": 1,
       "bytes": 1906,
       "duration": 0.287
@@ -47,7 +47,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.5623,
       "channels": 1,
       "bytes": 3181,
       "duration": 0.467
@@ -59,7 +59,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.7079,
       "channels": 1,
       "bytes": 3675,
       "duration": 0.506
@@ -71,7 +71,7 @@
       "kind": "se",
       "loop": false,
       "priority": 90,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 8015,
       "duration": 0.707
@@ -83,7 +83,7 @@
       "kind": "se",
       "loop": false,
       "priority": 90,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 5733,
       "duration": 0.707
@@ -107,7 +107,7 @@
       "kind": "se",
       "loop": false,
       "priority": 95,
-      "gain": 1,
+      "gain": 1.4962,
       "channels": 1,
       "bytes": 12649,
       "duration": 1.207
@@ -119,7 +119,7 @@
       "kind": "se",
       "loop": false,
       "priority": 60,
-      "gain": 1,
+      "gain": 0.4732,
       "channels": 1,
       "bytes": 2565,
       "duration": 0.407
@@ -131,7 +131,7 @@
       "kind": "se",
       "loop": false,
       "priority": 60,
-      "gain": 1,
+      "gain": 0.5012,
       "channels": 1,
       "bytes": 2818,
       "duration": 0.447
@@ -167,7 +167,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 0.631,
       "channels": 1,
       "bytes": 6187,
       "duration": 1.007
@@ -179,7 +179,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 0.7079,
       "channels": 1,
       "bytes": 27402,
       "duration": 4.007
@@ -191,7 +191,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.9441,
       "channels": 1,
       "bytes": 5705,
       "duration": 0.506
@@ -203,7 +203,7 @@
       "kind": "se",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 1.2589,
       "channels": 1,
       "bytes": 6089,
       "duration": 1.007
@@ -215,7 +215,7 @@
       "kind": "se",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 0.6683,
       "channels": 1,
       "bytes": 1362,
       "duration": 0.227
@@ -227,7 +227,7 @@
       "kind": "se",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 0.7079,
       "channels": 1,
       "bytes": 1297,
       "duration": 0.207
@@ -239,7 +239,7 @@
       "kind": "se",
       "loop": false,
       "priority": 88,
-      "gain": 1,
+      "gain": 0.8414,
       "channels": 1,
       "bytes": 2483,
       "duration": 0.427
@@ -251,7 +251,7 @@
       "kind": "se",
       "loop": false,
       "priority": 88,
-      "gain": 1,
+      "gain": 0.8414,
       "channels": 1,
       "bytes": 2690,
       "duration": 0.467
@@ -263,7 +263,7 @@
       "kind": "se",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 4444,
       "duration": 0.367
@@ -275,7 +275,7 @@
       "kind": "se",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 0.8913,
       "channels": 1,
       "bytes": 2354,
       "duration": 0.347
@@ -287,7 +287,7 @@
       "kind": "se",
       "loop": false,
       "priority": 88,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 5680,
       "duration": 0.707
@@ -299,7 +299,7 @@
       "kind": "se",
       "loop": false,
       "priority": 88,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 7823,
       "duration": 0.757
@@ -311,7 +311,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.7943,
       "channels": 1,
       "bytes": 9888,
       "duration": 1.507
@@ -323,7 +323,7 @@
       "kind": "se",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 1.3335,
       "channels": 1,
       "bytes": 9312,
       "duration": 1.637
@@ -335,7 +335,7 @@
       "kind": "se",
       "loop": false,
       "priority": 93,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 9840,
       "duration": 1.207
@@ -347,7 +347,7 @@
       "kind": "se",
       "loop": false,
       "priority": 90,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 4286,
       "duration": 0.506
@@ -359,7 +359,7 @@
       "kind": "se",
       "loop": false,
       "priority": 90,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 4017,
       "duration": 0.506
@@ -371,7 +371,7 @@
       "kind": "se",
       "loop": false,
       "priority": 50,
-      "gain": 1,
+      "gain": 0.2661,
       "channels": 1,
       "bytes": 1516,
       "duration": 0.267
@@ -383,7 +383,7 @@
       "kind": "se",
       "loop": false,
       "priority": 50,
-      "gain": 1,
+      "gain": 0.2985,
       "channels": 1,
       "bytes": 1510,
       "duration": 0.267
@@ -395,7 +395,7 @@
       "kind": "se",
       "loop": false,
       "priority": 55,
-      "gain": 1,
+      "gain": 0.7499,
       "channels": 1,
       "bytes": 7976,
       "duration": 1.407
@@ -407,7 +407,7 @@
       "kind": "se",
       "loop": false,
       "priority": 50,
-      "gain": 1,
+      "gain": 0.631,
       "channels": 1,
       "bytes": 3258,
       "duration": 0.557
@@ -419,7 +419,7 @@
       "kind": "se",
       "loop": false,
       "priority": 50,
-      "gain": 1,
+      "gain": 0.5012,
       "channels": 1,
       "bytes": 2281,
       "duration": 0.347
@@ -431,7 +431,7 @@
       "kind": "se",
       "loop": false,
       "priority": 50,
-      "gain": 1,
+      "gain": 0.5309,
       "channels": 1,
       "bytes": 2503,
       "duration": 0.387
@@ -443,7 +443,7 @@
       "kind": "se",
       "loop": false,
       "priority": 50,
-      "gain": 1,
+      "gain": 0.5309,
       "channels": 1,
       "bytes": 2177,
       "duration": 0.327
@@ -455,7 +455,7 @@
       "kind": "se",
       "loop": false,
       "priority": 50,
-      "gain": 1,
+      "gain": 0.5623,
       "channels": 1,
       "bytes": 3764,
       "duration": 0.506
@@ -467,7 +467,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.8414,
       "channels": 1,
       "bytes": 1285,
       "duration": 0.097
@@ -479,7 +479,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.7943,
       "channels": 1,
       "bytes": 6923,
       "duration": 0.782
@@ -491,7 +491,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.7499,
       "channels": 1,
       "bytes": 4558,
       "duration": 0.567
@@ -503,7 +503,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 80,
-      "gain": 1,
+      "gain": 0.8913,
       "channels": 1,
       "bytes": 14033,
       "duration": 2.107
@@ -515,7 +515,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 0.9441,
       "channels": 1,
       "bytes": 23316,
       "duration": 2.607
@@ -527,7 +527,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 1.4125,
       "channels": 1,
       "bytes": 34900,
       "duration": 5.407
@@ -539,7 +539,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 90,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 40599,
       "duration": 8.007
@@ -551,7 +551,7 @@
       "kind": "ui",
       "loop": false,
       "priority": 85,
-      "gain": 1,
+      "gain": 0.8913,
       "channels": 1,
       "bytes": 14075,
       "duration": 2.507
@@ -563,7 +563,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.3162,
       "channels": 1,
       "bytes": 1950,
       "duration": 0.317
@@ -575,7 +575,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.3162,
       "channels": 1,
       "bytes": 1968,
       "duration": 0.317
@@ -587,7 +587,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.335,
       "channels": 1,
       "bytes": 1958,
       "duration": 0.317
@@ -599,7 +599,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.3162,
       "channels": 1,
       "bytes": 1945,
       "duration": 0.317
@@ -611,7 +611,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.3981,
       "channels": 1,
       "bytes": 1765,
       "duration": 0.307
@@ -623,7 +623,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.5309,
       "channels": 1,
       "bytes": 1743,
       "duration": 0.307
@@ -635,7 +635,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.4217,
       "channels": 1,
       "bytes": 1703,
       "duration": 0.307
@@ -647,7 +647,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.4467,
       "channels": 1,
       "bytes": 1732,
       "duration": 0.307
@@ -659,7 +659,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.2661,
       "channels": 1,
       "bytes": 2836,
       "duration": 0.407
@@ -671,7 +671,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.3162,
       "channels": 1,
       "bytes": 2808,
       "duration": 0.407
@@ -683,7 +683,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.2818,
       "channels": 1,
       "bytes": 2808,
       "duration": 0.407
@@ -695,7 +695,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.2818,
       "channels": 1,
       "bytes": 2883,
       "duration": 0.407
@@ -707,7 +707,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.4732,
       "channels": 1,
       "bytes": 10068,
       "duration": 1.907
@@ -719,7 +719,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.5012,
       "channels": 1,
       "bytes": 10126,
       "duration": 1.907
@@ -731,7 +731,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.5012,
       "channels": 1,
       "bytes": 10046,
       "duration": 1.907
@@ -743,7 +743,7 @@
       "kind": "se",
       "loop": false,
       "priority": 30,
-      "gain": 1,
+      "gain": 0.5012,
       "channels": 1,
       "bytes": 10024,
       "duration": 1.907
@@ -837,7 +837,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 0.5623,
       "channels": 1,
       "bytes": 7024,
       "duration": 1.307
@@ -849,7 +849,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 0.5623,
       "channels": 1,
       "bytes": 6750,
       "duration": 1.307
@@ -861,7 +861,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 0.5012,
       "channels": 1,
       "bytes": 6835,
       "duration": 1.307
@@ -873,7 +873,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 0.6683,
       "channels": 1,
       "bytes": 6733,
       "duration": 1.307
@@ -885,7 +885,7 @@
       "kind": "se",
       "loop": false,
       "priority": 75,
-      "gain": 1,
+      "gain": 0.7499,
       "channels": 1,
       "bytes": 20490,
       "duration": 3.607
@@ -897,7 +897,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 5086,
       "duration": 0.757
@@ -909,7 +909,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 5488,
       "duration": 0.807
@@ -921,7 +921,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 4941,
       "duration": 0.707
@@ -945,7 +945,7 @@
       "kind": "se",
       "loop": false,
       "priority": 72,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 10236,
       "duration": 1.907
@@ -957,7 +957,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 7905,
       "duration": 1.507
@@ -969,7 +969,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 6108,
       "duration": 0.957
@@ -981,7 +981,7 @@
       "kind": "se",
       "loop": false,
       "priority": 70,
-      "gain": 1,
+      "gain": 1.6788,
       "channels": 1,
       "bytes": 11636,
       "duration": 2.207
@@ -993,7 +993,7 @@
       "kind": "se",
       "loop": false,
       "priority": 72,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 20203,
       "duration": 3.907
@@ -1005,7 +1005,7 @@
       "kind": "se",
       "loop": false,
       "priority": 75,
-      "gain": 1,
+      "gain": 1.0593,
       "channels": 1,
       "bytes": 24839,
       "duration": 5.007
@@ -1017,7 +1017,7 @@
       "kind": "se",
       "loop": false,
       "priority": 72,
-      "gain": 1,
+      "gain": 1.122,
       "channels": 1,
       "bytes": 7880,
       "duration": 1.307
