@@ -50,12 +50,18 @@ const corpse = (
 export const WORLD_INTERACTABLES: readonly Interactable[] = [
   read('stone_hearth', -4.6, 3.4), // 篝火の脇の石碑（石碑のコライダの位置）
   read('grave_b1', 16, 3),
-  corpse('corpse_b_flask', 24, 9, 'main', 'relic_flask'),
+  corpse('corpse_b_flask', 24, 9, 'main', 'relic_flask', {
+    corpse: { pose: 'prone', variant: 'traveler', yawDeg: 250 },
+  }),
   read('grave_b2', 29, 13),
   read('grave_b3', 34, 18, 'side_ledge'),
-  corpse('corpse_roof', 29, 16, 'side_roof', 'relic_letter'),
+  corpse('corpse_roof', 29, 16, 'side_roof', 'relic_letter', {
+    corpse: { pose: 'prone', variant: 'pilgrim', yawDeg: 160 },
+  }),
   // 仕様の (44, 26) は礼拝堂の内側。岩棚は礼拝堂の西の外壁沿いに取り直した（docs/level.md）ので、岩棚の `ring` の位置に置く
-  corpse('corpse_ledge', 38, 29.8, 'side_ledge', 'relic_ring'),
+  corpse('corpse_ledge', 38, 29.8, 'side_ledge', 'relic_ring', {
+    corpse: { pose: 'prone', variant: 'broad', yawDeg: 42 },
+  }),
   read('tablet_c', 47, 26),
   read('corpse_c_altar', 50, 23), // 祈る姿勢の遺体 3 体の情景（調べる対象ではなく読む）
   {
@@ -130,6 +136,7 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
   // 騎士の死後に調べる。遺品「門番隊の徽章」
   corpse('corpse_knight', 62.4, 35, 'side_waterway', 'relic_medal', {
     requires: { flagSet: 'knight.dead' },
+    corpse: { pose: 'prone', variant: 'warrior', yawDeg: 300 },
   }),
   {
     id: 'grate_d',
