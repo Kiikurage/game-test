@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { bootGame, holdKey, waitSteps } from './helpers';
+import { bootGame, holdKey, waitSteps, walkThrough } from './helpers';
 
 /** 脇道 side_waterway（#111: 腐った床板 → 地下水路 → 墓室 → 鉄格子 → D の通路）を、入力（前進 + 向き）だけで走破する。 */
 
@@ -26,52 +26,6 @@ const aimCamera = (page: Page, yawOffset: number) =>
   page.evaluate((o) => {
     window.__game?.dev.view(o, 4.2, 15);
   }, yawOffset);
-
-/**
- * 入力（前進の注入）だけで経由点を順に歩く。各経由点の `tol` m 以内で次へ向きを変える。
- * 4 ステップごとに向きを補正する。ページ内で `dev.advance` を同期実行する（実時間に依存しない）。
- * 時間切れはシミュレーション時間（`maxSeconds`）で判定する。
- */
-async function walkThrough(
-  page: Page,
-  waypoints: readonly (readonly [number, number])[],
-  tol = 0.6,
-  maxSeconds = 30,
-) {
-  const failure = await page.evaluate(
-    ({ waypoints, tol, maxSeconds }) => {
-      const g = window.__game;
-      if (!g) throw new Error('game is not ready');
-      const was = g.paused;
-      g.dev.pause(true);
-      g.dev.input.move(0, 1);
-      try {
-        for (const [wx, wz] of waypoints) {
-          const deadline = g.steps + maxSeconds * 60;
-          for (;;) {
-            const s = g.sim;
-            const p = s.player;
-            const dx = wx - p.position.x;
-            const dz = wz - p.position.z;
-            if (Math.hypot(dx, dz) < tol) break;
-            if (g.steps >= deadline)
-              return `timed out before (${wx}, ${wz}) at ${JSON.stringify(p.position)}`;
-            const want = Math.atan2(dx, dz);
-            const diff = Math.atan2(Math.sin(want - s.camera.yaw), Math.cos(want - s.camera.yaw));
-            if (Math.abs(diff) > 0.04) g.dev.view(want - p.yaw, 4.2, 15);
-            g.dev.advance(4);
-          }
-        }
-        return null;
-      } finally {
-        g.dev.input.move(0, 0);
-        g.dev.pause(was);
-      }
-    },
-    { waypoints, tol, maxSeconds },
-  );
-  expect(failure).toBeNull();
-}
 
 const TUNNEL: [number, number][] = [
   [50, 28],
