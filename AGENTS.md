@@ -132,6 +132,11 @@ Node.js 22.12 以上。初回は `npm ci`。
   Vulkan 指定が無いとキャンバスのスワップチェーンが作れず GPU デバイスがロストする）。
   ローカルのブラウザは `CHROMIUM_PATH` で上書きできる（未指定なら `/opt/pw-browsers/chromium-1194` があればそれを使う）。
   `playwright install` はローカルでは実行しない（CI のみ）。
+- ローカル（Mac）では `GPU_MODE=hardware` で実 GPU（Metal）の WebGPU を使える。CI は未指定（SwiftShader）のまま。
+  インストール済みの Google Chrome（Playwright の channel `chrome`、新ヘッドレス）で起動し、`PW_CHANNEL` / `CHROMIUM_PATH` で上書きできる。
+  E2E は開始前に `scripts/gpuCheckSetup.mjs` がアダプタを調べ、ソフトウェア（fallback / SwiftShader）なら失敗する（`[gpu] ... -> hardware` がログに出る）。
+  ヘッドレスでアダプタが取れないときは `GPU_HEADFUL=1` でウィンドウを出す。`npm run shot` / `heroshots` / `perf` / `profile` も同じ環境変数に従う。
+  例: `GPU_MODE=hardware E2E_PORT=4321 npx playwright test e2e/launch.spec.ts --workers=1`
 - 一部の Chrome は three r186 の `GPUTextureViewDescriptor.swizzle` を受け付けないため、本番コード
   （`src/core/webgpuCompat.ts`、`boot.ts` が起動時に導入）で恒等 swizzle を除去している。E2E / shot に専用のシムは無い。
 - 起動は `src/boot.ts`（軽量エントリ）→ `src/main.ts`（動的 import。three / rapier を含む）。E2E は開始画面を経由するので
