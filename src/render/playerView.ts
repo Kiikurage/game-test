@@ -24,6 +24,8 @@ export interface PlayerViewState {
   /** 下半身で最もウェイトの大きいクリップ。 */
   readonly clip: string;
   readonly triangles: number;
+  /** ロックオン中の脚の向きの補正（ラジアン）。描画上のモデルのヨー = game の yaw + これ。 */
+  readonly bodyYawOffset: number;
 }
 
 /**
@@ -59,7 +61,11 @@ export class PlayerView {
   }
 
   get state(): PlayerViewState {
-    return { clip: this.animator.dominantClip, triangles: this.triangles };
+    return {
+      clip: this.animator.dominantClip,
+      triangles: this.triangles,
+      bodyYawOffset: this.animator.bodyYawOffset,
+    };
   }
 
   static async create(scene: Scene, game: Game, assets?: CharacterAssets): Promise<PlayerView> {

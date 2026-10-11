@@ -1,6 +1,6 @@
 import { ACESFilmicToneMapping, PCFShadowMap, WebGPURenderer } from 'three/webgpu';
 import { DynamicResolution } from './dynamicResolution';
-import type { QualitySelection } from './quality';
+import { initialScaleFor, type QualitySelection } from './quality';
 import { setMaterialDetail } from './bakedNoise';
 import { computePixelRatio } from './resolution';
 
@@ -30,6 +30,11 @@ export interface GameRenderer {
   beginFrame(nowMs: number): void;
   /** 1 フレームの描画終了時に呼ぶ。描画コール数などを stats へ取り込む。 */
   endFrame(): void;
+  /**
+   * 内部解像度スケールを固定する（null で動的解像度に戻す）。ベンチマーク（`?bench`）の実行時切替用。
+   * 起動時の `?scale=` と同じ扱い。
+   */
+  setFixedScale(scale: number | null): void;
   dispose(): void;
 }
 
@@ -74,7 +79,7 @@ export async function createRenderer(
     step: 0.1,
     // モバイルは 0.8 から始め、下限も低くする（起動直後に最大解像度で重いフレームを出さない）。
     // 起動直後・解像度変更直後のカクつきは評価に入れず、1fps 級の遅さでも数フレームで反応する
-    initialScale: quality.fixedScale ?? (quality.isMobile ? 0.8 : 1),
+    initialScale: quality.fixedScale ?? initialScaleFor(quality.isMobile),
     ...(quality.isMobile && { minScale: 0.4 }),
     ...(quality.fixedScale !== null && { minScale: 0.25 }),
     window: quality.isMobile ? 15 : 20,
@@ -96,14 +101,16 @@ export async function createRenderer(
     gpuMs: null,
   };
 
+  let fixedScale = quality.fixedScale;
   const resize = (): { width: number; height: number } => {
     const width = Math.max(1, container.clientWidth);
     const height = Math.max(1, container.clientHeight);
     const base = computePixelRatio(width, height, window.devicePixelRatio, preset.resolution);
-    const ratio = base * dynamicResolution.scale;
+    const scale = fixedScale ?? dynamicResolution.scale;
+    const ratio = base * scale;
     renderer.setPixelRatio(ratio);
     renderer.setSize(width, height, false);
-    stats.scale = dynamicResolution.scale;
+    stats.scale = scale;
     stats.pixelRatio = ratio;
     stats.width = Math.round(width * ratio);
     stats.height = Math.round(height * ratio);
@@ -120,7 +127,7 @@ export async function createRenderer(
         stats.frameMs = stats.frameMs === 0 ? dt : stats.frameMs * 0.9 + dt * 0.1;
         stats.fps = 1000 / stats.frameMs;
       }
-      if (quality.fixedScale === null && dynamicResolution.update(dt) !== null) resize();
+      if (fixedScale === null && dynamicResolution.update(dt) !== null) resize();
     }
     lastNow = nowMs;
   };
@@ -151,6 +158,10 @@ export async function createRenderer(
     resize,
     beginFrame,
     endFrame,
+    setFixedScale: (scale) => {
+      fixedScale = scale;
+      resize();
+    },
     dispose: () => {
       void renderer.dispose();
       renderer.domElement.remove();

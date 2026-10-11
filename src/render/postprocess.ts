@@ -23,6 +23,7 @@ import {
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import type { QualityPreset } from './quality';
+import { finiteColor } from './finiteColor';
 
 /** 画面全体の演出パラメータ（すべて 0..1。既定は 0 = 効果なし）。死亡演出（8.1 節）などが設定する。 */
 export interface ScreenEffect {
@@ -38,9 +39,40 @@ export interface ScreenEffect {
   rim: number;
 }
 
+export interface SceneStats {
+  /** 画素数 x チャンネル数のうち NaN / Inf の個数。 */
+  readonly nonFinite: number;
+  /** 有限値の最大成分（RGB）。 */
+  readonly maxRgb: number;
+}
+
+/** 半精度浮動小数の RGBA 配列から、非有限値の個数と有限値の最大 RGB 成分を数える。 */
+export function analyzeHalfFloatRgba(data: ArrayLike<number>): SceneStats {
+  let nonFinite = 0;
+  let max = 0;
+  for (let i = 0; i < data.length; i++) {
+    const h = data[i] ?? 0;
+    const exp = (h >> 10) & 0x1f;
+    if (exp === 0x1f) {
+      nonFinite++;
+      continue;
+    }
+    if (i % 4 === 3 || (h & 0x8000) !== 0) continue;
+    const mant = h & 0x3ff;
+    const v = exp === 0 ? (mant / 1024) * 2 ** -14 : (1 + mant / 1024) * 2 ** (exp - 15);
+    if (v > max) max = v;
+  }
+  return { nonFinite, maxRgb: max };
+}
+
 export interface PostProcess {
   /** 画面演出のパラメータを設定する（指定した項目だけ更新）。既存のグレーディング内の uniform を書き換えるだけで、追加のパスはない。 */
   setScreenEffect(effect: Partial<ScreenEffect>): void;
+  /**
+   * ブルームへ渡る HDR シーン色（ポスト前のレンダーターゲット）を読み出し、非有限値（NaN / Inf）の個数と
+   * 有限値の最大成分を返す（#258 の回帰テスト用。GPU 同期を伴うので通常は呼ばない）。
+   */
+  readSceneStats(): Promise<SceneStats>;
   /** シーンをポストエフェクト込みで描画する（renderer.render の代わりに呼ぶ）。 */
   render(): void;
   dispose(): void;
@@ -58,7 +90,9 @@ export function createPostProcess(
   preset: QualityPreset,
 ): PostProcess {
   const scenePass = pass(scene, camera);
-  const sceneColor = scenePass.getTextureNode('output');
+  const rawSceneColor = scenePass.getTextureNode('output');
+  // NaN / Inf・極端な HDR 値はブルームのぼかしで画面全体へ広がる（#258）ので、ブルームに渡す前に有限値へ丸める
+  const sceneColor = vec4(finiteColor(rawSceneColor.rgb), rawSceneColor.a);
 
   let color: Node<'vec4'> = sceneColor;
   if (preset.bloom) {
@@ -119,6 +153,11 @@ export function createPostProcess(
       if (effect.vignette !== undefined) uVignette.value = effect.vignette;
       if (effect.fade !== undefined) uFade.value = effect.fade;
       if (effect.rim !== undefined) uRim.value = effect.rim;
+    },
+    readSceneStats: async () => {
+      const rt = scenePass.renderTarget;
+      const data = await renderer.readRenderTargetPixelsAsync(rt, 0, 0, rt.width, rt.height);
+      return analyzeHalfFloatRgba(data);
     },
     render: () => {
       pipeline.render();
