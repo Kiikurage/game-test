@@ -24,7 +24,7 @@ export interface BufferSourceLike extends DisconnectableNodeLike {
   loopEnd: number;
   readonly playbackRate: ValueParamLike;
   onended: ((ev: Event) => void) | null;
-  start(when?: number): void;
+  start(when?: number, offset?: number): void;
   stop(when?: number): void;
 }
 
