@@ -189,8 +189,8 @@ registerGameSystem('boss', (game) => {
     update: (dt) => {
       system.update(dt);
     },
-    onHit: (e) => {
-      system.onHit(e);
+    onImpact: (e) => {
+      system.onHit(e.hit);
     },
   };
 });

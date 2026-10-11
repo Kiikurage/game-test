@@ -1,4 +1,3 @@
-import { gameStats } from './debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { GameEventMap } from '../core/gameEvents';
 import {
@@ -11,6 +10,7 @@ import {
   type GuardOutcome,
   type HitEvent,
 } from './combat';
+import { gameStats } from './debug/stats.system';
 import { Game } from './game';
 import { FakeInput } from './testing/fakeInput';
 
@@ -250,16 +250,22 @@ describe('hit-stop (Game)', () => {
     expect(slow).toBe(60);
   });
 
-  it('hitStop イベント: 命中と同じステップで、演出用の情報（赤フラッシュ・凍結フレーム・向き）を発行する', () => {
+  it('impact イベント: 命中 1 回につき 1 つ、同じステップで演出用の情報（赤フラッシュ・凍結フレーム・向き）を発行する', () => {
     addEnemy('soldier-1');
-    const seen: GameEventMap['hitStop'][] = [];
-    game.events.on('hitStop', (e) => seen.push(e));
-    const hits: GameEventMap['hit'][] = [];
-    game.events.on('hit', (e) => hits.push(e));
+    const seen: GameEventMap['impact'][] = [];
+    game.events.on('impact', (e) => seen.push(e));
     hitPlayer('soldier-1');
     expect(seen).toHaveLength(1);
-    expect(hits).toHaveLength(1); // SE は凍結と同じステップ（0F 遅延）
+    // システム（onImpact）にも 1 回だけ届く
+    expect(gameStats(game).hitCount).toBe(1);
+    expect(gameStats(game).hitStopCount).toBe(1);
     expect(seen[0]).toMatchObject({
+      attackerId: 'soldier-1',
+      targetId: 'player',
+      kind: 'light',
+      guard: 'none',
+      guardBroken: false,
+      source: 'enemy',
       frames: 6,
       toPlayer: true,
       fromPlayer: false,

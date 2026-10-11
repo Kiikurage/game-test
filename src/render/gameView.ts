@@ -112,7 +112,7 @@ export class GameView {
       }
     }
     // 命中の火花・塵・黒い飛沫（ヒットストップと同じステップ。ガードは火花のみで足りるので弱める）
-    game.events.on('hitStop', (e) => {
+    game.events.on('impact', (e) => {
       this.tmpPosition.set(e.position.x, e.position.y, e.position.z);
       this.tmpNormal.set(e.normal.x, e.normal.y, e.normal.z);
       // ガード: 盾が弾くので、火花は盾の面（体の左前、胸の高さ）から攻撃側へ跳ね返る。ジャストガード（8F）は強めに散らす

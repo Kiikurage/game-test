@@ -17,7 +17,7 @@ export const KILL_ASH_CUE = 'sfx.defeat-ash';
 registerGameSystem('enemy-kill-feedback', (game: Game) => {
   const pending: Enemy[] = [];
   return {
-    onHit(e) {
+    onImpact(e) {
       if (!e.killed || e.attackerId !== 'player' || game.bossIds.has(e.targetId)) return;
       const enemy = game.enemies.enemies.find((x) => x.id === e.targetId);
       if (!enemy) return;

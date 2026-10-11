@@ -17,7 +17,7 @@ export const SOURCE_PRIORITY: Readonly<Record<SoundSource, number>> = {
   world: 10,
 };
 
-/** `hit` イベントの種別 → cue（素材 ID またはバリエーショングループ名）。 */
+/** 命中（`impact`）の種別 → cue（素材 ID またはバリエーショングループ名）。 */
 export const HIT_CUE: Readonly<Record<HitKind, string>> = {
   light: 'sfx.hit-light',
   heavy: 'sfx.hit-heavy',
@@ -31,9 +31,22 @@ function spatialPosition(source: SoundSource, position?: Vec3Like): Vec3Like | u
 }
 
 /**
- * game のイベントを再生要求へ変換する（純粋関数）。
+ * 命中（`impact`）の SE。ガードが崩されたときは崩しの音を先に、続けて命中・ガードの音を鳴らす（純粋関数）。
+ */
+export function impactPlayRequests(p: GameEventMap['impact']): PlayRequest[] {
+  const position = spatialPosition(p.source, p.position);
+  const req = (kind: HitKind): PlayRequest => ({
+    cue: HIT_CUE[kind],
+    priority: SOURCE_PRIORITY[p.source],
+    ...(position && { position }),
+  });
+  return p.guardBroken ? [req('guardBreak'), req(p.kind)] : [req(p.kind)];
+}
+
+/**
+ * game のイベントを再生要求へ変換する（純粋関数。`impact` は最後の 1 つ。全部は `impactPlayRequests`）。
  * cue の命名: 足音は `footstep.ts`（`sfx.footstep-<surface>`。`sfx.footstep-stone1..4` のように連番でバリエーション）、
- * ヒット `HIT_CUE`、汎用 `sound` は cue をそのまま使う。
+ * 命中 `HIT_CUE`、汎用 `sound` は cue をそのまま使う。
  */
 export function toPlayRequest<K extends GameEventName>(
   name: K,
@@ -42,15 +55,8 @@ export function toPlayRequest<K extends GameEventName>(
   switch (name) {
     case 'footstep':
       return footstepPlayRequest(payload as GameEventMap['footstep']);
-    case 'hit': {
-      const p = payload as GameEventMap['hit'];
-      const position = spatialPosition(p.source, p.position);
-      return {
-        cue: HIT_CUE[p.kind],
-        priority: SOURCE_PRIORITY[p.source],
-        ...(position && { position }),
-      };
-    }
+    case 'impact':
+      return impactPlayRequests(payload as GameEventMap['impact']).at(-1);
     case 'sound': {
       const p = payload as GameEventMap['sound'];
       const position = spatialPosition(p.source ?? 'world', p.position);
@@ -68,10 +74,15 @@ export function toPlayRequest<K extends GameEventName>(
 
 /** game のイベントバスを購読して SE を鳴らす。戻り値は購読解除。 */
 export function bindSfxEvents(bus: GameEventBus, player: Pick<SfxPlayer, 'play'>): () => void {
-  const offs = (['footstep', 'hit', 'sound'] as const).map((name) =>
+  const offs = (['footstep', 'sound'] as const).map((name) =>
     bus.on(name, (payload) => {
       const req = toPlayRequest(name, payload as never);
       if (req) player.play(req);
+    }),
+  );
+  offs.push(
+    bus.on('impact', (payload) => {
+      for (const req of impactPlayRequests(payload)) player.play(req);
     }),
   );
   return () => {
