@@ -13,6 +13,11 @@ export interface LockOnTarget {
   readonly height: number;
   /** false になると（死亡）ロックオンは一定時間後に次の対象へ移るか解除される。 */
   readonly alive: boolean;
+  /**
+   * 死亡してから次の対象へ移る（なければ解除する）までのフレーム数。省略時は `LOCK_ON.deathRetargetDelaySeconds`。
+   * 雑魚敵は 0（撃破と同時に外す。#281）。ボスは撃破演出（8.4 節）のため省略（既定の 0.5s）。
+   */
+  readonly deathRetargetDelayFrames?: number;
 }
 
 /** 胸元（ロックオンマーカー・カメラの注視点）。身長 × 0.65。 */
@@ -28,6 +33,7 @@ export function chestPosition(target: LockOnTarget, out = new Vector3()): Vector
 export class DummyTarget implements LockOnTarget {
   readonly position: Vector3;
   alive = true;
+  deathRetargetDelayFrames?: number;
 
   constructor(
     readonly id: string,
