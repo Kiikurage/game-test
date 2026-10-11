@@ -24,7 +24,7 @@ import {
   vec2,
   vec3,
 } from 'three/tsl';
-import { terrainHeight } from '../terrain';
+import { terrainHeight } from '../../game/world/terrain';
 import {
   GROUND_LIFT,
   createDiscMesh,
