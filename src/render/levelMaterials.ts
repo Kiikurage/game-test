@@ -129,14 +129,16 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
   const rock = rockSurface(positionWorld, {
     damp: attribute('damp', 'float'),
     up: normalWorld.y,
+    normal: normalWorld,
   });
   const rocky = mix(vec3(1), rock.tone, rockMask);
-  if (detail >= 2) material.normalNode = bumpedNormal(rock.height, rockMask.mul(0.6));
+  if (detail >= 2) material.normalNode = bumpedNormal(rock, rockMask.mul(0.6));
 
   const factor = mix(
     dirt.mul(tread).mul(verge).mul(rocky),
     flag.mul(dirt.mul(0.5).add(0.5)).mul(vec3(1)),
-    stone.mul(patch),
+    // 敷石は XZ 平面への投影なので、急斜面では縦に引き伸ばされる。岩肌の所には出さない（#267）
+    stone.mul(patch).mul(float(1).sub(rockMask)),
   );
   material.colorNode = vec4(factor, 1);
   return tagMaterial(material, 'terrain');
