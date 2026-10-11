@@ -196,6 +196,11 @@ export interface GameEventMap {
     readonly position: Vec3Like;
     readonly noticeSeconds: number;
   };
+  /** ショートカットが開通した（レバーを引いた。取得通知 UI は E6-2b、SE は E7-3 が購読する）。 */
+  shortcutOpened: {
+    readonly id: string;
+    readonly position: Vec3Like;
+  };
   /**
    * 休憩（篝火で休む）またはリスポーン（死亡後）。HP・瓶・敵の復活は発行側が済ませている。
    * ボス（E5）はこれを購読し、`defeatedBosses` に自分がいなければ HP 全回復・待機位置へ戻る。
