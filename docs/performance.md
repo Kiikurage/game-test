@@ -180,3 +180,23 @@ PC（`high`）と `low` の値は変えていない。ヘッドレスでは、�
 
 見積り: パーリン 1 回 ≈ 200 命令、焼き参照 1 回 ≈ 25 命令 + テクスチャ 1 回として、ノイズ部分のコストは medium で変更前の約 5〜8%（闘技場の床: 3000 → 約 250 命令）。
 ライティング（PBR）など `flatmat` でも残る部分を含めた、マテリアルの追加コスト（flatmat 比）は、地形・石積み・闘技場で変更前の数倍 → 約 2 割以下になる見込み。実機では `?perf&flatmat` と `?perf` の差で確認する。
+
+## ヒーローショット（品質ゲート。tech-direction.md §7.1 の追記予定分）
+
+> `docs/tech-direction.md`（PR #265）が main に入った後、この節は §7.1 へ移す。
+
+見た目に関わる PR は、**変更前後の全ヒーローショット**を PR に載せる。撮影は 1 コマンド。
+
+```sh
+# 変更前（main を checkout した worktree など）で
+npm run heroshots -- /tmp/hero-before
+# 変更後で
+npm run heroshots -- shots/hero-after --compare /tmp/hero-before
+```
+
+- 出力: `<ディレクトリ>/<視点名>.png`、全ショットを並べた `contact-sheet.png`、撮影条件の `index.json`。`--compare <変更前>` を付けると、変更前と左右に並べた `compare-sheet.png` を変更後のディレクトリに出す。PR には `compare-sheet.png`（と気になる視点の単体）を貼る。
+- 引数: 品質 `high`（PC の既定）/ `medium`（`--mobile` の既定。基準機相当）。`--mobile` で 915x412 DPR3（既定は PC 1280x720）。`--only bonfire-arrival,闘技場` で名前またはエリアを絞る。`--no-shoot` で撮影せずに sheet だけ作り直す。解像度は `?scale=1` で固定（動的解像度で荒れない）、HUD は隠す。
+- 環境変数: `HERO_PORT`（既定 4176）、`HERO_SKIP_BUILD=1`（ビルド済みの `dist/` を使う）、`HERO_VIEWS`（視点データの差し替え）。
+- 視点は `scripts/heroShots.json`（エリアごとに 2〜3、計 20。篝火・墓地・礼拝堂の門・礼拝堂内部・地下水路・地下墓所・中庭・霧の門・闘技場（ボスあり）・ショートカット）。追加・変更はこのファイルだけでよい（形式はファイル先頭の `$doc`）。プレイヤーの位置と向き（`face` で注視点を向ける）、三人称カメラのずれ・距離・ピッチ、自由視点（`freeCam`）、敵の有無（`enemies: false`）、`window.__game.dev` のフック呼び出し（`dev`: ボスを出す・床板を割るなど）を書ける。構図はゲーム中の三人称カメラ（距離 4.2m・ピッチ 12°）を基本にする。
+- 待ち: 視点ごとにシミュレーションを止めて状態を作り、`dev.advance(steps)`（既定 60 ステップ）で接地・アニメーション・カメラ追従を落ち着かせてから、描画フレーム（既定 12 枚）でパーティクル・ムードの立ち上がりを待つ。実時間では待たない。アセット読み込みと初回シェーダコンパイルは開始画面（`data-state=ready`）の前に済んでいる。
+- SwiftShader では PC 20 枚で十数分かかる。構図を調整するときは `--only` と `HERO_SKIP_BUILD=1` で回す。
