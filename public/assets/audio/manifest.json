@@ -1,7 +1,7 @@
 {
   "version": 1,
   "format": "ogg-opus",
-  "totalBytes": 4734638,
+  "totalBytes": 6017119,
   "budgetBytes": 8388608,
   "sounds": [
     {
@@ -1035,6 +1035,20 @@
       "channels": 2,
       "bytes": 629903,
       "duration": 61.507
+    },
+    {
+      "id": "bgm.field",
+      "file": "bgm.field.ogg",
+      "bus": "bgm",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1,
+      "loopEnd": 121,
+      "priority": 42,
+      "gain": 1,
+      "channels": 2,
+      "bytes": 1282481,
+      "duration": 121.507
     },
     {
       "id": "bgm.boss",

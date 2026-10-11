@@ -1,7 +1,7 @@
 # AGENTS.md — エージェント運用ルール
 
 このリポジトリは複数の AI エージェントが GitHub Issues / Pull Request を介して協調して開発する。
-すべてのエージェントは作業前にこの文書と [`docs/direction.md`](docs/direction.md)（基本方針）を読むこと。
+すべてのエージェントは作業前にこの文書と [`docs/direction.md`](docs/direction.md)（基本方針）、[`docs/tech-direction.md`](docs/tech-direction.md)（技術・アート方針。品質ゲートを含む）を読むこと。
 
 ## 1. 役割
 
@@ -122,6 +122,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 | `npm run e2e` | Playwright E2E（ビルド → preview 配信 → ヘッドレス WebGPU で起動確認） |
 | `npm run perf -- [low\|medium\|high]` | 計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
 | `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
+| `npm run heroshots -- <出力ディレクトリ> [high\|medium]` | 品質ゲートのヒーローショット（`scripts/heroShots.json` の全視点）を撮り、各 PNG と `contact-sheet.png` を出す。`--mobile`（915x412 DPR3）、`--only <名前,...>`、`--compare <変更前のディレクトリ>`（左右比較の `compare-sheet.png`）。見た目に関わる PR は変更前後を載せる（[`docs/tech-direction.md`](docs/tech-direction.md) §7.1） |
 
 - PR 前に `npm run lint && npm run typecheck && npm test && npm run build && npm run e2e` を通す。
 - 見た目を変えたら `npm run shot` で撮って自分で画像を確認する（`shots/` は git 管理外）。

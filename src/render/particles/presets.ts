@@ -1,5 +1,6 @@
 import {
   abs,
+  cameraPosition,
   clamp,
   cos,
   float,
@@ -80,6 +81,8 @@ export function ambientAshSpec(count: number): ContinuousSpec {
       const flip = abs(sin(t.mul(rnd.y.mul(2.2).add(0.8)).add(phase.y)))
         .mul(0.65)
         .add(0.2);
+      // カメラ至近（1.5m 以内）では消す。目の前を横切る灰が大きな黒い破片に見えないように（#266）
+      const near = smoothstep(0.6, 1.5, length(position.sub(cameraPosition)));
       const tone = rnd.z;
       const soot = vec3(0.1, 0.09, 0.085);
       const lit = vec3(0.85, 0.66, 0.46);
@@ -87,7 +90,7 @@ export function ambientAshSpec(count: number): ContinuousSpec {
         position,
         size: rnd.w.mul(0.08).add(0.06),
         color: mix(soot, lit, smoothstep(0.25, 0.9, tone)),
-        alpha: edge.mul(vert).mul(flip).mul(c.intensity).mul(0.9),
+        alpha: edge.mul(vert).mul(flip).mul(near).mul(c.intensity).mul(0.9),
         rotation: t.mul(rnd.x.sub(0.5).mul(3)).add(phase.x),
       };
     },

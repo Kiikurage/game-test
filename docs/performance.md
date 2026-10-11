@@ -82,6 +82,28 @@
 
 ドローコール・三角形の予算（上記）だけでは、モバイル GPU の**フィルレート・フラグメント負荷**は分からない（ヘッドレス SwiftShader は GPU 時間の参考にならない）。実機（Xperia 1 V など）では次の手順で切り分ける。
 
+### 0. ベンチマークモード `?bench`（#261。まずはこれ）
+
+`<URL>/?bench` を開き、開始画面を 1 回タップ（クリック）するだけで、決められたシナリオを自動で再生して区間ごとに計測し、終了後に結果の表と「コピー」ボタンを出す。結果テキストをそのままチャットに貼ればよい（1〜2 分。途中は操作しない。スマホは横向き・全画面のまま）。
+`?perf` の HUD も同時に出る。品質を変えて測るときは `?bench&quality=low` のように足す。
+
+- **シナリオ**（各区間: ウォームアップ 1 秒 + 計測 4 秒。ウォームアップはパイプライン生成が止まるまで延びる）
+  1. `bonfire` / `graveyard` / `chapel-gate` / `chapel-interior`: `scripts/perfViewpoints.mjs` と同じ計測視点にカメラを固定する。
+  2. `graveyard:base` と `graveyard:<トグル>`: 墓地視点で 1 つずつ実行時に切り替える（`noshadow` `nobloom` `nograss` `noparticles` `nolights` `flatmat` `scale=0.5`）。
+     `nobloom` はブルームのぼかしパスを止める（最後の合成 1 回は残る）。`nolights` は点光源（篝火・たいまつ）をすべて隠す。
+     `nomsaa` は MSAA がレンダラー生成時にしか変えられないため省略（skipped）。`?bench&nomsaa` で全区間を測り直して比べる。
+     プリセットで元から無いもの（low の草・ブルームなど）も skipped になる。
+  3. `combat`: 礼拝堂の敵 3 体のそばで、敵を順に倒して死亡ディゾルブを出し、ヒットエフェクト（4 フレームごと）と火の粉を出し続ける（敵を倒すので最後）。
+- 計測中は動的解像度を固定する（`scale=` 指定時はその値、なければ通常の開始スケール: モバイル 0.8 / PC 1）。敵は拘束（知覚・行動を止める）し、プレイヤーの HP は毎フレーム戻す。
+- **結果の読み方**: 先頭に端末（`ua`）・GPU アダプタ・`timestamp-query` の有無・画面と DPR・品質。続いて 1 区間 1 行:
+  `section | frame med | frame p99 | gpu med | cpu med | draws | tris | res`（時間は ms）。
+  - `frame` は rAF 間隔（中央値と 99 パーセンタイル）。60fps 目標なら中央値 16.7 以下、p99 がカクつきの目安。
+  - `gpu` は timestamp-query による GPU 時間（非対応端末は `n/a`）。`cpu` は描画側の JS 時間（beginFrame〜endFrame。シミュレーションは含まない）。
+  - `frame` ≒ `gpu` で `cpu` が小さければ GPU 律速。`graveyard:<トグル>` の `gpu`（なければ `frame`）が `graveyard:base` よりどれだけ下がるかが、その要素の GPU コスト。
+  - `res` は描画バッファの解像度と内部解像度スケール。`pipe+N` が付いた行は計測中にパイプライン生成（コンパイルのカクつき）が混ざっている。
+- E2E（`e2e/bench.spec.ts`）は `?bench=quick`（時間の条件を外しフレーム数だけで進める）で完走を確認している。
+- 実装は `src/render/bench/`（`bench.ts`: 区間の進行と集計、`bench.view.ts`: シナリオ、`benchPanel.ts`: 結果パネル）。
+
 ### 1. 計測 HUD `?perf`
 
 `?perf` を付けると左上に軽量 HUD が出る（`?debug` と違い、操作パネルやカテゴリ別内訳は出さない）。

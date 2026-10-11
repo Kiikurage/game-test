@@ -265,3 +265,81 @@ body {
     animation: none;
   }
 }
+
+/* ベンチマーク（?bench。src/render/bench/） */
+.bench-progress {
+  position: fixed;
+  bottom: 0.5rem;
+  left: 50%;
+  z-index: 20;
+  padding: 0.3rem 0.7rem;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.6);
+  color: #d8f0c8;
+  font:
+    12px/1.4 ui-monospace,
+    monospace;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.bench-result {
+  position: fixed;
+  inset: 0.5rem;
+  z-index: 30;
+  overflow: auto;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  background: rgb(10 10 12 / 0.92);
+  color: #e6e2d8;
+  font:
+    12px/1.4 ui-monospace,
+    monospace;
+  user-select: text;
+}
+
+.bench-result h2 {
+  margin: 0 0 0.4rem;
+  font-size: 14px;
+}
+
+.bench-result .bench-info {
+  margin: 0.4rem 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.bench-result table {
+  border-collapse: collapse;
+  margin: 0.4rem 0;
+}
+
+.bench-result th,
+.bench-result td {
+  padding: 0.1rem 0.5rem;
+  border-bottom: 1px solid rgb(230 226 216 / 0.15);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bench-result th:first-child,
+.bench-result td:first-child {
+  text-align: left;
+}
+
+.bench-result textarea {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+}
+
+.bench-result .bench-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bench-result button {
+  padding: 0.4rem 1rem;
+  font: inherit;
+  font-size: 14px;
+}
