@@ -211,6 +211,39 @@ export const PLAYER_ACTIONS = {
 /** 落下攻撃の倍率: 未発見の敵に対して（2.3 節「未発見の敵 3.30」）。 */
 export const PLUNGE_UNAWARE_MULTIPLIER = 3.3;
 
+/**
+ * 落下攻撃（Drop Strike）と落下 / 着地の数値（仕様書 14.3.3 節）。フレームデータ・スタミナ・強靭度削りは
+ * `PLAYER_ACTIONS.plunge`、重力は `tuning.player.gravity`（20 m/s²）。
+ */
+export const PLUNGE = {
+  /** 落下攻撃を出せる、地面からの最小の高さ（m）。これ以上離れて下降中が「落下」。 */
+  minClearance: 0.6,
+  /** 有効な落下高さ（踏み出した足場から着地点まで。m）。 */
+  minHeight: 1.0,
+  maxHeight: 3.0,
+  /** この高さ以上は倍率 2.2、未満（〜minHeight）は `lowMultiplier`。 */
+  highHeight: 1.5,
+  lowMultiplier: 1.6,
+  /** 未発見（Idle / Suspicious）の敵への倍率の係数（2.2 × 1.5 = 3.3）。 */
+  unawareFactor: 1.5,
+  /** 入力時に必要なスタミナ（消費も同じ値）。 */
+  staminaMin: 20,
+  /** 着地点を中心とする判定の円の半径（m）。持続は 4F、ガード不能。 */
+  radius: 1.4,
+  hitStopFrames: 10,
+  /** 空中補正（踏み出し時の速度に対する入力の補正の上限。m/s）と、ロックオン対象への補正（標準 / 強。入力補助 11.2 節）。 */
+  airCorrection: 1.5,
+  airLockCorrection: 2.5,
+  airLockCorrectionAssist: 3.5,
+  /** ロックオン対象へ引く補正が、対象に近づくと弱まる目安の時間（秒。距離 ÷ これ以下に抑える）。 */
+  airLockPullSeconds: 0.25,
+  /** 攻撃しないで着地したときの硬直: この高さ以上で `landFrames`、未満は硬直なし。 */
+  landStiffnessHeight: 2.0,
+  landFrames: 10,
+  /** 入力時に「下に敵がいる」とみなす水平距離（m）。判定の円 1.4m + 空中補正で動ける分。 */
+  targetReach: 2.5,
+} as const;
+
 /** 強攻撃の溜め中の移動速度（m/s）。 */
 export const HEAVY_CHARGE_MOVE_SPEED = 1.0;
 

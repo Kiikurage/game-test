@@ -8,12 +8,18 @@ import { WEAPON_CAPSULE } from './weaponPose';
 const DEG = Math.PI / 180;
 
 /** 軽攻撃 1 の判定プロファイル（ダメージは基本攻撃力 × 倍率）。 */
-export function playerAttackProfile(id: PlayerAttackId): AttackProfile {
+export function playerAttackProfile(
+  id: PlayerAttackId,
+  /** 倍率の上書き（落下攻撃は落下高さで 2.2 / 1.6）。 */
+  multiplier: number = PLAYER_ACTIONS[id].damageMultiplier,
+): AttackProfile {
   const a = PLAYER_ACTIONS[id];
   return {
     id,
-    damage: attackDamage(PLAYER_STATS.attackPower, a.damageMultiplier),
+    damage: attackDamage(PLAYER_STATS.attackPower, multiplier),
     poiseDamage: a.poiseDamage,
+    // 落下攻撃は上方からの攻撃なのでガード不能（盾の正面ガードも無効）
+    ...(id === 'plunge' && { unblockable: true }),
   };
 }
 

@@ -249,6 +249,14 @@ export interface GameEventMap {
     readonly frames: number;
   };
   /**
+   * 落下攻撃の着地（14.3.3 節）。着地点（足元）で発行する。砂塵の演出・SE が購読する。画面振動は game 側が出す。
+   * `radius` は判定の円の半径（m）、`hit` は敵に当たったか（命中は別に `hit` / `hitStop` が出る）。
+   */
+  plungeLand: {
+    readonly position: Vec3Like;
+    readonly radius: number;
+  };
+  /**
    * ボスの叩きつけ（跳躍叩きつけの着地など）。着地の衝撃の演出（パーティクル・破片）が購読する。
    * 画面振動は game 側が `slamAt`（カメラ演出）で出すので、ここでは出さない。
    */

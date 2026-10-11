@@ -28,6 +28,22 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
       fadeOut: 0.1,
       fallbackFrames: 14,
     },
+    // 落下攻撃（#116）: 空中では Sword_Heavy_Combo の溜めポーズ（強攻撃の溜めと同じ f58–f66）を保持し、
+    // 着地で振り下ろし（f72 から。当たり f77 が着地の約 5F 後）を 28F に圧縮して再生する。
+    plungeFall: {
+      clip: 'Sword_Heavy_Combo',
+      range: [58 / 30, 66 / 30],
+      fadeIn: 0.08,
+      fadeOut: 0.05,
+      fallbackFrames: 8,
+    },
+    plunge: {
+      clip: 'Sword_Heavy_Combo',
+      range: [72 / 30, 100 / 30],
+      fadeIn: 0.02,
+      fadeOut: 0.15,
+      fallbackFrames: 28,
+    },
     // 被弾（#50）: 仰け反り 24F に Hit_Chest（0.33s）、転倒 48F に Hit_Knockback（0.83s）を引き伸ばして合わせる
     flinch: { clip: 'Hit_Chest', fadeIn: 0.03, fadeOut: 0.1, fallbackFrames: 24 },
     knockdown: { clip: 'Hit_Knockback', fadeIn: 0.03, fadeOut: 0.12, fallbackFrames: 48 },
@@ -61,6 +77,8 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     'backstep',
     'fall',
     'land',
+    'plungeFall',
+    'plunge',
     'flinch',
     'knockdown',
     'light1',

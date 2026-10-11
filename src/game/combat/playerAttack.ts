@@ -1,9 +1,9 @@
-import { PLAYER_ACTIONS, activeWindow } from '../data';
+import { PLAYER_ACTIONS, PLAYER_STATS, PLUNGE, activeWindow, attackDamage } from '../data';
 import type { LightAttackId, PlayerAttackId } from '../player/playerStates';
 import { vec3, type Capsule, type Vec3 } from './geometry';
 import { playerAttackProfile } from './debugSwing';
-import type { ActiveAttack, HitEvent, HitResolver } from './hitResolver';
-import { capsuleShape, type CapsuleShape } from './shapes';
+import type { ActiveAttack, AttackProfile, HitEvent, HitResolver } from './hitResolver';
+import { capsuleShape, circleShape, type HitShape } from './shapes';
 import { WEAPON_CAPSULE } from './weaponPose';
 
 const DEG = Math.PI / 180;
@@ -22,6 +22,8 @@ export interface PlayerAttackInfo {
   readonly frame: number;
   /** 当たり窓の中か（`hitStart` 〜 `hitEnd` マーカー）。 */
   readonly hitActive: boolean;
+  /** 落下攻撃の倍率（落下高さで 2.2 / 1.6）。落下攻撃のときだけ。 */
+  readonly plungeMultiplier?: number;
 }
 
 export interface AttackSource {
@@ -180,6 +182,11 @@ export class PlayerAttackDriver {
   private readonly scratch: Capsule = { a: vec3(), b: vec3(), radius: WEAPON_CAPSULE.radius };
   /** 命中イベントの累計（デバッグ・E2E 用）。 */
   readonly hits: HitEvent[] = [];
+  /**
+   * 対象が未発見（Idle / Suspicious）か。落下攻撃の倍率 ×1.5 に使う（`plunge.system.ts` が敵の状態を見る関数を差し込む）。
+   * 命中の瞬間（被弾で気付かれる前）に問い合わせる。
+   */
+  isUnaware: (targetId: string) => boolean = () => false;
 
   constructor(private readonly resolver: HitResolver) {}
 
@@ -192,7 +199,7 @@ export class PlayerAttackDriver {
     }
     if (info.serial !== this.serial) {
       this.serial = info.serial;
-      this.attack = this.resolver.startAttack('player', 'player', playerAttackProfile(info.id));
+      this.attack = this.resolver.startAttack('player', 'player', this.profile(info));
       this.primed = false;
       this.lastFrame = 0;
     }
@@ -212,7 +219,23 @@ export class PlayerAttackDriver {
     }
   }
 
-  private shape(id: PlayerAttackId, source: AttackSource, p: number): CapsuleShape {
+  private profile(info: PlayerAttackInfo): AttackProfile {
+    if (info.id !== 'plunge') return playerAttackProfile(info.id);
+    // 落下攻撃: 倍率は落下高さで決まり、未発見の敵には ×1.5（対象ごとに命中の瞬間に決める）
+    const multiplier = info.plungeMultiplier ?? PLAYER_ACTIONS.plunge.damageMultiplier;
+    const unaware = attackDamage(PLAYER_STATS.attackPower, multiplier * PLUNGE.unawareFactor);
+    return {
+      ...playerAttackProfile('plunge', multiplier),
+      damageFor: (targetId) =>
+        this.isUnaware(targetId) ? unaware : attackDamage(PLAYER_STATS.attackPower, multiplier),
+    };
+  }
+
+  private shape(id: PlayerAttackId, source: AttackSource, p: number): HitShape {
+    if (id === 'plunge') {
+      // 着地点（足元）を中心とする半径 1.4m の円。上方からの攻撃なので高さの範囲は足元の周り
+      return circleShape(source.feet, PLUNGE.radius);
+    }
     switch (id) {
       case 'guardCounter':
         guardCounterCapsule(source.feet, source.yaw, p, this.scratch);
