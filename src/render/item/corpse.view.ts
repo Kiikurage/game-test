@@ -9,7 +9,7 @@ import { registerViewPlugin } from '../viewPlugins';
 import { standHeight } from './standHeight';
 
 /** この距離（m）より遠いプレイヤーからは描かない（描画予算。遺体は小さく暗く、遠目には見えない）。 */
-export const CORPSE_FAR = 13;
+export const CORPSE_FAR = 9;
 /** 遺体のメッシュの簡略化率（三角形数の割合。十数体並べても負荷が増えないようにする）。 */
 const SIMPLIFY = 0.1;
 /** 簡略化の許容誤差（既定 0.02 では目標に届かない。遠目の仮モデルなので緩める）。 */

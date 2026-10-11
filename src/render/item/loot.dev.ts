@@ -15,7 +15,8 @@ registerDevHooks('lootMarks', ({ view }) => ({
     const marks: string[] = [];
     const corpses: { id: string; visible: boolean; triangles: number; meshes: number }[] = [];
     view.scene.traverse((o) => {
-      if (o.name.startsWith('lootmark:') && o.visible) marks.push(o.name.slice('lootmark:'.length));
+      if (o.name === 'lootmarks')
+        marks.push(...((o.userData['visibleIds'] as string[] | undefined) ?? []));
       if (o.name.startsWith('corpse:') && o.name.split(':').length === 2) {
         let triangles = 0;
         let meshes = 0;
