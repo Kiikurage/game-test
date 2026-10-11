@@ -1,7 +1,7 @@
 # AGENTS.md — エージェント運用ルール
 
 このリポジトリは複数の AI エージェントが GitHub Issues / Pull Request を介して協調して開発する。
-すべてのエージェントは作業前にこの文書と [`docs/direction.md`](docs/direction.md)（基本方針）を読むこと。
+すべてのエージェントは作業前にこの文書と [`docs/direction.md`](docs/direction.md)（基本方針）、[`docs/tech-direction.md`](docs/tech-direction.md)（技術・アート方針。品質ゲートを含む）を読むこと。
 
 ## 1. 役割
 
