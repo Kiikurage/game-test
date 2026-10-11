@@ -53,6 +53,20 @@
   display: block;
 }
 
+/*
+ * タッチ表示: 右下のアクションボタン群（`input/touch/touch.css`。左端は右から 200u + 16px、u = min(100dvh/412, 1.35px)）に
+ * 重ならないよう、パネルを左寄せにして右端をボタン群の左（8px 余白）までに収める。左側の仮想スティック領域とは重なってよい。
+ */
+:root[data-input-device='touch'] .text-panel {
+  --u: min(calc(100dvh / 412), 1.35px);
+  left: calc(var(--safe-l, 0px) + 16px);
+  width: min(
+    560px,
+    calc(100vw - var(--safe-l, 0px) - var(--safe-r, 0px) - 16px - 224 * var(--u) - 8px)
+  );
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .text-panel,
   .text-panel.is-visible {
