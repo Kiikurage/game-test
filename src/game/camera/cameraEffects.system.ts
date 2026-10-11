@@ -12,7 +12,7 @@ import type { CameraClip, CameraClipOptions, CameraEffects } from './cameraEffec
 // | --- | --- |
 // | プレイヤーが被弾、ボスの攻撃 または 重い被弾（`kind: 'heavy'`） | 被弾（重）: 0.8°・12F + FOV +2°（8F で戻る） |
 // | プレイヤーが被弾（それ以外） | 被弾（軽）: 0.3°・6F |
-// | プレイヤーの強攻撃（`heavy` / `heavyCharged`）が命中 | 0.4°・8F |
+// | プレイヤーの強攻撃（`heavy` / `heavyCharged`）・致命の一撃（`backstab`）が命中 | 0.4°・8F |
 // | ガード・ジャストガード（`kind: 'guard'`）、軽攻撃の命中 | なし |
 //
 // 死亡演出（`death.system.ts`。FOV −4° を 90F、振動なし）と整合させる: 死亡処理中・死亡する命中では何も出さず、
@@ -50,7 +50,10 @@ export function cameraReactionFor(e: HitEvent, attackerIsBoss: boolean): HitCame
     if (e.killed) return null; // 死亡演出（振動なし）に任せる
     return attackerIsBoss || e.kind === 'heavy' ? 'hitHeavy' : 'hitLight';
   }
-  if (e.attackerId === 'player' && (e.attackId === 'heavy' || e.attackId === 'heavyCharged')) {
+  if (
+    e.attackerId === 'player' &&
+    (e.attackId === 'heavy' || e.attackId === 'heavyCharged' || e.attackId === 'backstab')
+  ) {
     return 'playerHeavyHit';
   }
   return null;

@@ -63,6 +63,7 @@ export type Tuning = {
     playerLight: number;
     playerHeavy: number;
     playerHeavyCharged: number;
+    playerBackstab: number;
     enemyHitsPlayer: number;
     bossHitsPlayer: number;
     guardSuccess: number;
@@ -158,6 +159,7 @@ function createTuning(): Tuning {
       playerLight: HIT_STOP.playerLight,
       playerHeavy: HIT_STOP.playerHeavy,
       playerHeavyCharged: HIT_STOP.playerHeavyCharged,
+      playerBackstab: HIT_STOP.playerBackstab,
       enemyHitsPlayer: HIT_STOP.enemyHitsPlayer,
       bossHitsPlayer: HIT_STOP.bossHitsPlayer,
       guardSuccess: HIT_STOP.guardSuccess,

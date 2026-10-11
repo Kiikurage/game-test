@@ -111,6 +111,18 @@
       ]
     },
     {
+      "id": "player.backstab",
+      "clip": "Sword_Thrust",
+      "clipFps": 30,
+      "clipRange": { "startFrame": 0, "endFrame": 26 },
+      "clipHitFrame": 8,
+      "spec": { "startup": 10, "active": 3, "recovery": 34 },
+      "markers": [
+        { "type": "hitStart", "frame": 11 },
+        { "type": "hitEnd", "frame": 13 }
+      ]
+    },
+    {
       "id": "player.guardCounter",
       "clip": "Shield_Dash",
       "clipFps": 30,

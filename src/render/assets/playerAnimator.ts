@@ -70,6 +70,8 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     heavyCharged: { fadeIn: 0.03, fadeOut: 0.15 },
     // 走り攻撃（#52）: 走りからすぐ踏み込む
     runAttack: { fadeIn: 0.05, fadeOut: 0.12 },
+    // 致命の一撃（#115）: 背後へ吸着しながら素早く突く
+    backstab: { fadeIn: 0.04, fadeOut: 0.15 },
   },
   combatIdle: 'Sword_Idle',
   preload: [
@@ -88,6 +90,7 @@ export const PLAYER_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     'heavy',
     'heavyCharged',
     'runAttack',
+    'backstab',
     'guardBreak',
     'guardCounter',
     'heal',

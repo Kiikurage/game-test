@@ -44,6 +44,7 @@ export interface HitStopConfig {
   readonly playerLight: number;
   readonly playerHeavy: number;
   readonly playerHeavyCharged: number;
+  readonly playerBackstab: number;
   readonly enemyHitsPlayer: number;
   readonly bossHitsPlayer: number;
   readonly guardSuccess: number;
@@ -77,7 +78,7 @@ const NONE: HitStopDecision = { frames: 0, slowMotion: null, flash: null };
 
 /**
  * プレイヤーの攻撃動作 → ヒットストップ。軽攻撃 3 段は軽、`heavy`（溜めなし）は強、`heavyCharged`（フル溜め）は最長。
- * 仕様書に個別の記載がない動作（走り攻撃・ガードカウンター・背後攻撃・落下攻撃）は強攻撃（溜めなし）と同じ。
+ * 仕様書に個別の記載がない動作（走り攻撃・ガードカウンター・落下攻撃）。致命の一撃は 14Fは強攻撃（溜めなし）と同じ。
  */
 export function playerAttackFrames(attackId: string, config: HitStopConfig): number {
   switch (attackId) {
@@ -89,6 +90,8 @@ export function playerAttackFrames(attackId: string, config: HitStopConfig): num
       return config.playerHeavyCharged;
     case 'plunge':
       return PLUNGE.hitStopFrames;
+    case 'backstab':
+      return config.playerBackstab;
     default:
       return config.playerHeavy;
   }

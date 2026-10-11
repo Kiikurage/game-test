@@ -61,7 +61,7 @@ describe('decideHitStop（4.1 節の表）', () => {
 
   it('その他のプレイヤー動作（走り攻撃・ガードカウンターなど）は強攻撃（溜めなし）と同じ 8F', () => {
     const c = cfg();
-    for (const id of ['runAttack', 'guardCounter', 'backstab']) {
+    for (const id of ['runAttack', 'guardCounter']) {
       expect(playerAttackFrames(id, c)).toBe(8);
     }
   });
