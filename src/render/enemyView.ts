@@ -8,6 +8,7 @@ import {
   Vector3,
   type Camera,
   type Mesh,
+  type Object3D,
   type Scene,
 } from 'three/webgpu';
 import type { Enemy } from '../game/enemy/enemy';
@@ -211,10 +212,38 @@ export class EnemyViews {
     }
     if (this.debug && camera) this.debug.update(alpha, camera);
   }
+  private warming = false;
+  private readonly culledBefore = new WeakMap<Object3D, boolean>();
+
+  /**
+   * ウォームアップ中（#241）: 全敵の詳細メッシュを距離・視錐台に関係なく描かせる。
+   * 詳細メッシュは近づく・倒れる（ディゾルブ）まで描かれないので、そのままだと初回の描画（パイプライン生成。
+   * 亡者のバリアントごとにシェーダが違う）が戦闘中・死亡の瞬間に起きて大きくカクつく。
+   * `GameView.warmUp` が描画の前後で true / false にする。
+   */
+  setWarmUp(on: boolean): void {
+    this.warming = on;
+    for (const { character } of this.entries) {
+      character.root.traverse((obj) => {
+        if (!(obj as { isMesh?: boolean }).isMesh) return;
+        if (on) {
+          this.culledBefore.set(obj, obj.frustumCulled);
+          obj.frustumCulled = false;
+        } else {
+          obj.frustumCulled = this.culledBefore.get(obj) ?? true;
+        }
+      });
+    }
+  }
+
   /** 距離・視錐台から、詳細メッシュ / 簡略メッシュ / 非表示と、影の簡略メッシュの要否を決める。 */
   private applyLod(e: EnemyEntry, camera: Camera, shadowFocus?: Vector3): void {
     const { lod } = e;
     if (!lod) return;
+    if (this.warming) {
+      lod.apply('near', true);
+      return;
+    }
     const size = Math.max(e.scale.x, e.scale.y);
     const center = this.sphere.center.copy(this.position);
     center.y += 0.9 * size;

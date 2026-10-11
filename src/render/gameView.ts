@@ -230,7 +230,12 @@ export class GameView {
    */
   async warmUp(): Promise<void> {
     if (!this.drawEnabled) return;
-    this.render(1);
+    this.enemyViews?.setWarmUp(true);
+    try {
+      this.render(1);
+    } finally {
+      this.enemyViews?.setWarmUp(false);
+    }
     const device = (this.gameRenderer.renderer.backend as { device?: GPUDevice }).device;
     await device?.queue.onSubmittedWorkDone();
   }
