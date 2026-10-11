@@ -106,3 +106,13 @@ src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit /
 - **暗所・反響ゾーン**: `LevelData.zones`（`ZoneDef`: `dark` / `echo`、矩形 + 任意の高さ範囲）。地下墓所（エリア D）と水路の全区画。`Level.zoneAt(x, z, y?)` / `visionMultiplierAt`（暗所 `DARK_VISION_MULTIPLIER` = 0.7）/ `hearingMultiplierAt`（反響 `ECHO_HEARING_MULTIPLIER` = 1.3）。たいまつから 4m 超の条件は灯りの配置（E11）後に AI（E3-6）が判定する。音は E7-5b が参照する。
 - **敵のナビ格子**: style `waterway` は `NavGrid` が無視する（地下なので C・D の床のセルを塞がない）。床板は `navSolid`、鉄格子の奥は岩盤の埋め草で固体になり、敵は水路へ入らない。
 - 検証: `levelWaterway.test.ts`（寸法・地形の頭上の余裕・ゾーン・足音・ナビ・物理で床板 → 水路 → 鉄格子 → D の走破と逆行・戻れないこと）と `e2e/waterway.spec.ts`。
+
+## データ駆動のインタラクト（#122: 読む / 調べる）
+
+仕様 14.5 / 14.6 / 14.8 節。型・配置・文面はデータ、動作は `src/game/interactable/`。
+
+- データ（`src/game/data/world/`）: `types.ts`（`Interactable` / `Effect` / `StatMod`）、`interactables.ts`（配置一覧 26 件）、`texts.ja.ts`（14.6 節の全文面・アイテム名/説明/通知）、`lootTuning.ts`（調べる 60F・効果は F30）。アイテム定義は `data/items.ts`（`ItemDef`: kind / nameId / descId / noticeId / effect）。
+- 配置: `ashenFoundation.ts` が `WORLD_INTERACTABLES` のうち、実動作のある種別（read / loot）で、置く地形（`site`: メインルート・`SIDE_PATH_DEFS` の脇道・水路）が存在するものだけを `interactables` の spawn にする。蔵（`side_wall`）など未実装の地形の対象は置かない。pray / bell / talk / push / breakable は #123 が実動作を入れる（データは配置済み）。仕様の座標から動かしたもの: `corpse_ledge`（岩棚の `ring`）、騎士（墓室 (62.4, 35)）、`tablet_gate`（霧の門の反応半径の外）、`tablet_arena`（台座の篝火と離す）。
+- 実行: `InteractableRunner`（`effects.ts`、純粋）が `requires` / `once` / `cooldownF` を評価し `Effect` を順に実行、`InteractableController`（`interactable.ts`）が状況ボタン（インタラクション基盤）に登録する。read は `read.<id>` をセーブして文を出す。loot は 60F かがみ（`interact` 状態。被弾で中断）、F30 で `giveItem` と文、`loot.<id>` をセーブして非表示にする。`giveItem` は所持数のセーブ・`ITEM_DEFS` の効果・`itemPicked`。
+- アイテム取得（#67）は `Interactable`（loot）+ `giveItem` で表す（`item/item.ts` が level の `kind: 'item'` から作る）。
+- 検証: `data/world/world.test.ts`（参照整合・ID 重複なし・範囲内・到達可能・他の状況ボタンと重ならない）、`interactable/*.test.ts`、`e2e/interactable.spec.ts`。dev フック: `dev.interactables()`。

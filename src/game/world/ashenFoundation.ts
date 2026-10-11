@@ -17,6 +17,7 @@ import type {
   PropSpec,
   SidePathDef,
 } from './level';
+import { IMPLEMENTED_KINDS, WORLD_INTERACTABLES } from '../data/world/interactables';
 import type { BoxSpec } from './playground';
 import { buildWaterway, carveMass, GRATE, HATCH } from './waterway';
 
@@ -901,9 +902,26 @@ const FOG_GATE_TARGET = (() => {
   return { x, z, yaw: Math.atan2(F_CENTER.x - x, F_CENTER.z - z) };
 })();
 
+/**
+ * 配置データ（`WORLD_INTERACTABLES`）のうち、実動作があり、置く場所の地形がこのレベルに存在するものを spawn にする。
+ * 脇道の足場（`side_*`）は `SIDE_PATH_DEFS` にあるものだけ、水路は `WATERWAY` がある場合だけ。
+ * 未実装の地形（蔵 `side_wall` など）の対象は置かない（近づけない場所に状況ボタンが出ない）。
+ */
+function placedWorldInteractables(): InteractableSpawn[] {
+  const sites = new Set<string>(['main', 'side_waterway', ...SIDE_PATH_DEFS.map((p) => p.id)]);
+  return WORLD_INTERACTABLES.filter((d) => IMPLEMENTED_KINDS.has(d.kind) && sites.has(d.site)).map(
+    (d) => ({
+      id: d.id,
+      kind: d.kind === 'read' ? 'read' : 'loot',
+      area: null,
+      x: d.x,
+      z: d.z,
+    }),
+  );
+}
+
 const interactables: InteractableSpawn[] = [
   { id: 'bonfire', kind: 'bonfire', area: 'A', x: 0, z: 0 },
-  { id: 'stele-a', kind: 'tablet', area: 'A', x: -4.6, z: 3.4 },
   // 鉄門 G1（78,32）とレバー（80,36）は中庭の外の通路上、霧の門（104,68）は中庭の北東の角
   { id: 'G1', kind: 'gate', area: null, x: 78, z: 32 },
   { id: 'lever-g1', kind: 'lever', area: null, x: 80, z: 36 },
@@ -916,6 +934,8 @@ const interactables: InteractableSpawn[] = [
   { id: 'grate-waterway', kind: 'grate', area: 'D', x: GRATE.x, z: GRATE.z },
   // 礼拝堂の奥の回復瓶 +1（最大 3 → 4）
   { id: 'item-flask-c', kind: 'item', area: 'C', x: 54, z: 26, itemId: 'flask_up' },
+  // 碑文・墓石・遺体・遺品（#122。配置データ `data/world/interactables.ts`）。地形が存在する場所のものだけ置く
+  ...placedWorldInteractables(),
 ];
 
 const gates: GateDef[] = [
