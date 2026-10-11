@@ -1,4 +1,4 @@
-import { Vector3 } from 'three/webgpu';
+import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { PLAYER_HEARTBOXES, HitResolver, UprightTarget, type HitEvent } from '../combat';
 import { ENEMY_AI, UNDEAD_ATTACK_RULES, UNDEAD_SOLDIER_ATTACKS, trackEndFrame } from '../data';

@@ -1,4 +1,4 @@
-import { Vector3 } from 'three/webgpu';
+import { Vector3 } from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { MOVEMENT } from '../data';
 import type { Physics } from '../physics';

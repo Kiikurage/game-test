@@ -1,7 +1,7 @@
 import { EventBus, type FootstepSurface, type GameEventMap } from '../core/gameEvents';
 import { MARKER_TYPES, type MarkerType } from './anim/eventMarkers';
 import type { AnimMarkerEvent } from './anim/markerDispatcher';
-import { Euler, Quaternion, Vector3 } from 'three/webgpu';
+import { Euler, Quaternion, Vector3 } from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { InputReader, InputSnapshot } from '../core/input';
 import { ThirdPersonCamera, type CameraCollision } from './camera/thirdPersonCamera';
