@@ -16,6 +16,7 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "shot": "node scripts/shot.mjs",
+    "dbg": "node scripts/dbg.mjs",
     "heroshots": "node scripts/heroShots.mjs",
     "perf": "node scripts/perf.mjs",
     "profile": "node scripts/profile.mjs",

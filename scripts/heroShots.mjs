@@ -15,8 +15,13 @@ import { basename, join, resolve } from 'node:path';
 import { build, preview } from 'vite';
 import { chromium } from '@playwright/test';
 import { launchOptions } from './chromium.mjs';
-
-const DEG = Math.PI / 180;
+import {
+  HIDE_HUD_CSS,
+  localStorageEntries,
+  resolveShot,
+  shotQuery,
+  stage,
+} from './heroShotStage.mjs';
 
 function parseArgs(argv) {
   const opts = {
@@ -81,11 +86,7 @@ async function shootAll() {
   const server = await preview({ preview: { host: 'localhost', port, strictPort: true } });
   const groups = new Map();
   for (const shot of shots) {
-    const enemies = shot.enemies ?? defaults.enemies ?? true;
-    const params = new URLSearchParams({ quality, scale: '1' });
-    if (!enemies) params.set('enemies', '0');
-    for (const [k, v] of Object.entries(shot.query ?? {})) params.set(k, String(v));
-    const query = `?${params.toString()}`;
+    const query = shotQuery(shot, defaults, { quality, scale: '1' });
     if (!groups.has(query)) groups.set(query, []);
     groups.get(query).push(shot);
   }
@@ -95,15 +96,9 @@ async function shootAll() {
       const context = await browser.newContext(viewport.context);
       const page = await context.newPage();
       // 起動前のセーブ・設定（篝火の点火済みなど）。値は JSON 文字列にして localStorage へ入れる
-      await page.addInitScript(
-        (entries) => {
-          for (const [k, v] of entries) localStorage.setItem(k, v);
-        },
-        Object.entries(defaults.localStorage ?? {}).map(([k, v]) => [
-          k,
-          typeof v === 'string' ? v : JSON.stringify(v),
-        ]),
-      );
+      await page.addInitScript((entries) => {
+        for (const [k, v] of entries) localStorage.setItem(k, v);
+      }, localStorageEntries(defaults));
       page.on('console', (msg) => {
         if (msg.type() === 'error') console.error(`console.error: ${msg.text()}`);
       });
@@ -126,7 +121,7 @@ async function shootAll() {
       if (!(defaults.hud ?? false)) await hideHud(page);
       for (const shot of group) {
         const t0 = performance.now();
-        const spec = resolveShot(shot);
+        const spec = resolveShot(shot, defaults);
         await page.evaluate(stage, spec);
         // 描画側（パーティクル・ムードの補間・影）の立ち上がりをフレーム数で待つ
         await waitFrames(page, spec.frames);
@@ -151,50 +146,6 @@ async function shootAll() {
   );
 }
 
-/** JSON の視点を、ページ内で実行する形（ラジアン・既定値の解決済み）にする。 */
-function resolveShot(shot) {
-  const camera = { ...(defaults.camera ?? {}), ...(shot.camera ?? {}) };
-  const player = shot.player && {
-    x: shot.player.x,
-    z: shot.player.z,
-    y: shot.player.y,
-    yaw:
-      shot.player.face !== undefined
-        ? Math.atan2(shot.player.face[0] - shot.player.x, shot.player.face[1] - shot.player.z)
-        : (shot.player.yawDeg ?? 0) * DEG,
-  };
-  return {
-    player,
-    camera: {
-      yawOffset: (camera.yawOffsetDeg ?? 0) * DEG,
-      distance: camera.distance,
-      pitchDeg: camera.pitchDeg,
-    },
-    freeCam: shot.freeCam ?? null,
-    dev: shot.dev ?? [],
-    steps: shot.steps ?? defaults.steps ?? 60,
-    frames: shot.frames ?? defaults.frames ?? 12,
-  };
-}
-
-/** ページ内: シミュレーションを止め、視点の状態を作ってからステップ数だけ進める。 */
-function stage(spec) {
-  const dev = window.__game.dev;
-  dev.pause(true);
-  dev.freeCam(null);
-  // 前の視点のボスを残さない（出す視点は dev で bossSpawn / arenaEnter を呼ぶ）
-  dev.bossRemove();
-  for (const [name, ...args] of spec.dev) {
-    if (typeof dev[name] !== 'function') throw new Error(`unknown dev hook: ${name}`);
-    dev[name](...args);
-  }
-  if (spec.player) dev.teleport(spec.player.x, spec.player.z, spec.player.yaw, spec.player.y);
-  dev.view(spec.camera.yawOffset, spec.camera.distance, spec.camera.pitchDeg);
-  // 物理の接地・アニメーション・カメラの追従・敵の反応を落ち着かせる（シミュレーション基準の待ち）
-  dev.advance(spec.steps);
-  if (spec.freeCam) dev.freeCam(spec.freeCam.position, spec.freeCam.target);
-}
-
 async function waitFrames(page, frames) {
   const start = await page.evaluate(() => window.__game.frames);
   await page.waitForFunction((n) => window.__game.frames >= n, start + frames, {
@@ -204,9 +155,7 @@ async function waitFrames(page, frames) {
 
 /** HUD・タッチ操作の UI を隠し、キャンバスだけを撮る。 */
 async function hideHud(page) {
-  await page.addStyleTag({
-    content: 'body > :not(#app), #app > :not(canvas) { visibility: hidden !important; }',
-  });
+  await page.addStyleTag({ content: HIDE_HUD_CSS });
 }
 
 // ---- contact sheet（新規依存なしで、Chromium に HTML で並べてスクショする） ----
