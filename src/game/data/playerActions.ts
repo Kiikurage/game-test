@@ -240,6 +240,8 @@ export const PLUNGE = {
   /** 攻撃しないで着地したときの硬直: この高さ以上で `landFrames`、未満は硬直なし。 */
   landStiffnessHeight: 2.0,
   landFrames: 10,
+  /** 落下の始点からこの距離（m）までは地上と同じ操作（小さな段差で粘らない）。以降は踏み出しの速度 ± `airCorrection`。 */
+  freeSteerDrop: 0.5,
   /** 入力時に「下に敵がいる」とみなす水平距離（m）。判定の円 1.4m + 空中補正で動ける分。 */
   targetReach: 2.5,
 } as const;

@@ -786,7 +786,7 @@ export class Player {
       case 'backstep':
         return this.updateBackstep(frame);
       case 'fall':
-        return this.updateFall(dt, frame);
+        return this.updateFall(dt, snap, frame);
       case 'land':
         return this.updateLand(dt, snap, frame);
       case 'plungeFall':
@@ -1374,10 +1374,18 @@ export class Player {
     return this.moveMagnitude > 0 ? (this.dashLatch ? 'dash' : 'move') : 'idle';
   }
 
-  private updateFall(dt: number, frame: PlayerFrame): PlayerStateId | null {
+  private updateFall(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
     if (this.grounded) return this.landed(this.fallStartY - this.position.y);
     const plunge = this.tryPlunge(frame);
     if (plunge) return plunge;
+    if (this.fallStartY - this.position.y < PLUNGE.freeSteerDrop) {
+      // 階段の段差・縁の出っ張りなどの小さな落ち込みは、地上と同じように操作できる（粘らない）。
+      // 速度を引き継ぎ点とし、本格的な落下になってから「踏み出しの速度 ± 1.5 m/s」に切り替わる
+      this.computeLocomotion(dt, snap, frame, 1, 'air');
+      this.airBase.x = this.velocity.x;
+      this.airBase.y = this.velocity.y;
+      return null;
+    }
     this.driveAir(dt, frame);
     return null;
   }
