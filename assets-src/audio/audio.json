@@ -6,49 +6,56 @@
       "source": "se/sfx.sword-light1.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -3
     },
     {
       "id": "sfx.sword-light2",
       "source": "se/sfx.sword-light2.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -2.5
     },
     {
       "id": "sfx.sword-light3",
       "source": "se/sfx.sword-light3.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -3.5
     },
     {
       "id": "sfx.sword-heavy1",
       "source": "se/sfx.sword-heavy1.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -5
     },
     {
       "id": "sfx.sword-heavy2",
       "source": "se/sfx.sword-heavy2.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -3
     },
     {
       "id": "sfx.guard1",
       "source": "se/sfx.guard1.wav",
       "kind": "se",
       "priority": 90,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "sfx.guard2",
       "source": "se/sfx.guard2.wav",
       "kind": "se",
       "priority": 90,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "sfx.guard3",
@@ -62,21 +69,24 @@
       "source": "se/sfx.guard-just.wav",
       "kind": "se",
       "priority": 95,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 3.5
     },
     {
       "id": "sfx.roll1",
       "source": "se/sfx.roll1.wav",
       "kind": "se",
       "priority": 60,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6.5
     },
     {
       "id": "sfx.roll2",
       "source": "se/sfx.roll2.wav",
       "kind": "se",
       "priority": 60,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6
     },
     {
       "id": "sfx.hurt1",
@@ -97,351 +107,400 @@
       "source": "se/sfx.heal-drink.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -4
     },
     {
       "id": "sfx.heal-glow",
       "source": "se/sfx.heal-glow.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -3
     },
     {
       "id": "sfx.player-heavy-charge-full",
       "source": "se/sfx.player-heavy-charge-full.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -0.5
     },
     {
       "id": "sfx.breathless",
       "source": "se/sfx.breathless.wav",
       "kind": "se",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 2
     },
     {
       "id": "sfx.hit-light1",
       "source": "se/sfx.hit-light1.wav",
       "kind": "se",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -3.5
     },
     {
       "id": "sfx.hit-light2",
       "source": "se/sfx.hit-light2.wav",
       "kind": "se",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -3
     },
     {
       "id": "sfx.hit-heavy1",
       "source": "se/sfx.hit-heavy1.wav",
       "kind": "se",
       "priority": 88,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -1.5
     },
     {
       "id": "sfx.hit-heavy2",
       "source": "se/sfx.hit-heavy2.wav",
       "kind": "se",
       "priority": 88,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -1.5
     },
     {
       "id": "sfx.hit-light3",
       "source": "se/sfx.hit-light3.wav",
       "kind": "se",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.hit-light4",
       "source": "se/sfx.hit-light4.wav",
       "kind": "se",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -1
     },
     {
       "id": "sfx.hit-heavy3",
       "source": "se/sfx.hit-heavy3.wav",
       "kind": "se",
       "priority": 88,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "sfx.hit-heavy4",
       "source": "se/sfx.hit-heavy4.wav",
       "kind": "se",
       "priority": 88,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.defeat-collapse",
       "source": "se/sfx.defeat-collapse.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -2
     },
     {
       "id": "sfx.defeat-ash",
       "source": "se/sfx.defeat-ash.wav",
       "kind": "se",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 2.5
     },
     {
       "id": "sfx.guard-break",
       "source": "se/sfx.guard-break.wav",
       "kind": "se",
       "priority": 93,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.shield-deflect1",
       "source": "se/sfx.shield-deflect1.wav",
       "kind": "se",
       "priority": 90,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "sfx.shield-deflect2",
       "source": "se/sfx.shield-deflect2.wav",
       "kind": "se",
       "priority": 90,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "sfx.enemy.step1",
       "source": "se/sfx.enemy.step1.wav",
       "kind": "se",
       "priority": 50,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -11.5
     },
     {
       "id": "sfx.enemy.step2",
       "source": "se/sfx.enemy.step2.wav",
       "kind": "se",
       "priority": 50,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -10.5
     },
     {
       "id": "sfx.enemy.notice",
       "source": "se/sfx.enemy.notice.wav",
       "kind": "se",
       "priority": 55,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -2.5
     },
     {
       "id": "sfx.enemy.notice-minor",
       "source": "se/sfx.enemy.notice-minor.wav",
       "kind": "se",
       "priority": 50,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -4
     },
     {
       "id": "sfx.enemy.whoosh1",
       "source": "se/sfx.enemy.whoosh1.wav",
       "kind": "se",
       "priority": 50,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6
     },
     {
       "id": "sfx.enemy.whoosh2",
       "source": "se/sfx.enemy.whoosh2.wav",
       "kind": "se",
       "priority": 50,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -5.5
     },
     {
       "id": "sfx.enemy.whoosh3",
       "source": "se/sfx.enemy.whoosh3.wav",
       "kind": "se",
       "priority": 50,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -5.5
     },
     {
       "id": "sfx.enemy.shield-raise",
       "source": "se/sfx.enemy.shield-raise.wav",
       "kind": "se",
       "priority": 50,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -5
     },
     {
       "id": "ui.click",
       "source": "ui/ui.click.wav",
       "kind": "ui",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -1.5
     },
     {
       "id": "ui.confirm",
       "source": "ui/ui.confirm.wav",
       "kind": "ui",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -2
     },
     {
       "id": "ui.back",
       "source": "ui/ui.back.wav",
       "kind": "ui",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -2.5
     },
     {
       "id": "ui.item-get",
       "source": "ui/ui.item-get.wav",
       "kind": "ui",
       "priority": 80,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -1
     },
     {
       "id": "ui.bonfire-light",
       "source": "ui/ui.bonfire-light.wav",
       "kind": "ui",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -0.5
     },
     {
       "id": "ui.bonfire-rest",
       "source": "ui/ui.bonfire-rest.wav",
       "kind": "ui",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 3
     },
     {
       "id": "ui.died-bell",
       "source": "ui/ui.died-bell.wav",
       "kind": "ui",
       "priority": 90,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "ui.boss-bar",
       "source": "ui/ui.boss-bar.wav",
       "kind": "ui",
       "priority": 85,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -1
     },
     {
       "id": "sfx.footstep-grass1",
       "source": "se/sfx.footstep-grass1.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -10
     },
     {
       "id": "sfx.footstep-grass2",
       "source": "se/sfx.footstep-grass2.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -10
     },
     {
       "id": "sfx.footstep-grass3",
       "source": "se/sfx.footstep-grass3.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -9.5
     },
     {
       "id": "sfx.footstep-grass4",
       "source": "se/sfx.footstep-grass4.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -10
     },
     {
       "id": "sfx.footstep-stone1",
       "source": "se/sfx.footstep-stone1.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -8
     },
     {
       "id": "sfx.footstep-stone2",
       "source": "se/sfx.footstep-stone2.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -5.5
     },
     {
       "id": "sfx.footstep-stone3",
       "source": "se/sfx.footstep-stone3.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -7.5
     },
     {
       "id": "sfx.footstep-stone4",
       "source": "se/sfx.footstep-stone4.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -7
     },
     {
       "id": "sfx.footstep-wood1",
       "source": "se/sfx.footstep-wood1.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -11.5
     },
     {
       "id": "sfx.footstep-wood2",
       "source": "se/sfx.footstep-wood2.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -10
     },
     {
       "id": "sfx.footstep-wood3",
       "source": "se/sfx.footstep-wood3.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -11
     },
     {
       "id": "sfx.footstep-wood4",
       "source": "se/sfx.footstep-wood4.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -11
     },
     {
       "id": "sfx.footstep-crypt1",
       "source": "se/sfx.footstep-crypt1.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6.5
     },
     {
       "id": "sfx.footstep-crypt2",
       "source": "se/sfx.footstep-crypt2.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6
     },
     {
       "id": "sfx.footstep-crypt3",
       "source": "se/sfx.footstep-crypt3.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6
     },
     {
       "id": "sfx.footstep-crypt4",
       "source": "se/sfx.footstep-crypt4.wav",
       "kind": "se",
       "priority": 30,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6
     },
     {
       "id": "ambient.wind",
       "source": "ambient/ambient.wind.wav",
       "kind": "ambient",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 25.0,
+      "loopStart": 1,
+      "loopEnd": 25,
       "priority": 10,
       "bitrateKbps": 48,
       "license": "synth-game-test"
@@ -451,8 +510,8 @@
       "source": "ambient/ambient.ash-leaves.wav",
       "kind": "ambient",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 21.0,
+      "loopStart": 1,
+      "loopEnd": 21,
       "priority": 10,
       "bitrateKbps": 48,
       "license": "synth-game-test"
@@ -469,8 +528,8 @@
       "source": "ambient/ambient.fire.wav",
       "kind": "ambient",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 17.0,
+      "loopStart": 1,
+      "loopEnd": 17,
       "priority": 10,
       "bitrateKbps": 48,
       "license": "synth-game-test"
@@ -480,8 +539,8 @@
       "source": "ambient/ambient.fog-gate.wav",
       "kind": "ambient",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 21.0,
+      "loopStart": 1,
+      "loopEnd": 21,
       "priority": 10,
       "bitrateKbps": 64,
       "license": "synth-game-test"
@@ -491,8 +550,8 @@
       "source": "ambient/ambient.crypt.wav",
       "kind": "ambient",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 25.0,
+      "loopStart": 1,
+      "loopEnd": 25,
       "priority": 10,
       "bitrateKbps": 64,
       "license": "synth-game-test"
@@ -502,56 +561,64 @@
       "source": "se/sfx.boss.step1.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -5
     },
     {
       "id": "sfx.boss.step2",
       "source": "se/sfx.boss.step2.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -5
     },
     {
       "id": "sfx.boss.step3",
       "source": "se/sfx.boss.step3.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -6
     },
     {
       "id": "sfx.boss.step4",
       "source": "se/sfx.boss.step4.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -3.5
     },
     {
       "id": "sfx.boss.roar",
       "source": "se/sfx.boss.roar.wav",
       "kind": "se",
       "priority": 75,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": -2.5
     },
     {
       "id": "sfx.boss.axe-swing1",
       "source": "se/sfx.boss.axe-swing1.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.boss.axe-swing2",
       "source": "se/sfx.boss.axe-swing2.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.boss.axe-swing3",
       "source": "se/sfx.boss.axe-swing3.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.boss.slam1",
@@ -565,57 +632,64 @@
       "source": "se/sfx.boss.slam2.wav",
       "kind": "se",
       "priority": 72,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.boss.ash-wave1",
       "source": "se/sfx.boss.ash-wave1.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.boss.ash-wave2",
       "source": "se/sfx.boss.ash-wave2.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "sfx.boss.ash-wave3",
       "source": "se/sfx.boss.ash-wave3.wav",
       "kind": "se",
       "priority": 70,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 4.5
     },
     {
       "id": "sfx.boss.enter",
       "source": "se/sfx.boss.enter.wav",
       "kind": "se",
       "priority": 72,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "sfx.boss.defeat",
       "source": "se/sfx.boss.defeat.wav",
       "kind": "se",
       "priority": 75,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 0.5
     },
     {
       "id": "sfx.boss.shield-bash",
       "source": "se/sfx.boss.shield-bash.wav",
       "kind": "se",
       "priority": 72,
-      "license": "synth-game-test"
+      "license": "synth-game-test",
+      "gainDb": 1
     },
     {
       "id": "bgm.title",
       "source": "bgm/bgm.title.wav",
       "kind": "bgm",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 61.0,
+      "loopStart": 1,
+      "loopEnd": 61,
       "priority": 40,
       "bitrateKbps": 80,
       "license": "synth-game-test"
@@ -625,8 +699,8 @@
       "source": "bgm/bgm.boss.wav",
       "kind": "bgm",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 91.0,
+      "loopStart": 1,
+      "loopEnd": 91,
       "priority": 45,
       "bitrateKbps": 80,
       "license": "synth-game-test"
@@ -636,8 +710,8 @@
       "source": "bgm/bgm.boss-layer.wav",
       "kind": "bgm",
       "loop": true,
-      "loopStart": 1.0,
-      "loopEnd": 91.0,
+      "loopStart": 1,
+      "loopEnd": 91,
       "priority": 46,
       "bitrateKbps": 80,
       "license": "synth-game-test"

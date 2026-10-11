@@ -69,6 +69,33 @@ ffmpeg / ffprobe（libopus 付き）が必要。CI では `apt-get install ffmpe
 
 出力マニフェスト（`public/assets/audio/manifest.json`、型は `src/audio/manifest.ts`）の各エントリ: `id` / `file` / `fallbackFile?` / `bus` / `kind` / `loop` / `loopStart?` / `loopEnd?` / `priority` / `gain` / `channels` / `bytes` / `duration`。トップレベルに `totalBytes` と `budgetBytes`。
 
+## 2.5 SE の音量バランス（#254）
+
+素材はどれもピーク約 -2dBFS で書き出されていて、素材ごとの大きさ（有音区間 RMS）は -15〜-25dBFS でばらついていた（`gainDb` は未設定 = 1）。
+特に頻繁に鳴る足音が他と同じ大きさで耳に付いたため、**区分ごとの目標 RMS に揃える `gainDb`** を素材ごとに設定した。
+
+- 測定と適用: `node scripts/audio/loudness.mjs`（表示のみ。ffmpeg でデコードして peak / 有音区間 RMS / `gainDb` 適用後の RMS = eff を出す）、
+  `node scripts/audio/loudness.mjs --apply`（区分表 `TARGETS` から `gainDb` を算出して `assets-src/audio/audio.json` と出力マニフェストの `gain` を更新。再エンコードしない。素材を足したら `TARGETS` に区分を足して再実行し、`npm run format` と `npm run assets:audio:check` を通す）。
+- `gainDb` は 0.5dB 刻み。ブーストはピークが -1dBFS を超えない範囲に制限する（クリップ防止）。
+- BGM・環境音は対象外（`gain` 1 のまま。バス音量とループ素材の作りで調整済み）。
+
+| 区分 | 目標 RMS (dBFS) | 対象 | 概算 gain |
+| --- | --- | --- | --- |
+| 足音 | -30 | `sfx.footstep-*`（プレイヤー・世界。再生側で歩き 0.55 / 走り 0.85 倍がさらに掛かる） | 0.25〜0.5（草 0.32 / 石 0.4〜0.5 / 木 0.28 / 地下 0.5） |
+| 敵の足音 | -29 | `sfx.enemy.step*` | 約 0.3 |
+| ロール・回復持続・盾構え | -25〜-26 | `sfx.roll*` / `sfx.heal-glow` / `sfx.enemy.shield-raise` | 0.5〜0.6 |
+| 敵の風切り・気づき（小）・チャージ完了 | -23〜-24 | `sfx.enemy.whoosh*` / `sfx.enemy.notice-minor` / `sfx.player-heavy-charge-full` | 0.5〜1 |
+| 自分の剣振り・軽い命中・回復の飲み音・敵撃破 | -20〜-22 | `sfx.sword-*` / `sfx.hit-light*` / `sfx.heal-drink` / `sfx.defeat-*` / `sfx.enemy.notice` | 0.5〜1.3 |
+| UI | -22 | `ui.*` | 0.85〜1.4 |
+| ボスの足音 | -21 | `sfx.boss.step*`（重さは残す） | 0.5〜0.67 |
+| 要所（前に出す） | -17 | 被弾 `sfx.hurt*`・ガード `sfx.guard*`・パリィ `sfx.guard-just`・`sfx.shield-deflect*`・重い命中 `sfx.hit-heavy*`・`sfx.breathless`・ボス登場 / 撃破 | 0.85〜1.5 |
+| ボスの攻撃 | -16 | `sfx.boss.axe-swing*` / `slam*` / `ash-wave*` / `shield-bash` | 1〜1.7 |
+| ボスの咆哮 | -13 | `sfx.boss.roar`（最大。元が大きいので -2.5dB） | 0.75 |
+
+バス間のバランス（既定: master 80 / bgm 60 / sfx 80 / ambient 80 / ui 80、`gain = (v/100)^2`）: 最終の大きさは、SE の要所が約 -21dBFS、頻繁に鳴る音が約 -25〜-34dBFS（足音は歩きでさらに -5dB）、
+BGM は素材 -21〜-25dBFS にバス 0.36（-8.9dB）が掛かって約 -30dBFS、環境音は素材 -25〜-35dBFS にバス 0.64 で約 -30〜-40dBFS。
+BGM と環境音は SE より下に座り、足音は BGM と同程度以下になるため、バス既定音量（`DEFAULT_VOLUME`）は変更していない。
+
 ## 3. 容量予算
 
 - 総容量 **8MB 以内**（`AUDIO_BUDGET_BYTES`、Ogg Opus の合計）。ビルド時に集計し、**超過でエラー終了、80% 超で警告**。
