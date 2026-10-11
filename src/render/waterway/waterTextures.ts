@@ -9,12 +9,12 @@ import {
   ClampToEdgeWrapping,
   DataUtils,
   type Texture,
-  TextureLoader,
 } from 'three/webgpu';
 import type { WaterGrid } from './waterLayout';
+import { getKtx2Loader } from '../assets/ktx2';
 
 /**
- * 水のテクスチャ（#270）。`scripts/assets/build-water-textures.mjs` がオフラインで決定的に生成したタイル可能な PNG。
+ * 水のテクスチャ（#270）。`scripts/assets/build-water-textures.mjs` がオフラインで決定的に生成したタイル可能なテクスチャ（KTX2 / UASTC、ミップマップ同梱。#328）。
  *  - ripple: 細かいさざ波の勾配（RG）と高さ（B）。タイル `RIPPLE_TILE` m
  *  - swell : ゆるいうねりの勾配（RG）。タイル `SWELL_TILE` m
  *  - caustics: R / G = 2 枚のコースティクス（min で重ねる）、B = 泡の模様
@@ -52,9 +52,9 @@ export function placeholderWaterTextures(): WaterTextures {
   };
 }
 
-/** PNG を読み込む（失敗はそのまま投げる。呼び出し側が代用に切り替える）。 */
+/** KTX2 を読み込む（失敗はそのまま投げる。呼び出し側が代用に切り替える）。 */
 export async function loadWaterTextures(base: string): Promise<WaterTextures> {
-  const loader = new TextureLoader();
+  const loader = getKtx2Loader();
   const load = async (name: string): Promise<Texture> => {
     const tex = await loader.loadAsync(`${base}assets/water/${name}`);
     tex.colorSpace = NoColorSpace;
@@ -62,15 +62,15 @@ export async function loadWaterTextures(base: string): Promise<WaterTextures> {
     tex.wrapT = RepeatWrapping;
     tex.magFilter = LinearFilter;
     tex.minFilter = LinearMipmapLinearFilter;
-    tex.generateMipmaps = true;
+    // ミップマップはファイルに入っている（圧縮テクスチャは GPU で生成できない）
     tex.anisotropy = 4;
     tex.needsUpdate = true;
     return tex;
   };
   const [ripple, swell, caustics] = await Promise.all([
-    load('water-ripple.png'),
-    load('water-swell.png'),
-    load('water-caustics.png'),
+    load('water-ripple.ktx2'),
+    load('water-swell.ktx2'),
+    load('water-caustics.ktx2'),
   ]);
   return { ripple, swell, caustics };
 }

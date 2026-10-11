@@ -222,7 +222,7 @@ Rogue / Mage も同系統。**KayKit はキャラクター間でリグとクリ�
 
 | 用途 | 元アセット | ライセンス | 加工 |
 | --- | --- | --- | --- |
-| 騎士（プレイヤー、敵の流用元） | Modular Character Outfits - Fantasy（Standard）の `Male_Ranger`（フード・ショルダーパッド・ブーツ・ベルト等） + Universal Base Characters（Standard）の `Superhero_Male` の頭部 | CC0 1.0 | 色調を鋼色に寄せる、頭部のみ切り出し、メッシュ簡略化、テクスチャ縮小・WebP 化 |
+| 騎士（プレイヤー、敵の流用元） | Modular Character Outfits - Fantasy（Standard）の `Male_Ranger`（フード・ショルダーパッド・ブーツ・ベルト等） + Universal Base Characters（Standard）の `Superhero_Male` の頭部 | CC0 1.0 | 色調を鋼色に寄せる、頭部のみ切り出し、メッシュ簡略化、テクスチャ縮小・KTX2 化 |
 | アニメーション 34 クリップ | Universal Animation Library（`gaits.glb`、17 クリップ）と Universal Animation Library 2（`animations.glb`、17 クリップ）、いずれも Standard 版・ルートモーション無し | CC0 1.0 | 必要クリップのみ抽出、スケール/子ボーンの平行移動トラック削除、リサンプル、meshopt 圧縮 |
 | 剣・盾 | 自作（`scripts/assets/props.mjs` がコードで生成。素材由来のライセンスなし） | — | — |
 | 簡易装備メッシュ（亡者兵・盾持ち・ボス） | 自作（`scripts/assets/equipment.mjs`。7.7 節） | — | — |
@@ -247,15 +247,16 @@ Rogue / Mage も同系統。**KayKit はキャラクター間でリグとクリ�
 
 | ファイル | サイズ | 内容 |
 | --- | --- | --- |
-| `public/assets/characters/knight.glb` | 約 505KB | 65 ボーン、21,252 tris（元 29,834）、マテリアル 3、テクスチャ 7 枚（WebP） |
+| `public/assets/characters/knight.glb` | 約 757KB | 65 ボーン、21,252 tris（元 29,834）、マテリアル 3、テクスチャ 7 枚（KTX2 / ETC1S） |
 | `public/assets/animations.glb` | 約 730KB | 34 クリップ（骨格のみ、メッシュなし） |
 | `public/assets/props.glb` | 約 18KB | 剣・盾（計 950 tris） |
 | `public/assets/manifest.json` | 約 5KB | 上記のサイズ・三角形数・クリップ長（テストが参照） |
 
 - 初回ダウンロードは合計 約 1.25MB。キャラクターを増やしても `animations.glb` は共有できる。
-- テクスチャ: ベースカラー 1024px、法線・金属/粗さ 512px（元は 2048〜4096px の PNG で合計 数十 MB）、頭部は顔の UV 範囲だけを切り抜いた 512px。WebP は `EXT_texture_webp` で three の `GLTFLoader` がそのまま読める。
+- テクスチャ: ベースカラー 1024px、法線・金属/粗さ 512px（元は 2048〜4096px の PNG で合計 数十 MB）、頭部は顔の UV 範囲だけを切り抜いた 512px。KTX2（Basis Universal、`KHR_texture_basisu`、ミップマップ同梱）で、`GLTFLoader` に共有の `KTX2Loader`（`src/render/assets/ktx2.ts`）を渡して読む。
 - メッシュ: meshopt で圧縮し（`EXT_meshopt_compression`）、位置/法線/UV を量子化（`KHR_mesh_quantization`）。three の `GLTFLoader` + `MeshoptDecoder`（`three/addons`）で WebGPURenderer 上でもスキニング込みで正しく描画できることを確認した。Draco は使っていない。
-- KTX2 は採用しなかった。変換に必要な `toktx`（KTX-Software）がこの環境に無く導入できなかったため。GPU 圧縮テクスチャにするとテクスチャメモリは 1/4〜1/8 になるので、メモリが問題になった場合の改善案として残す（three r186 には `KTX2Loader` と Basis トランスコーダが同梱されている）。
+- KTX2（#328）: エンコードは npm の `ktx2-encoder`（Basis の wasm。`scripts/assets/ktx2.mjs`）で行い、外部コマンドは使わない。ベースカラー・金属/粗さ・法線は ETC1S（法線は normal map 設定）、水のデータテクスチャは UASTC + Zstandard。実行時は `createRenderer` が `configureKtx2Loader(renderer)` で変換先（ASTC / BC7 など）をデバイスの機能から決め、トランスコーダ（three 同梱の `basis_transcoder.js` / `.wasm`）は `vite.config.ts` のプラグインが `<base>basis/` に配る（CDN は使わない）。
+- KTX2 化の前後（knight.glb）: ダウンロード 約 505KB → 約 757KB（法線・ベースカラーは WebP より大きい）、テクスチャメモリ 約 17.3MB（RGBA8 展開）→ 約 4.3MB（4x4 ブロック圧縮、1 画素 1 バイト換算）。
 
 ### 7.4 キャラクター 1 体あたりの性能予算
 
@@ -264,8 +265,8 @@ Xperia 1 V（30fps 目標）で、プレイヤー + 敵数体が同時に出る�
 | 項目 | 予算 | 現状（knight） |
 | --- | --- | --- |
 | 三角形数 | 25,000 tris 以下 | 21,252 tris（剣・盾を除く。小物は +950 tris） |
-| テクスチャメモリ（GPU、ミップマップ込み、非圧縮 RGBA8 換算） | 24MB 以下 | 約 17.3MB |
-| ダウンロード（キャラクター 1 種） | 800KB 以下 | 約 505KB（アニメーション 約 730KB は全キャラ共有） |
+| テクスチャメモリ（GPU、ミップマップ込み。KTX2 のブロック圧縮換算） | 24MB 以下 | 約 4.3MB |
+| ダウンロード（キャラクター 1 種） | 800KB 以下 | 約 757KB（アニメーション 約 730KB は全キャラ共有） |
 | 全アセットの合計（コミットするサイズ） | 3MB 以下 | 約 1.25MB |
 
 - 同種の敵は同じジオメトリ・テクスチャを共有する（`CharacterAssets.createCharacter` は `SkeletonUtils.clone` でスケルトンのみ複製する）ので、増えるのはスケルトンとマテリアルの参照だけ。敵の種類が増えるとテクスチャメモリは種類数分だけ増える。
@@ -354,7 +355,7 @@ boss.setEmber(emberAtTransitionFrame(frame));                           // 移�
 - **斧の持ち方**: `setGrip('twoHand')` で斧をキャラクターのルート直下へ移し、`lateUpdate` が毎フレーム「右手を通り、左手の方向を向く」姿勢に合わせる（手が近い片手向けクリップでは右手ソケットの向きのまま）。盾は `lowerarm_l` のホルダーを `detachShield` でシーンへ移す（ワールド姿勢を保つ）。
 - **歩幅・足滑り**（`bossGait.ts`）: 拡大で 1 歩が 2.2 倍になるため、歩行位相の時計に**モデル空間の速度（実速度 ÷ 2.2）**を渡す。歩き 2.4 m/s は歩きクリップ 100%（1 サイクル 1.47s・1 歩 1.76m）、走り 4.2 / 4.8 m/s は歩き + 走りクリップを約 10% / 13% 混ぜる（1 サイクル 約 0.98 / 0.90s・1 歩 約 2.05 / 2.15m）。走りクリップを全開にすると 1 歩 4.7m のスローモーションになるため。足の接地速度は `?bossmodel=…&gait=walk|run1|run2` で計測できる（`window.__bossGait`。接地中の足の後退速度の中央値。実測: 歩き 2.04 / 走り 4.01 / フェーズ 2 の走り 4.71 m/s に対し移動速度 2.4 / 4.2 / 4.8 m/s。`e2e/bossModel.spec.ts` が 25% 以内を検証）。足音は `BOSS_FOOTSTEP`（`foot_l` / `foot_r`、ピッチ比 0.48、音量・画面揺れの指定）。
 - **被弾判定**: `src/game/combat/bossHeartboxes.ts` の `BOSS_HEARTBOXES`（脚部 半径 0.75m + 胴 半径 0.9m、頭部判定なし）を `UprightTarget` に渡す。
-- **予算**: 全身 23,886 tris（騎士 21,252 + 装備 2,634。25,000 以下）、テクスチャは騎士の 7 枚（約 17.3MB、24MB 以下。雑魚と共有）、追加テクスチャ 0。ドローコール: 騎士 9 メッシュ + 装備 12 ≒ 21（影パスで倍）。ボスは常に近距離（闘技場は直径 32m）なので簡略メッシュ（LOD）には切り替えない。
+- **予算**: 全身 23,886 tris（騎士 21,252 + 装備 2,634。25,000 以下）、テクスチャは騎士の 7 枚（約 4.3MB、24MB 以下。雑魚と共有）、追加テクスチャ 0。ドローコール: 騎士 9 メッシュ + 装備 12 ≒ 21（影パスで倍）。ボスは常に近距離（闘技場は直径 32m）なので簡略メッシュ（LOD）には切り替えない。
 - 確認用: `?scene=test&bossmodel=1|2&cam=combat|up|front|three|side|back|wide&dist=6`（`clip=<名前>&t=<秒>` で任意のポーズ、`throw=1` で盾の投げ捨て、`grip=`、`ember=`）。
 
 ### 7.8 探索用の簡易メッシュ（Issue #108）

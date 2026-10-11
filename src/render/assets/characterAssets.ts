@@ -11,6 +11,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Character } from './character';
+import { getKtx2Loader } from './ktx2';
 import { buildThrustClip, THRUST_CLIP_NAME, THRUST_SOURCE_CLIP } from '../anim/thrustClip';
 import { CLIP_NAMES, type ClipName } from './clips';
 
@@ -47,6 +48,8 @@ export class CharacterAssets {
   ): Promise<CharacterAssets> {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
+    // キャラクターのテクスチャは KTX2（KHR_texture_basisu、#328）
+    loader.setKTX2Loader(getKtx2Loader());
 
     const [charGltfs, animGltf, propsGltf] = await Promise.all([
       Promise.all(characters.map((name) => loader.loadAsync(`${baseUrl}characters/${name}.glb`))),

@@ -1,6 +1,6 @@
 // 使い方: npm run assets:build（assets:fetch を先に実行する）
 // assets-src/quaternius/ の元データ → public/assets/ のゲーム用 glb へ変換する。
-//   characters/<name>.glb : スキン付きキャラクター（テクスチャ縮小・WebP、メッシュ簡略化・量子化・meshopt）
+//   characters/<name>.glb : スキン付きキャラクター（テクスチャ縮小・KTX2、メッシュ簡略化・量子化・meshopt）
 //   animations.glb        : 選定したクリップだけを 1 ファイルにまとめたもの（Quaternius 共通リグ用）
 //   props.glb             : 剣・盾（自作）
 //   equipment.glb         : 亡者・ボス用の簡易装備メッシュ（自作。build-equipment.mjs が追記する）
@@ -12,8 +12,8 @@ import { join, relative } from 'node:path';
 import { Document, NodeIO } from '@gltf-transform/core';
 import {
   EXTMeshoptCompression,
-  EXTTextureWebP,
   KHRMaterialsEmissiveStrength,
+  KHRTextureBasisu,
   KHRMeshQuantization,
   KHRTextureTransform,
 } from '@gltf-transform/extensions';
@@ -29,7 +29,8 @@ import {
 } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
-import { CHARACTERS, CLIPS, OUT_DIR, ROOT, SRC_DIR, TEXTURE_MAX, WEBP_QUALITY } from './config.mjs';
+import { CHARACTERS, CLIPS, OUT_DIR, ROOT, SRC_DIR, TEXTURE_MAX } from './config.mjs';
+import { encodeKtx2 } from './ktx2.mjs';
 import { buildPropsDocument } from './props.mjs';
 
 await MeshoptEncoder.ready;
@@ -38,8 +39,8 @@ await MeshoptSimplifier.ready;
 const io = new NodeIO()
   .registerExtensions([
     EXTMeshoptCompression,
-    EXTTextureWebP,
     KHRMeshQuantization,
+    KHRTextureBasisu,
     KHRTextureTransform,
     KHRMaterialsEmissiveStrength,
   ])
@@ -63,18 +64,18 @@ function countTriangles(doc) {
 
 // ---------------------------------------------------------------- キャラクター
 
-/** スロット名 → [取得関数, 最大辺, 品質]。 */
+/** [スロット名, 取得関数, KTX2 の種類（scripts/assets/ktx2.mjs）]。 */
 const TEXTURE_SLOTS = [
-  ['baseColor', (m) => m.getBaseColorTexture()],
-  ['normal', (m) => m.getNormalTexture()],
-  ['metallicRoughness', (m) => m.getMetallicRoughnessTexture()],
+  ['baseColor', (m) => m.getBaseColorTexture(), 'color'],
+  ['normal', (m) => m.getNormalTexture(), 'normal'],
+  ['metallicRoughness', (m) => m.getMetallicRoughnessTexture(), 'linear'],
 ];
 
 async function convertTextures(doc, adjust) {
   const done = new Set();
   const report = [];
   for (const material of doc.getRoot().listMaterials()) {
-    for (const [slot, getTexture] of TEXTURE_SLOTS) {
+    for (const [slot, getTexture, kind] of TEXTURE_SLOTS) {
       const texture = getTexture(material);
       if (!texture || done.has(texture)) continue;
       done.add(texture);
@@ -88,11 +89,12 @@ async function convertTextures(doc, adjust) {
       });
       const mod = slot === 'baseColor' ? adjust[material.getName()] : undefined;
       if (mod) img = img.modulate(mod);
-      const out = await img.webp({ quality: WEBP_QUALITY[slot], effort: 6 }).toBuffer({
-        resolveWithObject: true,
-      });
-      texture.setImage(new Uint8Array(out.data)).setMimeType('image/webp');
-      texture.setURI(`${material.getName()}_${slot}.webp`);
+      // 縮小・色調整は sharp で行い、ロスレスの PNG を KTX2 エンコーダに渡す
+      const resized = await img.png().toBuffer({ resolveWithObject: true });
+      const ktx2 = await encodeKtx2(new Uint8Array(resized.data), kind);
+      const out = { data: ktx2, info: resized.info };
+      texture.setImage(ktx2).setMimeType('image/ktx2');
+      texture.setURI(`${material.getName()}_${slot}.ktx2`);
       report.push({
         material: material.getName(),
         slot,
@@ -240,7 +242,7 @@ async function addHead(doc, head) {
 
 async function buildCharacter(name, def) {
   const doc = await io.read(join(SRC_DIR, def.source));
-  doc.createExtension(EXTTextureWebP).setRequired(true);
+  doc.createExtension(KHRTextureBasisu).setRequired(true);
 
   // 元モデルは UE 向けの余分な頂点属性（COLOR_0/1: マスク、TEXCOORD_1）を持つ。glTF の標準マテリアルでは
   // 使わず、COLOR_0 は three が頂点カラーとして乗算してしまうので削除する。
@@ -300,11 +302,12 @@ async function buildCharacter(name, def) {
     bytes: statSync(file).size,
     triangles: { source: before, output: after },
     joints: skin?.listJoints().length ?? 0,
-    // GPU 上では WebP を非圧縮 RGBA8 に展開する。ミップマップ込み（x4/3）の概算。
+    // GPU 上では KTX2 を 4x4 ブロック圧縮（ASTC / BC7 等、1 画素 1 バイト）に変換する。ミップマップ込み（x4/3）の概算。
+    // ETC1S を BC1 / ETC2 RGB に変換する環境では半分になる。
     textureMemoryBytes: Math.round(
       textures.reduce((sum, t) => {
         const [w, h] = t.size.split('x').map(Number);
-        return sum + (w * h * 4 * 4) / 3;
+        return sum + (w * h * 4) / 3;
       }, 0),
     ),
     textures,
@@ -421,7 +424,8 @@ async function buildProps() {
 
 // ---------------------------------------------------------------- 実行
 
-rmSync(OUT_DIR, { recursive: true, force: true });
+// public/assets/ には他のスクリプトの出力（audio/・water/ など）もあるので、このスクリプトが作るものだけ消す
+rmSync(join(OUT_DIR, 'characters'), { recursive: true, force: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
 const manifest = { characters: {}, animations: undefined, props: undefined };
