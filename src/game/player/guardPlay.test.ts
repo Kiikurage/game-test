@@ -4,7 +4,6 @@ import type { HitEvent } from '../combat';
 import { GUARD, PLAYER_ACTIONS, PLAYER_STATS, POISE, attackDamage, totalFrames } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 
 const DT = 1 / 60;
 
@@ -23,10 +22,9 @@ describe('guard', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     run(10); // スポーンの落ち着き
   });
 

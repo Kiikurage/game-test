@@ -1,10 +1,9 @@
 import { gameStats } from '../debug/stats.system';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, attackDamage } from '../data';
 import type { Enemy } from '../enemy/enemy';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import type { EnemySpawn } from '../world/level';
 import type { AmbushCandidate, AmbushSource } from './ambush';
 
@@ -29,14 +28,10 @@ describe('ambush strike (Rapier)', () => {
     await Game.create();
   });
 
-  beforeEach(() => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
-  });
-
   async function setup(enemies: EnemySpawn[]): Promise<Enemy[]> {
     input = new FakeInput();
     game = await Game.create({ input, dummies: [], enemies });
+    game.tuning.camera.autoFollow = false;
     return game.enemies.enemies.slice();
   }
 

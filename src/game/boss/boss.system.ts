@@ -81,7 +81,7 @@ export class BossSystem {
     this.remove();
     const { game } = this;
     const y = options.y ?? game.player.feet.y;
-    const reactor = new HitReactor(BOSS_REACTOR);
+    const reactor = new HitReactor(BOSS_REACTOR, game.tuning);
     const moves =
       options.moves ??
       (options.stubs === false

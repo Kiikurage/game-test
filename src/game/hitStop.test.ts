@@ -13,7 +13,6 @@ import {
 } from './combat';
 import { Game } from './game';
 import { FakeInput } from './testing/fakeInput';
-import { resetTuning, tuning } from './tuning';
 
 const DT = 1 / 60;
 
@@ -27,10 +26,9 @@ describe('hit-stop (Game)', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     run(10);
   });
 
@@ -175,8 +173,8 @@ describe('hit-stop (Game)', () => {
     run(5);
     const hit = swingSteps();
     expect(gameStats(game).hitCount).toBe(hits0 + 1);
-    expect(hit).toBe(miss + tuning.hitStop.playerLight);
-    expect(tuning.hitStop.playerLight).toBe(4);
+    expect(hit).toBe(miss + game.tuning.hitStop.playerLight);
+    expect(game.tuning.hitStop.playerLight).toBe(4);
   });
 
   it('重ね掛け: 凍結中に再び命中しても、長い方を採用する（足し算にならない）', () => {
@@ -279,7 +277,7 @@ describe('hit-stop (Game)', () => {
   });
 
   it('tuning.hitStop.enabled = false ならヒットストップも撃破スローも起きない', () => {
-    tuning.hitStop.enabled = false;
+    game.tuning.hitStop.enabled = false;
     const weak = addEnemy('weak', 10);
     weak.target.place(20, 0, 20, 0);
     playerHits('weak', 'light1', 40);

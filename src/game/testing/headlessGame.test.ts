@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetTuning, tuning } from '../tuning';
+import { describe, expect, it, vi } from 'vitest';
 import { createHeadlessGame } from './headlessGame';
 
 // game / core が描画用の three/webgpu を読み込んだら、この行で失敗する（数学型は `three` 本体から読む）
@@ -9,13 +8,9 @@ vi.mock('three/webgpu', () => {
 
 /** 実レベル「灰の礎」をブラウザ無しで動かすハーネスの検証。 */
 describe('createHeadlessGame (real level, no browser)', () => {
-  beforeEach(() => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
-  });
-
   it('spawns the player on the ground at the level spawn', async () => {
     const { game, level, run } = await createHeadlessGame({ enemies: [] });
+    game.tuning.camera.autoFollow = false;
     run(10);
     const spawn = level.data.playerSpawn;
     expect(game.player.grounded).toBe(true);
@@ -30,6 +25,7 @@ describe('createHeadlessGame (real level, no browser)', () => {
       enemies: [],
       at: { x: 29, z: 22.8, yaw: Math.PI },
     });
+    game.tuning.camera.autoFollow = false;
     run(10);
     const startY = game.player.feet.y;
     input.setMove(0, 1);
@@ -41,6 +37,7 @@ describe('createHeadlessGame (real level, no browser)', () => {
 
   it('places the level enemies unless overridden', async () => {
     const { game, level } = await createHeadlessGame();
+    game.tuning.camera.autoFollow = false;
     expect(game.enemies.enemies.length).toBe(level.data.enemies.length);
   });
 });

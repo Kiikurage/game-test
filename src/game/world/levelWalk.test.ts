@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { fogGateOf } from '../fogGate/fogGate.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { ASHEN_FOUNDATION } from './ashenFoundation';
 import { createLevel, levelGameOptions } from './level';
 
@@ -15,11 +14,10 @@ describe('walking the level D to F (physics)', () => {
   let input: FakeInput;
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input, ...levelGameOptions(level), enemies: [] }); // 地形の通行可能性の検証なので敵は置かない
     game.addStaticCylinders(level.cylinders);
+    game.tuning.camera.autoFollow = false;
     // 霧の門は最初は閉じている（#66）。通行可能性の検証では解除（open）にしておく
     fogGateOf(game)?.unseal();
     for (let i = 0; i < 10; i++) game.update(DT);

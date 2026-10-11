@@ -3,7 +3,6 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, attackDamage, totalFrames } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 
 const DT = 1 / 60;
 
@@ -22,10 +21,9 @@ describe('light attack combo', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
   });
 
   function tick(): void {

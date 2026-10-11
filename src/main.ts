@@ -15,7 +15,7 @@ import { GameView } from './render/gameView';
 import { readDeviceHints, selectQuality } from './render/quality';
 import { isDebugEnabled, mountDebugHud } from './ui/debugHud';
 import { mountTuningPanel } from './ui/tuningPanel';
-import { resetTuning, tuning } from './game/tuning';
+import { resetTuning } from './game/tuning';
 import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { PlayerView, type PlayerViewState } from './render/playerView';
 import { EnemyViews } from './render/enemyView';
@@ -182,7 +182,9 @@ export async function createGameApp(
         profile: () => view.profile(),
       });
       // 操作感の調整値（プレイヤー・カメラ・ロックオン）を実行中に書き換えられる
-      mountTuningPanel(tuning, resetTuning);
+      mountTuningPanel(game.tuning, () => {
+        resetTuning(game.tuning);
+      });
     }
 
     // AudioContext は生成直後 suspended。最初のユーザー操作で resume する（自動再生制限）。

@@ -10,7 +10,6 @@ import {
 } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 
 const DT = 1 / 60;
 /** スーパーアーマーの強靭度加算（2.3 節: +40）。 */
@@ -32,10 +31,9 @@ describe('heavy attack and run attack', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     run(10); // スポーンの落ち着き
   });
 
@@ -473,7 +471,7 @@ describe('heavy attack and run attack', () => {
       input.setMove(0, 1);
       run(20);
       expect(state()).toBe('move');
-      expect(game.player.speed).toBeGreaterThan(tuning.player.run * 0.75);
+      expect(game.player.speed).toBeGreaterThan(game.tuning.player.run * 0.75);
       pressLight();
       expect(state()).toBe('runAttack');
     });
@@ -486,7 +484,7 @@ describe('heavy attack and run attack', () => {
     it('歩き（弱いスティック入力）での攻撃入力は軽攻撃 1', () => {
       input.setMove(0, 0.3);
       run(20);
-      expect(game.player.speed).toBeLessThan(tuning.player.run * 0.75);
+      expect(game.player.speed).toBeLessThan(game.tuning.player.run * 0.75);
       pressLight();
       expect(state()).toBe('light1');
     });

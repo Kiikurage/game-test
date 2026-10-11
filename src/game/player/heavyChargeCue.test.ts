@@ -1,7 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { HEAVY_CHARGE_FULL_CUE } from './heavyChargeCue.system';
 
 const DT = 1 / 60;
@@ -17,10 +16,9 @@ describe('heavy charge full cue', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     cues = [];
     game.events.on('sound', (e) => {
       if (e.cue === HEAVY_CHARGE_FULL_CUE) cues.push(e);

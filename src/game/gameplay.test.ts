@@ -4,7 +4,6 @@ import { PLAYER_ACTIONS } from './data';
 import { Game } from './game';
 import { angleDelta } from './player/movement';
 import { FakeInput } from './testing/fakeInput';
-import { resetTuning, tuning } from './tuning';
 import { DUMMIES, PLAYER_SPAWN } from './world/playground';
 
 const DT = 1 / 60;
@@ -20,10 +19,9 @@ describe('gameplay (player controller + camera + lock-on)', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false; // 決定的にするため（自動回り込みは camera のテストで検証）
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false; // 決定的にするため（自動回り込みは camera のテストで検証）
   });
 
   function run(frames: number, each?: (frame: number) => void): void {

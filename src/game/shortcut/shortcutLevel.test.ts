@@ -3,7 +3,6 @@ import { MemoryStorage, SaveStore } from '../../core/persistence';
 import { Game } from '../game';
 import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { ASHEN_FOUNDATION } from '../world/ashenFoundation';
 import { createLevel, levelGameOptions } from '../world/level';
 import { shortcutOf } from './shortcut.system';
@@ -35,11 +34,10 @@ describe('shortcut on the real level (physics)', () => {
   let save: SaveStore;
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     save = new SaveStore(new MemoryStorage());
     game = await Game.create({ input, save, ...levelGameOptions(level), enemies: [] });
+    game.tuning.camera.autoFollow = false;
     game.addStaticCylinders(level.cylinders);
     for (let i = 0; i < 10; i++) game.update(DT);
   });
