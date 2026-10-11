@@ -1,0 +1,92 @@
+
+Running 3 tests using 1 worker
+
+[1/3] e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the medium budget at every viewpoint
+  1) e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the medium budget at every viewpoint 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('#app')
+    Expected: "ready"
+    Received: "loading"
+    Timeout:  90000ms
+
+    Call log:
+      - Expect "toHaveAttribute" locator('#app') with timeout 90000ms
+      - waiting for locator('#app')
+        5 × locator resolved to <div id="app" data-state="loading"></div>
+          - unexpected value "loading"
+        116 × locator resolved to <div id="app" data-state="loading">…</div>
+            - unexpected value "loading"
+
+
+       at helpers.ts:6
+
+      4 | export async function startGame(page: Page): Promise<void> {
+      5 |   const app = page.locator('#app');
+    > 6 |   await expect(app).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
+        |                     ^
+      7 |   await page.getByTestId('start-screen').click();
+      8 |   await expect(app).toHaveAttribute('data-state', 'running');
+      9 | }
+        at startGame (/home/user/game-test/.claude/worktrees/agent-a35feeb2746c703af/e2e/helpers.ts:6:21)
+        at /home/user/game-test/.claude/worktrees/agent-a35feeb2746c703af/e2e/perf.spec.ts:38:11
+
+    Error Context: ../../../../../../tmp/claude-0/-home-user-game-test/31f8f843-5216-5ee9-851d-3ca43c4a860a/scratchpad/pw/perf-draw-calls-and-triang-3c444-m-budget-at-every-viewpoint/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/claude-0/-home-user-game-test/31f8f843-5216-5ee9-851d-3ca43c4a860a/scratchpad/pw/perf-draw-calls-and-triang-3c444-m-budget-at-every-viewpoint/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/claude-0/-home-user-game-test/31f8f843-5216-5ee9-851d-3ca43c4a860a/scratchpad/pw/perf-draw-calls-and-triang-3c444-m-budget-at-every-viewpoint/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[2/3] e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the low budget at every viewpoint
+  2) e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the low budget at every viewpoint 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('#app')
+    Expected: "ready"
+    Received: "loading"
+    Timeout:  90000ms
+
+    Call log:
+      - Expect "toHaveAttribute" locator('#app') with timeout 90000ms
+      - waiting for locator('#app')
+        4 × locator resolved to <div id="app" data-state="loading"></div>
+          - unexpected value "loading"
+        95 × locator resolved to <div id="app" data-state="loading">…</div>
+           - unexpected value "loading"
+
+
+       at helpers.ts:6
+
+      4 | export async function startGame(page: Page): Promise<void> {
+      5 |   const app = page.locator('#app');
+    > 6 |   await expect(app).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
+        |                     ^
+      7 |   await page.getByTestId('start-screen').click();
+      8 |   await expect(app).toHaveAttribute('data-state', 'running');
+      9 | }
+        at startGame (/home/user/game-test/.claude/worktrees/agent-a35feeb2746c703af/e2e/helpers.ts:6:21)
+        at /home/user/game-test/.claude/worktrees/agent-a35feeb2746c703af/e2e/perf.spec.ts:38:11
+
+    Error Context: ../../../../../../tmp/claude-0/-home-user-game-test/31f8f843-5216-5ee9-851d-3ca43c4a860a/scratchpad/pw/perf-draw-calls-and-triang-97e5e-w-budget-at-every-viewpoint/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/claude-0/-home-user-game-test/31f8f843-5216-5ee9-851d-3ca43c4a860a/scratchpad/pw/perf-draw-calls-and-triang-97e5e-w-budget-at-every-viewpoint/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/claude-0/-home-user-game-test/31f8f843-5216-5ee9-851d-3ca43c4a860a/scratchpad/pw/perf-draw-calls-and-triang-97e5e-w-budget-at-every-viewpoint/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[3/3] e2e/perf.spec.ts:58:1 › the debug HUD shows the draw call breakdown
+  2 failed
+    e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the medium budget at every viewpoint 
+    e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the low budget at every viewpoint ─
+  1 passed (5.4m)

@@ -1,0 +1,227 @@
+{
+  "query": "?bench=quick&quality=low&scale=0.25",
+  "viewport": "pc",
+  "gpu": {
+    "gpuMode": "swiftshader",
+    "launch": {
+      "executablePath": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+      "args": [
+        "--enable-unsafe-webgpu",
+        "--enable-unsafe-swiftshader",
+        "--use-angle=swiftshader",
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader"
+      ]
+    },
+    "software": true,
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+    "secureContext": true,
+    "adapter": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": true,
+      "features": [
+        "bgra8unorm-storage",
+        "chromium-experimental-timestamp-query-inside-passes",
+        "chromium-experimental-unorm16-texture-formats",
+        "clip-distances",
+        "core-features-and-limits",
+        "depth-clip-control",
+        "depth32float-stencil8",
+        "float32-blendable",
+        "float32-filterable",
+        "indirect-first-instance",
+        "rg11b10ufloat-renderable",
+        "subgroups",
+        "texture-component-swizzle",
+        "texture-compression-astc",
+        "texture-compression-astc-sliced-3d",
+        "texture-compression-bc",
+        "texture-compression-bc-sliced-3d",
+        "texture-compression-etc2",
+        "timestamp-query"
+      ],
+      "limits": {
+        "maxTextureDimension2D": 8192,
+        "maxBufferSize": 1073741824,
+        "maxStorageBufferBindingSize": 1073741824
+      }
+    }
+  },
+  "errors": [],
+  "state": "done",
+  "index": 14,
+  "total": 14,
+  "current": "combat",
+  "text": "# bench (#261) times in ms: frame median / p99, gpu median, cpu median\nua: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36\ngpu: google / swiftshader | timestamp-query: yes\nscreen: 1280x720 css px, dpr 1\nquality: low | msaa off | bloom off | shadow on | grass 0 | target 60 fps | scale 0.25 (fixed)\nsection | frame med | frame p99 | gpu med | cpu med | draws | tris | res\nbonfire | 74.6 | 1965.7 | 989.1 | 12.6 | 80 | 138k | 320x180 @0.25\ngraveyard | 325.1 | 662.3 | 571.5 | 11.7 | 114 | 221k | 320x180 @0.25\nchapel-gate | 266.1 | 1231.0 | 780.3 | 12.2 | 116 | 217k | 320x180 @0.25\nchapel-interior | 268.6 | 455.4 | 265.6 | 13.3 | 122 | 215k | 320x180 @0.25\ngraveyard:base | 307.7 | 374.3 | 297.8 | 10.1 | 114 | 221k | 320x180 @0.25\ngraveyard:noshadow | 238.1 | 735.8 | 301.7 | 8.8 | 87 | 146k | 320x180 @0.25\ngraveyard:nobloom | skipped: bloom is off in this preset\ngraveyard:nomsaa | skipped: msaa is off in this preset\ngraveyard:nograss | skipped: no grass in this preset\ngraveyard:noparticles | 331.6 | 388.1 | 351.6 | 9.8 | 108 | 219k | 320x180 @0.25\ngraveyard:nolights | 342.1 | 448.5 | 420.7 | 12.3 | 114 | 221k | 320x180 @0.25\ngraveyard:flatmat | 297.6 | 326.5 | 276.5 | 11.0 | 114 | 221k | 320x180 @0.25\ngraveyard:scale=0.5 | 28.3 | 1149.2 | 489.2 | 12.9 | 114 | 221k | 640x360 @0.50\ncombat | 538.1 | 598.9 | 457.0 | 13.4 | 117 | 202k | 320x180 @0.25",
+  "rows": [
+    {
+      "name": "bonfire",
+      "frames": 4,
+      "frameMedMs": 74.60000000149012,
+      "frameP99Ms": 1965.7000000029802,
+      "gpuMedMs": 989.121362,
+      "cpuMedMs": 12.600000001490116,
+      "draws": 80,
+      "tris": 138282,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "graveyard",
+      "frames": 4,
+      "frameMedMs": 325.1000000014901,
+      "frameP99Ms": 662.3000000044703,
+      "gpuMedMs": 571.467198,
+      "cpuMedMs": 11.700000002980232,
+      "draws": 114,
+      "tris": 221045,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "chapel-gate",
+      "frames": 4,
+      "frameMedMs": 266.09999999403954,
+      "frameP99Ms": 1231,
+      "gpuMedMs": 780.342404,
+      "cpuMedMs": 12.200000002980232,
+      "draws": 116,
+      "tris": 216692,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "chapel-interior",
+      "frames": 4,
+      "frameMedMs": 268.59999999403954,
+      "frameP99Ms": 455.3999999985099,
+      "gpuMedMs": 265.609109,
+      "cpuMedMs": 13.300000004470348,
+      "draws": 122,
+      "tris": 215406,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "graveyard:base",
+      "frames": 4,
+      "frameMedMs": 307.70000000298023,
+      "frameP99Ms": 374.30000000447035,
+      "gpuMedMs": 297.765428,
+      "cpuMedMs": 10.100000001490116,
+      "draws": 114,
+      "tris": 221045,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "graveyard:noshadow",
+      "frames": 4,
+      "frameMedMs": 238.10000000149012,
+      "frameP99Ms": 735.7999999970198,
+      "gpuMedMs": 301.725981,
+      "cpuMedMs": 8.800000004470348,
+      "draws": 87,
+      "tris": 146499,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "graveyard:nobloom",
+      "skipped": "bloom is off in this preset"
+    },
+    {
+      "name": "graveyard:nomsaa",
+      "skipped": "msaa is off in this preset"
+    },
+    {
+      "name": "graveyard:nograss",
+      "skipped": "no grass in this preset"
+    },
+    {
+      "name": "graveyard:noparticles",
+      "frames": 4,
+      "frameMedMs": 331.6000000014901,
+      "frameP99Ms": 388.1000000014901,
+      "gpuMedMs": 351.560722,
+      "cpuMedMs": 9.800000004470348,
+      "draws": 108,
+      "tris": 219041,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "graveyard:nolights",
+      "frames": 4,
+      "frameMedMs": 342.1000000014901,
+      "frameP99Ms": 448.5,
+      "gpuMedMs": 420.694907,
+      "cpuMedMs": 12.300000004470348,
+      "draws": 114,
+      "tris": 221045,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "graveyard:flatmat",
+      "frames": 4,
+      "frameMedMs": 297.6000000014901,
+      "frameP99Ms": 326.5,
+      "gpuMedMs": 276.487141,
+      "cpuMedMs": 11,
+      "draws": 114,
+      "tris": 221045,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    },
+    {
+      "name": "graveyard:scale=0.5",
+      "frames": 4,
+      "frameMedMs": 28.30000000447035,
+      "frameP99Ms": 1149.2000000029802,
+      "gpuMedMs": 489.21274400000004,
+      "cpuMedMs": 12.899999998509884,
+      "draws": 114,
+      "tris": 221045,
+      "width": 640,
+      "height": 360,
+      "scale": 0.5,
+      "pipelines": 0
+    },
+    {
+      "name": "combat",
+      "frames": 4,
+      "frameMedMs": 538.1000000014901,
+      "frameP99Ms": 598.8999999985099,
+      "gpuMedMs": 456.963058,
+      "cpuMedMs": 13.399999998509884,
+      "draws": 117,
+      "tris": 201647,
+      "width": 320,
+      "height": 180,
+      "scale": 0.25,
+      "pipelines": 0
+    }
+  ]
+}

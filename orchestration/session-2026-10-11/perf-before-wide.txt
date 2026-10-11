@@ -1,0 +1,11 @@
+| viewpoint | draws | tris |
+| --- | --- | --- |
+| bonfire | 97 | 144k |
+| graveyard | 142 | 244k |
+| chapel-gate | 135 | 222k |
+| chapel-interior | 143 | 222k |
+| crypt-entrance | 121 | 181k |
+| crypt-bend | 150 | 205k |
+| courtyard-entrance | 144 | 202k |
+| courtyard-gate | 127 | 185k |
+| arena | 124 | 170k |

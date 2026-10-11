@@ -1,0 +1,6 @@
+corpse_b_flask 24 9 terrain 1.54 
+corpse_roof 29 16 terrain 2.28 mausoleum top=4.96 pitch=0 hy=1.7000000000000002
+corpse_ledge 38 29.8 terrain 3.40 ledge-3-6 top=5.73 pitch=0 hy=1.9657578166054868 | ledge-joint-3 top=5.73 pitch=0 hy=1.9657578166054868 | ledge-4-0 top=5.83 pitch=0 hy=2.0126062532843894
+pickup_talisman 52 32.5 terrain 3.40 chapel-n top=6.20 pitch=0 hy=1.9999999999999996 | wall-top top=6.20 pitch=0 hy=1.9999999999999996
+pickup_drop 66 40 terrain 4.39 d-mass-s-0 top=9.20 pitch=0 hy=2.4999999999999996 | ww-floor-north-up top=1.00 pitch=0 hy=0.3 | ww-ceil-north-up top=3.75 pitch=0 hy=0.07499999999999996 | ww-floor-s1-0 top=1.27 pitch=0 hy=0.3 | ww-ceil-s1-0 top=4.02 pitch=0 hy=0.07499999999999996
+corpse_knight 62.4 35 terrain 3.46 ww-floor-chamber top=1.00 pitch=0 hy=0.3 | ww-ceil-chamber top=3.35 pitch=0 hy=0.07499999999999996

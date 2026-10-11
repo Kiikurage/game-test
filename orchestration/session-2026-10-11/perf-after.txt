@@ -1,0 +1,106 @@
+
+> game-test@0.0.0 perf
+> node scripts/perf.mjs medium
+
+
+## bonfire: 97 draws / 144k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment      13    13388      13    42237
+grass             7     5600       0        0
+graybox           0        0       2     1812
+character        34    21852       1     5353
+particles         6       12       0        0
+other             4     3486       2      132
+
+## graveyard: 149 draws / 250k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment      15    42255      13    42605
+grass             5     5138       0        0
+graybox           3     1836       3     1836
+character        59    65815      10    29997
+particles         6       12       0        0
+other            19    10225       2      132
+
+## chapel-gate: 153 draws / 241k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment      18    45036      15    44913
+grass             4     4550       0        0
+graybox           3     1836       3     1836
+character        55    60145       9    27116
+particles         6       12       0        0
+other            16     4620       5     1008
+
+## chapel-interior: 167 draws / 250k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment      13    37186      16    45021
+grass             6     5159       0        0
+graybox           3     1836       3     1836
+character        67    72292       8    24546
+particles         6       12       0        0
+other            21    10788       5     1008
+
+## crypt-entrance: 131 draws / 185k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment      11    18806      17    48243
+grass             4     4130       0        0
+graybox           2     1236       3     1836
+character        35    24512       3    10689
+particles         6       12       0        0
+other            18    14162       9    10846
+
+## crypt-bend: 150 draws / 205k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment      10     8942      16    48135
+grass             5     4424       0        0
+graybox           2     1236       3     1836
+character        51    48396       5    16243
+particles         6       12       0        0
+other            20    15032       9    10846
+
+## courtyard-entrance: 144 draws / 202k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment      10     9758      13    45288
+grass             6     4991       0        0
+graybox           1       24       3     1836
+character        53    49401       5    16243
+particles         6       12       0        0
+other            15    14024       9    10846
+
+## courtyard-gate: 127 draws / 185k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment       4     5638      12    43949
+grass             4     4571       0        0
+graybox           1       24       3     1836
+character        48    40952       4    13583
+particles         6       12       0        0
+other            15    14024       9    10846
+
+## arena: 124 draws / 170k tris (renderer.info, shadow pass included)
+category      main draws/tris      shadow draws/tris
+terrain           1    44300       0        0
+environment       2     2880       6    34191
+grass             5     5159       0        0
+graybox           0        0       3     1836
+character        56    41688       6     9535
+particles         6       12       0        0
+other            14    14420       9    10846
+
+| viewpoint | draws | tris |
+| --- | --- | --- |
+| bonfire | 97 | 144k |
+| graveyard | 149 | 250k |
+| chapel-gate | 153 | 241k |
+| chapel-interior | 167 | 250k |
+| crypt-entrance | 131 | 185k |
+| crypt-bend | 150 | 205k |
+| courtyard-entrance | 144 | 202k |
+| courtyard-gate | 127 | 185k |
+| arena | 124 | 170k |

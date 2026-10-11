@@ -1,0 +1,36 @@
+
+> game-test@0.0.0 test
+> vitest run
+
+
+ RUN  v5.0.3 /home/user/game-test/.claude/worktrees/agent-a778367005d9110f1
+
+ ❯ src/game/world/levelWalk.test.ts (8 tests | 1 failed) 95838ms
+   ❯ walking the level D to F (physics) (8)
+     × walks from the bonfire through B, C, the catacomb D and the courtyard E into the arena F 52582ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/game/world/levelWalk.test.ts > walking the level D to F (physics) > walks from the bonfire through B, C, the catacomb D and the courtyard E into the arena F
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/game/world/levelWalk.test.ts:68:3
+     66|   }
+     67|
+     68|   it('walks from the bonfire through B, C, the catacomb D and the cour…
+       |   ^
+     69|     walk(
+     70|       [
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 148 passed (149)
+      Tests  1 failed | 1716 passed (1717)
+   Start at  14:53:26
+   Duration  669.09s (tests 77%, import 18%, transform 4%, worker 1%)
+
+    Isolate  149 workers spawned · ~2.16s startup each (spawn + environment, per file)
+             at least ~104.99s faster with isolate: false — reuses workers across files instead of one per file
+
+exit 1

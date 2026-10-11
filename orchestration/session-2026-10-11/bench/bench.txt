@@ -1,0 +1,20 @@
+# bench (#261) times in ms: frame median / p99, gpu median, cpu median
+ua: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36
+gpu: google / swiftshader | timestamp-query: yes
+screen: 1280x720 css px, dpr 1
+quality: low | msaa off | bloom off | shadow on | grass 0 | target 60 fps | scale 0.25 (fixed)
+section | frame med | frame p99 | gpu med | cpu med | draws | tris | res
+bonfire | 74.6 | 1965.7 | 989.1 | 12.6 | 80 | 138k | 320x180 @0.25
+graveyard | 325.1 | 662.3 | 571.5 | 11.7 | 114 | 221k | 320x180 @0.25
+chapel-gate | 266.1 | 1231.0 | 780.3 | 12.2 | 116 | 217k | 320x180 @0.25
+chapel-interior | 268.6 | 455.4 | 265.6 | 13.3 | 122 | 215k | 320x180 @0.25
+graveyard:base | 307.7 | 374.3 | 297.8 | 10.1 | 114 | 221k | 320x180 @0.25
+graveyard:noshadow | 238.1 | 735.8 | 301.7 | 8.8 | 87 | 146k | 320x180 @0.25
+graveyard:nobloom | skipped: bloom is off in this preset
+graveyard:nomsaa | skipped: msaa is off in this preset
+graveyard:nograss | skipped: no grass in this preset
+graveyard:noparticles | 331.6 | 388.1 | 351.6 | 9.8 | 108 | 219k | 320x180 @0.25
+graveyard:nolights | 342.1 | 448.5 | 420.7 | 12.3 | 114 | 221k | 320x180 @0.25
+graveyard:flatmat | 297.6 | 326.5 | 276.5 | 11.0 | 114 | 221k | 320x180 @0.25
+graveyard:scale=0.5 | 28.3 | 1149.2 | 489.2 | 12.9 | 114 | 221k | 640x360 @0.50
+combat | 538.1 | 598.9 | 457.0 | 13.4 | 117 | 202k | 320x180 @0.25

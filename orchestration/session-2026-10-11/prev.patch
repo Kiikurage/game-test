@@ -1,0 +1,109 @@
+diff --git a/src/render/postprocess.ts b/src/render/postprocess.ts
+index 34fed3e..e737c97 100644
+--- a/src/render/postprocess.ts
++++ b/src/render/postprocess.ts
+@@ -23,6 +23,7 @@ import {
+ } from 'three/tsl';
+ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+ import type { QualityPreset } from './quality';
++import { finiteColor } from './finiteColor';
+ 
+ /** 画面全体の演出パラメータ（すべて 0..1。既定は 0 = 効果なし）。死亡演出（8.1 節）などが設定する。 */
+ export interface ScreenEffect {
+@@ -38,9 +39,40 @@ export interface ScreenEffect {
+   rim: number;
+ }
+ 
++export interface SceneStats {
++  /** 画素数 x チャンネル数のうち NaN / Inf の個数。 */
++  readonly nonFinite: number;
++  /** 有限値の最大成分（RGB）。 */
++  readonly maxRgb: number;
++}
++
++/** 半精度浮動小数の RGBA 配列から、非有限値の個数と有限値の最大 RGB 成分を数える。 */
++export function analyzeHalfFloatRgba(data: ArrayLike<number>): SceneStats {
++  let nonFinite = 0;
++  let max = 0;
++  for (let i = 0; i < data.length; i++) {
++    const h = data[i] ?? 0;
++    const exp = (h >> 10) & 0x1f;
++    if (exp === 0x1f) {
++      nonFinite++;
++      continue;
++    }
++    if (i % 4 === 3 || (h & 0x8000) !== 0) continue;
++    const mant = h & 0x3ff;
++    const v = exp === 0 ? (mant / 1024) * 2 ** -14 : (1 + mant / 1024) * 2 ** (exp - 15);
++    if (v > max) max = v;
++  }
++  return { nonFinite, maxRgb: max };
++}
++
+ export interface PostProcess {
+   /** 画面演出のパラメータを設定する（指定した項目だけ更新）。既存のグレーディング内の uniform を書き換えるだけで、追加のパスはない。 */
+   setScreenEffect(effect: Partial<ScreenEffect>): void;
++  /**
++   * ブルームへ渡る HDR シーン色（ポスト前のレンダーターゲット）を読み出し、非有限値（NaN / Inf）の個数と
++   * 有限値の最大成分を返す（#258 の回帰テスト用。GPU 同期を伴うので通常は呼ばない）。
++   */
++  readSceneStats(): Promise<SceneStats>;
+   /** シーンをポストエフェクト込みで描画する（renderer.render の代わりに呼ぶ）。 */
+   render(): void;
+   dispose(): void;
+@@ -58,7 +90,9 @@ export function createPostProcess(
+   preset: QualityPreset,
+ ): PostProcess {
+   const scenePass = pass(scene, camera);
+-  const sceneColor = scenePass.getTextureNode('output');
++  const rawSceneColor = scenePass.getTextureNode('output');
++  // NaN / Inf・極端な HDR 値はブルームのぼかしで画面全体へ広がる（#258）ので、ブルームに渡す前に有限値へ丸める
++  const sceneColor = vec4(finiteColor(rawSceneColor.rgb), rawSceneColor.a);
+ 
+   let color: Node<'vec4'> = sceneColor;
+   if (preset.bloom) {
+@@ -120,6 +154,11 @@ export function createPostProcess(
+       if (effect.fade !== undefined) uFade.value = effect.fade;
+       if (effect.rim !== undefined) uRim.value = effect.rim;
+     },
++    readSceneStats: async () => {
++      const rt = scenePass.renderTarget;
++      const data = await renderer.readRenderTargetPixelsAsync(rt, 0, 0, rt.width, rt.height);
++      return analyzeHalfFloatRgba(data);
++    },
+     render: () => {
+       pipeline.render();
+     },
+diff --git a/src/render/undead/undeadMaterial.ts b/src/render/undead/undeadMaterial.ts
+index b1203e0..c4d1277 100644
+--- a/src/render/undead/undeadMaterial.ts
++++ b/src/render/undead/undeadMaterial.ts
+@@ -40,6 +40,7 @@ import {
+ import { OUTFIT_MESHES, clampProgress, type UndeadVariant } from './variants';
+ import { bakedNoise } from '../bakedNoise';
+ import { tagMaterial } from '../materialGroups';
++import { finiteColor } from '../finiteColor';
+ 
+ /** 材質の役割。同じ元マテリアル（MI_Ranger）でもメッシュ名で金属パーツを分ける。 */
+ export type UndeadRole = 'skin' | 'cloth' | 'metal';
+@@ -57,6 +58,8 @@ const EYE_UVS = [
+ const EYE_RADIUS = 0.0125;
+ /** ディゾルブの縁の幅（ノイズ値の範囲）。 */
+ const DISSOLVE_EDGE = 0.1;
++/** 発光の上限（リニア）。ディゾルブの縁の熾火（3.2）に他の発光が重なっても収まる値。 */
++const EMISSIVE_MAX = 6;
+ 
+ /** 亡者の見た目を外から操作するハンドル。 */
+ export interface UndeadLook {
+@@ -378,8 +381,9 @@ function createUndeadMaterial(
+     ).mul(float(1).sub(charred)),
+   );
+ 
+-  material.colorNode = albedo;
+-  material.emissiveNode = emissive;
++  // NaN / Inf・極端な値を出さない（ブルームのぼかしで画面へ広がる。#258）。通常の値（縁の熾火は最大 3.2 × 熾火色）は変わらない
++  material.colorNode = finiteColor(albedo, 8);
++  material.emissiveNode = finiteColor(emissive, EMISSIVE_MAX);
+   // テレグラフ中は刃を少し太らせる（追加の描画なし。頂点位置のオフセットだけ）
+   if (isWeapon || glow.shield) {
+     material.positionNode = positionLocal.add(

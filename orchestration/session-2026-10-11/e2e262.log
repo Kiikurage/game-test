@@ -1,0 +1,10 @@
+
+Running 4 tests using 1 worker
+
+  ✓  1 e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the medium budget at every viewpoint (2.0m)
+  ✓  2 e2e/perf.spec.ts:28:3 › draw calls and triangles stay within the low budget at every viewpoint (1.7m)
+  ✓  3 e2e/perf.spec.ts:58:1 › the debug HUD shows the draw call breakdown (52.0s)
+  ✓  4 e2e/perfProbe.spec.ts:8:3 › no render pipelines are created per frame after warm-up (medium) (1.4m)
+
+  4 passed (6.5m)
+exit 0

@@ -1,0 +1,49 @@
+{
+  "gpuMode": "swiftshader",
+  "launch": {
+    "executablePath": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--enable-unsafe-swiftshader",
+      "--use-angle=swiftshader",
+      "--enable-features=Vulkan",
+      "--use-vulkan=swiftshader"
+    ]
+  },
+  "software": true,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+  "secureContext": true,
+  "adapter": {
+    "vendor": "google",
+    "architecture": "swiftshader",
+    "device": "",
+    "description": "",
+    "isFallbackAdapter": true,
+    "features": [
+      "bgra8unorm-storage",
+      "chromium-experimental-timestamp-query-inside-passes",
+      "chromium-experimental-unorm16-texture-formats",
+      "clip-distances",
+      "core-features-and-limits",
+      "depth-clip-control",
+      "depth32float-stencil8",
+      "float32-blendable",
+      "float32-filterable",
+      "indirect-first-instance",
+      "rg11b10ufloat-renderable",
+      "subgroups",
+      "texture-component-swizzle",
+      "texture-compression-astc",
+      "texture-compression-astc-sliced-3d",
+      "texture-compression-bc",
+      "texture-compression-bc-sliced-3d",
+      "texture-compression-etc2",
+      "timestamp-query"
+    ],
+    "limits": {
+      "maxTextureDimension2D": 8192,
+      "maxBufferSize": 1073741824,
+      "maxStorageBufferBindingSize": 1073741824
+    }
+  }
+}

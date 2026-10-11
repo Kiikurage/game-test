@@ -1,0 +1,112 @@
+
+ RUN  v5.0.3 /home/user/game-test/.claude/worktrees/agent-a3e1178156e8c5c85
+
+stdout | src/game/player/dbg.test.ts > dbg
+S 0 move 2.22 0.00 2.22 true
+S 1 move 2.22 0.00 2.22 true
+S 2 move 2.22 0.00 2.22 true
+S 3 move 2.22 0.00 2.22 true
+S 4 move 2.22 0.00 2.22 true
+S 5 move 2.22 0.00 2.22 true
+S 6 move 2.22 0.00 2.22 true
+S 7 move 2.22 0.00 2.22 true
+S 8 move 2.22 0.00 2.22 true
+S 9 move 2.22 0.00 2.22 true
+S 10 move 2.22 0.00 2.22 true
+S 11 move 2.22 0.00 2.22 true
+S 12 move 2.22 0.00 2.22 true
+S 13 move 2.22 0.00 2.22 true
+S 14 move 2.22 0.00 2.22 true
+S 15 move 2.22 0.00 2.22 true
+S 16 move 2.22 0.00 2.22 true
+S 17 move 2.22 0.00 2.22 true
+S 18 move 2.22 0.00 2.22 true
+S 19 move 2.22 0.00 2.22 true
+S 20 move 2.22 0.00 2.22 true
+S 21 move 2.22 0.00 2.22 true
+S 22 move 2.22 0.00 2.22 true
+S 23 move 2.22 0.00 2.22 true
+S 24 move 2.22 0.00 2.22 true
+S 25 move 2.22 0.00 2.22 true
+S 26 move 2.21 0.00 2.21 true
+S 27 move 2.20 0.00 2.20 true
+S 28 move 2.19 0.00 2.19 true
+S 29 move 2.18 0.00 2.18 true
+S 30 move 2.16 0.00 2.16 true
+S 31 move 2.14 0.00 2.14 true
+S 32 move 2.12 0.00 2.12 true
+S 33 move 2.08 0.00 2.08 true
+S 34 move 2.04 0.00 2.04 true
+S 35 move 1.98 0.00 1.98 true
+S 36 move 1.98 0.00 1.98 true
+S 37 move 1.98 0.00 1.98 false
+S 38 move 1.97 0.00 1.98 false
+S 39 move 1.96 0.00 1.98 false
+S 40 move 1.95 0.00 1.98 false
+S 41 move 1.92 0.00 1.98 false
+S 42 fall 1.90 1.98 1.98 false
+S 43 fall 1.86 1.98 1.98 false
+S 44 fall 1.82 1.98 1.98 false
+S 45 fall 1.78 1.98 1.98 false
+S 46 fall 1.73 1.98 1.98 false
+S 47 fall 1.67 1.98 1.98 false
+S 48 fall 1.61 1.98 1.98 false
+S 49 fall 1.55 1.98 1.98 false
+S 50 fall 1.47 1.98 1.98 false
+S 51 fall 1.40 1.98 1.98 false
+S 52 fall 1.31 1.98 1.98 false
+S 53 fall 1.22 1.98 1.98 false
+S 54 fall 1.13 1.98 1.98 false
+S 55 fall 1.03 1.98 1.98 false
+S 56 fall 0.92 1.98 1.98 false
+S 57 fall 0.81 1.98 1.98 false
+S 58 fall 0.70 1.98 1.98 false
+S 59 fall 0.57 1.98 1.98 false
+S 60 fall 0.45 1.98 1.98 false
+S 61 fall 0.31 1.98 1.98 false
+S 62 fall 0.17 1.98 1.98 false
+S 63 fall 0.03 1.98 0.03 true
+S 64 move 0.02 1.98 0.02 true
+S 65 move 0.02 1.98 0.02 true
+S 66 move 0.02 1.98 0.02 true
+S 67 move 0.02 1.98 0.02 true
+S 68 move 0.02 1.98 0.02 true
+S 69 move 0.02 1.98 0.02 true
+S 70 move 0.02 1.98 0.02 true
+S 71 move 0.02 1.98 0.02 true
+S 72 move 0.02 1.98 0.02 true
+S 73 move 0.02 1.98 0.02 true
+S 74 move 0.02 1.98 0.02 true
+S 75 move 0.02 1.98 0.02 true
+S 76 move 0.02 1.98 0.02 true
+S 77 move 0.02 1.98 0.02 true
+S 78 move 0.02 1.98 0.02 true
+S 79 move 0.01 1.98 0.01 true
+
+ ❯ src/game/player/dbg.test.ts (1 test | 1 failed) 457ms
+   × dbg 455ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/game/player/dbg.test.ts > dbg
+Error: x
+ ❯ src/game/player/dbg.test.ts:24:9
+     22|     console.log('S', i, game.player.state, game.player.feet.y.toFixed(…
+     23|   }
+     24|   throw new Error('x');
+       |         ^
+     25| });
+     26|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  11:34:19
+   Duration  3.67s (transform 74%, tests 13%, import 12%)
+
+  Transform  transforming modules took 2.55s · 74% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+

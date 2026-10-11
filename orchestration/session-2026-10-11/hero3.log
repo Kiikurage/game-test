@@ -1,0 +1,26 @@
+
+> game-test@0.0.0 heroshots
+> node scripts/heroShots.mjs shots/hero
+
+shots/hero/bonfire-arrival.png  (篝火, 119s)
+shots/hero/bonfire-lanterns.png  (篝火, 126s)
+shots/hero/graveyard-path.png  (墓地, 132s)
+shots/hero/graveyard-mausoleum.png  (墓地, 174s)
+shots/hero/chapel-gate-approach.png  (礼拝堂の門, 237s)
+shots/hero/chapel-gate-threshold.png  (礼拝堂の門, 198s)
+shots/hero/chapel-nave.png  (礼拝堂内部, 172s)
+shots/hero/chapel-breach.png  (礼拝堂内部, 207s)
+shots/hero/waterway-tunnel.png  (地下水路, 206s)
+shots/hero/waterway-stairs.png  (地下水路, 188s)
+shots/hero/crypt-entrance.png  (地下墓所, 214s)
+shots/hero/crypt-bend.png  (地下墓所, 181s)
+shots/hero/crypt-corridor.png  (地下墓所, 242s)
+shots/hero/courtyard-entrance.png  (中庭, 201s)
+shots/hero/courtyard-fountain.png  (中庭, 144s)
+shots/hero/fog-gate.png  (霧の門, 182s)
+shots/hero/arena-entry.png  (闘技場, 168s)
+shots/hero/arena-boss.png  (闘技場, 132s)
+shots/hero/shortcut-gate.png  (ショートカット, 154s)
+shots/hero/shortcut-lane.png  (ショートカット, 89s)
+shots/hero/contact-sheet.png
+exit 0

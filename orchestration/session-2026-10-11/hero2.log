@@ -1,0 +1,30 @@
+
+> game-test@0.0.0 heroshots
+> node scripts/heroShots.mjs shots/hero2 --only courtyard-fountain,fog-gate,arena-entry,arena-boss,shortcut-gate,shortcut-lane,bonfire-arrival,bonfire-lanterns,waterway-tunnel,waterway-stairs,crypt-bend,chapel-gate-approach
+
+shots/hero2/bonfire-arrival.png  (篝火, 136s)
+shots/hero2/bonfire-lanterns.png  (篝火, 115s)
+shots/hero2/chapel-gate-approach.png  (礼拝堂の門, 174s)
+shots/hero2/waterway-tunnel.png  (地下水路, 161s)
+shots/hero2/waterway-stairs.png  (地下水路, 120s)
+shots/hero2/crypt-bend.png  (地下墓所, 169s)
+shots/hero2/courtyard-fountain.png  (中庭, 152s)
+shots/hero2/fog-gate.png  (霧の門, 155s)
+shots/hero2/arena-entry.png  (闘技場, 131s)
+shots/hero2/arena-boss.png  (闘技場, 148s)
+shots/hero2/shortcut-gate.png  (ショートカット, 181s)
+shots/hero2/shortcut-lane.png  (ショートカット, 160s)
+file:///home/user/game-test/.claude/worktrees/agent-a778367005d9110f1/scripts/heroShots.mjs:265
+  return `<figcaption><b>${escapeHtml(s.name)}</b><span>${escapeHtml(s.area)}${
+                           ^
+
+ReferenceError: Cannot access 'escapeHtml' before initialization
+    at caption (file:///home/user/game-test/.claude/worktrees/agent-a778367005d9110f1/scripts/heroShots.mjs:265:28)
+    at file:///home/user/game-test/.claude/worktrees/agent-a778367005d9110f1/scripts/heroShots.mjs:279:73
+    at Array.map (<anonymous>)
+    at contactSheet (file:///home/user/game-test/.claude/worktrees/agent-a778367005d9110f1/scripts/heroShots.mjs:277:22)
+    at file:///home/user/game-test/.claude/worktrees/agent-a778367005d9110f1/scripts/heroShots.mjs:82:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+Node.js v22.22.0
+exit 1
