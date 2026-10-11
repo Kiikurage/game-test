@@ -18,13 +18,13 @@ import { resetTuning, tuning } from './game/tuning';
 import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { PlayerView, type PlayerViewState } from './render/playerView';
 import { EnemyViews } from './render/enemyView';
-import { createTerrainCollisionMesh } from './render/testScene';
 import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
 import { EnvironmentAssets } from './render/assets/environment';
 import { createLevel, levelGameOptions } from './game/world/level';
 import { SaveStore, getLocalStorage } from './core/persistence';
 import { COMBAT_DEBUG_ENEMIES } from './game/world/combatDebug';
-import { terrainHeight } from './render/terrain';
+import { terrainHeight } from './game/world/terrain';
+import { createTestTerrainCollisionMesh, testSceneColliders } from './game/world/testScene';
 import { createDevHooks, isShowcaseRequested, type DevHooks } from './devHooks';
 
 // `*.dev.ts`（デバッグフック・showcase の URL パラメータの登録）を自動で読み込む。新機能は main.ts を編集しない。
@@ -106,7 +106,7 @@ export async function createGameApp(
       ...(level
         ? levelGameOptions(level)
         : {
-            terrain: createTerrainCollisionMesh(),
+            terrain: createTestTerrainCollisionMesh(),
             terrainHeight,
             ...(sceneParam === 'combat' && { enemies: COMBAT_DEBUG_ENEMIES }),
           }),
@@ -115,7 +115,7 @@ export async function createGameApp(
     });
     physicsTask.done();
     const view = new GameView(game, gameRenderer, level ?? undefined);
-    game.addStaticCylinders(level ? level.cylinders : view.colliders);
+    game.addStaticCylinders(level ? level.cylinders : testSceneColliders());
     // ?env=0: 環境メッシュを置かない（グレーボックスのまま。負荷比較用）
     if (level && new URLSearchParams(location.search).get('env') !== '0') {
       // 環境メッシュ（墓地・礼拝堂）。読み込みに失敗してもグレーボックスのまま遊べる

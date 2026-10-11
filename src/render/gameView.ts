@@ -12,7 +12,7 @@ import type { EnvironmentAssets } from './assets/environment';
 import type { Level } from '../game/world/level';
 import type { PlayerView } from './playerView';
 import type { EnemyViews } from './enemyView';
-import { createTestScene, type ColliderCylinder } from './testScene';
+import { createTestScene } from './testScene';
 import { ParticleSystem } from './particles';
 import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
 import { CombatDebugView } from './combatDebugView';
@@ -49,7 +49,6 @@ export class GameView {
   /** false にすると game のカメラ追従を止める（キャラクター確認用ショーケースが自分でカメラを置くとき）。 */
   useGameCamera = true;
   /** テストシーンの立っている柱の衝突用円柱（`game.addStaticCylinders` へ渡す）。 */
-  readonly colliders: readonly ColliderCylinder[];
 
   private savedFog: Scene['fogNode'] | undefined;
   private playerView: PlayerView | null = null;
@@ -80,14 +79,12 @@ export class GameView {
 
     this.environment = createEnvironment(this.scene, preset);
     if (level) {
-      this.colliders = [];
       this.levelView = new LevelView(level);
       this.scene.add(this.levelView.root);
       this.skyline = new Skyline();
       this.scene.add(this.skyline.root);
     } else {
       const testScene = createTestScene(preset);
-      this.colliders = testScene.pillars;
       this.scene.add(testScene.root);
     }
     this.playground = new PlaygroundView(game, !level);
