@@ -6,6 +6,7 @@ import {
   type QualitySelection,
 } from './quality';
 import { setMaterialDetail } from './bakedNoise';
+import { configureKtx2Loader } from './assets/ktx2';
 
 /** デバッグ表示（`?debug`）用の計測値。 */
 export interface RenderStats {
@@ -65,6 +66,8 @@ export async function createRenderer(
     void renderer.dispose();
     throw new Error('WebGPU backend is not active (WebGL fallback is not supported)');
   }
+  // KTX2 の変換先（ASTC / BC など）をデバイスの圧縮テクスチャ機能から決める（#328）
+  configureKtx2Loader(renderer);
 
   renderer.shadowMap.enabled = !quality.toggles.noShadow;
   renderer.shadowMap.type = PCFShadowMap;

@@ -8,6 +8,7 @@ import { NodeIO } from '@gltf-transform/core';
 import {
   EXTMeshoptCompression,
   EXTTextureWebP,
+  KHRTextureBasisu,
   KHRMeshQuantization,
   KHRTextureTransform,
 } from '@gltf-transform/extensions';
@@ -24,6 +25,7 @@ const io = new NodeIO()
   .registerExtensions([
     EXTMeshoptCompression,
     EXTTextureWebP,
+    KHRTextureBasisu,
     KHRMeshQuantization,
     KHRTextureTransform,
   ])
