@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { MemoryStorage, SaveStore } from '../../core/persistence';
 import type { GameEventMap } from '../../core/gameEvents';
-import { ITEM, PLAYER_STATS } from '../data';
+import { PLAYER_STATS } from '../data';
+import { LOOT } from '../data/world/lootTuning';
 import { Game } from '../game';
 import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
@@ -49,7 +50,7 @@ describe('item pickup (flask +1)', () => {
   it('offers "拾う" within range', async () => {
     const { game, run } = await setup();
     run(5);
-    expect(interactionOf(game).prompt).toEqual({ id: 'item-flask-c', kind: 'item', label: '拾う' });
+    expect(interactionOf(game).prompt).toEqual({ id: 'item-flask-c', kind: 'loot', label: '拾う' });
   });
 
   it('picking up raises the max and the count by one, saves, and notifies', async () => {
@@ -59,7 +60,7 @@ describe('item pickup (flask +1)', () => {
     game.player.flask.use();
     press();
     expect(game.player.state).toBe('interact');
-    run(ITEM.grantFrame - 3);
+    run(LOOT.effectFrame - 3);
     expect(game.player.flask.max).toBe(3);
     run(5);
     expect(game.player.flask.max).toBe(4);
@@ -74,11 +75,11 @@ describe('item pickup (flask +1)', () => {
     const { game, run, press } = await setup();
     run(5);
     press();
-    run(ITEM.pickupFrames + 10);
+    run(LOOT.frames + 10);
     expect(game.player.flask.max).toBe(4);
     expect(interactionOf(game).prompt).toBeNull();
     press();
-    run(ITEM.pickupFrames + 10);
+    run(LOOT.frames + 10);
     expect(game.player.flask.max).toBe(PLAYER_STATS.flask.max);
     expect(game.player.state).toBe('idle');
   });
@@ -89,7 +90,7 @@ describe('item pickup (flask +1)', () => {
     press();
     run(5);
     game.debugHitPlayer({ from: 'front', damage: 10, poiseDamage: 100 });
-    run(ITEM.pickupFrames);
+    run(LOOT.frames);
     expect(game.player.flask.max).toBe(3);
     expect(save.getCount('flask_up')).toBe(0);
     expect(itemsOf(game).ids).toEqual(['item-flask-c']);
@@ -99,11 +100,11 @@ describe('item pickup (flask +1)', () => {
     const first = await setup();
     first.run(5);
     first.press();
-    first.run(ITEM.pickupFrames + 10);
+    first.run(LOOT.frames + 10);
     const second = await setup(first.storage);
     second.run(5);
     expect(itemsOf(second.game).ids).toEqual([]);
-    expect(interactionOf(second.game).get('item-flask-c')).toBeUndefined();
+    expect(interactionOf(second.game).prompt).toBeNull(); // 取得済みは候補にならない
     expect(second.game.player.flask.max).toBe(4);
     expect(second.game.player.flask.count).toBe(4);
   });
@@ -112,7 +113,7 @@ describe('item pickup (flask +1)', () => {
     const { game, run, press } = await setup();
     run(5);
     press();
-    run(ITEM.pickupFrames + 10);
+    run(LOOT.frames + 10);
     game.player.flask.use();
     game.player.flask.use();
     game.player.flask.use();

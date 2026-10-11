@@ -29,7 +29,7 @@ test('read: the stele shows a context button, E opens the panel, walking away cl
   await expect(panel).not.toHaveClass(/is-visible/);
   await tapKey(page, 'KeyE');
   await expect(panel).toHaveClass(/is-visible/);
-  await expect(panel).toContainText('灰の炉に');
+  await expect(panel).toContainText('火を継ぐ者');
   expect((await panelState(page))?.mode).toBe('read');
 
   // 2m 離れると閉じる
@@ -50,16 +50,19 @@ test('conversation: the decision button advances line by line, moving closes it'
     window.__game?.dev.teleport(-4.6, 2.2, 0);
   });
   await page.evaluate(() => {
-    window.__game?.dev.showText('dummy.talk', 'conversation');
+    window.__game?.dev.showText(
+      ['npc_knight.1', 'npc_knight.2', 'npc_knight.3', 'npc_knight.4'],
+      'conversation',
+    );
   });
   await expect(panel).toHaveClass(/is-visible/);
-  await expect(panel).toContainText('よく来てくれた');
+  await expect(panel).toContainText('生きた者の足音');
   // 会話中の状況ボタンは「次へ」
   await expect(page.getByTestId('guide-prompt')).toContainText('次へ');
 
   await tapKey(page, 'KeyE');
   await expect.poll(async () => (await panelState(page))?.index).toBe(1);
-  await expect(panel).toContainText('長くはない');
+  await expect(panel).toContainText('誓いに、食われた');
   // 同じステップ内の 2 回押しは 1 回に畳まれるので、1 行ずつ反映を待つ
   await tapKey(page, 'KeyE');
   await expect.poll(async () => (await panelState(page))?.index).toBe(2);
@@ -71,7 +74,10 @@ test('conversation: the decision button advances line by line, moving closes it'
 
   // 動いたら閉じる。次に話すと 1 行目から
   await page.evaluate(() => {
-    window.__game?.dev.showText('dummy.talk', 'conversation');
+    window.__game?.dev.showText(
+      ['npc_knight.1', 'npc_knight.2', 'npc_knight.3', 'npc_knight.4'],
+      'conversation',
+    );
   });
   await tapKey(page, 'KeyE');
   await expect.poll(async () => (await panelState(page))?.index).toBe(1);
@@ -80,7 +86,10 @@ test('conversation: the decision button advances line by line, moving closes it'
   });
   await expect.poll(() => panelState(page)).toBeNull();
   await page.evaluate(() => {
-    window.__game?.dev.showText('dummy.talk', 'conversation');
+    window.__game?.dev.showText(
+      ['npc_knight.1', 'npc_knight.2', 'npc_knight.3', 'npc_knight.4'],
+      'conversation',
+    );
   });
   expect((await panelState(page))?.index).toBe(0);
 });

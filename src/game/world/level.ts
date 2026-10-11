@@ -193,7 +193,16 @@ export interface ItemSpawn {
   readonly z: number;
 }
 
-export type InteractableKind = 'bonfire' | 'tablet' | 'lever' | 'gate' | 'hatch' | 'grate' | 'item';
+export type InteractableKind =
+  | 'bonfire'
+  | 'lever'
+  | 'gate'
+  | 'hatch'
+  | 'grate'
+  | 'item'
+  /** データ駆動のインタラクト（#122。`data/world/interactables.ts`）。 */
+  | 'read'
+  | 'loot';
 
 export interface InteractableSpawn {
   readonly id: string;
