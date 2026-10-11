@@ -39,6 +39,16 @@ export type InteractableKind =
  */
 export type InteractableSite = 'main' | 'side_roof' | 'side_ledge' | 'side_wall' | 'side_waterway';
 
+/** 遺体として描く対象（調べる対象が遺体のとき）。描画は `render/item/corpse.view.ts`。 */
+export interface CorpseLook {
+  /** 姿勢（`core/corpses` の `CorpsePose`）。 */
+  readonly pose: 'sitting' | 'prone' | 'praying' | 'leaning';
+  /** 見た目（`CorpseVariant`）。 */
+  readonly variant: 'traveler' | 'pilgrim' | 'warrior' | 'broad';
+  /** 向き（度。three の `rotation.y`。ローカル +Z が (sin, cos) を向く）。 */
+  readonly yawDeg: number;
+}
+
 export interface Interactable {
   readonly id: string;
   readonly kind: InteractableKind;
@@ -57,4 +67,6 @@ export interface Interactable {
   readonly effects: readonly Effect[];
   /** breakable の HP。 */
   readonly hp?: number;
+  /** 遺体として描く（仮の遺体。未指定なら目印だけ）。 */
+  readonly corpse?: CorpseLook;
 }

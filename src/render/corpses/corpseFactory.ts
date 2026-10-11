@@ -61,6 +61,8 @@ export class CorpseFactory {
     private readonly equipment?: EquipmentAssets,
     private readonly simplifier?: IndexSimplifier,
     private readonly simplifyRatio = 0.5,
+    /** 簡略化の許容誤差（メッシュの大きさに対する比）。大きいほど目標の三角形数に近づく。 */
+    private readonly simplifyError?: number,
   ) {}
 
   /** メッシュ簡略化つきで作る（meshoptimizer を動的に読み込む）。 */
@@ -68,8 +70,15 @@ export class CorpseFactory {
     characters: CharacterAssets,
     equipment?: EquipmentAssets,
     simplifyRatio = 0.5,
+    simplifyError?: number,
   ): Promise<CorpseFactory> {
-    return new CorpseFactory(characters, equipment, await loadIndexSimplifier(), simplifyRatio);
+    return new CorpseFactory(
+      characters,
+      equipment,
+      await loadIndexSimplifier(),
+      simplifyRatio,
+      simplifyError,
+    );
   }
 
   /** 焼き込み済みテンプレート（無ければ焼く）。 */
@@ -153,7 +162,10 @@ export class CorpseFactory {
     for (const [material, list] of byMaterial) {
       const merged = mergeBakedParts(list);
       const geometry = this.simplifier
-        ? simplifyGeometry(merged, this.simplifier, { ratio: this.simplifyRatio })
+        ? simplifyGeometry(merged, this.simplifier, {
+            ratio: this.simplifyRatio,
+            ...(this.simplifyError !== undefined && { error: this.simplifyError }),
+          })
         : merged;
       if (geometry !== merged) merged.dispose();
       const mesh = new Mesh(geometry, material);
