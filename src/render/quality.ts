@@ -176,6 +176,11 @@ export function readDeviceHints(): DeviceHints {
   return hints;
 }
 
+/** 動的解像度の開始スケール（モバイルは起動直後に最大解像度で重いフレームを出さないよう 0.8）。 */
+export function initialScaleFor(isMobile: boolean): number {
+  return isMobile ? 0.8 : 1;
+}
+
 /** `?scale=0.5..1`: 動的解像度を無効にして内部解像度スケールを固定する（デバッグ・撮影用）。 */
 export function parseFixedScale(search: string): number | null {
   const raw = new URLSearchParams(search).get('scale');
@@ -201,7 +206,8 @@ export function selectQuality(search: string, hints: DeviceHints): QualitySelect
   return {
     preset: applyPerfToggles(QUALITY_PRESETS[level], toggles),
     toggles,
-    fixedScale: parseFixedScale(search),
+    // ?bench は計測中に動的解像度を動かさない（`scale=` がなければ通常の開始スケール: モバイル 0.8 / PC 1）
+    fixedScale: parseFixedScale(search) ?? (toggles.bench ? initialScaleFor(hints.isMobile) : null),
     isMobile: hints.isMobile,
     targetFps: targetFpsFor(hints.isMobile),
   };
