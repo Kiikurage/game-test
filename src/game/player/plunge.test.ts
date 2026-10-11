@@ -13,7 +13,6 @@ import {
 import { bossSystemOf } from '../boss/boss.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { playerAttackProfile } from '../combat/debugSwing';
 import type { EnemySpawn } from '../world/level';
 import type { BoxSpec } from '../world/playground';
@@ -177,8 +176,6 @@ describe('落下攻撃の結合（Rapier）', () => {
   });
 
   async function setup(options: { enemies?: EnemySpawn[]; boxes?: BoxSpec[] } = {}) {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     const input = new FakeInput();
     const game = await Game.create({
       input,
@@ -186,6 +183,7 @@ describe('落下攻撃の結合（Rapier）', () => {
       dummies: [],
       enemies: options.enemies ?? [soldier('e1', 0, 5.2)],
     });
+    game.tuning.camera.autoFollow = false;
     const tick = (): void => {
       game.update(DT);
       input.endStep();

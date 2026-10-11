@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Game } from '../game';
 import { NavGrid } from '../enemy/navGrid';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { ASHEN_FOUNDATION } from './ashenFoundation';
 import { createLevel, levelGameOptions, sidePathDistance } from './level';
 
@@ -217,10 +216,9 @@ describe('walking the side paths (physics)', () => {
   let input: FakeInput;
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input, ...levelGameOptions(level), enemies: [] });
+    game.tuning.camera.autoFollow = false;
     game.addStaticCylinders(level.cylinders);
     for (let i = 0; i < 10; i++) game.update(DT);
   });

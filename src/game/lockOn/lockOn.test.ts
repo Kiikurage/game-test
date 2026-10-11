@@ -1,6 +1,5 @@
 import { Vector3 } from 'three';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { resetTuning } from '../tuning';
+import { describe, expect, it } from 'vitest';
 import { LockOnController, type LockOnFrame } from './lockOnController';
 import {
   lockOnScore,
@@ -91,10 +90,6 @@ describe('selectSwitchTarget', () => {
 });
 
 describe('LockOnController', () => {
-  beforeEach(() => {
-    resetTuning();
-  });
-
   function frame(targets: DummyTarget[], over: Partial<LockOnFrame> = {}): LockOnFrame {
     return {
       toggle: false,

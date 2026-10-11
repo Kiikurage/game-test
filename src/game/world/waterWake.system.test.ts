@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { ASHEN_FOUNDATION } from './ashenFoundation';
 import { createLevel, levelGameOptions } from './level';
 import {
@@ -57,11 +56,10 @@ describe('WaterWake ring buffer', () => {
 
 describe('waterWake system (fixed-step records)', () => {
   it('records the wake, footsteps and a roll of the player in the waterway, one step per update', async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     const level = createLevel(ASHEN_FOUNDATION);
     const input = new FakeInput();
     const game = await Game.create({ input, ...levelGameOptions(level), enemies: [] });
+    game.tuning.camera.autoFollow = false;
     game.addStaticCylinders(level.cylinders);
     waterwayOf(game).breakHatch();
     game.teleportPlayer(50, 28, Math.PI / 2, 1.02);

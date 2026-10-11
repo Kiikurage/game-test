@@ -4,7 +4,6 @@ import { capsule, capsuleShape, vec3, type HitEvent } from './combat';
 import { KNOCKBACK, POISE } from './data';
 import { Game } from './game';
 import { FakeInput } from './testing/fakeInput';
-import { resetTuning, tuning } from './tuning';
 import { DUMMIES } from './world/playground';
 
 const DT = 1 / 60;
@@ -19,10 +18,9 @@ describe('hit reaction (player + dummy)', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     run(10);
   });
 

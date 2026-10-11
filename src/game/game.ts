@@ -38,7 +38,7 @@ import {
 import { PLAYER_STATS } from './data';
 import { TimeScale } from './timeScale';
 import { createGameSystems, type GameSystem, type ImpactEvent } from './systems';
-import { tuning } from './tuning';
+import { createTuning, type Tuning } from './tuning';
 import {
   CAMERA_QUERY_GROUPS,
   SIGHT_QUERY_GROUPS,
@@ -155,8 +155,10 @@ export class Game {
   readonly enemies: EnemyManager;
   /** 攻撃トークン（同時に攻撃できる敵の数。5.1 節）。 */
   readonly attackTokens = new AttackTokens();
-  readonly camera = new ThirdPersonCamera();
-  readonly lockOn = new LockOnController();
+  /** 調整値（Game ごとに持つ。`?debug` の調整パネルが書き換える）。 */
+  readonly tuning: Tuning = createTuning();
+  readonly camera = new ThirdPersonCamera(this.tuning);
+  readonly lockOn = new LockOnController(this.tuning);
   /** ロックオン対象。敵（#40 以降）は `LockOnTarget` を実装してここへ追加する。 */
   readonly lockOnTargets: LockOnTarget[] = [];
   /** テストシーンのダミー（描画用に別持ち）。 */
@@ -266,7 +268,7 @@ export class Game {
       ]);
       heart.place(d.x, y, d.z, 0);
       this.combat.addTarget(heart);
-      const reactor = new HitReactor(HOLLOW_SOLDIER_REACTOR);
+      const reactor = new HitReactor(HOLLOW_SOLDIER_REACTOR, this.tuning);
       this.reactors.set(d.id, reactor);
       this.registerFreezable(d.id, reactor);
       this.reactiveTargets.set(d.id, heart);
@@ -284,7 +286,13 @@ export class Game {
 
     // 地形・足場を問い合わせパイプラインへ反映してからプレイヤーを置く
     physics.step(1 / 60);
-    this.player = new Player(physics, this.spawnPosition, this.spawnYaw, this.playerTarget.health);
+    this.player = new Player(
+      physics,
+      this.spawnPosition,
+      this.spawnYaw,
+      this.playerTarget.health,
+      this.tuning,
+    );
     this.cameraCollision = this.createCameraCollision(rapier);
     this.camera.reset(this.player.feet, this.spawnYaw);
     this.combat.addTarget(this.playerTarget);
@@ -357,7 +365,7 @@ export class Game {
     heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
     this.combat.addTarget(heart);
     const profile = enemy.type === 'undead_shield' ? SHIELDBEARER_REACTOR : HOLLOW_SOLDIER_REACTOR;
-    this.addReactor(enemy.id, new HitReactor(profile), heart);
+    this.addReactor(enemy.id, new HitReactor(profile, this.tuning), heart);
     // ヒットストップ（攻撃側・被弾側）で状態フレーム・移動を凍結する（Enemy.update が先頭で consumeFreeze する）
     this.registerFreezable(enemy.id, enemy.fsm);
     this.enemyHearts.set(enemy.id, { enemy, heart });
@@ -482,7 +490,7 @@ export class Game {
       moveInput: snap.move,
       running:
         player.state === 'dash' ||
-        (player.state === 'move' && player.speed > tuning.player.walk + 0.5),
+        (player.state === 'move' && player.speed > this.tuning.player.walk + 0.5),
       lockTarget: this.lockOn.target,
       lockEvent: this.lastLockOnEvent,
       device: snap.device,
@@ -666,7 +674,7 @@ export class Game {
         attackerIsBoss: this.bossIds.has(e.attackerId),
         targetIsBoss: this.bossIds.has(e.targetId),
       },
-      tuning.hitStop,
+      this.tuning.hitStop,
     );
     if (decision.frames > 0) {
       this.freeze(e.attackerId, decision.frames);
@@ -756,7 +764,7 @@ export class Game {
   /** ターゲット切替要求: 入力層のフリック/ホイール/十字キー、またはロックオン中のマウスの急な横移動。 */
   private resolveSwitch(snap: InputSnapshot): -1 | 0 | 1 {
     if (snap.targetSwitch !== 0) return snap.targetSwitch;
-    if (this.lockOn.active && Math.abs(snap.look.x) > tuning.lockOn.flickLookThreshold) {
+    if (this.lockOn.active && Math.abs(snap.look.x) > this.tuning.lockOn.flickLookThreshold) {
       return snap.look.x > 0 ? 1 : -1;
     }
     return 0;

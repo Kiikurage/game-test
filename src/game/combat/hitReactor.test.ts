@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { KNOCKBACK, POISE, PLAYER_ACTIONS } from '../data';
-import { resetTuning } from '../tuning';
 import {
   BOSS_REACTOR,
   HOLLOW_SOLDIER_REACTOR,
@@ -147,10 +146,6 @@ describe('Slide（押し戻し）', () => {
 });
 
 describe('HitReactor: プレイヤー', () => {
-  beforeEach(() => {
-    resetTuning();
-  });
-
   it('軽い被弾（削り 49）は仰け反り 24F・後退 0.5m、重い被弾（削り 50）は転倒 48F・後退 1.5m', () => {
     const light = new HitReactor(PLAYER_REACTOR).react(event(49), 0, 1);
     expect(light).toMatchObject({
@@ -237,10 +232,6 @@ describe('HitReactor: プレイヤー', () => {
 });
 
 describe('HitReactor: 敵', () => {
-  beforeEach(() => {
-    resetTuning();
-  });
-
   it('崩れない被弾は加算の軽い仰け反り 12F（行動継続）・後退 0.3m、重いと 0.8m', () => {
     const r = new HitReactor(HOLLOW_SOLDIER_REACTOR);
     const light = r.react(event(20), 0, 1);

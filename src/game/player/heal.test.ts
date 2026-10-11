@@ -5,7 +5,6 @@ import { capsule, capsuleShape, vec3 } from '../combat';
 import { HEAL_EMPTY_FRAMES, PLAYER_ACTIONS, PLAYER_STATS, totalFrames } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { Flask } from './flask';
 
 const DT = 1 / 60;
@@ -68,10 +67,9 @@ describe('heal flask', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     run(10);
   });
 

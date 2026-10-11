@@ -3,7 +3,6 @@ import { MainLoop } from '../core/mainLoop';
 import { gameStats } from './debug/stats.system';
 import { Game } from './game';
 import { FakeInput } from './testing/fakeInput';
-import { resetTuning } from './tuning';
 
 /** ステップ番号ごとの入力（前進しながら攻撃。途中で撃破スロー相当のタイムスケールを掛ける）。 */
 function script(step: number, game: Game, input: FakeInput): void {
@@ -15,7 +14,6 @@ function script(step: number, game: Game, input: FakeInput): void {
 
 /** main.ts と同じ組み立て（入力を確定してから game.update）のループ。 */
 async function setup(): Promise<{ game: Game; loop: MainLoop }> {
-  resetTuning();
   const input = new FakeInput();
   const game = await Game.create({ input });
   const loop = new MainLoop(
