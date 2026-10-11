@@ -211,7 +211,7 @@ export class InteractableController {
     };
   }
 
-  /** 命中のたびに（`interactable.system.ts` の `onHit`）。壁への命中を HP に反映する。 */
+  /** 命中のたびに（`interactable.system.ts` の `onImpact`）。壁への命中を HP に反映する。 */
   onHit(e: HitEvent): void {
     const wall = this.walls.get(e.targetId);
     if (!wall || wall.broken || e.attackerId !== 'player') return;

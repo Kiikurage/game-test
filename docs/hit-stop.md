@@ -11,7 +11,7 @@
 | `decideHitStop`（`combat/hitStop.ts`） | `HitEvent` から凍結フレーム数・撃破スロー・画面振動・閃光を決める純粋関数。数値は `tuning.hitStop` |
 | `Freezable`（`freeze(frames)`） | 凍結できるもの。`CharacterFsm` はそのまま満たす（重ね掛けは長い方）。`FreezeCounter` は状態機械を持たない被弾側用の残りカウンタ |
 | `TimeScale`（`game/timeScale.ts`） | グローバルのタイムスケール。`game.timeScale.start(scale, frames, delay)` |
-| `Game.applyHitStop` | 命中の `onHit` で、攻撃側・被弾側の `Freezable` を同時に凍結し、スロー・画面振動を始め、`hitStop` イベントを発行する |
+| `Game.applyHitStop` | 命中（`combat.onHit`）で、攻撃側・被弾側の `Freezable` を同時に凍結し、スローを始め、`impact` イベントの中身を組み立てる |
 
 ## フレーム数（`HIT_STOP`、`?debug` の tuning パネル → `hitStop` で変更可）
 
@@ -29,9 +29,11 @@
 - 敵・ボス: 自分の `CharacterFsm`（または `FreezeCounter`）を `game.registerFreezable(id, fsm)` で登録する。毎ステップ先頭で
   `if (fsm.consumeFreeze()) return;`（`FreezeCounter` なら `consume()`）として、そのステップの更新を丸ごと飛ばす。被弾リアクタ（#50）の
   `step()` / `consumeSlide` も凍結中は呼ばない。ボスは `game.bossIds.add(id)`（ボスの攻撃・撃破の長さが変わる）。
-- 付随演出: `game.events.on('hitStop', …)`。`frames` / `kind` / `position` / `normal`（飛び散る向き）/ `killed` / `fromPlayer` / `toPlayer` /
-  `flash`（`'red'` | `'white'`）/ `flashFrames` / `slowMotion`。パーティクルは `GameView` が購読済み。SE は同じステップの `hit` イベント（0F 遅延）。
-- 死亡確定: `HitEvent.killed` は凍結より前（同じ `onHit`）に届くので、死亡処理はヒットストップ中でも始められる。
+- 付随演出: 命中 1 回につき 1 つの `impact` イベント（#307）。`game.events.on('impact', …)`。`attackerId` / `targetId` / `attackId` /
+  `kind` / `guard` / `guardBroken` / `source` / `frames` / `position` / `normal`（飛び散る向き）/ `killed` / `fromPlayer` / `toPlayer` /
+  `flash`（`'red'` | `'white'`）/ `flashFrames` / `slowMotion`。パーティクル（`GameView`）・SE（`audio/sfxEvents.ts`）・敵の聴覚が購読する。
+  game 内のシステムは `registerGameSystem` の `onImpact(e)` で同じ `impact` を受け取る（`e.hit` が元の `HitEvent`）。
+- 死亡確定: `HitEvent.killed` は凍結より前（同じ `combat.onHit`）に届くので、死亡処理はヒットストップ中でも始められる。
 
 ## 先行入力バッファ（#197）
 

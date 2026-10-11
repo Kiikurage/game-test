@@ -45,7 +45,7 @@ registerGameSystem('ambush', (game) => {
   };
   game.player.ambushSource = source;
   return {
-    onHit(e) {
+    onImpact(e) {
       if (e.attackerId !== 'player' || e.attackId !== 'backstab') return;
       const enemy = enemyOf(e.targetId);
       if (enemy) enemy.restrained = false;

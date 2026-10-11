@@ -299,15 +299,17 @@ describe('guard', () => {
       expect(game.playerTarget.staggered).toBe(false);
     });
 
-    it('崩しの SE（hit: guardBreak）が出る', () => {
+    it('崩しは同じ impact の guardBroken で伝わる（SE は崩し → ガードの順）', () => {
       const kinds: string[] = [];
-      game.events.on('hit', (e) => kinds.push(e.kind));
+      game.events.on('impact', (e) => {
+        kinds.push(e.kind);
+        if (e.guardBroken) kinds.push('guardBreak');
+      });
       startGuard();
       guardUntil(30);
       game.player.stamina.current = 1;
       hit({ guardStaminaCost: 20 });
-      expect(kinds).toContain('guard');
-      expect(kinds).toContain('guardBreak');
+      expect(kinds).toEqual(['guard', 'guardBreak']);
     });
 
     it('ジャストガードでも消費でスタミナが 0 になれば崩れる', () => {

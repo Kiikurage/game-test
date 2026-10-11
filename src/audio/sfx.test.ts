@@ -10,7 +10,7 @@ import type {
 } from './playbackTypes';
 import { listenerPoseFromMatrix } from './listener';
 import { FOOTSTEP_PROFILES, GAIT_VOLUME, footstepPlayRequest } from './footstep';
-import { bindSfxEvents, toPlayRequest } from './sfxEvents';
+import { bindSfxEvents, impactPlayRequests, toPlayRequest } from './sfxEvents';
 import { SfxPlayer } from './sfxPlayer';
 import { PRELOAD_GROUPS, SoundLibrary, chooseFile, isOpusSupported } from './soundLibrary';
 import {
@@ -24,6 +24,29 @@ import {
   variantGroupOf,
 } from './variants';
 import { MAX_VOICES_DESKTOP, MAX_VOICES_MOBILE, VoiceLimiter, maxVoicesFor } from './voiceLimiter';
+
+/** テスト用の `impact`（SE が見る項目以外は既定値）。 */
+function impact(
+  over: Partial<GameEventMap['impact']> & Pick<GameEventMap['impact'], 'kind' | 'source'>,
+): GameEventMap['impact'] {
+  return {
+    attackerId: 'a',
+    targetId: 'b',
+    attackId: 'light1',
+    guard: 'none',
+    guardBroken: false,
+    frames: 4,
+    position: { x: 1, y: 1, z: 1 },
+    normal: { x: 0, y: 0, z: 1 },
+    killed: false,
+    fromPlayer: false,
+    toPlayer: false,
+    flash: null,
+    flashFrames: 0,
+    slowMotion: null,
+    ...over,
+  };
+}
 
 describe('VoiceLimiter', () => {
   it('has the spec limits for desktop and mobile', () => {
@@ -572,12 +595,20 @@ describe('game events to SFX', () => {
         position: { x: 1, y: 0, z: 1 },
       }),
     ).toMatchObject({ cue: 'sfx.footstep-grass', position: { x: 1, y: 0, z: 1 } });
-    expect(toPlayRequest('hit', { kind: 'guard', source: 'player' })).toEqual({
-      cue: 'sfx.guard',
-      priority: 90,
-    });
+    expect(impactPlayRequests(impact({ kind: 'guard', source: 'player' }))).toEqual([
+      { cue: 'sfx.guard', priority: 90 },
+    ]);
     expect(
-      toPlayRequest('hit', { kind: 'heavy', source: 'boss', position: { x: 0, y: 0, z: 2 } }),
+      impactPlayRequests(impact({ kind: 'guard', source: 'player', guardBroken: true })),
+    ).toEqual([
+      { cue: 'sfx.guard-break', priority: 90 },
+      { cue: 'sfx.guard', priority: 90 },
+    ]);
+    expect(
+      toPlayRequest(
+        'impact',
+        impact({ kind: 'heavy', source: 'boss', position: { x: 0, y: 0, z: 2 } }),
+      ),
     ).toEqual({
       cue: 'sfx.hit-heavy',
       priority: 70,
@@ -593,14 +624,19 @@ describe('game events to SFX', () => {
     const bus = new EventBus<GameEventMap>();
     const play = vi.fn();
     const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    bus.on('hit', () => {
+    bus.on('impact', () => {
       throw new Error('boom');
     });
     const off = bindSfxEvents(bus, { play });
-    bus.emit('hit', { kind: 'light', source: 'enemy' });
-    expect(play).toHaveBeenCalledWith({ cue: 'sfx.hit-light', priority: 50 });
+    const e = impact({ kind: 'light', source: 'enemy' });
+    bus.emit('impact', e);
+    expect(play).toHaveBeenCalledWith({
+      cue: 'sfx.hit-light',
+      priority: 50,
+      position: e.position,
+    });
     off();
-    bus.emit('hit', { kind: 'light', source: 'enemy' });
+    bus.emit('impact', e);
     expect(play).toHaveBeenCalledTimes(1);
     err.mockRestore();
   });

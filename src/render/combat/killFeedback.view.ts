@@ -16,7 +16,7 @@ registerViewPlugin('enemy-kill-feedback', ({ game, view }) => {
   const enemyOf = (id: string): Enemy | undefined =>
     game.bossIds.has(id) ? undefined : game.enemies.enemies.find((e) => e.id === id);
 
-  game.events.on('hitStop', (e) => {
+  game.events.on('impact', (e) => {
     if (!e.killed || !e.fromPlayer) return;
     const enemy = enemyOf(e.targetId);
     if (!enemy) return;
