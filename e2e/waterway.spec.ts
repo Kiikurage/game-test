@@ -1,23 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { holdKey, startGame, stepCount, waitSteps } from './helpers';
+import { bootGame, holdKey, waitSteps } from './helpers';
 
-/** 脇道 side_waterway（#111: 腐った床板 → 地下水路 → 墓室 → 鉄格子 → D の通路）を、入力（W 押しっぱなし + 向き）だけで走破する。 */
+/** 脇道 side_waterway（#111: 腐った床板 → 地下水路 → 墓室 → 鉄格子 → D の通路）を、入力（前進 + 向き）だけで走破する。 */
 
-/** 既定のレベル（灰の礎）を最小品質・低解像度で起動する。敵は置かない（地形の検証）。 */
-async function boot(page: Page): Promise<void> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(30);
-  await expect.poll(async () => (await sim(page)).player.grounded).toBe(true);
-  expect(errors).toEqual([]);
-}
+/** 既定のレベル（灰の礎）を最小品質・低解像度で起動する。敵は置かない（地形の検証）。シミュレーションは止めたまま進める。 */
+const boot = (page: Page) => bootGame(page, { enemies: false });
 
 const sim = (page: Page) =>
   page.evaluate(() => {
@@ -34,14 +21,15 @@ const teleport = (page: Page, x: number, z: number, yaw: number, y?: number) =>
     [x, z, yaw, y] as const,
   );
 
-/** カメラをプレイヤーの向き + offset の背後へ置き直す（W は常にカメラ前方へ進む）。 */
+/** カメラをプレイヤーの向き + offset の背後へ置き直す（前進は常にカメラ前方へ進む）。 */
 const aimCamera = (page: Page, yawOffset: number) =>
   page.evaluate((o) => {
     window.__game?.dev.view(o, 4.2, 15);
   }, yawOffset);
 
 /**
- * 入力（W 押しっぱなし）だけで経由点を順に歩く。各経由点の `tol` m 以内で次へ向きを変える。
+ * 入力（前進の注入）だけで経由点を順に歩く。各経由点の `tol` m 以内で次へ向きを変える。
+ * 4 ステップごとに向きを補正する。ページ内で `dev.advance` を同期実行する（実時間に依存しない）。
  * 時間切れはシミュレーション時間（`maxSeconds`）で判定する。
  */
 async function walkThrough(
@@ -50,29 +38,39 @@ async function walkThrough(
   tol = 0.6,
   maxSeconds = 30,
 ) {
-  await page.keyboard.down('KeyW');
-  try {
-    for (const [wx, wz] of waypoints) {
-      const deadline = (await stepCount(page)) + maxSeconds * 60;
-      for (;;) {
-        const p = (await sim(page)).player;
-        const dx = wx - p.position.x;
-        const dz = wz - p.position.z;
-        if (Math.hypot(dx, dz) < tol) break;
-        expect(
-          await stepCount(page),
-          `timed out before (${wx}, ${wz}) at ${JSON.stringify(p.position)}`,
-        ).toBeLessThan(deadline);
-        const camYaw = (await sim(page)).camera.yaw;
-        const want = Math.atan2(dx, dz);
-        const diff = Math.atan2(Math.sin(want - camYaw), Math.cos(want - camYaw));
-        if (Math.abs(diff) > 0.04) await aimCamera(page, want - p.yaw);
-        await waitSteps(page, 4);
+  const failure = await page.evaluate(
+    ({ waypoints, tol, maxSeconds }) => {
+      const g = window.__game;
+      if (!g) throw new Error('game is not ready');
+      const was = g.paused;
+      g.dev.pause(true);
+      g.dev.input.move(0, 1);
+      try {
+        for (const [wx, wz] of waypoints) {
+          const deadline = g.steps + maxSeconds * 60;
+          for (;;) {
+            const s = g.sim;
+            const p = s.player;
+            const dx = wx - p.position.x;
+            const dz = wz - p.position.z;
+            if (Math.hypot(dx, dz) < tol) break;
+            if (g.steps >= deadline)
+              return `timed out before (${wx}, ${wz}) at ${JSON.stringify(p.position)}`;
+            const want = Math.atan2(dx, dz);
+            const diff = Math.atan2(Math.sin(want - s.camera.yaw), Math.cos(want - s.camera.yaw));
+            if (Math.abs(diff) > 0.04) g.dev.view(want - p.yaw, 4.2, 15);
+            g.dev.advance(4);
+          }
+        }
+        return null;
+      } finally {
+        g.dev.input.move(0, 0);
+        g.dev.pause(was);
       }
-    }
-  } finally {
-    await page.keyboard.up('KeyW');
-  }
+    },
+    { waypoints, tol, maxSeconds },
+  );
+  expect(failure).toBeNull();
 }
 
 const TUNNEL: [number, number][] = [
@@ -94,7 +92,6 @@ const EXIT_Y = 5.9;
 test('the player can step on the rotten floorboard, drop into the waterway, run to the iron grate, and get out into the D corridor once it is opened', async ({
   page,
 }) => {
-  test.setTimeout(300_000);
   await boot(page);
   const hooks = () => page.evaluate(() => window.__game?.dev.waterway());
 
@@ -145,7 +142,6 @@ test('the player can step on the rotten floorboard, drop into the waterway, run 
 test('the burial chamber branch can be walked and the way back from D leads into the waterway', async ({
   page,
 }) => {
-  test.setTimeout(240_000);
   await boot(page);
   await page.evaluate(() => {
     window.__game?.dev.breakHatch();
@@ -181,7 +177,6 @@ test('the burial chamber branch can be walked and the way back from D leads into
 test('the waterway water is built and drawn only while the player is down there, and skipped under nodraw (#270)', async ({
   page,
 }) => {
-  test.setTimeout(120_000);
   await boot(page);
   const render = () => page.evaluate(() => window.__game?.dev.waterwayRender());
   const start = (await sim(page)).player.position;

@@ -149,6 +149,8 @@ Node.js 22.12 以上。初回は `npm ci`。
 ### テストの安定性（時間依存のテストを書かない）
 
 - E2E で `page.waitForTimeout` や実時間の締切（`Date.now()`）を使わない。待ちはシミュレーション基準にする: `e2e/helpers.ts` の `waitSteps`（ステップ数）・`waitFrames`（描画フレーム数）・`holdKey`（ステップ数だけキー保持）・`tapKey`（短押し）、`expect.poll` による状態待ち、`window.__game.dev.advance(steps)`。
+  `waitSteps` / `holdKey` はページ内で「一時停止 → `dev.advance(n)` → 状態を戻す」を同期実行する（ループ自体の動作を確かめるときだけ `waitLoopSteps`）。
+- 新しい spec は `bootGame(page, { scene?, enemies?, at?, paused?, quality?, draw?, params? })` で起動する（`dev.start()` で開始・Pointer Lock を取らない・既定で一時停止のまま。戻り値はコンソールエラーの配列）。
   実時間でしか待てないもの（ループ開始前の非同期状態、実時間の入力速度が仕様のもの）だけ、理由をコメントして例外にする。
 - ロジック検証の E2E は `?quality=low&scale=0.25&nodraw` で開く（SwiftShader は遅く、実時間あたりのステップ数が大きく変動する）。
 - Rapier を使うユニットテストは必要十分なステップ数にとどめる。`vitest.config.ts` の `testTimeout` は 30 秒（並列負荷対策）。
