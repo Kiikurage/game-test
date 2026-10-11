@@ -1,4 +1,4 @@
-import { Vector3 } from 'three/webgpu';
+import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { validateStateGraph } from '../anim/characterFsm';
 import { ENEMY_AI } from '../data';

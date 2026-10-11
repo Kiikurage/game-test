@@ -1,4 +1,4 @@
-import { Quaternion, Vector3 } from 'three/webgpu';
+import { Quaternion, Vector3 } from 'three';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   FreezeCounter,

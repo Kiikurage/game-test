@@ -1,4 +1,4 @@
-import { Matrix4, Vector3 } from 'three/webgpu';
+import { Matrix4, Vector3 } from 'three';
 import { CameraEffects } from './cameraEffects';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputDevice } from '../../core/input';

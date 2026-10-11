@@ -1,4 +1,4 @@
-import { Vector3 } from 'three/webgpu';
+import { Vector3 } from 'three';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetTuning } from '../tuning';
 import { LockOnController, type LockOnFrame } from './lockOnController';
