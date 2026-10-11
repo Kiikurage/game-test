@@ -4,7 +4,8 @@
 
 | 文書 | 内容 |
 | --- | --- |
-| [direction.md](direction.md) | 基本方針（スコープ・技術スタック・操作・性能目標・アセット・作り込みの重点） |
+| [direction.md](direction.md) | 基本方針（スコープ・技術スタック・操作） |
+| [tech-direction.md](tech-direction.md) | 技術・アート方針 v2（品質目標・描画アーキテクチャ・性能予算・品質ゲート・ロードマップ） |
 | [assets.md](assets.md) | アセット調達・制作方法の調査結果と推奨案（ソース別アクセス可否、ライセンス、プレイヤー/敵/ボス/環境/アニメーションの推奨） |
 | [anim-event-markers.md](anim-event-markers.md) | アニメーションイベントマーカー表（JSON 形式・検証・再生速度とフレーム ⇔ 秒の変換） |
 | [vertical-slice.md](vertical-slice.md) | 垂直スライスのゲームデザイン仕様書（体験の流れ・プレイヤー/敵/ボスのフレームデータ・フィールド・UI・オーディオ・スマホ配慮・チェックリスト・M1 以降のエピック案） |
