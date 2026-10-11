@@ -44,7 +44,7 @@ interface EnemyEntry {
   near: boolean;
   /** 撃破の演出中（復活したら戻す）。 */
   dissolving: boolean;
-  /** トドメの命中点（ワールド）。`hitStop` イベントで受け取る。無ければ胸の高さ。 */
+  /** トドメの命中点（ワールド）。`impact` イベントで受け取る。無ければ胸の高さ。 */
   killPoint: Vector3 | null;
 }
 
@@ -144,7 +144,7 @@ export class EnemyViews {
     }
     // トドメの命中点（燃え尽きの広がりの起点。#281）。死亡処理と同じステップに出る
     const byId = new Map(entries.map((e) => [e.enemy.id, e]));
-    game.events.on('hitStop', (ev) => {
+    game.events.on('impact', (ev) => {
       if (!ev.killed) return;
       const entry = byId.get(ev.targetId);
       if (entry) entry.killPoint = new Vector3(ev.position.x, ev.position.y, ev.position.z);

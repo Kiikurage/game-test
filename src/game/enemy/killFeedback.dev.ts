@@ -24,7 +24,7 @@ registerDevHooks('enemy-kill-feedback', ({ game }) => ({
     const a = box?.a ?? { x: p.x, y: p.y + 1.1, z: p.z };
     const sounds: string[] = [];
     const off = game.events.on('sound', (e) => sounds.push(e.cue));
-    const hitOff = game.events.on('hit', (e) => sounds.push(`hit:${e.kind}`));
+    const hitOff = game.events.on('impact', (e) => sounds.push(`hit:${e.kind}`));
     const attack = game.combat.startAttack('player', 'player', {
       id: 'dev-strike',
       damage,

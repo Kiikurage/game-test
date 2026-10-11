@@ -105,15 +105,13 @@ export function simDebugState(game: Game): SimDebugState {
 registerGameSystem('debugStats', (game) => {
   const stats = new GameStats();
   statsByGame.set(game, stats);
-  game.events.on('hitStop', (e) => {
-    stats.recordHitStop(e.frames);
-  });
   return {
     update: () => {
       stats.recordPlayerEvents(game.player.events);
     },
-    onHit: (e) => {
-      stats.recordHit(e);
+    onImpact: (e) => {
+      stats.recordHit(e.hit);
+      stats.recordHitStop(e.frames);
     },
   };
 });

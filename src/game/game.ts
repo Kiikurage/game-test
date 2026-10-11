@@ -37,7 +37,7 @@ import {
 } from './combat';
 import { PLAYER_STATS } from './data';
 import { TimeScale } from './timeScale';
-import { createGameSystems, type GameSystem } from './systems';
+import { createGameSystems, type GameSystem, type ImpactEvent } from './systems';
 import { tuning } from './tuning';
 import {
   CAMERA_QUERY_GROUPS,
@@ -300,18 +300,13 @@ export class Game {
       const guardBreaks = this.player.guardBreakCount;
       const reaction = this.applyReaction(e);
       if (reaction) this.reactEnemy(e.targetId, reaction, e);
-      // ガードを崩された（ガード中にスタミナが 0 になった）: 崩しの SE
-      if (e.targetId === 'player' && this.player.guardBreakCount > guardBreaks) {
-        this.events.emit('hit', { kind: 'guardBreak', source: 'player', position: e.position });
-      }
+      // ガードを崩された（ガード中にスタミナが 0 になった）: 崩しの SE を重ねる
+      const guardBroken = e.targetId === 'player' && this.player.guardBreakCount > guardBreaks;
       if (e.targetId === 'player' && e.killed) this.player.die();
-      this.applyHitStop(e);
-      this.events.emit('hit', {
-        kind: e.kind,
-        source: e.attackerId === 'player' ? 'player' : 'enemy',
-        position: e.position,
-      });
-      for (const system of this.systems) system.onHit?.(e);
+      // 命中 1 回につき 1 つの `impact`（SE・聴覚・FX・カメラ・システムはこれだけを見る。#307）
+      const impact = this.applyHitStop(e, guardBroken);
+      this.events.emit('impact', impact);
+      for (const system of this.systems) system.onImpact?.(impact);
     });
 
     // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
@@ -346,8 +341,8 @@ export class Game {
       this.registerEnemy(this.enemies.spawn(spawnPoint));
     }
     // 戦闘音（命中・ガード）は敵に聞こえる
-    this.events.on('hit', (e) => {
-      if (e.position) this.enemies.noises.emit(e.position, 'combat');
+    this.events.on('impact', (e) => {
+      this.enemies.noises.emit(e.position, 'combat');
     });
     this.systems = createGameSystems(this);
   }
@@ -658,9 +653,9 @@ export class Game {
 
   /**
    * 命中からヒットストップを決め、攻撃側・被弾側を同時に凍結する（4.1 節）。撃破スロー・画面振動も始め、
-   * 演出用の `hitStop` イベントを発行する。凍結は次のステップから効く（同じステップの `hit` SE は 0F 遅延）。
+   * 演出・SE 用の `impact` を組み立てて返す。凍結は次のステップから効く（同じステップの SE は 0F 遅延）。
    */
-  private applyHitStop(e: HitEvent): void {
+  private applyHitStop(e: HitEvent, guardBroken: boolean): ImpactEvent {
     const attackerIsPlayer = e.attackerId === 'player';
     const targetIsPlayer = e.targetId === 'player';
     const decision = decideHitStop(
@@ -695,10 +690,15 @@ export class Game {
     }
     const ny = 0.3;
     const nl = Math.hypot(nx, ny, nz);
-    this.events.emit('hitStop', {
+    return {
+      hit: e,
       attackerId: e.attackerId,
       targetId: e.targetId,
+      attackId: e.attackId,
       kind: e.kind,
+      guard: e.guard,
+      guardBroken,
+      source: attackerIsPlayer ? 'player' : 'enemy',
       frames: decision.frames,
       position: e.position,
       normal: { x: nx / nl, y: ny / nl, z: nz / nl },
@@ -708,7 +708,7 @@ export class Game {
       flash: decision.flash?.kind ?? null,
       flashFrames: decision.flash?.frames ?? 0,
       slowMotion: decision.slowMotion,
-    });
+    };
   }
 
   /** 回復瓶のイベントを、音（`sound`）と HUD・パーティクル用の `heal` へ流す。 */

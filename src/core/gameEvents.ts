@@ -111,12 +111,6 @@ export interface GameEventMap {
     readonly source: SoundSource;
     readonly position?: Vec3Like;
   };
-  /** 命中・ガード。ヒットストップ開始と同じ tick で発行する（0F 遅延）。 */
-  hit: {
-    readonly kind: HitKind;
-    readonly source: SoundSource;
-    readonly position?: Vec3Like;
-  };
   /**
    * アニメーションのイベントマーカーの発火（`hitStart` / `hitEnd` / `cancelOpen` / `invulnStart` / `invulnEnd` /
    * `healApply`。足音は `footstep` へも変換される）。命中判定・演出・SE が購読する。`owner` は発火したキャラクター。
@@ -129,13 +123,23 @@ export interface GameEventMap {
     readonly position?: Vec3Like;
   };
   /**
-   * ヒットストップの発生（4.1 節）。命中・`hit` と同じステップで発行する。パーティクル・赤フラッシュ・白い閃光・
-   * 画面振動・撃破スローの演出がこれを購読する（`frames` が 0 でも、演出だけのために発行する）。
+   * 命中 1 回につき 1 つ（#307）。強靭度・被弾リアクション・凍結（ヒットストップ）の標準処理を終えた後、命中と同じ
+   * ステップで発行する（0F 遅延）。SE・聴覚（戦闘音）・パーティクル・閃光・撃破スロー・カメラ演出はすべてこれだけを購読する
+   * （`frames` が 0 でも、演出のために発行する）。game 内のシステムは `GameSystem.onImpact` で元の `HitEvent` ごと受け取る。
    */
-  hitStop: {
+  impact: {
     readonly attackerId: string;
     readonly targetId: string;
+    /** 攻撃定義の ID（`light1` / `heavyCharged` / `backstab` など）。 */
+    readonly attackId: string;
+    /** 重さ・ガード（`light` / `heavy` / `guard`）。 */
     readonly kind: HitKind;
+    /** ガードの結果（`none` / `guard` / `just`）。 */
+    readonly guard: 'none' | 'guard' | 'just';
+    /** この命中でプレイヤーのガードが崩された（スタミナ切れ。崩しの SE を重ねる）。 */
+    readonly guardBroken: boolean;
+    /** 音の発生源（攻撃側がプレイヤーなら `player`、それ以外は `enemy`）。 */
+    readonly source: SoundSource;
     /** 攻撃側・被弾側が凍結するフレーム数（60Hz）。 */
     readonly frames: number;
     /** 命中位置と、飛び散る向き（攻撃側 → 被弾側の水平方向 + わずかに上。単位ベクトル）。 */
@@ -250,7 +254,7 @@ export interface GameEventMap {
   };
   /**
    * 落下攻撃の着地（14.3.3 節）。着地点（足元）で発行する。砂塵の演出・SE が購読する。画面振動は game 側が出す。
-   * `radius` は判定の円の半径（m）、`hit` は敵に当たったか（命中は別に `hit` / `hitStop` が出る）。
+   * `radius` は判定の円の半径（m）、`hit` は敵に当たったか（命中は別に `impact` が出る）。
    */
   plungeLand: {
     readonly position: Vec3Like;
