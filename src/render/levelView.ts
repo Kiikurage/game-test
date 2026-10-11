@@ -236,8 +236,8 @@ export class LevelView {
       if (isMasonryProp(box.id)) continue; // 地下墓所・中庭は masonry/crypt.view.ts が描く
       // 闘技場の壁は `arena.view.ts` が石積みのメッシュで描く
       if (isArenaProp(box.id)) continue;
-      // 腐った床板・鉄格子は割れる・開く。`waterway.view.ts` が別に描く
-      if (box.style === 'hatch' || box.style === 'grate') continue;
+      // 腐った床板・鉄格子は割れる・開く。水路の壁・床・天井は石積みで描く。どれも `waterway.view.ts` が別に描く
+      if (box.style === 'hatch' || box.style === 'grate' || box.style === 'waterway') continue;
       const mesh = boxMesh(box, materials);
       this.grayboxById.set(box.id, mesh);
       this.root.add(mesh);

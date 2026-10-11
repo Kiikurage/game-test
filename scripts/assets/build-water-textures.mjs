@@ -303,7 +303,7 @@ let mismatch = 0;
 for (const [name, data] of Object.entries(files)) {
   const path = join(OUT_DIR, name);
   if (checkOnly) {
-    let same = false;
+    let same;
     try {
       same = readFileSync(path).equals(data);
     } catch {
