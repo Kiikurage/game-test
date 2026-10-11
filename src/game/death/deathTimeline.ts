@@ -13,7 +13,7 @@ export interface DeathVisual {
   readonly armOffsetM: number;
   /** 注視点を下げる距離（m。倒れた体を画面内に収める）。 */
   readonly pivotDropM: number;
-  /** 「倒れた」テキストの不透明度と倍率。 */
+  /** 「YOU DIED」テキストの不透明度と倍率。 */
   readonly textAlpha: number;
   readonly textScale: number;
 }

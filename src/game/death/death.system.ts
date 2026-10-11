@@ -11,7 +11,7 @@ import { DeathTimeline, type DeathVisual } from './deathTimeline';
 // - F0: 入力無効（プレイヤーを `dead` へ。HUD は `bonfire.system.ts` が死亡中に隠す）・ロックオン解除・BGM ダッキング指示（`bgmDuck`）。
 //   ヒットストップ 12F は命中時の標準処理（`decideHitStop`）が行う。
 // - F12–: カメラを引き FOV を縮める（`game.camera.presentation`）。F30–: 画面の彩度・明度・周辺減光（`visual.grade`。
-//   描画は `render/death/death.view.ts`）。F60: 「倒れた」表示。F90 以降はボタン入力でスキップ。F240–F300 黒へ。
+//   描画は `render/death/death.view.ts`）。F60: 「YOU DIED」表示。F90 以降はボタン入力でスキップ。F240–F300 黒へ。
 // - F300: `bonfiresOf(game).respawn()`（HP・瓶・敵の復活・`rest` イベント・立ち上がり）。篝火が無い場面（テストシーン）は
 //   初期位置へ戻す。ボスなどのリセットは `rest`（cause: 'respawn'）を購読する。取得済みアイテム・ショートカットはセーブなので触らない。
 // 各節目は `death` イベントで通知する（`GameEventMap.death`）。
