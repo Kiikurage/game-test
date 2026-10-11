@@ -60,7 +60,9 @@ test('conversation: the decision button advances line by line, moving closes it'
   await tapKey(page, 'KeyE');
   await expect.poll(async () => (await panelState(page))?.index).toBe(1);
   await expect(panel).toContainText('長くはない');
+  // 同じステップ内の 2 回押しは 1 回に畳まれるので、1 行ずつ反映を待つ
   await tapKey(page, 'KeyE');
+  await expect.poll(async () => (await panelState(page))?.index).toBe(2);
   await tapKey(page, 'KeyE');
   await expect.poll(async () => (await panelState(page))?.index).toBe(3);
   await expect(page.getByTestId('guide-prompt')).toContainText('閉じる');

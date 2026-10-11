@@ -20,7 +20,7 @@ registerGameSystem('textPanel', (game) => {
   models.set(game, model);
   const interaction = interactionOf(game);
   let release: (() => void) | null = null;
-  // この表示依頼と同じステップの決定ボタン（依頼した本人の押下）では進めない
+  // 表示依頼を出した押下（状況ボタンで会話を始めた、そのステップの決定ボタン）では進めない
   let justShown = false;
 
   game.events.on('showText', (e) => {
@@ -30,7 +30,7 @@ registerGameSystem('textPanel', (game) => {
     const mode = e.mode ?? 'read';
     const { x, z } = game.player.feet;
     model.show(lines, mode, x, z);
-    justShown = true;
+    justShown = game.inputSnapshot.buttons.interact.pressed;
     // 会話中は他の状況アクションを止める（決定ボタンは行送りに使う）
     if (mode === 'conversation' && model.active && !release) release = interaction.lock();
     else if (mode === 'read' && release) {
