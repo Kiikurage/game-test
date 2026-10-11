@@ -19,7 +19,7 @@ export const DEATH = {
   gradeFrame: 30,
   gradeFrames: 90,
   dimMax: 0.4,
-  /** F60: 「倒れた」表示イベント（60F フェードイン。1.05 倍へゆっくり拡大）。 */
+  /** F60: 「YOU DIED」表示イベント（60F フェードイン。1.05 倍へゆっくり拡大）。 */
   textFrame: 60,
   textFadeFrames: 60,
   textScaleMax: 1.05,
