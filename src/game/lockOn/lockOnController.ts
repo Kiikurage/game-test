@@ -89,10 +89,12 @@ export class LockOnController {
     const dz = target.position.z - frame.playerPosition.z;
     if (Math.hypot(dx, dz) > tuning.lockOn.releaseRange) return this.release('range');
 
-    // 対象の死亡: 0.5s 後に 10m 以内の次の対象へ、なければ解除
+    // 対象の死亡: 既定は 0.5s 後（雑魚敵は即時。#281）に 10m 以内の次の対象へ、なければ解除
     if (!target.alive) {
       this.deadFrames++;
-      if (this.deadFrames >= Math.round(LOCK_ON.deathRetargetDelaySeconds * 60)) {
+      const delay =
+        target.deathRetargetDelayFrames ?? Math.round(LOCK_ON.deathRetargetDelaySeconds * 60);
+      if (this.deadFrames >= delay) {
         const next = selectLockOnTarget(frame.targets, frame.camera, {
           ...this.options(frame, target),
           acquireRange: LOCK_ON.deathRetargetRange,

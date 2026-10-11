@@ -11,6 +11,8 @@ import {
   chargeGlintInit,
   deathAshInit,
   deathEmberInit,
+  killAshInit,
+  killEmberInit,
   emberFieldSpec,
   healMoteInit,
   hitDustInit,
@@ -296,6 +298,28 @@ export class ParticleSystem {
     this.bursts.spark.emit(t, burstCount(Math.round(14 * power), q), p, hitSparkInit);
     this.bursts.dust.emit(t, burstCount(6, q), p, hitDustInit);
     this.bursts.splash.emit(t, burstCount(8, q), p, hitSplashInit);
+  }
+
+  /**
+   * 雑魚敵の撃破の飛散（#281）: 命中点から放射状に大きく弾ける灰と熾火 + 強い火花。
+   * 既存のレイヤ（ash / ember / spark）を使うので描画数は増えない。
+   */
+  killBurst(position: Vector3, normal: Vector3, power = 1): void {
+    const p: HitParams = {
+      x: position.x,
+      y: position.y,
+      z: position.z,
+      nx: normal.x,
+      ny: normal.y,
+      nz: normal.z,
+      power,
+    };
+    const q = this.quality;
+    const t = this.clock;
+    this.bursts.ash.emit(t, burstCount(Math.round(64 * power), q), p, killAshInit);
+    this.bursts.ember.emit(t, burstCount(28, q), p, killEmberInit);
+    this.bursts.ember.emit(t, burstCount(28, q), p, killEmberInit);
+    this.bursts.spark.emit(t, burstCount(16, q), p, hitSparkInit);
   }
 
   /** 強攻撃のフル溜めの閃き（刃先の小さな火花。ヒット用の塵・飛沫は出さない）。 */

@@ -19,7 +19,8 @@ export const ENEMY_ANIMATOR_CONFIG: CharacterAnimatorConfig = {
     // 気付きの硬直（24F）: 構えて相手を見据える
     alert: { clip: 'Sword_Idle', loop: true, fadeIn: 0.08, fadeOut: 0.1 },
     staggered: { clip: 'Hit_Chest', fallbackFrames: 30, fadeIn: 0.04, fadeOut: 0.1 },
-    dead: { clip: 'Death01', fallbackFrames: 90, fadeIn: 0.06, fadeOut: 0.1 },
+    // 崩れ落ちは 60F（#281: 20F から灰化が始まり 68F で消える。倒れ切る頃には大半が灰になっている）
+    dead: { clip: 'Death01', fallbackFrames: 60, fadeIn: 0.06, fadeOut: 0.1 },
   },
   // 予備動作へはすばやく入る（読ませる動き）、戻りはやや長く
   actionFades: { attack: { fadeIn: 0.08, fadeOut: 0.15 } },

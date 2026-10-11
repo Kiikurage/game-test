@@ -26,7 +26,11 @@ registerViewPlugin('perf', ({ view, gameRenderer }) => {
   const begin = real.beginFrame;
   const end = real.endFrame;
   let t0 = 0;
-  const recent: number[] = [];
+  // 直近 120 フレームの中央値。毎フレームの配列の生成・ソートを避け、リングバッファと作業用配列を使い回す（#262）
+  const recent = new Float64Array(120);
+  const sorted = new Float64Array(120);
+  let recentCount = 0;
+  let recentHead = 0;
   real.beginFrame = (nowMs) => {
     t0 = performance.now();
     begin(nowMs);
@@ -34,9 +38,13 @@ registerViewPlugin('perf', ({ view, gameRenderer }) => {
   real.endFrame = () => {
     end();
     perfProbe.frameCpuMs = performance.now() - t0;
-    recent.push(perfProbe.frameCpuMs);
-    if (recent.length > 120) recent.shift();
-    perfProbe.frameCpuAvgMs = [...recent].sort((a, b) => a - b)[recent.length >> 1] ?? 0;
+    recent[recentHead] = perfProbe.frameCpuMs;
+    recentHead = (recentHead + 1) % recent.length;
+    if (recentCount < recent.length) recentCount++;
+    const win = sorted.subarray(0, recentCount);
+    win.set(recentCount < recent.length ? recent.subarray(0, recentCount) : recent);
+    win.sort();
+    perfProbe.frameCpuAvgMs = win[recentCount >> 1] ?? 0;
   };
 
   if (toggles.noParticles) view.particles.root.visible = false;
