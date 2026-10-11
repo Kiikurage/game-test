@@ -26,11 +26,11 @@ test('dissolving enemy keeps the HDR scene color finite and bounded', async ({ p
   const pipelinesAlive = await pipelines();
   await page.evaluate(() => {
     window.__game?.dev.killEnemy(0);
-    // 死亡 + ディゾルブ待機 60F の後、消え始めまで進める
-    window.__game?.dev.advance(62);
+    // 撃破の閃光（F0〜）・燃え尽き（〜20F）・ディゾルブ（20F〜68F。#281）を通して見る
+    window.__game?.dev.advance(1);
   });
   const dissolve: { nonFinite: number; maxRgb: number }[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     dissolve.push(await sample());
     await page.evaluate(() => window.__game?.dev.advance(10));
   }

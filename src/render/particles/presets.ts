@@ -337,6 +337,48 @@ export const deathEmberInit: BurstInit<DeathParams> = (out, _i, _n, p, rng) => {
   out.life = 0.9 + rng() * 1.5;
 };
 
+/**
+ * 撃破の飛散（#281）: 命中点から全方位へ放射状に灰と熾火が弾ける（`p.nx..nz` の向きへ少し寄せる）。
+ * 通常の火花（命中の向きへの細い円錐）と形・大きさで区別できるよう、球状に大きく広げる。
+ */
+function radialVelocity(
+  out: { vx: number; vy: number; vz: number },
+  p: HitParams,
+  speed: number,
+  rng: () => number,
+): void {
+  // 球面上の一様な向き + 命中の向きへの偏り + わずかに上向き
+  const u = rng() * 2 - 1;
+  const a = rng() * TAU;
+  const s = Math.sqrt(1 - u * u);
+  let dx = Math.cos(a) * s + p.nx * 0.45;
+  let dy = u * 0.8 + 0.35 + p.ny * 0.45;
+  let dz = Math.sin(a) * s + p.nz * 0.45;
+  const l = Math.hypot(dx, dy, dz) || 1;
+  dx /= l;
+  dy /= l;
+  dz /= l;
+  out.vx = dx * speed;
+  out.vy = dy * speed;
+  out.vz = dz * speed;
+}
+
+export const killAshInit: BurstInit<HitParams> = (out, _i, _n, p, rng) => {
+  out.x = p.x + (rng() - 0.5) * 0.2;
+  out.y = p.y + (rng() - 0.5) * 0.2;
+  out.z = p.z + (rng() - 0.5) * 0.2;
+  radialVelocity(out, p, (1.6 + rng() * 3.2) * p.power, rng);
+  out.life = 0.9 + rng() * 1.1;
+};
+
+export const killEmberInit: BurstInit<HitParams> = (out, _i, _n, p, rng) => {
+  out.x = p.x;
+  out.y = p.y;
+  out.z = p.z;
+  radialVelocity(out, p, (2.6 + rng() * 4.2) * p.power, rng);
+  out.life = 0.55 + rng() * 0.8;
+};
+
 /** 回復の光の粒（#173）: 体の周りから琥珀色の熾火が立ちのぼる（ember レイヤを共用。`rise` は上昇の強さ）。 */
 export const healMoteInit: BurstInit<DeathParams> = (out, _i, _n, p, rng) => {
   const a = rng() * TAU;
