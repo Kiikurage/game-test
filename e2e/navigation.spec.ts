@@ -1,27 +1,11 @@
-import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
-
-/** 既定のレベル（灰の礎）を最小品質・低解像度で `?debug`（ナビゲーションの可視化つき）で起動する。 */
-async function boot(page: Page): Promise<string[]> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?debug&quality=low&scale=0.25');
-  await startGame(page);
-  // シミュレーションは dev.advance で手動で進めるので、描画ループが回るのは待たない（SwiftShader は遅い）
-  await page.waitForFunction(() => window.__game !== undefined, undefined, { timeout: 30_000 });
-  return errors;
-}
+import { expect, test } from '@playwright/test';
+import { bootGame } from './helpers';
 
 test('an enemy goes around the rock of the catacombs to reach a player on the other side', async ({
   page,
 }) => {
-  const errors = await boot(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  // ?debug（ナビゲーションの可視化つき）。シミュレーションは dev.advance で手動で進める
+  const errors = await bootGame(page, { params: { debug: '' } });
 
   // d-shield-1 は地下墓所 D の出口側 (74, 49) に立つ。プレイヤーは L 字の通路の第 1 区間 (62, 41) で、
   // 間に岩盤（x 63..78, z 35.5..47.25）があり直線距離は約 14.4m。通路を角 (62, 48.5) まで西へ進んでから南へ曲がらないと着かない（経路は約 18m）。

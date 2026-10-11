@@ -1,19 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickInPage, startGame, tapKey, waitSteps } from './helpers';
+import { bootGame, clickInPage, stepUntil, tapKey, waitSteps } from './helpers';
 
 /**
  * インタラクト動作の拡張（#123）のテストシーン。配置データにない対象は `dev.placeInteractable` でその場に置く
  * （本番レベルに地形がまだない蔵の壁などの検証用）。待ちはシミュレーション基準（ステップ数）にする。
  */
-test.describe.configure({ timeout: 180_000 });
-
-async function boot(page: Page, enemies = false): Promise<void> {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto(`./?quality=low&scale=0.25&nodraw${enemies ? '' : '&enemies=0'}`);
-  await startGame(page);
-  await expect.poll(() => page.evaluate(() => window.__game?.sim.player.grounded)).toBe(true);
-}
+const boot = (page: Page, enemies = false) => bootGame(page, { enemies });
 
 const sim = (page: Page) =>
   page.evaluate(() => {
@@ -48,7 +40,6 @@ test('bell: ringing makes an idle soldier suspicious and walk toward the bell (n
         { type: 'showText', textId: 'bell_first', firstOnly: true },
       ],
     });
-    g.dev.pause(true);
     g.dev.teleport(31, 5, 0);
     g.dev.advance(5);
   });
@@ -85,10 +76,16 @@ test('hatch: stepping on the rotten floorboard breaks it and drops the player in
   await page.evaluate(() => {
     window.__game?.dev.teleport(44, 28, 0);
   });
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.dev.hatchBroken('hatch_c')))
-    .toBe(true);
-  await expect.poll(async () => (await sim(page)).player.position.y).toBeLessThan(1.5);
+  await stepUntil(
+    page,
+    () => page.evaluate(() => window.__game?.dev.hatchBroken('hatch_c')),
+    (broken) => broken === true,
+  );
+  await stepUntil(
+    page,
+    async () => (await sim(page)).player.position.y,
+    (y) => y < 1.5,
+  );
   expect((await sim(page)).combat.playerHp).toBe(hp0); // 落下ダメージなし
   expect(await flags(page)).toEqual([]); // セーブなし
 });
@@ -132,9 +129,11 @@ test('wall: attacks break a placed breakable wall, which opens the way and is sa
   });
   await page.keyboard.down('KeyW');
   try {
-    await expect
-      .poll(async () => (await sim(page)).player.position.z, { timeout: 60_000 })
-      .toBeGreaterThan(34);
+    await stepUntil(
+      page,
+      async () => (await sim(page)).player.position.z,
+      (z) => z > 34,
+    );
   } finally {
     await page.keyboard.up('KeyW');
   }
@@ -147,11 +146,22 @@ test('grate: pushing the iron grate from the inside opens it and saves world.gra
   await page.evaluate(() => {
     window.__game?.dev.teleport(72, 44, 0, 5.9);
   });
+  await waitSteps(page, 2);
   await expect(page.getByTestId('guide-prompt')).toContainText('押す');
   await tapKey(page, 'KeyE');
-  await expect.poll(() => flags(page)).toContain('world.grateDOpen');
-  await expect.poll(() => page.evaluate(() => window.__game?.dev.waterway().grateOpen)).toBe(true);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.dev.interactables().usable))
-    .not.toContain('grate_d'); // 開いたら状況ボタンは出ない
+  await stepUntil(
+    page,
+    () => flags(page),
+    (f) => f.includes('world.grateDOpen'),
+  );
+  await stepUntil(
+    page,
+    () => page.evaluate(() => window.__game?.dev.waterway().grateOpen),
+    (open) => open === true,
+  );
+  await stepUntil(
+    page,
+    () => page.evaluate(() => window.__game?.dev.interactables().usable ?? []),
+    (usable) => !usable.includes('grate_d'),
+  ); // 開いたら状況ボタンは出ない
 });
