@@ -75,16 +75,6 @@ const viewport = opts.mobile
 // 既定の品質: PC は high、モバイルは基準機（Xperia 1 V）相当の medium
 const quality = opts.quality ?? (opts.mobile ? 'medium' : 'high');
 
-mkdirSync(opts.outDir, { recursive: true });
-const browser = await chromium.launch(launchOptions());
-try {
-  if (opts.shoot) await shootAll();
-  await contactSheet(opts.outDir);
-  if (opts.compare !== null) await compareSheet(opts.compare, opts.outDir);
-} finally {
-  await browser.close();
-}
-
 /** 視点を `query`（敵の有無など URL で決まる条件）ごとにまとめ、ページを 1 回読み込んで順に撮る。 */
 async function shootAll() {
   if (!process.env.HERO_SKIP_BUILD) await build({ logLevel: 'warn' });
@@ -105,9 +95,15 @@ async function shootAll() {
       const context = await browser.newContext(viewport.context);
       const page = await context.newPage();
       // 起動前のセーブ・設定（篝火の点火済みなど）。値は JSON 文字列にして localStorage へ入れる
-      await page.addInitScript((entries) => {
-        for (const [k, v] of entries) localStorage.setItem(k, v);
-      }, Object.entries(defaults.localStorage ?? {}).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]));
+      await page.addInitScript(
+        (entries) => {
+          for (const [k, v] of entries) localStorage.setItem(k, v);
+        },
+        Object.entries(defaults.localStorage ?? {}).map(([k, v]) => [
+          k,
+          typeof v === 'string' ? v : JSON.stringify(v),
+        ]),
+      );
       page.on('console', (msg) => {
         if (msg.type() === 'error') console.error(`console.error: ${msg.text()}`);
       });
@@ -129,13 +125,16 @@ async function shootAll() {
       );
       if (!(defaults.hud ?? false)) await hideHud(page);
       for (const shot of group) {
+        const t0 = performance.now();
         const spec = resolveShot(shot);
         await page.evaluate(stage, spec);
         // 描画側（パーティクル・ムードの補間・影）の立ち上がりをフレーム数で待つ
         await waitFrames(page, spec.frames);
         const file = join(opts.outDir, `${shot.name}.png`);
         await page.screenshot({ path: file, timeout: 300_000 });
-        console.log(`${file}  (${shot.area ?? ''})`);
+        console.log(
+          `${file}  (${shot.area ?? ''}, ${((performance.now() - t0) / 1000).toFixed(0)}s)`,
+        );
         results.push({ name: shot.name, area: shot.area ?? '', title: shot.title ?? '' });
       }
       await context.close();
@@ -257,7 +256,6 @@ const SHEET_CSS = `
   figcaption { padding: 4px 2px 0; }
   figcaption b { color: #fff; } figcaption span { color: #999; margin-left: 6px; }
   .missing { aspect-ratio: 16 / 9; display: grid; place-items: center; background: #222; color: #777; }
-  .head { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; color: #aaa; margin-bottom: 4px; }
 `;
 
 function caption(s) {
@@ -280,7 +278,7 @@ async function contactSheet(dir) {
   const columns = 4;
   const html = `<!doctype html><meta charset="utf-8"><style>${SHEET_CSS}
     .grid { grid-template-columns: repeat(${columns}, 1fr); }</style>
-    <h1>${escapeHtml(resolve(dir))} — ${list.length} shots</h1><div class="grid">${cells.join('')}</div>`;
+    <h1>${escapeHtml(dir)} — ${list.length} shots</h1><div class="grid">${cells.join('')}</div>`;
   await renderSheet(html, files, join(dir, 'contact-sheet.png'), 480 * columns);
 }
 
@@ -298,16 +296,29 @@ async function compareSheet(beforeDir, afterDir) {
   };
   const rows = names.map(
     (name) =>
-      `<figure><div class="grid" style="grid-template-columns: 1fr 1fr">${cell(beforeDir, 'before', name)}${cell(
+      `<figure><div class="grid" style="grid-template-columns: 1fr 1fr; gap: 4px">${cell(beforeDir, 'before', name)}${cell(
         afterDir,
         'after',
         name,
       )}</div>${caption(byName.get(name))}</figure>`,
   );
   const label = (d) => escapeHtml(basename(resolve(d)) || d);
-  const html = `<!doctype html><meta charset="utf-8"><style>${SHEET_CSS}</style>
-    <h1>before: ${label(beforeDir)} / after: ${label(afterDir)}</h1>
-    <div class="head"><div>before（${label(beforeDir)}）</div><div>after（${label(afterDir)}）</div></div>
-    <div class="grid">${rows.join('')}</div>`;
-  await renderSheet(html, files, join(afterDir, 'compare-sheet.png'), 1600);
+  // 1 行に 2 視点（各視点は 左 = before / 右 = after）
+  const html = `<!doctype html><meta charset="utf-8"><style>${SHEET_CSS}
+    .pairs { grid-template-columns: 1fr 1fr; row-gap: 20px; column-gap: 28px; }</style>
+    <h1>各視点の 左: before（${label(beforeDir)}） / 右: after（${label(afterDir)}）</h1>
+    <div class="grid pairs">${rows.join('')}</div>`;
+  await renderSheet(html, files, join(afterDir, 'compare-sheet.png'), 2560);
+}
+
+// ---- 実行（関数・定数の宣言の後に置く） ----
+
+mkdirSync(opts.outDir, { recursive: true });
+const browser = await chromium.launch(launchOptions());
+try {
+  if (opts.shoot) await shootAll();
+  await contactSheet(opts.outDir);
+  if (opts.compare !== null) await compareSheet(opts.compare, opts.outDir);
+} finally {
+  await browser.close();
 }
