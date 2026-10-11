@@ -91,20 +91,26 @@ describe('decideHitStop（4.1 節の表）', () => {
     ).toBe(4);
   });
 
-  it('撃破（トドメ）は 12F + 0.3 倍速 30F、ボスは 60F。軽攻撃の 4F より長い方を採用する', () => {
+  it('雑魚敵の撃破（トドメ）は 6F でスローなし（#277）。命中側の方が長ければそちら', () => {
     const c = cfg();
     const kill = decideHitStop({ event: event('light1', 'none', true), ...PLAYER_ATTACKS }, c);
-    expect(kill.frames).toBe(12);
-    expect(kill.slowMotion).toEqual({ scale: 0.3, frames: 30 });
-    const boss = decideHitStop(
-      { event: event('light1', 'none', true), ...PLAYER_ATTACKS, targetIsBoss: true },
-      c,
-    );
-    expect(boss.slowMotion).toEqual({ scale: 0.3, frames: 60 });
+    expect(kill.frames).toBe(6);
+    expect(kill.frames).toBeLessThanOrEqual(c.playerHeavy);
+    expect(kill.slowMotion).toBeNull();
     // 溜め強攻撃のトドメは 12F のまま（max）
     expect(
       decideHitStop({ event: event('heavyCharged', 'none', true), ...PLAYER_ATTACKS }, c).frames,
     ).toBe(12);
+  });
+
+  it('ボスの撃破は従来どおり 12F + 0.3 倍速 60F', () => {
+    const c = cfg();
+    const boss = decideHitStop(
+      { event: event('light1', 'none', true), ...PLAYER_ATTACKS, targetIsBoss: true },
+      c,
+    );
+    expect(boss.frames).toBe(12);
+    expect(boss.slowMotion).toEqual({ scale: 0.3, frames: 60 });
   });
 
   it('プレイヤーが倒されたらヒットストップ 12F（スローにはしない。8.1 節 F0）', () => {

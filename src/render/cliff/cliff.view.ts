@@ -27,7 +27,11 @@ import { tagMaterial } from '../materialGroups';
 /** 岩塊のマテリアル: 崖と同じ地層・節理の色（`rockSurface`）に、上面の砂埃と凹凸を足す。 */
 function createRockPileMaterial(): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial({ roughness: 0.97, metalness: 0 });
-  const rock = rockSurface(positionWorld, { damp: float(0.6), up: normalWorld.y });
+  const rock = rockSurface(positionWorld, {
+    damp: float(0.6),
+    up: normalWorld.y,
+    normal: normalWorld,
+  });
   const base = vec3(0.19, 0.18, 0.17);
   const dust = vec3(0.24, 0.215, 0.18);
   const top = smoothstep(0.55, 0.95, normalWorld.y);

@@ -50,8 +50,8 @@ export interface HitStopConfig {
   readonly guardSuccess: number;
   readonly justGuard: number;
   readonly kill: number;
+  readonly enemyKill: number;
   readonly killSlowmoScale: number;
-  readonly killSlowmoFrames: number;
   readonly bossKillSlowmoFrames: number;
   readonly redFlashFrames: number;
   readonly whiteFlashFrames: number;
@@ -68,7 +68,7 @@ export interface HitStopInput {
 export interface HitStopDecision {
   /** 攻撃側・被弾側の凍結フレーム数（0 なら凍結しない）。 */
   readonly frames: number;
-  /** 撃破スロー（プレイヤー以外が倒れたとき）。ヒットストップが明けてから `frames` ステップ続く。 */
+  /** 撃破スロー（ボスが倒れたときだけ。雑魚敵は入れない #277）。ヒットストップが明けてから `frames` ステップ続く。 */
   readonly slowMotion: { readonly scale: number; readonly frames: number } | null;
   /** 画面の閃光。 */
   readonly flash: { readonly kind: 'red' | 'white'; readonly frames: number } | null;
@@ -119,14 +119,15 @@ export function decideHitStop(input: HitStopInput, config: HitStopConfig): HitSt
   // プレイヤーの死亡も 12F（8.1 節 F0。スローは入れない）
   if (event.killed && input.targetIsPlayer) frames = Math.max(frames, config.kill);
 
-  // 撃破（トドメ）: 12F + スロー。
+  // 撃破（トドメ）: ボスは 12F + スロー（8.4 節）。雑魚敵は短いヒットストップだけでスローなし（#277）。
   let slowMotion: HitStopDecision['slowMotion'] = null;
   if (event.killed && !input.targetIsPlayer) {
-    frames = Math.max(frames, config.kill);
-    slowMotion = {
-      scale: config.killSlowmoScale,
-      frames: input.targetIsBoss ? config.bossKillSlowmoFrames : config.killSlowmoFrames,
-    };
+    if (input.targetIsBoss) {
+      frames = Math.max(frames, config.kill);
+      slowMotion = { scale: config.killSlowmoScale, frames: config.bossKillSlowmoFrames };
+    } else {
+      frames = Math.max(frames, config.enemyKill);
+    }
   }
 
   return { frames, slowMotion, flash };
