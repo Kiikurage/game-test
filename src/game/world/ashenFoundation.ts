@@ -890,7 +890,8 @@ const enemies: EnemySpawn[] = [
   },
 ];
 
-const items: ItemSpawn[] = [{ id: 'flask-c', kind: 'flask_up', area: 'C', x: 54, z: 26.8 }];
+// 取得アイテムはインタラクト対象（kind: 'item'）として `interactables` に置く（#67）
+const items: ItemSpawn[] = [];
 
 const FOG_GATE_TARGET = (() => {
   const a = (F_ENTRY_DEG * Math.PI) / 180;
@@ -913,6 +914,8 @@ const interactables: InteractableSpawn[] = [
   // 脇道 side_waterway: 腐った床板（C）と水路の鉄格子（D の側面。内側から押して開く）
   { id: 'hatch-waterway', kind: 'hatch', area: 'C', x: HATCH.x, z: HATCH.z },
   { id: 'grate-waterway', kind: 'grate', area: 'D', x: GRATE.x, z: GRATE.z },
+  // 礼拝堂の奥の回復瓶 +1（最大 3 → 4）
+  { id: 'item-flask-c', kind: 'item', area: 'C', x: 54, z: 26, itemId: 'flask_up' },
 ];
 
 const gates: GateDef[] = [

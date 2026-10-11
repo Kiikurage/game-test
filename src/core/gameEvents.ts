@@ -187,6 +187,15 @@ export interface GameEventMap {
     readonly position: Vec3Like;
     readonly bannerSeconds: number;
   };
+  /** アイテムを取得した。取得通知（「回復瓶を手に入れた」を `noticeSeconds` 秒。E6-2b）が購読する。 */
+  itemPicked: {
+    readonly id: string;
+    readonly itemId: string;
+    readonly name: string;
+    readonly message: string;
+    readonly position: Vec3Like;
+    readonly noticeSeconds: number;
+  };
   /** ショートカットが開通した（レバーを引いた。取得通知 UI は E6-2b、SE は E7-3 が購読する）。 */
   shortcutOpened: {
     readonly id: string;

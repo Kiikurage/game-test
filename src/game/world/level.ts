@@ -193,7 +193,7 @@ export interface ItemSpawn {
   readonly z: number;
 }
 
-export type InteractableKind = 'bonfire' | 'tablet' | 'lever' | 'gate' | 'hatch' | 'grate';
+export type InteractableKind = 'bonfire' | 'tablet' | 'lever' | 'gate' | 'hatch' | 'grate' | 'item';
 
 export interface InteractableSpawn {
   readonly id: string;
@@ -204,6 +204,8 @@ export interface InteractableSpawn {
   readonly z: number;
   /** 移動先（霧の門: 闘技場の入場位置。`yaw` はそこで向く方角 = 闘技場の中心）。 */
   readonly target?: { readonly x: number; readonly z: number; readonly yaw: number };
+  /** 取得アイテムの定義 ID（kind: 'item'。`ITEM_DEFS` のキー）。 */
+  readonly itemId?: string;
 }
 
 /** 門（鉄門 G1・霧の門）。開閉の演出・操作は別チケット。ここでは位置と、塞ぐコライダのオン/オフ口だけを持つ。 */
