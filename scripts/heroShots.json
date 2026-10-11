@@ -8,7 +8,9 @@
     "  freeCam?: { position: [x, y, z], target: [x, y, z] }（三人称カメラの代わりに自由視点で撮る）、",
     "  enemies?: false（敵を配置しない。?enemies=0 で別にページを読み込む）、query?: { 追加の URL パラメータ }、",
     "  dev?: [[フック名, ...引数]]（window.__game.dev のフックを順に呼ぶ。例: [\"arenaEnter\", { \"boss\": true }]、[\"breakHatch\"]）、",
-    "  steps?（撮影前に進めるシミュレーションのステップ数）、frames?（その後に待つ描画フレーム数）。",
+    "  steps?（撮影前に進めるシミュレーションのステップ数）、actions?: [[フック名, ...引数]]（steps の後に呼ぶ dev フック。\"input.press\" のように '.' で辿れる。例: [\"input.press\", \"heavyAttack\"], [\"advance\", 10]）、frames?（その後に待つ描画フレーム数）、",
+    "  optional?: true（機能確認用の視点。既定の一括撮影・一覧には入れず、--only で名前・area を指定するか --all で撮る）。",
+    "視点ごとの処理順: 一時停止 → 注入入力を離す → dev → player / camera → steps 進める → actions → freeCam → frames 待つ。",
     "dev の操作（床板を割る・門を開ける等）は元に戻らないので、影響を受ける視点より後に並べる。ボスは視点ごとに取り除かれる。",
     "defaults: camera / steps / frames / enemies の既定値、hud（true で HUD を写す。既定 false）、",
     "  localStorage（起動前に入れるキーと値。値がオブジェクトなら JSON にする。既定は篝火を点火済みにしたセーブ）。"
@@ -199,6 +201,22 @@
       }
     },
     {
+      "name": "fog-gate-far",
+      "area": "霧の門",
+      "title": "中庭の西から霧の門の柱を見る",
+      "optional": true,
+      "player": {
+        "x": 84,
+        "z": 52,
+        "yawDeg": 40
+      },
+      "camera": {
+        "distance": 7,
+        "pitchDeg": 14
+      },
+      "steps": 3
+    },
+    {
       "name": "fog-gate",
       "area": "霧の門",
       "title": "霧の門の前",
@@ -207,6 +225,26 @@
         "z": 63,
         "face": [104, 68]
       }
+    },
+    {
+      "name": "fog-gate-enter",
+      "area": "霧の門",
+      "title": "霧の門の入場演出の途中",
+      "optional": true,
+      "player": {
+        "x": 101.6,
+        "z": 64.6,
+        "yawDeg": 45
+      },
+      "camera": {
+        "distance": 4.5,
+        "pitchDeg": 10
+      },
+      "steps": 4,
+      "actions": [
+        ["fogGateControl", "enter"],
+        ["advance", 53]
+      ]
     },
     {
       "name": "arena-entry",
@@ -246,6 +284,171 @@
         "z": 22,
         "face": [68, 8]
       }
+    },
+    {
+      "name": "waterway-entrance",
+      "area": "地下水路",
+      "title": "腐った床板の真下から東の水路",
+      "optional": true,
+      "enemies": false,
+      "player": {
+        "x": 44.3,
+        "y": 1.02,
+        "z": 28,
+        "yawDeg": 90
+      },
+      "camera": {
+        "yawOffsetDeg": 180,
+        "distance": 2.6,
+        "pitchDeg": 8
+      },
+      "steps": 240,
+      "frames": 4,
+      "dev": [["breakHatch"]]
+    },
+    {
+      "name": "waterway-middle",
+      "area": "地下水路",
+      "title": "水路の中ほどから北への角",
+      "optional": true,
+      "enemies": false,
+      "player": {
+        "x": 59,
+        "y": 1.02,
+        "z": 28,
+        "yawDeg": 90
+      },
+      "camera": {
+        "yawOffsetDeg": 14.3,
+        "distance": 2.4,
+        "pitchDeg": 10
+      },
+      "steps": 240,
+      "frames": 4
+    },
+    {
+      "name": "waterway-exit",
+      "area": "地下水路",
+      "title": "北の水路から上り階段",
+      "optional": true,
+      "enemies": false,
+      "player": {
+        "x": 66,
+        "y": 1.02,
+        "z": 36.5,
+        "yawDeg": 0
+      },
+      "camera": {
+        "yawOffsetDeg": 8.6,
+        "distance": 2.4,
+        "pitchDeg": 8
+      },
+      "steps": 240,
+      "frames": 4
+    },
+    {
+      "name": "waterway-walk",
+      "area": "地下水路",
+      "title": "水路を歩く（波紋・航跡）",
+      "optional": true,
+      "enemies": false,
+      "player": {
+        "x": 47,
+        "y": 1.02,
+        "z": 28,
+        "yawDeg": 90
+      },
+      "camera": {
+        "yawOffsetDeg": 180,
+        "distance": 2.6,
+        "pitchDeg": 6
+      },
+      "steps": 240,
+      "frames": 4,
+      "actions": [["input.move", 0, -1], ["advance", 70], ["input.releaseAll"]]
+    },
+    {
+      "name": "waterway-roll",
+      "area": "地下水路",
+      "title": "水路でローリングした直後（しぶき）",
+      "optional": true,
+      "enemies": false,
+      "player": {
+        "x": 47,
+        "y": 1.02,
+        "z": 28,
+        "yawDeg": 90
+      },
+      "camera": {
+        "yawOffsetDeg": 180,
+        "distance": 2.6,
+        "pitchDeg": 6
+      },
+      "steps": 240,
+      "frames": 4,
+      "actions": [
+        ["input.move", 0, -1],
+        ["advance", 40],
+        ["input.press", "dodge"],
+        ["advance", 3],
+        ["input.release", "dodge"],
+        ["advance", 30],
+        ["input.releaseAll"]
+      ]
+    },
+    {
+      "name": "charge-f10",
+      "area": "強攻撃の溜め",
+      "title": "強攻撃の溜め F10",
+      "optional": true,
+      "player": {
+        "x": 0.8,
+        "z": -4.2,
+        "face": [-4.5, 2]
+      },
+      "steps": 150,
+      "frames": 6,
+      "actions": [
+        ["input.press", "heavyAttack"],
+        ["advance", 10]
+      ],
+      "enemies": false
+    },
+    {
+      "name": "charge-f29",
+      "area": "強攻撃の溜め",
+      "title": "強攻撃の溜め F29",
+      "optional": true,
+      "player": {
+        "x": 0.8,
+        "z": -4.2,
+        "face": [-4.5, 2]
+      },
+      "steps": 150,
+      "frames": 6,
+      "actions": [
+        ["input.press", "heavyAttack"],
+        ["advance", 29]
+      ],
+      "enemies": false
+    },
+    {
+      "name": "charge-f30",
+      "area": "強攻撃の溜め",
+      "title": "強攻撃の溜め F30",
+      "optional": true,
+      "player": {
+        "x": 0.8,
+        "z": -4.2,
+        "face": [-4.5, 2]
+      },
+      "steps": 150,
+      "frames": 2,
+      "actions": [
+        ["input.press", "heavyAttack"],
+        ["advance", 30]
+      ],
+      "enemies": false
     }
   ]
 }

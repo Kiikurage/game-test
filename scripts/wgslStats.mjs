@@ -3,22 +3,18 @@
 // （行数・ノイズ呼び出し・テクスチャサンプル・微分）を表にする。出力ディレクトリを渡すと WGSL 全文も保存する。
 // 出力ディレクトリはリポジトリ外のスクラッチ（/tmp 配下など）にすること。
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { build, preview } from 'vite';
-import { chromium } from '@playwright/test';
-import { launchOptions } from './chromium.mjs';
 import { PERF_VIEWPOINTS } from './perfViewpoints.mjs';
+import { newPage, openSession, setViewpoint, startGame, waitFrames } from './lib/session.mjs';
 
 const quality = process.argv[2] ?? 'medium';
 const extra = process.argv[3] ?? '';
 const outDir = process.argv[4];
-const port = Number(process.env.SHOT_PORT ?? 4190);
-if (!process.env.PERF_SKIP_BUILD) await build({ logLevel: 'warn' });
-const server = await preview({ preview: { host: 'localhost', port, strictPort: true } });
-const browser = await chromium.launch(launchOptions());
+const session = await openSession({
+  port: Number(process.env.SHOT_PORT ?? 4190),
+  skipBuild: !!process.env.PERF_SKIP_BUILD,
+});
 try {
-  const page = await (
-    await browser.newContext({ viewport: { width: 915, height: 412 } })
-  ).newPage();
+  const { page } = await newPage(session, { context: { viewport: { width: 915, height: 412 } } });
   await page.addInitScript(() => {
     window.__wgsl = [];
     const proto = GPUDevice.prototype;
@@ -28,31 +24,14 @@ try {
       return orig.call(this, desc);
     };
   });
-  await page.goto(`http://localhost:${port}/game-test/?quality=${quality}&scale=0.25${extra}`);
-  await page.waitForFunction(
-    () => document.getElementById('app')?.dataset.state === 'ready',
-    null,
-    {
-      timeout: 120_000,
-    },
-  );
-  await page.locator('[data-testid=start-screen]').click();
-  await page.waitForFunction(
-    () => document.getElementById('app')?.dataset.state === 'running',
-    null,
-    { timeout: 120_000 },
-  );
+  await page.goto(session.url(`?quality=${quality}&scale=0.25${extra}`));
+  await startGame(page);
   // 起動直後のシェーダ生成が落ち着くまで、描画フレームを進めて待つ
-  const f0 = await page.evaluate(() => window.__game.frames);
-  await page.waitForFunction((n) => window.__game.frames > n + 30, f0, { timeout: 120_000 });
+  await waitFrames(page, 31);
   // 各視点を巡って、そこで初めて使われるマテリアルのシェーダも生成させる
   for (const v of PERF_VIEWPOINTS) {
-    await page.evaluate(({ x, z, yaw }) => {
-      window.__game.dev.teleport(x, z, yaw);
-      window.__game.dev.view(0);
-    }, v);
-    const f = await page.evaluate(() => window.__game.frames);
-    await page.waitForFunction((n) => window.__game.frames > n + 20, f, { timeout: 120_000 });
+    await setViewpoint(page, v);
+    await waitFrames(page, 21);
   }
   const codes = await page.evaluate(() => window.__wgsl);
   const rows = [];
@@ -81,6 +60,5 @@ try {
     for (const r of rows) writeFileSync(`${outDir}/${String(r.i).padStart(3, '0')}.wgsl`, r.code);
   }
 } finally {
-  await browser.close();
-  await new Promise((resolve) => server.httpServer.close(resolve));
+  await session.close();
 }

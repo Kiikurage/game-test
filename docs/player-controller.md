@@ -159,9 +159,9 @@ lightAttackCapsule(id, feet, yaw, p, out)   // 各段の武器カプセルの軌
 - **キャンセル先**: ロール / バックステップ（軽 1: F18 / 軽 2: F16 / 軽 3: F24 から。先行入力あり）。強攻撃・ガードは各チケットで、状態グラフと `cancels` に窓を足して `updateAttack` で `canCancelTo` を見るだけで繋げられる。
 - **前進**: 発生 + 持続の間に、踏み込みの山形で 0.5 / 0.5 / 1.0 m（`attackLungeProfile`）。硬直中は止まる。壁・ダミーのコライダで止まる。
 - **旋回**: 発生の間（当たり窓が開くまで）だけ、ロックオン対象 / 入力方向へ 540°/s（`tuning.player.attackTurnDegPerSecond`）で向く。持続・硬直中は向き固定。
-- **判定**: ゲーム側の手続き的な武器カプセル（半径 0.25m・長さ 1.1m）を、持続中の毎ステップ「前フレーム → 現在」でスイープ。向きと高さは実クリップの剣の動きに合わせた（軽 1: 右下から左上へ斬り上げながら水平 110°、軽 2: 左から右へ肩の高さで水平 90°、軽 3: 剣先 1.2m → 2.2m の突き・弧 40°。UAL2 の `Sword_Regular_B` は縦斬りではなく水平斬りだったため、仕様の「斬り下ろし」とは見た目が異なる）。ダメージ 40 / 42 / 52、強靭度削り 20 / 20 / 35。1 スイング 1 ヒット。命中は `game.combat.onHit` / `events.emit('hit')` で通知される（ヒットストップ・被弾リアクションはそこへ繋ぐ。`player.hitStop(frames)` で攻撃側を凍結できる）。
+- **判定**: ゲーム側の手続き的な武器カプセル（半径 0.25m・長さ 1.1m）を、持続中の毎ステップ「前フレーム → 現在」でスイープ。向きと高さは実クリップの剣の動きに合わせた（軽 1: 右下から左上へ斬り上げながら水平 110°、軽 2: 左から右へ肩の高さで水平 90°、軽 3: 剣先 1.2m → 2.2m の突き・弧 40°。UAL2 の `Sword_Regular_B` は縦斬りではなく水平斬りだったため、仕様の「斬り下ろし」とは見た目が異なる）。ダメージ 40 / 42 / 52、強靭度削り 20 / 20 / 35。1 スイング 1 ヒット。命中は `game.combat.onHit` / `impact` イベントで通知される（ヒットストップ・被弾リアクションはそこへ繋ぐ。`player.hitStop(frames)` で攻撃側を凍結できる）。
 - **アニメーション**: `Sword_Regular_A/B/C` を `clipHitFrame`（実測 8 / 8 / 20）で発生に合わせて再生し、振り終わり以降は `tail`（`Sword_Regular_A_Rec` / `_B_Rec`）を残りのフレームに合わせて再生する（軽 3 は C の全長が全体 52F にほぼ一致するので tail なし）。
-- **ヒットストップ・火花・被弾リアクション**: 命中（`HitEvent.attackId` が `light1〜3`）は #49 / #50 が購読する（`hitStop` イベント → `GameView` が火花）。
+- **ヒットストップ・火花・被弾リアクション**: 命中（`HitEvent.attackId` が `light1〜3`）は #49 / #50 が購読する（`impact` イベント → `GameView` が火花）。
 
 ## 強攻撃（溜め・スーパーアーマー）と走り攻撃（#52）
 
@@ -182,7 +182,7 @@ heavyAttackCapsule / runAttackCapsule(feet, yaw, p, out)   // 武器カプセル
 - **走り攻撃**: ダッシュ中（`dash`）、または走り最高速の 75% 以上（`RUN_ATTACK_MIN_SPEED_RATIO`）で動いている `move` 中の軽攻撃入力。前の軽攻撃のコンボ窓が残っていれば次段が優先。前進 2.0m・キャンセル窓なし。
 - **アニメーション**: 溜めは `Sword_Heavy_Combo` の f58–f66（剣を引いて低く構える）を 14F で再生して保持（`states.heavyCharge`）。`heavy` / `heavyCharged` は f66 → f80（`clipHitFrame` 77 = 振り下ろし）の後、`tail` で f90–f121（剣を地面から戻す）を残りの硬直に合わせる。走り攻撃は `Sword_Dash` の f2–f13（`clipHitFrame` 10）+ tail f13–f46。
 - **ヒットストップ・画面振動**: `hitStop.ts` が `attackId`（`heavy` = 8F、`heavyCharged` = 12F + 画面振動、`runAttack` は強攻撃と同じ）で決める。
-- **溜めのフィードバック（#200）**: 刃の発光（`render/player/heavyChargeGlow.ts`。琥珀の金 `0xff7a00`、F1 0.55 → F29 0.8 とイーズインで強まり、F30 の到達で金白 `0xfff0b8` の 1.0 に閃いて 10F で保持レベル 0.8 に落ち着き脈打つ。フル溜めで離すと 24F で消える）。敵のテレグラフ（白 / 赤橙）とは色で区別する。実装は `PlayerView` が `characterLight` の武器の発光ユニフォーム（敵と同じ仕組み）を毎フレーム書き換えるだけで、追加のパス・メッシュは無い。到達の瞬間に `heavyChargeCue.system.ts` が `sound`（`sfx.player-heavy-charge-full`、30F で 1 回・キャンセル時は出ない。素材は合成の短い金属音）を出し、`heavyCharge.view.ts` が同じイベントで刃先から小さな火花（`particles.chargeGlint`）を散らす。撮影は `SHOT_SCRIPT=scripts/shot-charge.mjs SHOT_CHARGE=<F> npm run shot`。
+- **溜めのフィードバック（#200）**: 刃の発光（`render/player/heavyChargeGlow.ts`。琥珀の金 `0xff7a00`、F1 0.55 → F29 0.8 とイーズインで強まり、F30 の到達で金白 `0xfff0b8` の 1.0 に閃いて 10F で保持レベル 0.8 に落ち着き脈打つ。フル溜めで離すと 24F で消える）。敵のテレグラフ（白 / 赤橙）とは色で区別する。実装は `PlayerView` が `characterLight` の武器の発光ユニフォーム（敵と同じ仕組み）を毎フレーム書き換えるだけで、追加のパス・メッシュは無い。到達の瞬間に `heavyChargeCue.system.ts` が `sound`（`sfx.player-heavy-charge-full`、30F で 1 回・キャンセル時は出ない。素材は合成の短い金属音）を出し、`heavyCharge.view.ts` が同じイベントで刃先から小さな火花（`particles.chargeGlint`）を散らす。撮影は `npm run heroshots -- shots/charge --only 強攻撃の溜め`（`charge-f10` / `charge-f29` / `charge-f30`。`scripts/heroShots.json`）。
 
 ## 回復瓶（#48）
 

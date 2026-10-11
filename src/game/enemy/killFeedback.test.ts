@@ -58,7 +58,7 @@ describe('enemy kill feedback (#281)', () => {
     const hits: string[] = [];
     let frame = 0;
     game.events.on('sound', (e) => sounds.push({ cue: e.cue, frame }));
-    game.events.on('hit', (e) => hits.push(e.kind));
+    game.events.on('impact', (e) => hits.push(e.kind));
     const step = (n: number) => {
       for (let i = 0; i < n; i++) {
         run(1);

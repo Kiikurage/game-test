@@ -6,29 +6,15 @@
 // 関数名を読めるよう、未圧縮 + ソースマップ付きで node_modules/.profile-dist にビルドする（PROFILE_SKIP_BUILD=1 で省略）。
 import { readFileSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
-import { build, preview } from 'vite';
-import { chromium } from '@playwright/test';
 import { SourceMapConsumer } from 'source-map-js';
-import { launchOptions } from './chromium.mjs';
+import { newPage, openSession, setViewpoint, startGame, waitFrames } from './lib/session.mjs';
 
 const quality = process.argv[2] ?? 'medium';
 const frames = Number(process.argv[3] ?? 240);
-const port = Number(process.env.PROFILE_PORT ?? 4190);
 const TOP = Number(process.env.PROFILE_TOP ?? 15);
 /** PROFILE_ALLOC=1: ヒープのサンプリングで関数別の割り当て量（KB/フレーム）も出す（GC の原因探し）。 */
 const ALLOC = Boolean(process.env.PROFILE_ALLOC);
 const outDir = resolve('node_modules/.profile-dist');
-
-if (!process.env.PROFILE_SKIP_BUILD) {
-  await build({
-    logLevel: 'warn',
-    build: { outDir, emptyOutDir: true, minify: false, sourcemap: true },
-  });
-}
-const server = await preview({
-  build: { outDir },
-  preview: { host: 'localhost', port, strictPort: true },
-});
 
 /** バンドルの位置 → 元のソース（src/... の関数）へ。 */
 const consumers = new Map();
@@ -101,32 +87,16 @@ function aggregateAlloc(profile) {
   return { total, byFn };
 }
 
-async function measure(browser, extra) {
-  const context = await browser.newContext({ viewport: { width: 915, height: 412 } });
-  const page = await context.newPage();
-  page.on('pageerror', (err) => console.error('pageerror', err.message));
-  page.on('console', (m) => {
-    if (m.type() === 'error') console.error('console', m.text());
+async function measure(extra) {
+  const { context, page } = await newPage(session, {
+    context: { viewport: { width: 915, height: 412 } },
   });
-  await page.goto(`http://localhost:${port}/game-test/?quality=${quality}&scale=0.25${extra}`);
-  await page.waitForFunction(
-    () => document.getElementById('app')?.dataset.state === 'ready',
-    null,
-    {
-      timeout: 600_000,
-    },
-  );
-  await page.locator('[data-testid=start-screen]').click();
-  await page.waitForFunction(
-    () => document.getElementById('app')?.dataset.state === 'running',
-    null,
-    { timeout: 300_000 },
-  );
+  await page.goto(session.url(`?quality=${quality}&scale=0.25${extra}`));
+  await startGame(page, 600_000);
   // 墓地の視点（perfViewpoints の graveyard）。墓地の亡者 2 体と礼拝堂の門の 1 体を戦闘の音で呼ぶ
+  await setViewpoint(page, { x: 14, z: 6, yaw: Math.PI / 2 });
   await page.evaluate(() => {
     const dev = window.__game.dev;
-    dev.teleport(14, 6, Math.PI / 2);
-    dev.view(0);
     dev.cpuProfileLockstep(true);
     for (const [x, z] of [
       [14, 6],
@@ -135,19 +105,8 @@ async function measure(browser, extra) {
     ])
       dev.noise(x, 0, z, 'combat');
   });
-  const waitFrames = (n) =>
-    page.evaluate(
-      (n) =>
-        new Promise((done) => {
-          const target = window.__game.frames + n;
-          const tick = () =>
-            window.__game.frames >= target ? done() : requestAnimationFrame(tick);
-          requestAnimationFrame(tick);
-        }),
-      n,
-    );
   // 敵が寄ってくるまで（初回のパイプライン生成も済ませる）
-  await waitFrames(150);
+  await waitFrames(page, 150);
   const cdp = await context.newCDPSession(page);
   await cdp.send('Profiler.enable');
   await cdp.send('Profiler.setSamplingInterval', { interval: 100 });
@@ -161,7 +120,7 @@ async function measure(browser, extra) {
     });
   }
   await cdp.send('Profiler.start');
-  await waitFrames(frames);
+  await waitFrames(page, frames);
   const { profile } = await cdp.send('Profiler.stop');
   const alloc = ALLOC ? (await cdp.send('HeapProfiler.stopSampling')).profile : null;
   const stats = await page.evaluate(() => window.__game.dev.cpuProfileStats());
@@ -173,10 +132,14 @@ async function measure(browser, extra) {
   return { stats, scene, enemies, alloc: alloc && aggregateAlloc(alloc), ...aggregate(profile) };
 }
 
-const browser = await chromium.launch(launchOptions());
+const session = await openSession({
+  port: Number(process.env.PROFILE_PORT ?? 4190),
+  skipBuild: !!process.env.PROFILE_SKIP_BUILD,
+  build: { outDir, minify: false, sourcemap: true },
+});
 try {
-  const draw = await measure(browser, '');
-  const nodraw = await measure(browser, '&nodraw');
+  const draw = await measure('');
+  const nodraw = await measure('&nodraw');
   const row = (label, r) => {
     const f = r.stats.frames;
     return `| ${label} | ${f} | ${(r.jsUs / 1000 / f).toFixed(2)} | ${(r.gcUs / 1000 / f).toFixed(2)} | ${(r.stats.simMs / f).toFixed(2)} | ${(r.stats.renderMs / f).toFixed(2)} | ${r.stats.maxFrameMs.toFixed(1)} |`;
@@ -215,6 +178,5 @@ try {
     }
   }
 } finally {
-  await browser.close();
-  await new Promise((done) => server.httpServer.close(done));
+  await session.close();
 }
