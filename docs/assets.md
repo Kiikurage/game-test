@@ -473,3 +473,31 @@ boss.setEmber(emberAtTransitionFrame(frame));                           // 移�
 - `window.__game.dev.cryptInfo()` / `dev.poseCrypt({ lid, gate, lever })`（0 = 閉〜1 = 開）で E2E・撮影ができる。
 - `LevelView` は `cryptLayout.isMasonryProp(id)`（`d-*` / `e-*` / `lane-*`）のグレーボックスと、G1 の鉄門・レバーのグレーボックスを描かない。霧の門（E4-4d）のグレーボックスはそのまま。
 - 撮影: `SHOT_TOUR='名前:x,z,yaw,yawOffset[,距離,ピッチ];...' node scripts/shot-tour.mjs shots/tour`（1 回の読み込みで複数地点を撮る。`SHOT_ONLY=pc|mobile`、`SHOT_SKIP_BUILD=1`）。
+
+### 7.14 Blender のヘッドレス生成パイプライン（Issue #327）
+
+高密度の環境メッシュ（[tech-direction.md](tech-direction.md) §3.5・§4.1）を Blender の Python で手続き生成し、LOD とライトマップ UV 付きの glb にする。**CI には Blender が無いので、生成物はコミットする**（他のアセットと同じ）。CI はコミット済みの glb を検査するだけ。
+
+| 場所 | 役割 |
+| --- | --- |
+| `assets-src/blender/<name>.py` | モデルスクリプト。`build(ctx)` でシーンにメッシュオブジェクトを作る（`ctx["bpy"]`、`ctx["rng"]` = `random.Random(seed)`）。オブジェクト名が glb のノード名になる。任意で `LIGHTMAP_MARGIN` |
+| `scripts/assets/blender/models.mjs` | 生成するモデルの一覧（`name`・`seed`・LOD ごとの `ratio` / `error` / `distance`） |
+| `scripts/assets/blender/export.py` | Blender 側の実行口。空シーン → `build(ctx)` → ライトマップ UV → glb 書き出し |
+| `scripts/assets/build-blender.mjs` | Node 側。Blender を呼び、LOD 列（meshoptimizer）→ 量子化 → meshopt 圧縮 → `public/assets/blender/<name>.glb`。`manifest.json` の `blender` に記録 |
+| `src/render/assets/blenderModels.test.ts` | CI の検査（`npm test`）。ソースのハッシュ・glb の SHA-256・LOD の三角形数（減っていくこと）・`TEXCOORD_1` の有無 |
+| `src/render/assets/blenderLod.ts` | 実行時。glb のノードを `THREE.LOD` に組み替える `buildBlenderLods(root)` |
+
+- 生成: `npm run assets:blender`（`-- <name>` で 1 モデルだけ）。Blender は環境変数 `BLENDER` → `/Applications/Blender.app` → PATH の `blender` の順に探す。
+- 決定性の確認: `npm run assets:blender:check` が生成し直してコミット済みの glb とバイト単位で比べる（Blender が要るのでローカルで実行）。Blender 5.2.1 LTS（macOS）で一致を確認済み。別の Blender バージョンでは一致しない可能性がある（`manifest.json` の `blender.blenderVersion` に記録）。
+- ソース（モデルスクリプト・`export.py`・`models.mjs`・`build-blender.mjs`）を変えて生成し直していないと、`manifest.json` の `sourceHash` が合わずテストが落ちる。
+- 乱数はモデルスクリプトに渡される `ctx["rng"]` だけを使う。`--factory-startup` でユーザー設定・アドオンの影響を受けない。
+
+glb の形:
+
+- `<name>` ノード（`extras.lodDistances: number[]`。GLTFLoader で `userData.lodDistances`）の子に `<name>_LOD0..n` のメッシュノード。LOD0 は Blender の出力そのまま、以降は meshoptimizer の simplify。
+- 全レベルが `TEXCOORD_0`（描画用。モデルスクリプトが作る。無ければ smart_project）と **`TEXCOORD_1`（ライトマップ用）** を持つ。ライトマップ UV は描画用 UV の島を複製し、`uv.pack_islands` で 0..1 に重ならないよう詰め直したもの（`lightmap_pack` は面ごとに島を割り、全辺が継ぎ目になって LOD の簡略化が効かなくなるので使わない）。LOD は頂点を間引くだけなので残った頂点の UV は LOD0 と同じ値で、**1 枚のライトマップを全レベルで共有できる**（#323）。
+- `TEXCOORD_1` は 16bit 正規化で量子化し、テクスチャが参照しなくても `prune({ keepAttributes: true })` で残す。マテリアルは片面。
+
+サンプル: `broken_column`（折れた溝彫りの石柱。LOD 17,588 / 4,396 / 1,054 tris、切替 0 / 12 / 35m、261KB）。ゲームにはまだ置いていない。
+
+新しいモデルの追加: `assets-src/blender/<name>.py` を書く → `models.mjs` に追加 → `npm run assets:blender -- <name>` → glb と `manifest.json` をコミット。実行時は `GLTFLoader`（meshopt デコーダ付き）で読み、`buildBlenderLods(gltf.scene)`。
