@@ -78,6 +78,29 @@
 - 環境メッシュの距離 LOD、草の距離フェード（`grassCount` は既に品質別）。
 - 敵が増えたときの GPU インスタンシング（スキニングのインスタンス化は three では未対応）。
 
+## CPU フレーム時間のプロファイル（#262）
+
+`npm run profile -- [low|medium|high] [frames]`（既定 `medium 240`）。ヘッドレス Chromium の CDP `Profiler` で、
+墓地の視点・戦闘中（`noise` で周囲の敵を呼ぶ）のメインスレッドの JS を関数別の自己時間に集計する。
+
+- **ロックステップ**（`src/render/cpuProfile.dev.ts` の `cpuProfileLockstep`）: 描画 1 フレームごとにちょうど 1 ステップ進めてから描く。
+  SwiftShader の遅さで 1 フレームあたりのステップ数がぶれないようにし、「60fps 時の 1 フレーム分の JS」を測る。プレイヤーは無敵にする。
+- 同じ計測を `?nodraw` でも行い、差（`draw cost`）を描画側のコストとする。`sim` は入力 + `game.update`、`render` は
+  `perfProbe.frameCpuMs`（`?perf` / `?bench` の `cpu` と同じ beginFrame〜endFrame）の合計。`worst frame` は最も重い 1 フレーム（スパイクの目安）。
+- 関数名を読めるよう、未圧縮 + ソースマップ付きで `node_modules/.profile-dist` にビルドする（`PROFILE_SKIP_BUILD=1` で省略）。
+- `PROFILE_ALLOC=1` でヒープのサンプリングも行い、関数別の割り当て量（KB/フレーム。GC の原因探し）を出す。`PROFILE_TOP` で表の行数を変える。
+- 絶対値は SwiftShader と CPU 負荷で大きく変わる（実機の数倍）。比べるときは同じ負荷のもとで前後を続けて測る。
+- `scene` 行はシーンのオブジェクト数（敵 1 体が骨を含め約 90 オブジェクト）と、`matrixAutoUpdate` が有効な数。
+
+**削減済み（#262）**
+
+- `scene.updateMatrixWorld()` は `renderer.render` のたびに走り、本描画と影で 1 フレームに複数回、全オブジェクトの行列を再計算していた。
+  `src/render/matrixUpdate.view.ts` でシーンの自動更新を止め、描画直前に 1 回だけ更新する。
+  動かない入れ物（シーン・レベルのルート）と結合済みの環境メッシュ・地面は `matrixAutoUpdate=false`（親が自動更新だと子孫すべてが強制再計算になるため）。
+  **新しく足す静的な物を `view.levelView.root` 直下に置く場合も、動かすなら自分で `matrixAutoUpdate` を有効のままにする**（既定のまま足せばよい）。
+  レベルのルートやシーン自体を動かしてはいけない（反映されない）。
+- `?perf` / `?bench` 用の CPU 時間の中央値（`perf.view.ts`）が毎フレーム配列を複製・ソートしていたのを、使い回しの型付き配列に変えた。
+
 ## 実機での計測と切り分け（#231）
 
 ドローコール・三角形の予算（上記）だけでは、モバイル GPU の**フィルレート・フラグメント負荷**は分からない（ヘッドレス SwiftShader は GPU 時間の参考にならない）。実機（Xperia 1 V など）では次の手順で切り分ける。

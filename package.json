@@ -17,6 +17,7 @@
     "e2e": "playwright test",
     "shot": "node scripts/shot.mjs",
     "perf": "node scripts/perf.mjs",
+    "profile": "node scripts/profile.mjs",
     "assets:fetch": "node scripts/assets/fetch.mjs",
     "assets:audio": "node scripts/audio/build.mjs",
     "assets:audio:check": "node scripts/audio/build.mjs --check",
