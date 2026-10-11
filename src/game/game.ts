@@ -655,6 +655,34 @@ export class Game {
     this.freezables.delete(id);
   }
 
+  /**
+   * 登録式のシステムが持つ敵（ボスなど）を、ロックオン対象・被弾側（ハートボックス・強靭度）・ヒットストップの凍結口として
+   * まとめて登録する。`boss: true` なら `bossIds` にも入れる。戻り値を呼ぶと登録をすべて解く。
+   */
+  registerCombatant(combatant: {
+    readonly id: string;
+    readonly lockOn: LockOnTarget;
+    readonly heart: UprightTarget;
+    readonly reactor: HitReactor;
+    readonly freezable: Freezable;
+    readonly boss?: boolean;
+  }): () => void {
+    const { id, lockOn, heart, reactor, freezable, boss = false } = combatant;
+    this.combat.addTarget(heart);
+    this.addReactor(id, reactor, heart);
+    this.registerFreezable(id, freezable);
+    if (boss) this.bossIds.add(id);
+    if (!this.lockOnTargets.includes(lockOn)) this.lockOnTargets.push(lockOn);
+    return () => {
+      this.combat.removeTarget(id);
+      this.removeReactor(id);
+      this.unregisterFreezable(id);
+      if (boss) this.bossIds.delete(id);
+      const i = this.lockOnTargets.indexOf(lockOn);
+      if (i >= 0) this.lockOnTargets.splice(i, 1);
+    };
+  }
+
   private freeze(id: string, frames: number): void {
     for (const f of this.freezables.get(id) ?? []) f.freeze(frames);
   }
