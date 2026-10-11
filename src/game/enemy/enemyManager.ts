@@ -19,6 +19,8 @@ export interface EnemyManagerOptions {
   /** 敵の体（衝突・接地）の作り方。 */
   readonly createBody: (init: EnemyInit) => EnemyBody;
   readonly darkness?: (x: number, z: number) => boolean;
+  /** 音の発生位置での半径の倍率（反響ゾーン ×1.3）。省略時は 1。 */
+  readonly hearingScale?: (x: number, y: number, z: number) => number;
   /** 乱数。省略時は敵の ID から決まる決定的な乱数（再現できるように）。 */
   readonly random?: (id: string) => () => number;
   /** 敵 1 体の攻撃の実行（`Enemy.attackBehavior`）を作る。省略時は攻撃しない。`random` はその敵の乱数。 */
@@ -46,9 +48,11 @@ export class EnemyManager {
   readonly enemies: Enemy[] = [];
   private readonly inits = new Map<string, EnemyInit>();
   /** 音の受け口。足音・命中音などを発生側が `emit` する。 */
-  readonly noises = new NoiseField();
+  readonly noises: NoiseField;
 
-  constructor(private readonly options: EnemyManagerOptions) {}
+  constructor(private readonly options: EnemyManagerOptions) {
+    this.noises = new NoiseField(options.hearingScale);
+  }
 
   /** 経路問い合わせ（デバッグ表示が経路・格子を読む）。 */
   get navigator(): Navigator {

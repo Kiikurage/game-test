@@ -147,6 +147,10 @@ interface Sense {
   /** 感知源の位置（見えていればプレイヤー、聞こえただけなら音源）。 */
   sourceX: number;
   sourceZ: number;
+  /** 感知源が音源か（位置をナビメッシュ上へ丸める）。 */
+  sourceIsSound: boolean;
+  /** 感知源が鐘の音か（歩く距離が最大 15m になる）。 */
+  sourceIsBell: boolean;
 }
 
 const tmpEye = new Vector3();
@@ -213,9 +217,19 @@ export class Enemy implements LockOnTarget {
   private suspicionOriginX = 0;
   private suspicionOriginZ = 0;
   private investigationDone = false;
+  /** 今回の Suspicious で歩く最大距離（鐘なら 15m）。 */
+  private suspicionMaxWalk: number = ENEMY_AI.suspiciousMaxWalk;
   private lookFrames = 0;
   private lookBaseYaw = 0;
-  private readonly sense: Sense = { visible: false, heard: false, gain: 0, sourceX: 0, sourceZ: 0 };
+  private readonly sense: Sense = {
+    visible: false,
+    heard: false,
+    gain: 0,
+    sourceX: 0,
+    sourceZ: 0,
+    sourceIsSound: false,
+    sourceIsBell: false,
+  };
 
   constructor(
     init: EnemyInit,
@@ -471,12 +485,18 @@ export class Enemy implements LockOnTarget {
     if (s.visible && visualGain >= hearGain) {
       s.sourceX = target.position.x;
       s.sourceZ = target.position.z;
+      s.sourceIsSound = false;
+      s.sourceIsBell = false;
     } else if (audible) {
       s.sourceX = audible.x;
       s.sourceZ = audible.z;
+      s.sourceIsSound = true;
+      s.sourceIsBell = audible.kind === 'bell';
     } else if (s.visible) {
       s.sourceX = target.position.x;
       s.sourceZ = target.position.z;
+      s.sourceIsSound = false;
+      s.sourceIsBell = false;
     }
   }
 
@@ -521,6 +541,10 @@ export class Enemy implements LockOnTarget {
     if (s.gain > 0) {
       this.gauge = Math.min(ENEMY_GAUGE.max, this.gauge + s.gain * dt);
       this.setLastKnown(s.sourceX, s.sourceZ);
+      if (s.sourceIsSound) this.snapLastKnownToNavigable();
+      this.suspicionMaxWalk = s.sourceIsBell
+        ? ENEMY_AI.suspiciousMaxWalkBell
+        : ENEMY_AI.suspiciousMaxWalk;
       this.investigationDone = false;
       this.lookFrames = 0;
     } else if (this.state !== 'suspicious' || this.investigationDone) {
@@ -542,6 +566,19 @@ export class Enemy implements LockOnTarget {
     return false;
   }
 
+  /** 音源が壁の中・崖の下などでも着けるよう、最後に感知した位置をナビメッシュ上の最寄り点へ丸める。 */
+  private snapLastKnownToNavigable(): void {
+    const p = this.deps.navigator.nearestWalkablePoint?.(
+      this.lastKnown.x,
+      this.lastKnown.z,
+      tmpNav,
+    );
+    if (p) {
+      this.lastKnown.x = p.x;
+      this.lastKnown.z = p.z;
+    }
+  }
+
   private enterSuspicious(): void {
     this.fsm.transition('suspicious');
     this.suspicionOriginX = this.position.x;
@@ -559,8 +596,8 @@ export class Enemy implements LockOnTarget {
     const ox = this.suspicionOriginX;
     const oz = this.suspicionOriginZ;
     const d = Math.hypot(tx - ox, tz - oz);
-    if (d > ENEMY_AI.suspiciousMaxWalk) {
-      const k = ENEMY_AI.suspiciousMaxWalk / d;
+    if (d > this.suspicionMaxWalk) {
+      const k = this.suspicionMaxWalk / d;
       tx = ox + (tx - ox) * k;
       tz = oz + (tz - oz) * k;
     }

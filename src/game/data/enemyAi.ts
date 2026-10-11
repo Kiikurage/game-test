@@ -163,6 +163,8 @@ export const ENEMY_AI = {
   /** Suspicious: 感知源を向く旋回、歩く最大距離、到着後に見回す時間。 */
   suspiciousTurnDegPerSecond: 120,
   suspiciousMaxWalk: 6,
+  /** 鐘の音を聞いたときの最大の歩く距離（鐘は例外。14.3.1 節）。 */
+  suspiciousMaxWalkBell: 15,
   suspiciousLookFrames: 180,
   /** 見回しの首振り（度）と周期（F）。 */
   suspiciousLookSweepDeg: 40,

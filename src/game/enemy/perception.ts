@@ -98,6 +98,8 @@ export interface Noise {
   readonly radius: number;
   /** 残り時間（秒）。 */
   remaining: number;
+  /** 音の種類（鐘だけ、聞いた敵の歩く距離が違う）。 */
+  readonly kind: NoiseKind | null;
 }
 
 export interface NoiseOptions {
@@ -114,23 +116,41 @@ export interface NoiseOptions {
 export class NoiseField {
   private readonly list: Noise[] = [];
 
+  /**
+   * @param radiusScaleAt 音の発生位置での半径の倍率（地下墓所・水路の反響 ×1.3。省略時は 1）。
+   *   すべての音（足音・鐘など）の半径に一度だけ掛かる。
+   */
+  constructor(private readonly radiusScaleAt?: (x: number, y: number, z: number) => number) {}
+
   /** 有効な音（読み取り専用）。 */
   get active(): readonly Noise[] {
     return this.list;
   }
 
   emit(position: Vec3Like, kind: NoiseKind, options: NoiseOptions = {}): void {
-    this.emitRadius(position, NOISE_RADIUS[kind] * (options.radiusScale ?? 1), options.duration);
+    this.emitRadius(
+      position,
+      NOISE_RADIUS[kind] * (options.radiusScale ?? 1),
+      options.duration,
+      kind,
+    );
   }
 
-  /** 半径を直接指定して音を出す。 */
-  emitRadius(position: Vec3Like, radius: number, duration = ONE_SHOT_NOISE_SECONDS): void {
+  /** 半径を直接指定して音を出す（`emitSound` Effect など。反響ゾーンの倍率は掛かる）。 */
+  emitRadius(
+    position: Vec3Like,
+    radius: number,
+    duration = ONE_SHOT_NOISE_SECONDS,
+    kind: NoiseKind | null = null,
+  ): void {
+    const scale = this.radiusScaleAt?.(position.x, position.y, position.z) ?? 1;
     this.list.push({
       x: position.x,
       y: position.y,
       z: position.z,
-      radius,
+      radius: radius * scale,
       remaining: duration,
+      kind,
     });
   }
 

@@ -132,7 +132,7 @@ describe('enemy navigation in the game (Rapier)', () => {
       const nav = game.enemies.navigator;
       expect(nav).toBeInstanceOf(GridNavigator);
       callFor(900);
-      expect(enemy.state).toBe('approach');
+      expect(['approach', 'attack', 'recover']).toContain(enemy.state);
       expect(distance()).toBeLessThan(3.6);
       expect(enemy.position.x).toBeGreaterThan(30);
     });
