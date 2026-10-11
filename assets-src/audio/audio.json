@@ -695,6 +695,17 @@
       "license": "synth-game-test"
     },
     {
+      "id": "bgm.field",
+      "source": "bgm/bgm.field.wav",
+      "kind": "bgm",
+      "loop": true,
+      "loopStart": 1,
+      "loopEnd": 121,
+      "priority": 42,
+      "bitrateKbps": 80,
+      "license": "synth-game-test"
+    },
+    {
       "id": "bgm.boss",
       "source": "bgm/bgm.boss.wav",
       "kind": "bgm",

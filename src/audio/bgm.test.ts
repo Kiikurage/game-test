@@ -260,6 +260,34 @@ describe('bindBgmEvents', () => {
     expect(bgm.current).toBe('bgm.field');
   });
 
+  it('defers an area request that arrives before the manifest, and drops it on a newer request', async () => {
+    const { bgm, engine, lib } = await setup(true);
+    // 別のバインドで「マニフェスト読み込み中」を再現する
+    const bus = new EventBus<GameEventMap>();
+    let resolve!: () => void;
+    const ready = new Promise<void>((r) => (resolve = r));
+    bindBgmEvents(bus, bgm, engine, (id) => lib.get(id) !== undefined, ready);
+    bus.emit('bgmChange', { track: 'bgm.area', frames: 300 });
+    expect(bgm.current).toBeUndefined();
+    resolve();
+    await ready;
+    await Promise.resolve();
+    expect(bgm.current).toBe('bgm.field');
+    expect(bgm.state.main).toMatchObject({ fadeSeconds: 5 });
+
+    bgm.stop(0);
+    const bus2 = new EventBus<GameEventMap>();
+    let resolve2!: () => void;
+    const ready2 = new Promise<void>((r) => (resolve2 = r));
+    bindBgmEvents(bus2, bgm, engine, (id) => lib.get(id) !== undefined, ready2);
+    bus2.emit('bgmChange', { track: 'bgm.area', frames: 300 });
+    bus2.emit('bgmChange', { track: 'bgm.boss', frames: 0 });
+    resolve2();
+    await ready2;
+    await Promise.resolve();
+    expect(bgm.current).toBe('bgm.boss');
+  });
+
   it('ducks by -12dB over 60 frames on death and releases it', async () => {
     const { events, duckSpy, releaseSpy } = await setup();
     events.emit('bgmDuck', { db: -12, frames: 60 });

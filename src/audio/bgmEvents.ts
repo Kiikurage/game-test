@@ -32,9 +32,28 @@ export function bindBgmEvents(
   engine: Pick<AudioEngine, 'duckBgm' | 'releaseDuck'>,
   /** マニフェストに曲があるか（`SoundLibrary.get(id) !== undefined`）。 */
   hasTrack: (id: string) => boolean = () => false,
+  /**
+   * マニフェストの読み込み完了。これより前に来たエリアの曲の要求（ゲーム開始直後など）は保留し、完了後に流す
+   * （その間に別の曲の指示が来たら破棄）。省略時は読み込み済みとして扱う。
+   */
+  ready?: Promise<unknown>,
 ): () => void {
   let duckId: number | undefined;
+  let loaded = ready === undefined;
+  let pendingArea: number | undefined;
+  let disposed = false;
+  void ready?.then(() => {
+    loaded = true;
+    if (disposed || pendingArea === undefined) return;
+    const f = pendingArea;
+    pendingArea = undefined;
+    toArea(f);
+  });
   const toArea = (frames: number): void => {
+    if (!loaded) {
+      pendingArea = frames;
+      return;
+    }
     if (hasTrack(FIELD_TRACK)) {
       const f = Math.max(frames, FIELD_FADE_FRAMES);
       bgm.play(FIELD_TRACK, { fadeFrames: f, outFrames: f });
@@ -44,13 +63,18 @@ export function bindBgmEvents(
   };
   const offs = [
     bus.on('bgmChange', (e) => {
-      if (e.track === 'bgm.area') toArea(e.frames);
-      else bgm.play(e.track, { fadeFrames: e.frames });
+      if (e.track === 'bgm.area') {
+        toArea(e.frames);
+        return;
+      }
+      pendingArea = undefined;
+      bgm.play(e.track, { fadeFrames: e.frames });
     }),
     bus.on('bgmLayer', (e) => {
       bgm.addLayer(e.layer, e.frames);
     }),
     bus.on('bgmFadeOut', (e) => {
+      pendingArea = undefined;
       bgm.stop(e.frames);
     }),
     bus.on('bgmDuck', (e) => {
@@ -62,6 +86,7 @@ export function bindBgmEvents(
     }),
     bus.on('bossDefeatCue', (e) => {
       if (e.cue === 'text') {
+        pendingArea = undefined;
         bgm.play(VICTORY_TRACK, { fadeFrames: VICTORY_FADE_IN_FRAMES, loop: false });
       } else if (e.cue === 'bonfire') {
         toArea(VICTORY_FADE_OUT_FRAMES);
@@ -69,6 +94,7 @@ export function bindBgmEvents(
     }),
   ];
   return () => {
+    disposed = true;
     for (const off of offs) off();
   };
 }

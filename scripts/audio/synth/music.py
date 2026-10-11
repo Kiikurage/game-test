@@ -1,10 +1,11 @@
 """#38: BGM（すべて合成、ステレオ）。暗く荘厳な弦・合唱風パッド、ボス戦は打楽器と低音のオスティナート。
 
-素材: タイトル（60s ループ）/ ボス フェーズ 1（90s ループ）/ ボス フェーズ 2 レイヤー（同長・同テンポで同期）/
+素材: タイトル（60s ループ）/ フィールド（120s ループ、#255）/ ボス フェーズ 1（90s ループ）/ ボス フェーズ 2 レイヤー（同長・同テンポで同期）/
 撃破（20s 非ループ）/ エンディング（60s 非ループ）。
 
 テンポとループ長（同期の根拠）:
   title   48 BPM  4/4  12 小節 = 60.0 s
+  field   50 BPM  4/4  25 小節 = 120.0 s（打楽器なし。拍はほとんど感じさせない）
   boss    80 BPM  4/4  30 小節 = 90.0 s（フェーズ 1 とレイヤーは同じ 90.0 s・同じ小節構成。0 秒から同時に再生する）
   ending  60 BPM  4/4  15 小節 = 60.0 s
 
@@ -249,6 +250,111 @@ def _title(rng):
         tr.add(bell(float(hz(m)) * 0.5, 4.5, rng, decay=1.6) * 0.5, t, gain=0.07, pan=rng.uniform(-0.4, 0.4), send=0.7)
         tr.add(pluck(m, 3.5, rng, bright=0.7, decay=2.0), t, gain=0.12, pan=rng.uniform(-0.3, 0.3), send=0.6)
     return tr.render(rng, rt60=4.0, damp=3200)
+
+
+# ============ フィールド（50 BPM・25 小節・120s ループ、#255） ============
+# 静かで寂しい探索曲。イ短調（エオリア）。低いドローン（A1 + E2、ゆっくり息をする）、弱い弦パッド、
+# 遠くの合唱（3 回だけ）、まばらなハープとピアノ風の単音、低い鐘（2 回）。打楽器・低音の刻みはない。
+# ボス曲より -5 LU 低く、密度も 1 小節に 0〜2 音程度に抑えて環境音（風・篝火）と探索の邪魔をしない。
+
+FIELD_BEAT = 60 / 50
+FIELD_BAR = 4 * FIELD_BEAT  # 4.8 s
+FIELD_LEN = 25 * FIELD_BAR  # 120.0 s
+
+FCH = {
+    "Am": (45, [0, 7, 12, 15]),
+    "F": (41, [0, 7, 12, 16]),
+    "Dm": (38, [0, 7, 12, 15]),
+    "C": (36, [0, 7, 12, 16]),
+    "G": (43, [0, 7, 12, 16]),
+    "E": (40, [0, 7, 12, 16]),  # 属和音（G#）。ループ頭の Am へ戻る
+}
+# (和音, 小節数) — 合計 25 小節
+FIELD_CHORDS = [
+    ("Am", 3), ("F", 2), ("Dm", 2), ("Am", 2),
+    ("C", 2), ("G", 2), ("F", 2), ("E", 2),
+    ("Am", 2), ("Dm", 2), ("F", 2), ("E", 2),
+]
+assert sum(b for _, b in FIELD_CHORDS) == 25
+
+# まばらな単音（小節, 拍, MIDI, 楽器 h=ハープ p=ピアノ）。小さなモチーフ（E-C-B-A）を形を変えて 3 回だけ置き、
+# 残りは和音の構成音を 1 つずつ。4 小節に 1 小節は何も鳴らさない。
+FIELD_NOTES = [
+    (0, 1, 76, "p"), (0, 3, 72, "p"), (1, 1.5, 71, "p"), (1, 3.5, 69, "p"),
+    (3, 0, 77, "h"), (3, 2.5, 72, "h"),
+    (5, 1, 74, "p"), (5, 3, 77, "p"), (6, 2, 76, "h"),
+    (8, 0.5, 69, "h"), (8, 2, 72, "h"), (8, 3.5, 76, "h"),
+    (9, 2, 79, "p"), (10, 1, 74, "p"), (10, 3, 71, "p"),
+    (12, 0, 77, "h"), (12, 2, 72, "h"), (13, 1.5, 69, "h"),
+    (14, 1, 80, "p"), (14, 3, 76, "p"), (15, 2, 71, "p"),
+    (16, 1, 76, "p"), (16, 3, 72, "p"), (17, 1.5, 71, "p"), (17, 3.5, 74, "p"), (18, 2, 69, "p"),
+    (19, 1, 77, "h"), (20, 0, 74, "h"), (20, 2.5, 69, "h"),
+    (21, 1, 72, "p"), (22, 0.5, 77, "h"), (22, 3, 81, "h"),
+    (23, 1, 80, "p"), (23, 3, 76, "p"), (24, 2, 71, "p"),
+]
+
+
+def soft_piano(midi, dur, rng, decay=2.6):
+    """ピアノ風: わずかに不協和な倍音（弦の硬さ）+ 高次倍音ほど速く減衰 + フェルトの柔らかい打鍵。"""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f = float(hz(midi))
+    out = np.zeros(n)
+    for k in range(1, 7):
+        fk = f * k * np.sqrt(1 + 0.0004 * k * k)
+        if fk > 7000:
+            break
+        amp = (0.55 ** (k - 1)) / (1 + 0.3 * k)
+        # 2 本の弦をわずかにずらして「うなり」を付ける
+        for c in (-0.6, 0.6):
+            out += 0.5 * amp * np.sin(2 * np.pi * fk * 2 ** (c / 1200) * t + rng.uniform(0, 6.28)) * np.exp(-t / (decay / (1 + 0.6 * (k - 1))))
+    hammer = lp(white(n, rng), 1200, 2) * np.exp(-t / 0.006) * 0.08
+    return fade(out + hammer, 0.003, min(0.6, dur * 0.4))
+
+
+@sound("bgm.field", "bgm", 42, G, loop=(0.0, 120.0), bitrate=80, lufs_offset=-5)
+def _field(rng):
+    tr = Track(FIELD_LEN, loop=True)
+    n = int(round(FIELD_LEN * SR))
+    t = np.arange(n) / SR
+    # 低いドローン: 整数周期（120 s で整数回）の周波数と、120 s で整数回の揺らぎにして継ぎ目を作らない
+    for m, g, lfo_cycles, pan in [(33, 0.5, 3, -0.15), (40, 0.3, 5, 0.15), (45, 0.12, 7, 0.0)]:
+        f = round(float(hz(m)) * FIELD_LEN) / FIELD_LEN
+        d = np.sin(2 * np.pi * f * t) + 0.3 * np.sin(4 * np.pi * f * t) + 0.08 * np.sin(6 * np.pi * f * t)
+        breath = 0.7 + 0.3 * np.sin(2 * np.pi * lfo_cycles * t / FIELD_LEN + rng.uniform(0, 6.28))
+        tr.add(d * breath, 0.0, gain=g * 0.4, pan=pan, send=0.2)
+    # 風のような薄い息（帯域を絞ったノイズ。ループ曲なので 2 周期を作って中央を使い、継ぎ目を滑らかにする）
+    air = bp(pink(2 * n, rng), 300, 1400)
+    xf = int(4 * SR)
+    w = np.sin(np.linspace(0, np.pi / 2, xf)) ** 2
+    seg = air[:n].copy()
+    seg[:xf] = seg[:xf] * w + air[n : n + xf] * (1 - w)
+    seg *= 0.6 + 0.4 * np.sin(2 * np.pi * 4 * t / FIELD_LEN) ** 2
+    tr.add(seg / (np.std(seg) + 1e-9), 0.0, gain=0.006, send=0.4)
+    # 弱い弦パッド（ゆっくり立ち上がり、和音が重なって移る）
+    bar = 0
+    for c, nb in FIELD_CHORDS:
+        root, iv = FCH[c]
+        t0 = bar * FIELD_BAR
+        dur = nb * FIELD_BAR
+        for j, i in enumerate(iv[1:], 1):
+            tr.add(strings(root + i, dur, rng, atk=3.0, rel=3.0, cutoff=1100, vib=0.003), t0 - 1.2, gain=0.09, pan=-0.45 + 0.3 * j, send=0.5)
+        tr.add(strings(root + 12, dur, rng, atk=2.5, rel=3.0, cutoff=600), t0 - 1.0, gain=0.11, send=0.35)
+        bar += nb
+    # 遠くの合唱（3 回だけ、/u/ で息のように）
+    for b0, notes in [(4, [65, 69, 72]), (13, [62, 69, 74]), (20, [65, 72, 77])]:
+        tr.add(choir(notes, 2 * FIELD_BAR, rng, "u", atk=4.0, rel=4.0, breath=0.35), b0 * FIELD_BAR - 1.0, gain=0.07, send=0.85, pan=-0.2)
+    # 低い鐘（2 回。遠くで鳴る）
+    for b0, m in [(2, 57), (15, 52)]:
+        tr.add(bell(float(hz(m)), 9.0, rng, decay=3.5) * 0.5, b0 * FIELD_BAR + 2 * FIELD_BEAT, gain=0.06, pan=0.35, send=0.8)
+    # まばらなハープ / ピアノ風の単音
+    for b, beat, m, inst in FIELD_NOTES:
+        when = b * FIELD_BAR + beat * FIELD_BEAT
+        if inst == "p":
+            tr.add(soft_piano(m, 5.0, rng), when, gain=0.11, pan=rng.uniform(-0.3, 0.3), send=0.6)
+        else:
+            tr.add(pluck(m, 4.5, rng, bright=0.6, decay=2.2), when, gain=0.1, pan=rng.uniform(-0.45, 0.45), send=0.65)
+    return tr.render(rng, rt60=5.0, damp=2800)
 
 
 # ============ ボス（80 BPM・30 小節・90s ループ + フェーズ 2 レイヤー） ============

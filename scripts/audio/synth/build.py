@@ -111,19 +111,29 @@ def with_loop_padding(s, x):
     return np.concatenate([x[..., -lead:], x, x[..., :trail]], axis=-1)
 
 
+def _num(v):
+    """JSON 上の表記を Prettier の整形結果（整数なら 1.0 ではなく 1）に揃える。"""
+    v = round(v, 4)
+    return int(v) if v == int(v) else v
+
+
 def update_config(sounds):
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     managed = {s.id for s in sounds}
+    # 手で調整した値（#254 の gainDb）は再生成で消さない
+    prev = {e["id"]: e for e in cfg["sounds"]}
     kept = [e for e in cfg["sounds"] if e["id"] not in managed and e.get("license") != "synth-game-test"]
     new = []
     for s in sounds:
         e = {"id": s.id, "source": f"{s.group}/{s.id}.wav", "kind": s.kind}
         if s.loop:
-            e.update(loop=True, loopStart=round(LOOP_LEAD + s.loop[0], 4), loopEnd=round(LOOP_LEAD + s.loop[1], 4))
+            e.update(loop=True, loopStart=_num(LOOP_LEAD + s.loop[0]), loopEnd=_num(LOOP_LEAD + s.loop[1]))
         e["priority"] = s.priority
         if s.bitrate:
             e["bitrateKbps"] = s.bitrate
         e["license"] = s.license
+        if "gainDb" in prev.get(s.id, {}):
+            e["gainDb"] = prev[s.id]["gainDb"]
         new.append(e)
     cfg["sounds"] = kept + new
     CONFIG.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

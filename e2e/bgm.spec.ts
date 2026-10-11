@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { startGame } from './helpers';
 
-// 実 AudioContext 上で、ボス戦の流れ（入場 → フェーズ移行 → 撃破 → 篝火）に対して
+// 実 AudioContext 上で、フィールド曲（開始時）とボス戦の流れ（入場 → フェーズ移行 → 撃破 → 篝火）に対して
 // 期待する曲・レイヤー・フェード（目標ゲインと秒数）が発行されることを検証する。
 // フェードの長さはコントローラが記録した秒数で見る（実時間では待たない）。
-test('boss BGM flow: entry, phase-2 layer, defeat fade-out and victory song', async ({ page }) => {
+test('field and boss BGM flow: start, entry, phase-2 layer, defeat fade-out and victory song', async ({
+  page,
+}) => {
   test.setTimeout(150_000);
   const errors: string[] = [];
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
@@ -25,7 +27,9 @@ test('boss BGM flow: entry, phase-2 layer, defeat fade-out and victory song', as
     page.evaluate((ev) => window.__game?.dev.emitBgmEvent(ev), e);
   const pos = { x: 0, y: 0, z: 0 };
 
-  expect((await bgm())?.main).toBeUndefined(); // フィールドでは BGM なし
+  // ゲーム開始でフィールド曲が 5 秒かけて入る（#255）
+  await expect.poll(async () => (await bgm())?.main?.id).toBe('bgm.field');
+  expect((await bgm())?.main).toMatchObject({ target: 1, fadeSeconds: 5 });
 
   await emit({ name: 'bgmChange', payload: { track: 'bgm.boss', frames: 60 } });
   await expect.poll(async () => (await bgm())?.main?.id).toBe('bgm.boss');
@@ -51,6 +55,7 @@ test('boss BGM flow: entry, phase-2 layer, defeat fade-out and victory song', as
     name: 'bossDefeatCue',
     payload: { id: 'boss', cue: 'bonfire', frame: 300, position: pos },
   });
-  await expect.poll(async () => (await bgm())?.main).toBeUndefined(); // 台座の篝火後は無音
+  // 台座の篝火後はフィールド曲へ戻る
+  await expect.poll(async () => (await bgm())?.main?.id).toBe('bgm.field');
   expect(errors).toEqual([]);
 });
