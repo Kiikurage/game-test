@@ -119,7 +119,8 @@ test('the player can step on the rotten floorboard, drop into the waterway, run 
   expect(p.grounded).toBe(true);
 
   // 開通前は鉄格子が塞ぐ
-  await walkThrough(page, [[72, 44.5]], 0.3);
+  // 許容 0.3m だと階段の上で回り込んで段を下りることがある（向きの補正が 4 ステップごとのため）
+  await walkThrough(page, [[72, 44.5]], 0.5);
   // 北（+z）へ押し当てる。aimCamera はプレイヤー相対なので、絶対方位 0 にするには自分の向きを引く
   // （遅い CI ではプレイヤーが水路側を向いていることがあり、相対 0 で W を押すと階段を戻って壁際に嵌まる）
   await aimCamera(page, 0 - (await sim(page)).player.yaw);
