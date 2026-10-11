@@ -1,23 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { holdKey, startGame, stepCount, waitSteps } from './helpers';
+import { bootGame, holdKey, waitSteps, walkThrough } from './helpers';
 
 /** 脇道の地形（#110: 霊廟の屋根・北崖の岩棚・北壁の上）を、入力（W 押しっぱなし + 向き）だけで走破する。 */
 
-/** 既定のレベル（灰の礎）を最小品質・低解像度で起動する。敵は置かない（地形の検証）。 */
-async function boot(page: Page): Promise<void> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(30);
-  await expect.poll(async () => (await sim(page)).player.grounded).toBe(true);
-  expect(errors).toEqual([]);
-}
+/** 既定のレベル（灰の礎）を最小品質・低解像度で起動する。敵は置かない（地形の検証）。シミュレーションは止めたまま進める。 */
+const boot = (page: Page) => bootGame(page, { enemies: false });
 
 const sim = (page: Page) =>
   page.evaluate(() => {
@@ -40,44 +27,10 @@ const aimCamera = (page: Page, yawOffset: number) =>
     window.__game?.dev.view(o, 4.2, 15);
   }, yawOffset);
 
-/**
- * 入力（W 押しっぱなし）だけで経由点を順に歩く。各経由点の `tol` m 以内で次へ向きを変える。
- * 時間切れはシミュレーション時間（`maxSeconds`）で判定する。
- */
-async function walkThrough(
-  page: Page,
-  waypoints: readonly (readonly [number, number])[],
-  tol = 0.6,
-  maxSeconds = 30,
-) {
-  await page.keyboard.down('KeyW');
-  try {
-    for (const [wx, wz] of waypoints) {
-      const deadline = (await stepCount(page)) + maxSeconds * 60;
-      for (;;) {
-        const p = (await sim(page)).player;
-        const dx = wx - p.position.x;
-        const dz = wz - p.position.z;
-        if (Math.hypot(dx, dz) < tol) break;
-        expect(
-          await stepCount(page),
-          `timed out before (${wx}, ${wz}) at ${JSON.stringify(p.position)}`,
-        ).toBeLessThan(deadline);
-        const camYaw = (await sim(page)).camera.yaw;
-        const want = Math.atan2(dx, dz);
-        const diff = Math.atan2(Math.sin(want - camYaw), Math.cos(want - camYaw));
-        if (Math.abs(diff) > 0.04) await aimCamera(page, want - p.yaw);
-        await waitSteps(page, 4);
-      }
-    }
-  } finally {
-    await page.keyboard.up('KeyW');
-  }
-}
-
 // 岩棚の中心線（崖の足元 → 倒れた柵の隙間 → 礼拝堂の西の外壁沿い → 北壁の上）
 const LEDGE: [number, number][] = [
-  [35, 19],
+  // 崖の足元。(35, 19) は崖に食い込んでいて届く範囲の端（z ≈ 18.55）から許容 0.6m ぎりぎりだったため、届く位置に置く
+  [34.9, 18.5],
   [33, 22],
   [33, 25],
   [35.5, 27.5],
@@ -91,7 +44,6 @@ const LEDGE: [number, number][] = [
 test('the player can run from B up the mausoleum roof, along the cliff ledge to the chapel wall top, and drop into the chapel at three points', async ({
   page,
 }) => {
-  test.setTimeout(300_000);
   await boot(page);
   const alive = async () => (await sim(page)).player.state !== 'dead';
 
@@ -162,7 +114,6 @@ test('the player can run from B up the mausoleum roof, along the cliff ledge to 
 test('the mausoleum roof south edge and the ledge edges do not let the player fall to death', async ({
   page,
 }) => {
-  test.setTimeout(120_000);
   await boot(page);
   // 屋根の南縁から降りる
   await teleport(page, 29, 14.4, Math.PI, 5);
