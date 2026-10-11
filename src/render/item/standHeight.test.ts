@@ -32,10 +32,11 @@ describe('corpse data', () => {
       'corpse_b_flask',
       'corpse_roof',
       'corpse_ledge',
+      'npc_knight', // 生きている間の姿（もたれて座る）。息絶えると corpse_knight が出る
       'corpse_knight',
     ]);
     for (const d of corpses) {
-      expect(d.kind).toBe('loot');
+      expect(d.kind).toBe(d.id === 'npc_knight' ? 'talk' : 'loot');
       expect(isCorpsePose(d.corpse?.pose)).toBe(true);
       expect(isCorpseVariant(d.corpse?.variant)).toBe(true);
     }

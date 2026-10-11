@@ -28,8 +28,6 @@ describe('data-driven interactables (read / loot)', () => {
       interactables: [
         { id: 'grave_b1', kind: 'read', area: null, x: 16, z: 3 },
         { id: 'corpse_b_flask', kind: 'loot', area: null, x: 24, z: 9 },
-        // 未実装の種別（祈る）は置いてあっても登録されない
-        { id: 'statue_c', kind: 'read', area: null, x: 30, z: 9 },
       ],
       spawn: { x: 16, z: 1.8, yaw: 0 },
     });
@@ -50,7 +48,7 @@ describe('data-driven interactables (read / loot)', () => {
     return { game, save, storage, texts, picked, run, press };
   }
 
-  it('registers only the implemented kinds that the level places', async () => {
+  it('registers only the targets that the level places', async () => {
     const { game } = await setup();
     expect([...interactablesOf(game).ids].sort()).toEqual(['corpse_b_flask', 'grave_b1']);
   });

@@ -202,7 +202,14 @@ export type InteractableKind =
   | 'item'
   /** データ駆動のインタラクト（#122。`data/world/interactables.ts`）。 */
   | 'read'
-  | 'loot';
+  | 'loot'
+  /** 実動作の種別（#123）。 */
+  | 'pray'
+  | 'bell'
+  | 'talk'
+  | 'push'
+  | 'breakable'
+  | 'floorHatch';
 
 export interface InteractableSpawn {
   readonly id: string;

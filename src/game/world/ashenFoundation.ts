@@ -912,7 +912,7 @@ function placedWorldInteractables(): InteractableSpawn[] {
   return WORLD_INTERACTABLES.filter((d) => IMPLEMENTED_KINDS.has(d.kind) && sites.has(d.site)).map(
     (d) => ({
       id: d.id,
-      kind: d.kind === 'read' ? 'read' : 'loot',
+      kind: d.kind,
       area: null,
       x: d.x,
       z: d.z,

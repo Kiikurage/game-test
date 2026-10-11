@@ -1,30 +1,40 @@
+import { WORLD_FLAGS } from '../data/world/lootTuning';
+import '../interactable/worldEvents';
 import { registerGameSystem } from '../systems';
 import type { Game } from '../game';
 import { GRATE, HATCH } from './waterway';
 
-// 脇道 side_waterway の仕掛け（#111）。腐った床板は踏むと割れて水路へ落ちる（落下ダメージなし）。
-// 鉄格子は内側から押して開く（状況ボタン「押す」・90F の演出・セーブは E11）。ここでは割れる・開く状態と
-// コライダのオン/オフだけを持ち、E11 は `waterwayOf(game).openGrate()` / `breakHatch()` を呼ぶ。
-// 床板の中心は レベルの `interactables`（kind: 'hatch'）から取る。
-
-/** 床板を踏んだと見なす範囲（床板の半幅より少し内側。縁をかすめただけでは割れない）。 */
-const HATCH_TRIGGER = HATCH.half - 0.15;
+// 脇道 side_waterway の仕掛け（#111 / #123）。腐った床板は踏むと割れて水路へ落ちる（落下ダメージなし）。
+// 鉄格子は内側から押して開く。どちらも動作は `Interactable`（`game/interactable`）が持つ:
+//  - 床板（`hatch_c`、kind: floorHatch）: 近付くと軋み、踏むと `floorHatchBroken` を出す。ここはそれを受けて
+//    割れた状態（描画の床板を消す）にし、コライダを外す。
+//  - 鉄格子（`grate_d`、kind: push）: 押すと `world.grateDOpen` をセーブする。ここはそのフラグを読んで
+//    開いた状態（描画の格子を消す）にする（再開後は最初から開いている）。
+// `waterwayOf(game).breakHatch()` / `openGrate()` はデバッグ・テスト用の口として残している。
 
 export class WaterwayState {
   hatchBroken = false;
   grateOpen = false;
 
-  constructor(private readonly game: Game) {}
-
-  private spot(kind: 'hatch' | 'grate'): { x: number; z: number } | undefined {
-    return this.game.interactableSpawns.find((i) => i.kind === kind);
+  constructor(private readonly game: Game) {
+    game.events.on('floorHatchBroken', (e) => {
+      if (e.colliderId === HATCH.id) this.breakHatch(false);
+    });
+    this.syncGrate();
   }
 
-  /** 床板を割る（コライダを外す）。割れていなければ true。 */
-  breakHatch(): boolean {
+  /** 床板を割る（コライダを外す）。割れていなければ true。`announce` は割れたイベントも出す（デバッグ用の口から）。 */
+  breakHatch(announce = true): boolean {
     if (this.hatchBroken) return false;
     this.hatchBroken = true;
     this.game.setBoxEnabled(HATCH.id, false);
+    if (announce) {
+      this.game.events.emit('floorHatchBroken', {
+        id: 'hatch_c',
+        colliderId: HATCH.id,
+        position: { x: HATCH.x, y: this.game.heightAt(HATCH.x, HATCH.z), z: HATCH.z },
+      });
+    }
     return true;
   }
 
@@ -36,19 +46,13 @@ export class WaterwayState {
     return true;
   }
 
+  /** 開けたままのセーブ（`world.grateDOpen`）を反映する。 */
+  private syncGrate(): void {
+    if (!this.grateOpen && this.game.save.hasFlag(WORLD_FLAGS.grateDOpen)) this.openGrate();
+  }
+
   update(): void {
-    if (this.hatchBroken) return;
-    const hatch = this.spot('hatch');
-    if (!hatch) return;
-    const { player } = this.game;
-    const feet = player.feet;
-    if (!player.grounded) return;
-    if (Math.abs(feet.x - hatch.x) > HATCH_TRIGGER || Math.abs(feet.z - hatch.z) > HATCH_TRIGGER) {
-      return;
-    }
-    // 床板の上（礼拝堂の床の高さ）に立っているときだけ。水路の中（真下）では割れない
-    if (feet.y < this.game.heightAt(hatch.x, hatch.z) - 0.5) return;
-    this.breakHatch();
+    this.syncGrate();
   }
 }
 
