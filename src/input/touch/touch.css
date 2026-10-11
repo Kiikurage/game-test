@@ -159,9 +159,33 @@
   --b: 160;
 }
 
+/*
+ * 「調査」ボタン = 状況ボタン（仕様書 9.1 節）。右 120px・上 50%・高さ 40px のピル形。状況アクションがあるときだけ出る
+ * （HUD が <html data-interact-label> を書く。src/ui/hud/guide.ts）。出ていない間は押せない。
+ */
 .touch-btn--interact {
-  --size: calc(var(--u) * 48);
-  --r: 144;
-  --b: 160;
-  font-size: calc(var(--u) * 11px);
+  --size: auto;
+  top: 50%;
+  bottom: auto;
+  right: calc(var(--sr) + 120px * var(--ui-scale, 1));
+  width: auto;
+  height: calc(40px * var(--ui-scale, 1));
+  padding: 0 calc(18px * var(--ui-scale, 1));
+  border-radius: calc(20px * var(--ui-scale, 1));
+  font-size: calc(16px * var(--ui-scale, 1));
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s,
+    background-color 0.06s;
+}
+
+.touch-btn--interact.is-available {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.touch-btn--interact.is-pressed {
+  transform: translateY(-50%) scale(0.95);
 }
