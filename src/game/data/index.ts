@@ -3,6 +3,7 @@ export * from './combat';
 export * from './enemyAi';
 export * from './enemyAttack';
 export * from './frameWindow';
+export * from './ambush';
 export * from './playerActions';
 export * from './playerStats';
 export * from './types';

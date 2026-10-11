@@ -203,6 +203,7 @@ describe('undead soldier in the game (Rapier)', () => {
     const game = await Game.create({ input, boxes: [], dummies: [], enemies: [SPAWN] });
     const enemy = game.enemies.enemies[0];
     if (!enemy) throw new Error('enemy not spawned');
+    game.player.ambushSource = null; // 背後からでも致命の一撃にせず、通常の軽攻撃 3 発で確かめる
     game.teleportPlayer(0, -1.1, 0); // 背後から
     const run = (frames: number) => {
       for (let i = 0; i < frames; i++) {

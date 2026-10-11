@@ -33,6 +33,8 @@ export const HIT_STOP = {
   playerLight: 4,
   playerHeavy: 8,
   playerHeavyCharged: 12,
+  /** 致命の一撃（14.3.2 節）。強攻撃より長く止めて、決まった手応えを出す。 */
+  playerBackstab: 14,
   enemyHitsPlayer: 6,
   bossHitsPlayer: 8,
   guardSuccess: 4,

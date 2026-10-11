@@ -14,6 +14,7 @@ import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
 import { PlayerKitAssets, type CapeRig } from './player/playerKit';
 import { applyCharacterLight, type CharacterLight } from './characterLight';
+import { AMBUSH } from '../game/data';
 import { heavyChargeGlow } from './player/heavyChargeGlow';
 
 const Y_AXIS = new Vector3(0, 1, 0);
@@ -132,7 +133,10 @@ export class PlayerView {
     if (this.light) {
       const glow = heavyChargeGlow(player.state, player.stateFrame);
       if (glow.amount > 0) this.light.setWeaponTelegraph(glow.amount, glow.color);
-      else if (this.light.weaponTelegraph !== 0) this.light.setWeaponTelegraph(0);
+      else if (player.ambushReady) {
+        // 致命の一撃が出せる間、剣の縁がわずかに光る（#115。HUD は出さない）
+        this.light.setWeaponTelegraph(AMBUSH.glowAmount, AMBUSH.glowColor, { edge: 1 });
+      } else if (this.light.weaponTelegraph !== 0) this.light.setWeaponTelegraph(0);
     }
     this.animator.update(dt, player.animation, alpha);
     // ロックオン中の横移動は、体を移動方向へ向ける（上半身は背骨で対象へ戻す）

@@ -178,6 +178,11 @@ export class Enemy implements LockOnTarget {
   /** このステップに発火した足音など（1 ステップごとにクリアされる）。 */
   readonly markerEvents: AnimMarkerEvent[] = [];
   attackBehavior: EnemyAttackBehavior = NO_ATTACK;
+  /**
+   * 拘束中（致命の一撃の発動中。#115）。行動・知覚・向きの更新を止める（気付きゲージも進まない = Alert にならず、
+   * 振り向かない）。`provoke` も無視する。ヒットストップの凍結は通常どおり進む。
+   */
+  restrained = false;
   /** 次に（または今）出す攻撃の動作 ID。`attackBehavior.tryStart` が入れ、Attack 状態の動作 ID になる。 */
   currentAttackId: string | null = null;
 
@@ -325,6 +330,7 @@ export class Enemy implements LockOnTarget {
    * Idle / Suspicious のときだけ効く。Alert 以降・Return 中・行動不能では何もしない。
    */
   provoke(x: number, z: number): void {
+    if (this.restrained) return;
     if (this.state !== 'idle' && this.state !== 'suspicious') return;
     this.setLastKnown(x, z);
     this.gauge = ENEMY_GAUGE.max;
@@ -361,6 +367,7 @@ export class Enemy implements LockOnTarget {
 
   /** 位置・状態を出発地点へ戻す（リスポーン・デバッグ）。 */
   reset(): void {
+    this.restrained = false;
     this.cancelAttack();
     this.pushed.x = 0;
     this.pushed.z = 0;
@@ -409,6 +416,12 @@ export class Enemy implements LockOnTarget {
     }
     // ヒットストップ中は状態フレーム・移動を含めて止める
     if (this.fsm.consumeFreeze()) {
+      this.syncTransform();
+      return;
+    }
+    if (this.restrained) {
+      // 拘束: 立ち止まったまま（速度だけ落として押し戻しは受ける）。状態・ゲージ・向きは動かさない
+      this.integrate(dt);
       this.syncTransform();
       return;
     }
