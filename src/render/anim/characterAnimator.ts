@@ -125,6 +125,9 @@ export class CharacterAnimator {
   private legFolded = false;
   private upperOverride: { layer: string; weight: number; time: number } | null = null;
   private readonly spineBones: Object3D[] = [];
+  /** `applyTwist` 前の背骨の回転（次フレームのミキサー更新前に戻す）。 */
+  private readonly untwisted: Quaternion[] = [];
+  private twisted = false;
   private readonly tmpQ = new Quaternion();
   private readonly tmpParentQ = new Quaternion();
   private readonly tmpD = new Quaternion();
@@ -153,7 +156,10 @@ export class CharacterAnimator {
     this.layers.snapToTargets();
     for (const bone of SPINE_BONES) {
       const b = root.getObjectByName(bone);
-      if (b) this.spineBones.push(b);
+      if (b) {
+        this.spineBones.push(b);
+        this.untwisted.push(new Quaternion());
+      }
     }
   }
 
@@ -192,6 +198,7 @@ export class CharacterAnimator {
       this.applyUpperOverride(plan === null);
     }
     this.updateLegYaw(s, animDt);
+    this.restoreTwist();
     this.layers.update(animDt);
     this.dominantClip = this.layers.dominantClip('lower') ?? this.dominantClip;
   }
@@ -385,9 +392,12 @@ export class CharacterAnimator {
   applyTwist(): void {
     if (Math.abs(this.legYaw) < 1e-3 || this.spineBones.length === 0) return;
     const per = -this.legYaw / this.spineBones.length;
-    for (const bone of this.spineBones) {
-      const parent = bone.parent;
-      if (!parent) continue;
+    this.twisted = true;
+    for (let i = 0; i < this.spineBones.length; i++) {
+      const bone = this.spineBones[i];
+      const parent = bone?.parent;
+      if (!bone || !parent) continue;
+      this.untwisted[i]?.copy(bone.quaternion);
       parent.updateWorldMatrix(true, false);
       parent.getWorldQuaternion(this.tmpParentQ);
       // ワールドの Y 軸回りに per だけ回す: local' = parent⁻¹ · R · parent · local
@@ -395,6 +405,19 @@ export class CharacterAnimator {
       this.tmpQ.copy(this.tmpParentQ).invert().multiply(this.tmpD).multiply(this.tmpParentQ);
       bone.quaternion.premultiply(this.tmpQ);
       bone.updateMatrixWorld(true);
+    }
+  }
+
+  /**
+   * 前フレームのひねりを外す（ミキサー更新の前に呼ぶ）。three の `PropertyMixer` は合成結果が前フレームと
+   * 同じだとボーンに書き込まないため、戻さないとひねりが毎フレーム積み重なり上半身が回り続ける（#256）。
+   */
+  private restoreTwist(): void {
+    if (!this.twisted) return;
+    this.twisted = false;
+    for (let i = 0; i < this.spineBones.length; i++) {
+      const q = this.untwisted[i];
+      if (q) this.spineBones[i]?.quaternion.copy(q);
     }
   }
 }
