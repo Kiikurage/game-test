@@ -1,6 +1,11 @@
 import { MainLoop } from './core/mainLoop';
 import type { ProgressTracker } from './core/progress';
-import { createBrowserAudioEngine, createSfxSystem, installAudioUnlock } from './audio';
+import {
+  createBrowserAudioEngine,
+  createSfxSystem,
+  installAudioUnlock,
+  type BgmState,
+} from './audio';
 import { Game, type GameDebugState } from './game/game';
 import { preloadPhysics } from './game/physics';
 import { InputSystem, type InputDebugState } from './input';
@@ -45,6 +50,8 @@ interface DebugState {
   readonly audio?: {
     readonly state: string;
     readonly sfx: { readonly loaded: number; readonly active: number; readonly stats: object };
+    /** BGM の再生状態（メイン曲・レイヤーと、直近のフェードの目標・秒数）。 */
+    readonly bgm: BgmState;
     /** E2E 用: game のイベントバス経由で SE を鳴らす。 */
     readonly emitSound: (cue: string) => void;
   };
@@ -220,6 +227,7 @@ export async function createGameApp(
           audio &&
           sfx && {
             state: audio.state,
+            bgm: sfx.bgm.state,
             sfx: {
               loaded: sfx.library.loadedCount,
               active: sfx.player.activeVoices,

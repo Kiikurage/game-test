@@ -12,3 +12,5 @@ export * from './footstep';
 export * from './sfxEvents';
 export * from './listener';
 export * from './sfxSystem';
+export * from './bgmController';
+export * from './bgmEvents';

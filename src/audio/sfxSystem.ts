@@ -1,6 +1,8 @@
 import type { GameEventBus } from '../core/gameEvents';
 import type { AudioEngine } from './audioEngine';
 import { listenerPoseFromMatrix, type WorldMatrixSource } from './listener';
+import { BgmController } from './bgmController';
+import { bindBgmEvents } from './bgmEvents';
 import { SfxPlayer } from './sfxPlayer';
 import { bindSfxEvents } from './sfxEvents';
 import { PRELOAD_GROUPS, SoundLibrary, detectOggOpusSupport } from './soundLibrary';
@@ -15,6 +17,8 @@ export interface SfxSystemOptions {
 export interface SfxSystem {
   readonly library: SoundLibrary;
   readonly player: SfxPlayer;
+  /** BGM の再生制御。ボス戦はイベントで自動。タイトル（`bgm.title`）・エンディング（`bgm.ending`）は画面側が `play` / `stop` を呼ぶ。 */
+  readonly bgm: BgmController;
   /** マニフェストの読み込み完了（失敗しても reject しない。無音で続行する）。 */
   readonly ready: Promise<void>;
   /** 毎フレーム（カメラ行列の更新後）に呼ぶ。 */
@@ -38,13 +42,16 @@ export function createSfxSystem(
     opusSupported: detectOggOpusSupport(),
   });
   const player = new SfxPlayer(ctx, engine, library, { maxVoices: maxVoicesFor(opts.isMobile) });
-  const unbind = bindSfxEvents(events, player);
+  const bgm = new BgmController(ctx, engine, library);
+  const unbindSfx = bindSfxEvents(events, player);
+  const unbindBgm = bindBgmEvents(events, bgm, engine, (id) => library.get(id) !== undefined);
   const ready = library.loadManifest(`${audioBase}manifest.json`).catch((e: unknown) => {
     console.warn('audio: manifest unavailable, running silent', e);
   });
   return {
     library,
     player,
+    bgm,
     ready,
     syncListener(camera) {
       const pose = listenerPoseFromMatrix(camera.matrixWorld.elements);
@@ -55,7 +62,9 @@ export function createSfxSystem(
       await library.preload(PRELOAD_GROUPS[group]);
     },
     dispose() {
-      unbind();
+      unbindSfx();
+      unbindBgm();
+      bgm.dispose();
       player.stopAll();
     },
   };
