@@ -16,6 +16,7 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "shot": "node scripts/shot.mjs",
+    "heroshots": "node scripts/heroShots.mjs",
     "perf": "node scripts/perf.mjs",
     "assets:fetch": "node scripts/assets/fetch.mjs",
     "assets:audio": "node scripts/audio/build.mjs",

@@ -1,0 +1,251 @@
+{
+  "$doc": [
+    "ヒーローショットの視点データ（npm run heroshots。docs/tech-direction.md §7.1）。視点の追加・変更はこのファイルだけでよい。",
+    "座標は篝火が原点、+x 東、+z 北（m）。向き yawDeg は +Z 基準で前方 = (sin, cos)（90 = 東）。",
+    "shots[]: name（ファイル名。英小文字・数字・-）、area（エリア名）、title（見せ場の説明）、",
+    "  player: { x, z, y?（省略時は地形の高さ。地下は床の高さを書く）, yawDeg? | face?: [x, z]（その点を向く） }、",
+    "  camera: { yawOffsetDeg?（プレイヤーの向きからのずれ）, distance?（m）, pitchDeg?（見下ろしが正） }（ゲームの三人称カメラ）、",
+    "  freeCam?: { position: [x, y, z], target: [x, y, z] }（三人称カメラの代わりに自由視点で撮る）、",
+    "  enemies?: false（敵を配置しない。?enemies=0 で別にページを読み込む）、query?: { 追加の URL パラメータ }、",
+    "  dev?: [[フック名, ...引数]]（window.__game.dev のフックを順に呼ぶ。例: [\"arenaEnter\", { \"boss\": true }]、[\"breakHatch\"]）、",
+    "  steps?（撮影前に進めるシミュレーションのステップ数）、frames?（その後に待つ描画フレーム数）。",
+    "dev の操作（床板を割る・門を開ける等）は元に戻らないので、影響を受ける視点より後に並べる。ボスは視点ごとに取り除かれる。",
+    "defaults: camera / steps / frames / enemies の既定値、hud（true で HUD を写す。既定 false）、",
+    "  localStorage（起動前に入れるキーと値。値がオブジェクトなら JSON にする。既定は篝火を点火済みにしたセーブ）。"
+  ],
+  "defaults": {
+    "localStorage": {
+      "gametest.save.v1": {
+        "version": 2,
+        "data": {
+          "bonfires": ["bonfire"]
+        }
+      }
+    },
+    "camera": {
+      "yawOffsetDeg": 0,
+      "distance": 4.2,
+      "pitchDeg": 12
+    },
+    "steps": 60,
+    "frames": 12,
+    "enemies": true,
+    "hud": false
+  },
+  "shots": [
+    {
+      "name": "bonfire-arrival",
+      "area": "篝火",
+      "title": "篝火「灰の炉」と石碑",
+      "player": {
+        "x": 0.8,
+        "z": -4.2,
+        "face": [-4.5, 2]
+      }
+    },
+    {
+      "name": "bonfire-lanterns",
+      "area": "篝火",
+      "title": "篝火越しに墓地の小径へ",
+      "player": {
+        "x": -3,
+        "z": 2.5,
+        "face": [14, 5]
+      }
+    },
+    {
+      "name": "graveyard-path",
+      "area": "墓地",
+      "title": "墓石の並ぶ小径を上る",
+      "player": {
+        "x": 11,
+        "z": 1.5,
+        "face": [24, 8]
+      }
+    },
+    {
+      "name": "graveyard-mausoleum",
+      "area": "墓地",
+      "title": "霊廟と亡者",
+      "player": {
+        "x": 20,
+        "z": 9,
+        "face": [29, 16]
+      }
+    },
+    {
+      "name": "chapel-gate-approach",
+      "area": "礼拝堂の門",
+      "title": "崩れた礼拝堂の西の門を見上げる",
+      "player": {
+        "x": 31.5,
+        "z": 11.5,
+        "face": [41, 17.5]
+      }
+    },
+    {
+      "name": "chapel-gate-threshold",
+      "area": "礼拝堂の門",
+      "title": "門をくぐる",
+      "player": {
+        "x": 37,
+        "z": 16,
+        "face": [46, 18]
+      }
+    },
+    {
+      "name": "chapel-nave",
+      "area": "礼拝堂内部",
+      "title": "身廊と祭壇",
+      "player": {
+        "x": 43,
+        "z": 17,
+        "face": [56, 24]
+      }
+    },
+    {
+      "name": "chapel-breach",
+      "area": "礼拝堂内部",
+      "title": "祭壇と東の崩れ口",
+      "player": {
+        "x": 52,
+        "z": 20,
+        "face": [61, 28]
+      }
+    },
+    {
+      "name": "waterway-tunnel",
+      "area": "地下水路",
+      "title": "礼拝堂の床下を東へ",
+      "player": {
+        "x": 47,
+        "y": 1.02,
+        "z": 28,
+        "yawDeg": 90
+      },
+      "dev": [["breakHatch"]],
+      "camera": {
+        "distance": 3.2,
+        "pitchDeg": 2
+      }
+    },
+    {
+      "name": "waterway-stairs",
+      "area": "地下水路",
+      "title": "雫と上り階段",
+      "player": {
+        "x": 66,
+        "y": 1.02,
+        "z": 34,
+        "yawDeg": 0
+      },
+      "camera": {
+        "distance": 3.2,
+        "pitchDeg": 2
+      }
+    },
+    {
+      "name": "crypt-entrance",
+      "area": "地下墓所",
+      "title": "地下墓所の入口",
+      "player": {
+        "x": 62,
+        "z": 37,
+        "yawDeg": 0
+      }
+    },
+    {
+      "name": "crypt-bend",
+      "area": "地下墓所",
+      "title": "L 字の角と石棺の窪み",
+      "player": {
+        "x": 62.5,
+        "z": 47.5,
+        "face": [61.8, 51.5]
+      },
+      "camera": {
+        "yawOffsetDeg": 30,
+        "pitchDeg": 20
+      }
+    },
+    {
+      "name": "crypt-corridor",
+      "area": "地下墓所",
+      "title": "東の通路と盾持ち",
+      "player": {
+        "x": 65,
+        "z": 48.5,
+        "yawDeg": 90
+      }
+    },
+    {
+      "name": "courtyard-entrance",
+      "area": "中庭",
+      "title": "西の入口から崩れた噴水",
+      "player": {
+        "x": 84.5,
+        "z": 51,
+        "face": [94, 58]
+      }
+    },
+    {
+      "name": "courtyard-fountain",
+      "area": "中庭",
+      "title": "噴水越しに霧の門",
+      "player": {
+        "x": 90,
+        "z": 54,
+        "face": [104, 68]
+      }
+    },
+    {
+      "name": "fog-gate",
+      "area": "霧の門",
+      "title": "霧の門の前",
+      "player": {
+        "x": 101,
+        "z": 63,
+        "face": [104, 68]
+      }
+    },
+    {
+      "name": "arena-entry",
+      "area": "闘技場",
+      "title": "闘技場に入る（柱・台座・たいまつ）",
+      "dev": [["arenaEnter"]]
+    },
+    {
+      "name": "arena-boss",
+      "area": "闘技場",
+      "title": "ボスと対峙",
+      "dev": [
+        [
+          "arenaEnter",
+          {
+            "boss": true
+          }
+        ]
+      ]
+    },
+    {
+      "name": "shortcut-gate",
+      "area": "ショートカット",
+      "title": "鉄門 G1 とレバー",
+      "player": {
+        "x": 80.5,
+        "z": 40,
+        "face": [78, 32]
+      }
+    },
+    {
+      "name": "shortcut-lane",
+      "area": "ショートカット",
+      "title": "鉄門から篝火へ下る道",
+      "player": {
+        "x": 74,
+        "z": 22,
+        "face": [68, 8]
+      }
+    }
+  ]
+}
