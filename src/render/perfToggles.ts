@@ -6,8 +6,10 @@ import type { QualityPreset } from './quality';
  * 既定はすべて無効（通常のゲームには影響しない）。
  */
 export interface PerfToggles {
-  /** `?perf`: 計測 HUD を表示する（GPU 時間の計測も有効にする）。 */
+  /** `?perf`: 計測 HUD を表示する（GPU 時間の計測も有効にする）。`?bench` でも有効。 */
   readonly perf: boolean;
+  /** `?bench`: ベンチマークモード（決められたシナリオを自動で計測して結果を表にする。`render/bench/`）。 */
+  readonly bench: boolean;
   /** `?noshadow`: シャドウマップを描かない。 */
   readonly noShadow: boolean;
   /** `?nobloom`: ブルームを省く。 */
@@ -40,7 +42,8 @@ export function parsePerfToggles(search: string): PerfToggles {
   const params = new URLSearchParams(search);
   const on = (key: string): boolean => params.has(key) && params.get(key) !== '0';
   return {
-    perf: on('perf'),
+    perf: on('perf') || on('bench'),
+    bench: on('bench'),
     noShadow: on('noshadow'),
     noBloom: on('nobloom'),
     noMsaa: on('nomsaa'),

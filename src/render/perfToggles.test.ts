@@ -12,12 +12,18 @@ describe('parsePerfToggles', () => {
 
   it('reads each toggle, treating =0 as off', () => {
     const t = parsePerfToggles(
-      '?perf&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat',
+      '?perf&bench&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat',
     );
     const { flatMatGroups, ...flags } = t;
     expect(Object.values(flags).every(Boolean)).toBe(true);
     expect(flatMatGroups).toBeNull(); // ?flatmat だけなら全グループ
     expect(parsePerfToggles('?noshadow=0').noShadow).toBe(false);
+  });
+
+  it('turns on the perf HUD with ?bench', () => {
+    const t = parsePerfToggles('?bench');
+    expect(t.bench).toBe(true);
+    expect(t.perf).toBe(true);
   });
 
   it('reads flatmat groups', () => {

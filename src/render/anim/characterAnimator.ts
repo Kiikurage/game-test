@@ -18,6 +18,7 @@ import type { Character } from '../assets/character';
 import type { ClipName } from '../assets/clips';
 import { upperBodyBoneNames } from './boneMask';
 import { LayeredAnimation } from './layeredAnimation';
+import { legYawTarget } from './legYaw';
 
 /**
  * キャラクターのアニメーションコントローラ（プレイヤー・雑魚・ボス共通。`render` 層）。
@@ -93,7 +94,6 @@ type Resolve = (name: ClipName) => AnimationClip;
 const Y_AXIS = new Vector3(0, 1, 0);
 const SPINE_BONES = ['spine_01', 'spine_02', 'spine_03'] as const;
 /** 体を移動方向へ向ける最大角（ロックオン中の横移動）。 */
-const MAX_LEG_YAW = (60 * Math.PI) / 180;
 
 const LOCO_LAYERS = ['idle', 'walk', 'jog', 'sprint'] as const;
 const LOCO_CLIP: Readonly<Record<(typeof LOCO_LAYERS)[number], ClipName>> = {
@@ -104,13 +104,6 @@ const LOCO_CLIP: Readonly<Record<(typeof LOCO_LAYERS)[number], ClipName>> = {
 };
 const COMBAT_IDLE_LAYER = 'combatIdle';
 const UPPER_OVERRIDE_PREFIX = 'upper:';
-
-function wrap(a: number): number {
-  let r = a % (Math.PI * 2);
-  if (r > Math.PI) r -= Math.PI * 2;
-  else if (r <= -Math.PI) r += Math.PI * 2;
-  return r;
-}
 
 const wrap01 = (x: number): number => ((x % 1) + 1) % 1;
 
@@ -128,6 +121,8 @@ export class CharacterAnimator {
   private readonly warned = new Set<string>();
   private idlePhase = 0;
   private legYaw = 0;
+  /** 脚の向きが後退の折り返し中か（境界での往復を避ける）。 */
+  private legFolded = false;
   private upperOverride: { layer: string; weight: number; time: number } | null = null;
   private readonly spineBones: Object3D[] = [];
   private readonly tmpQ = new Quaternion();
@@ -325,10 +320,12 @@ export class CharacterAnimator {
       (s.kind === 'move' || s.kind === 'idle') &&
       s.state !== 'fall'
     ) {
-      // 移動方向（モデル基準, 0 = 前）。local x は右が正、z は前が正。
-      let angle = Math.atan2(-s.localVelocity.x, s.localVelocity.z); // + = 左（yaw 増加方向）
-      if (Math.abs(angle) > Math.PI / 2) angle = wrap(angle - Math.sign(angle) * Math.PI); // 後退は逆再生なので前向きに折り返す
-      wanted = Math.max(-MAX_LEG_YAW, Math.min(MAX_LEG_YAW, angle));
+      // 移動方向（モデル基準, 0 = 前）。local x は右が正、z は前が正。後退は逆再生なので前向きに折り返す
+      const r = legYawTarget(s.localVelocity.x, s.localVelocity.z, this.legFolded);
+      wanted = r.wanted;
+      this.legFolded = r.folded;
+    } else {
+      this.legFolded = false;
     }
     this.legYaw += (wanted - this.legYaw) * (1 - Math.exp(-dt * 14));
   }

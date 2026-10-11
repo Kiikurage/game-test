@@ -40,6 +40,7 @@ import {
 import { OUTFIT_MESHES, clampProgress, type UndeadVariant } from './variants';
 import { bakedNoise } from '../bakedNoise';
 import { tagMaterial } from '../materialGroups';
+import { finiteColor } from '../finiteColor';
 
 /** 材質の役割。同じ元マテリアル（MI_Ranger）でもメッシュ名で金属パーツを分ける。 */
 export type UndeadRole = 'skin' | 'cloth' | 'metal';
@@ -57,6 +58,8 @@ const EYE_UVS = [
 const EYE_RADIUS = 0.0125;
 /** ディゾルブの縁の幅（ノイズ値の範囲）。 */
 const DISSOLVE_EDGE = 0.1;
+/** 発光の上限（リニア）。ディゾルブの縁の熾火（3.2）に他の発光が重なっても収まる値。 */
+const EMISSIVE_MAX = 6;
 
 /** 亡者の見た目を外から操作するハンドル。 */
 export interface UndeadLook {
@@ -378,8 +381,9 @@ function createUndeadMaterial(
     ).mul(float(1).sub(charred)),
   );
 
-  material.colorNode = albedo;
-  material.emissiveNode = emissive;
+  // NaN / Inf・極端な値を出さない（ブルームのぼかしで画面へ広がる。#258）。通常の値（縁の熾火は最大 3.2 × 熾火色）は変わらない
+  material.colorNode = finiteColor(albedo, 8);
+  material.emissiveNode = finiteColor(emissive, EMISSIVE_MAX);
   // テレグラフ中は刃を少し太らせる（追加の描画なし。頂点位置のオフセットだけ）
   if (isWeapon || glow.shield) {
     material.positionNode = positionLocal.add(

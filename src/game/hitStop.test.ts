@@ -219,7 +219,7 @@ describe('hit-stop (Game)', () => {
     expect(game.debugState.combat.hitStops).toBe(0);
   });
 
-  it('撃破: 12F 凍結 + スロー（凍結が明けてから 0.3 倍速で 30F）。死亡確定はヒットストップ前に通知される', () => {
+  it('雑魚敵の撃破: 6F 凍結だけでスローなし（#277）。死亡確定はヒットストップ前に通知される', () => {
     const weak = addEnemy('weak', 10);
     // 手前のキャラクターを狙う（プレイヤー攻撃の経路で当てる）
     weak.target.place(20, 0, 20, 0);
@@ -228,17 +228,14 @@ describe('hit-stop (Game)', () => {
     const out = playerHits('weak', 'light1', 40);
     expect(out[0]?.killed).toBe(true);
     expect(events[0]?.killed).toBe(true);
-    expect(game.player.fsm.freezeRemaining).toBe(12);
-    expect(weak.freeze.remaining).toBe(12);
-    // 凍結の 12 ステップは等速、そのあと 30 ステップだけ 0.3 倍
-    const scales: number[] = [];
-    for (let i = 0; i < 12 + 30 + 2; i++) {
-      scales.push(game.timeScale.current);
+    expect(game.player.fsm.freezeRemaining).toBe(6);
+    expect(weak.freeze.remaining).toBe(6);
+    // タイムスケールは 1 のまま
+    for (let i = 0; i < 6 + 30 + 2; i++) {
+      expect(game.timeScale.current).toBe(1);
       run(1);
     }
-    expect(scales.slice(0, 12).every((s) => s === 1)).toBe(true);
-    expect(scales.slice(12, 42).every((s) => s === 0.3)).toBe(true);
-    expect(scales.slice(42).every((s) => s === 1)).toBe(true);
+    expect(game.timeScale.active).toBe(false);
   });
 
   it('ボスの撃破は 60F のスロー', () => {
