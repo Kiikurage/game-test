@@ -1,4 +1,5 @@
 import './touch.css';
+import { interactPromptText } from '../../core/controlHints';
 import type { Action } from '../../core/input';
 import { INVERT_LOOK_Y, LOOK_SENSITIVITY, TOUCH } from '../config';
 import { applyRadialDeadzone } from '../deadzone';
@@ -85,6 +86,29 @@ export class TouchControls {
       e.preventDefault();
     });
     this.element = root;
+    this.observeInteractLabel();
+  }
+
+  /**
+   * 「調査」ボタンは状況ボタン（仕様書 9.1 節）を兼ねる。HUD が `<html data-interact-label>` に状況アクションの文言を
+   * 書いている間だけ「タップ：休む」のように表示し、なければ隠す（二重にならない）。
+   */
+  private observeInteractLabel(): void {
+    const btn = this.buttonEls.get('interact');
+    if (!btn) return;
+    const root = document.documentElement;
+    const apply = (): void => {
+      const label = root.dataset.interactLabel;
+      const available = label !== undefined && label !== '';
+      btn.classList.toggle('is-available', available);
+      btn.textContent = available ? interactPromptText('touch', label) : '調査';
+      btn.setAttribute('aria-label', available ? label : '調査');
+    };
+    new MutationObserver(apply).observe(root, {
+      attributes: true,
+      attributeFilter: ['data-interact-label'],
+    });
+    apply();
   }
 
   /** 入力デバイスがタッチ以外へ切り替わった等で、押しっぱなしの状態を解除する。 */

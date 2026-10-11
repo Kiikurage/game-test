@@ -1,0 +1,124 @@
+/*
+ * 状況ボタン・操作ヒント・取得通知（仕様書 9.1 節）。寸法は `--ui-scale` で縮尺し、セーフエリア（`--safe-*`）の内側に置く。
+ * 状態の切り替えは class（opacity / transform）だけ。レイアウトを起こさない。
+ */
+.guide {
+  --s: var(--ui-scale, 1);
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  opacity: 1;
+}
+
+/* 状況ボタン（PC・パッド）: 右 120px・上 50%・高さ 40px のピル。タッチは入力側の「調査」ボタンが同じ位置に出る */
+.guide-prompt,
+.touch-btn--interact {
+  --pill-h: calc(40px * var(--ui-scale, 1));
+}
+
+.guide-prompt {
+  position: absolute;
+  right: calc(var(--safe-r, 0px) + 120px * var(--s));
+  top: 50%;
+  height: var(--pill-h);
+  box-sizing: border-box;
+  padding: 0 calc(16px * var(--s)) 0 calc(8px * var(--s));
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--s));
+  border-radius: calc(var(--pill-h) / 2);
+  border: 1px solid rgb(232 230 225 / 0.45);
+  background: rgb(14 16 22 / 0.62);
+  color: #ece6d6;
+  font-size: calc(16px * var(--s));
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.8);
+  opacity: 0;
+  transform: translateY(-50%) translateX(calc(8px * var(--s)));
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+
+.guide-prompt.is-visible {
+  opacity: 1;
+  transform: translateY(-50%);
+}
+
+/* タッチでは入力側のボタンがピルになる（二重にしない） */
+:root[data-input-device='touch'] .guide-prompt {
+  display: none;
+}
+
+.guide-prompt-key {
+  min-width: calc(24px * var(--s));
+  height: calc(24px * var(--s));
+  box-sizing: border-box;
+  padding: 0 calc(6px * var(--s));
+  display: grid;
+  place-items: center;
+  border-radius: calc(5px * var(--s));
+  border: 1px solid rgb(232 230 225 / 0.7);
+  background: rgb(232 230 225 / 0.14);
+  font-size: calc(14px * var(--s));
+  line-height: 1;
+}
+
+:root[data-input-device='gamepad'] .guide-prompt-key {
+  border-radius: 50%;
+}
+
+/* 画面中央下: 通知（18px）の下に操作ヒント（14〜16px、下端から 120px） */
+.guide-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-b, 0px) + 120px * var(--s));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  text-align: center;
+}
+
+.guide-notice,
+.guide-hint {
+  max-width: 80vw;
+  color: #ece6d6;
+  text-shadow:
+    0 0 2px rgb(0 0 0 / 0.95),
+    0 1px 5px rgb(0 0 0 / 0.85);
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.guide-notice {
+  min-height: calc(24px * var(--s));
+  font-family: var(--font-serif, serif);
+  font-size: calc(18px * var(--s));
+  letter-spacing: 0.14em;
+  transition: opacity 0.4s;
+}
+
+.guide-hint {
+  min-height: calc(20px * var(--s));
+  font-size: calc(15px * var(--s));
+  letter-spacing: 0.08em;
+}
+
+.guide-notice.is-visible,
+.guide-hint.is-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-prompt,
+  .guide-notice,
+  .guide-hint {
+    transition: none;
+  }
+}
