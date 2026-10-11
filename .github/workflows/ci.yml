@@ -35,7 +35,7 @@ jobs:
               - 'scripts/audio/**'
               - 'docs/audio-assets.md'
 
-  # lint / 型検査 / ユニットテスト / ビルド / 音声の容量・マニフェスト整合検査（ffmpeg 不要）
+  # lint / 型検査 / ユニットテスト / 音声の容量・マニフェスト整合検査（ffmpeg 不要）
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -51,7 +51,6 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
       - name: Audio manifest and budget check (committed outputs)
         run: npm run assets:audio:check
 
@@ -78,7 +77,30 @@ jobs:
           npm run assets:audio
           npm run assets:audio:check
 
+  # 本番ビルドは CI 全体でここの 1 回だけ。型検査は check が行うので vite build のみ。
+  # dist を artifact にして E2E シャードで共有する
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx vite build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+
   e2e:
+    needs: build
     name: e2e (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -116,7 +138,15 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      # ビルド済みの dist を preview するだけにする（playwright.config.mjs の E2E_PREBUILT）
       - name: E2E (headless WebGPU via SwiftShader)
+        env:
+          E2E_PREBUILT: '1'
         run: npm run e2e -- --fully-parallel --shard=${{ matrix.shard }}/3
 
       - name: Upload Playwright report
