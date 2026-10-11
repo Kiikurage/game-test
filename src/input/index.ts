@@ -51,7 +51,9 @@ export interface InputDebugState {
  * スナップショットを確定する。ゲームロジックは `InputReader` として読む。
  */
 export class InputSystem implements InputReader {
-  private readonly collector = new InputCollector();
+  /** 実時刻[ms]（ボタンの押下時間の判定用）。`enableDevMode` 後はシミュレーション時刻。 */
+  private nowMs: () => number = () => performance.now();
+  private readonly collector = new InputCollector(() => this.nowMs());
   private readonly buffer = new InputBuffer(INPUT_BUFFER_SECONDS, INPUT_BUFFER_SECONDS_BY_ACTION);
   private readonly dodge = new DodgeButton(DODGE_HOLD_SECONDS * 1000);
   private readonly keyboardMouse: KeyboardMouseInput;
@@ -118,6 +120,41 @@ export class InputSystem implements InputReader {
     this.keyboardMouse.requestLock();
   }
 
+  /**
+   * E2E・撮影用の動作に切り替える（`dev.start()` が呼ぶ。戻せない）。
+   * - Pointer Lock を要求しない（実マウスを奪わない）。ロックなしのクリックも攻撃として扱う
+   * - 押下時間（回避の短押し / 長押し）を実時間ではなくシミュレーション時刻で測る（`dev.advance` で決定的になる）
+   */
+  enableDevMode(): void {
+    this.keyboardMouse.pointerLockEnabled = false;
+    this.nowMs = () => this.clock * 1000;
+  }
+
+  /** 入力注入: ボタンを押す / 離す（E2E 用。押下は次の `step` で 1 回の `pressed` になる）。 */
+  injectButton(action: Action, down: boolean): void {
+    this.collector.setButton('dev', action, down);
+  }
+
+  /** 入力注入: 移動スティック（-1..1。長さ 1 に丸める）。0, 0 で離す。 */
+  injectMove(x: number, y: number): void {
+    this.collector.setMove('dev', x, y);
+  }
+
+  /** 入力注入: カメラの回転量 [rad]（次の `step` で 1 回だけ効く）。 */
+  injectLook(dx: number, dy: number): void {
+    this.collector.addLook(dx, dy);
+  }
+
+  /** 入力注入: ターゲット切替（-1: 左 / 1: 右）。 */
+  injectTargetSwitch(dir: -1 | 1): void {
+    this.collector.requestTargetSwitch(dir);
+  }
+
+  /** 注入中の入力をすべて離す。 */
+  releaseInjected(): void {
+    this.collector.releaseSource('dev');
+  }
+
   get snapshot(): InputSnapshot {
     return this.current;
   }
@@ -148,7 +185,7 @@ export class InputSystem implements InputReader {
     const raw = this.collector.drain();
 
     const dodgeRaw = raw.buttons.dodge;
-    const rolled = this.dodge.update(performance.now(), dodgeRaw);
+    const rolled = this.dodge.update(this.nowMs(), dodgeRaw);
 
     const buttons = {} as Record<Action, ButtonState>;
     for (const action of ACTIONS) {

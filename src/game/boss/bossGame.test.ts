@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { sectorShape } from '../combat';
 import { Game } from '../game';
@@ -74,8 +75,8 @@ describe('boss system in the game (Rapier)', () => {
     for (let i = 0; i < 400 && boss.currentMove === null; i++) run(1);
     expect(boss.currentMove).not.toBeNull();
     expect(game.playerTarget.health.current).toBe(hp0); // 予備動作の間は当たらない
-    for (let i = 0; i < 100 && game.hitCount === 0; i++) run(1);
-    expect(game.hitCount).toBeGreaterThan(0);
+    for (let i = 0; i < 100 && gameStats(game).hitCount === 0; i++) run(1);
+    expect(gameStats(game).hitCount).toBeGreaterThan(0);
     expect(game.playerTarget.health.current).toBeLessThan(hp0);
   });
 

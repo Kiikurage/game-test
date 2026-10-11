@@ -1,3 +1,4 @@
+import { gameStats } from './debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { GameEventMap } from '../core/gameEvents';
 import {
@@ -97,7 +98,7 @@ describe('hit-stop (Game)', () => {
     expect(game.player.fsm.freezeRemaining).toBe(6);
     expect(enemy.freeze.remaining).toBe(6);
     expect(bystander.remaining).toBe(0);
-    expect(game.debugState.combat.lastHitStopFrames).toBe(6);
+    expect(gameStats(game).lastHitStopFrames).toBe(6);
   });
 
   it('被弾リアクタ（ダミーの強靭度・崩しの残り）もヒットストップ中は進まない', () => {
@@ -141,11 +142,11 @@ describe('hit-stop (Game)', () => {
     game.debugSwing.start();
     // 発生 12F のあと、持続中に命中する
     let guard = 0;
-    while (game.hitCount === 0 && guard++ < 60) run(1);
-    expect(game.hitCount).toBe(1);
+    while (gameStats(game).hitCount === 0 && guard++ < 60) run(1);
+    expect(gameStats(game).hitCount).toBe(1);
     expect(game.player.fsm.freezeRemaining).toBe(4);
     const frame = game.player.stateFrame;
-    const stepsBefore = game.debugState.combat.hitStops;
+    const stepsBefore = gameStats(game).hitStopCount;
     // 4F の間は凍結。その間も物理・カメラ・タイムは進む（別のキャラクターの凍結の消費は呼び出し側）
     run(4);
     expect(game.player.stateFrame).toBe(frame);
@@ -153,7 +154,7 @@ describe('hit-stop (Game)', () => {
     expect(game.player.fsm.freezeRemaining).toBe(0);
     run(1);
     expect(game.player.animation.frozen).toBe(false);
-    expect(game.debugState.combat.hitStops).toBe(stepsBefore);
+    expect(gameStats(game).hitStopCount).toBe(stepsBefore);
   });
 
   it('シミュレーション: 軽攻撃が命中すると、攻撃側の動作が +4F 遅れて終わる', () => {
@@ -169,11 +170,11 @@ describe('hit-stop (Game)', () => {
     game.teleportPlayer(0, 3.5, Math.PI); // 周囲にダミーはいない
     run(5);
     const miss = swingSteps();
-    const hits0 = game.hitCount;
+    const hits0 = gameStats(game).hitCount;
     game.teleportPlayer(0, -4.5, Math.PI); // dummy-a の 1.5m 手前
     run(5);
     const hit = swingSteps();
-    expect(game.hitCount).toBe(hits0 + 1);
+    expect(gameStats(game).hitCount).toBe(hits0 + 1);
     expect(hit).toBe(miss + tuning.hitStop.playerLight);
     expect(tuning.hitStop.playerLight).toBe(4);
   });
@@ -216,7 +217,7 @@ describe('hit-stop (Game)', () => {
     expect(game.player.invulnerable).toBe(true);
     expect(hitPlayer('soldier-1')).toHaveLength(0);
     expect(game.player.fsm.freezeRemaining).toBe(0);
-    expect(game.debugState.combat.hitStops).toBe(0);
+    expect(gameStats(game).hitStopCount).toBe(0);
   });
 
   it('雑魚敵の撃破: 6F 凍結だけでスローなし（#277）。死亡確定はヒットストップ前に通知される', () => {

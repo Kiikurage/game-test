@@ -9,7 +9,7 @@ import {
   Vector3,
 } from 'three/webgpu';
 import type { ParticleSystem } from './index';
-import { terrainHeight } from '../terrain';
+import { terrainHeight } from '../../game/world/terrain';
 
 /** `?particles` で確認用ビュー（篝火・熾火・ヒット火花・撃破の灰を繰り返し出す）を有効にする。 */
 export function isParticleDemoEnabled(search: string): boolean {

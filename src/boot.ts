@@ -127,7 +127,10 @@ function runLaunchFlow(root: HTMLElement, app: GameApp): void {
     }
   };
 
-  /** ユーザー操作（タップ・クリック・キー）のハンドラから呼ぶ。同期部分でジェスチャーを使い切る。 */
+  /**
+   * ユーザー操作（タップ・クリック・キー）のハンドラから呼ぶ。同期部分でジェスチャーを使い切る。
+   * `dev.start()` からも呼ばれる（そのときは入力が dev モードで、Pointer Lock の要求は何もしない）。
+   */
   const activate = async (): Promise<void> => {
     promptActivate = undefined; // 二重起動を防ぐ（以降のタップは没入化のみ・重複なら何もしない）
     app.resumeAudio();
@@ -155,6 +158,10 @@ function runLaunchFlow(root: HTMLElement, app: GameApp): void {
   portraitQuery.addEventListener('change', evaluate);
   window.addEventListener('resize', evaluate);
   showPrompt('start');
+  app.onDevStart(async () => {
+    if (state === 'running') return;
+    await activate();
+  });
 }
 
 async function boot(): Promise<void> {

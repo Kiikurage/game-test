@@ -1,4 +1,4 @@
-import { Vector3 } from 'three/webgpu';
+import { Vector3 } from 'three';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DummyTarget, chestPosition } from '../lockOn/targets';
 import { resetTuning, tuning } from '../tuning';

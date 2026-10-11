@@ -1,4 +1,4 @@
-import type { Vector3 } from 'three/webgpu';
+import type { Vector3 } from 'three';
 import type { HitShape } from '../combat';
 import { checkEnemyAttack, trackEndFrame, type EnemyAttackDef, type FrameWindow } from '../data';
 import type { BossMoveId, BossPhase } from './bossData';
