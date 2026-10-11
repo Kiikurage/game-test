@@ -7,3 +7,4 @@ export * from './playerActions';
 export * from './playerStats';
 export * from './types';
 export * from './bonfire';
+export * from './items';

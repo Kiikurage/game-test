@@ -187,6 +187,15 @@ export interface GameEventMap {
     readonly position: Vec3Like;
     readonly bannerSeconds: number;
   };
+  /** アイテムを取得した。取得通知（「回復瓶を手に入れた」を `noticeSeconds` 秒。E6-2b）が購読する。 */
+  itemPicked: {
+    readonly id: string;
+    readonly itemId: string;
+    readonly name: string;
+    readonly message: string;
+    readonly position: Vec3Like;
+    readonly noticeSeconds: number;
+  };
   /**
    * 休憩（篝火で休む）またはリスポーン（死亡後）。HP・瓶・敵の復活は発行側が済ませている。
    * ボス（E5）はこれを購読し、`defeatedBosses` に自分がいなければ HP 全回復・待機位置へ戻る。
