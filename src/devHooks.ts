@@ -10,6 +10,7 @@
 //   registerDevHooks('bonfire', ({ game }) => ({ bonfire: (id) => { ... } }));
 //
 // `*.dev.ts` は開発用のつなぎなので、例外的に game / render / input の型を import してよい（type import のみ）。
+import type { MainLoop } from './core/mainLoop';
 import type { Game } from './game/game';
 import type { InputSystem } from './input';
 import type { PlayerView } from './render/playerView';
@@ -22,8 +23,10 @@ export interface DevContext {
   readonly input: InputSystem;
   /** プレイヤーの描画（読み込み失敗・showcase では undefined）。 */
   readonly playerView: () => PlayerView | undefined;
-  /** メインループのシミュレーション進行を止める / 再開する。 */
-  readonly setPaused: (paused: boolean) => void;
+  /** メインループ（`paused` で進行を止める / `step` / `frame` で手動で進める）。 */
+  readonly loop: MainLoop;
+  /** 開始画面を経ずに開始する（Pointer Lock を取らない。入力は dev モード）。開始画面が出る前に呼ぶと例外。 */
+  readonly start: () => Promise<void>;
 }
 
 /** `window.__game.dev` の型。各 `*.dev.ts` が宣言マージでメンバーを足す。 */

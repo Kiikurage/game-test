@@ -1,3 +1,4 @@
+import { gameStats } from '../../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Game } from '../../game';
 import { FakeInput } from '../../testing/fakeInput';
@@ -57,7 +58,7 @@ async function play(s: Scenario): Promise<Outcome> {
   }
   expect(boss.state).toBe('attack');
   const hp0 = game.playerTarget.health.current;
-  const start = game.hitLog.length;
+  const start = gameStats(game).hitLog.length;
   let elapsed = 0;
   let pressed = false;
   const dir: Record<Dodge, readonly [number, number]> = {
@@ -74,14 +75,14 @@ async function play(s: Scenario): Promise<Outcome> {
       input.press('dodge');
       pressed = true;
     }
-    const before = game.hitLog.length;
+    const before = gameStats(game).hitLog.length;
     step();
     elapsed++;
     if (pressed) input.setMove(0, 0);
-    for (let k = before; k < game.hitLog.length; k++) frames.push(elapsed);
+    for (let k = before; k < gameStats(game).hitLog.length; k++) frames.push(elapsed);
   }
-  const hits = game.hitLog
-    .slice(start)
+  const hits = gameStats(game)
+    .hitLog.slice(start)
     .filter((e) => e.targetId === 'player')
     .map((e, i) => ({ attackId: e.attackId, damage: e.baseDamage, frame: frames[i] ?? -1 }));
   return { hits, hpLost: hp0 - game.playerTarget.health.current };

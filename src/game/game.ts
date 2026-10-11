@@ -129,7 +129,6 @@ export interface StaticCylinderSpec {
   readonly euler?: readonly [number, number, number];
 }
 
-const HIT_LOG_MAX = 32;
 const GROUND_FALLBACK_HALF = 100;
 /** テストシーンのダミーの HP（判定の確認用。実質壊れない）。 */
 const DUMMY_HP = 99999;
@@ -184,23 +183,6 @@ export class Game {
   readonly timeScale = new TimeScale();
   /** ボスの ID（ボスの攻撃・撃破でヒットストップ / スローの長さが変わる）。ボス（E5）が自分の ID を足す。 */
   readonly bossIds = new Set<string>();
-  /** ヒットストップの累計回数と直近の凍結フレーム数（デバッグ・E2E 用）。 */
-  hitStopCount = 0;
-  lastHitStopFrames = 0;
-  /** 命中イベントの累計（デバッグ・E2E 用）と直近のイベント。 */
-  readonly hitLog: HitEvent[] = [];
-  hitCount = 0;
-  /** プレイヤーイベント（ロール開始など）の累計回数（デバッグ・E2E 用）。 */
-  readonly eventCounts = {
-    rollStart: 0,
-    backstepStart: 0,
-    healStart: 0,
-    healApply: 0,
-    healEmpty: 0,
-    attackStart: 0,
-    land: 0,
-    staminaEmpty: 0,
-  };
   /** イベントマーカーの発火回数（E2E・デバッグ用）。 */
   readonly markerCounts = Object.fromEntries(MARKER_TYPES.map((t) => [t, 0])) as Record<
     MarkerType,
@@ -315,9 +297,6 @@ export class Game {
       },
     });
     this.combat.onHit((e) => {
-      this.hitCount++;
-      this.hitLog.push(e);
-      if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
       const guardBreaks = this.player.guardBreakCount;
       const reaction = this.applyReaction(e);
       if (reaction) this.reactEnemy(e.targetId, reaction, e);
@@ -522,7 +501,6 @@ export class Game {
       lockTarget: this.lockOn.target,
     });
     for (const e of player.events) {
-      this.eventCounts[e.type]++;
       this.publishPlayerEvent(e);
       if (e.type === 'land' && e.fallHeight >= LAND_NOISE_MIN_HEIGHT) {
         this.enemies.noises.emit(player.feet, 'land');
@@ -698,9 +676,7 @@ export class Game {
     if (decision.frames > 0) {
       this.freeze(e.attackerId, decision.frames);
       if (e.targetId !== e.attackerId) this.freeze(e.targetId, decision.frames);
-      this.hitStopCount++;
     }
-    this.lastHitStopFrames = decision.frames;
     if (decision.slowMotion) {
       // ヒットストップが明けてから、シミュレーションの 30F（ボスは 60F）の間スロー
       this.timeScale.start(decision.slowMotion.scale, decision.slowMotion.frames, decision.frames);
@@ -952,17 +928,12 @@ export class Game {
         targetId: this.lockOn.target?.id ?? null,
         lastEvent: this.lastLockOnEvent,
       },
-      events: { ...this.eventCounts },
       markers: { ...this.markerCounts },
       enemies: this.enemies.debugInfo,
       combat: {
-        hits: this.hitCount,
         playerHp: this.playerTarget.health.current,
         playerDead: this.player.dead,
         flask: this.player.flask.count,
-        lastHitTarget: this.hitLog.at(-1)?.targetId ?? null,
-        hitStops: this.hitStopCount,
-        lastHitStopFrames: this.lastHitStopFrames,
         playerFreeze: this.player.fsm.freezeRemaining,
         timeScale: this.timeScale.current,
       },
@@ -999,33 +970,16 @@ export interface GameDebugState {
     readonly pivot: { readonly x: number; readonly y: number; readonly z: number };
   };
   readonly lockOn: { readonly targetId: string | null; readonly lastEvent: string };
-  readonly events: Readonly<
-    Record<
-      | 'rollStart'
-      | 'backstepStart'
-      | 'attackStart'
-      | 'healStart'
-      | 'healApply'
-      | 'healEmpty'
-      | 'land'
-      | 'staminaEmpty',
-      number
-    >
-  >;
   /** イベントマーカーの種別ごとの発火回数。 */
   readonly markers: Readonly<Record<MarkerType, number>>;
   /** 敵の状態（気付きゲージ・見失いなど）。 */
   readonly enemies: readonly EnemyDebugInfo[];
-  /** 判定の状態（命中の累計・プレイヤー HP・直近の被弾側）。 */
+  /** 判定の状態（プレイヤー HP・死亡・回復瓶の残り）。 */
   readonly combat: {
-    readonly hits: number;
     readonly playerHp: number;
     readonly playerDead: boolean;
     readonly flask: number;
-    readonly lastHitTarget: string | null;
-    /** ヒットストップの累計回数・直近の凍結フレーム数・プレイヤーの凍結の残り・現在のタイムスケール。 */
-    readonly hitStops: number;
-    readonly lastHitStopFrames: number;
+    /** プレイヤーの凍結の残り・現在のタイムスケール。 */
     readonly playerFreeze: number;
     readonly timeScale: number;
   };

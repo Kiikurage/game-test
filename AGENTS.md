@@ -136,6 +136,9 @@ Node.js 22.12 以上。初回は `npm ci`。
   （`src/core/webgpuCompat.ts`、`boot.ts` が起動時に導入）で恒等 swizzle を除去している。E2E / shot に専用のシムは無い。
 - 起動は `src/boot.ts`（軽量エントリ）→ `src/main.ts`（動的 import。three / rapier を含む）。E2E は開始画面を経由するので
   `e2e/helpers.ts` の `startGame(page)` で開始する（`#app[data-state]`: loading → ready → running ⇄ paused）。
+  開始画面をクリックせず Pointer Lock も取らない開始口は `window.__game.dev.start()`（ヘルパーは `startGameDev(page)`）。
+  入力は `dev.input.*`（press / release / tap / move / look / switchTarget / releaseAll）で注入し、
+  `dev.pause(true)` → `dev.advance(steps, { frames?, render? })` でメインループと同じ経路を進める。一時停止は `__game.paused`。
   `npm run shot` は既定で開始後を撮る。`SHOT_STATE=ready|loading` で開始画面・ローディング画面を撮れる。
 
 ### テストの安定性（時間依存のテストを書かない）

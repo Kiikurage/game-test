@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, PLUNGE, attackDamage, totalFrames } from '../data';
 import {
@@ -228,7 +229,7 @@ describe('落下攻撃の結合（Rapier）', () => {
     expect(game.player.stateFrame).toBe(1);
     expect(game.player.attack?.hitActive).toBe(true);
     run(1);
-    const hit = game.hitLog.find((e) => e.attackId === 'plunge');
+    const hit = gameStats(game).hitLog.find((e) => e.attackId === 'plunge');
     expect(hit?.targetId).toBe('e1');
     expect(hit?.damage).toBe(132);
     expect(hit?.guard).toBe('none');
@@ -246,12 +247,12 @@ describe('落下攻撃の結合（Rapier）', () => {
     attackInAir('heavyAttack'); // 強攻撃入力でも同じ
     for (let i = 0; i < 60 && game.player.state === 'plungeFall'; i++) run(1);
     run(1);
-    const hit = game.hitLog.find((e) => e.attackId === 'plunge');
+    const hit = gameStats(game).hitLog.find((e) => e.attackId === 'plunge');
     expect(hit?.damage).toBe(88);
     expect(hit?.killed).toBe(false);
     // 強靭度削り 60 で亡者兵（強靭度 50）が崩れる
     expect(enemy.state).toBe('staggered');
-    expect(game.lastHitStopFrames).toBe(10);
+    expect(gameStats(game).lastHitStopFrames).toBe(10);
   });
 
   it('着地後 24F は行動不能（ロール不可）で、28F 後に戻る', async () => {
@@ -286,7 +287,7 @@ describe('落下攻撃の結合（Rapier）', () => {
     expect(stamina).toBeGreaterThan(PLAYER_STATS.stamina - 20);
     for (let i = 0; i < 60 && game.player.state === 'fall'; i++) run(1);
     expect(game.player.state).toBe('land');
-    expect(game.hitLog.some((e) => e.attackId === 'plunge')).toBe(false);
+    expect(gameStats(game).hitLog.some((e) => e.attackId === 'plunge')).toBe(false);
   });
 
   it('ボスには発生しない（下にいるのがボスだけなら落下攻撃は出ない）', async () => {

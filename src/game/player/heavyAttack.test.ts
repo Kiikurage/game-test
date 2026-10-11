@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   HEAVY_CHARGE_MOVE_SPEED,
@@ -540,17 +541,17 @@ describe('heavy attack and run attack', () => {
 
     it('強攻撃（溜めなし）は当たり窓の間に 1 回だけ命中し、72 ダメージ・強靭度削り 60', () => {
       faceDummy();
-      const before = game.hitCount;
+      const before = gameStats(game).hitCount;
       tapHeavy();
       let hitFrame = 0;
       for (let f = 2; f <= 70; f++) {
         tick();
-        if (!hitFrame && game.hitCount > before) hitFrame = f;
+        if (!hitFrame && gameStats(game).hitCount > before) hitFrame = f;
       }
-      expect(game.hitCount).toBe(before + 1);
+      expect(gameStats(game).hitCount).toBe(before + 1);
       expect(hitFrame).toBeGreaterThanOrEqual(23);
       expect(hitFrame).toBeLessThanOrEqual(28);
-      const e = game.hitLog.at(-1);
+      const e = gameStats(game).hitLog.at(-1);
       expect(e?.targetId).toBe('dummy-a');
       expect(e?.attackId).toBe('heavy');
       expect(e?.baseDamage).toBe(attackDamage(PLAYER_STATS.attackPower, 1.8));
@@ -560,11 +561,11 @@ describe('heavy attack and run attack', () => {
 
     it('フル溜めは 92 ダメージ・強靭度削り 80', () => {
       faceDummy();
-      const before = game.hitCount;
+      const before = gameStats(game).hitCount;
       chargeAndRelease(30);
       run(70);
-      expect(game.hitCount).toBe(before + 1);
-      const e = game.hitLog.at(-1);
+      expect(gameStats(game).hitCount).toBe(before + 1);
+      const e = gameStats(game).hitLog.at(-1);
       expect(e?.attackId).toBe('heavyCharged');
       expect(e?.baseDamage).toBe(92);
       expect(e?.poiseDamage).toBe(80);
@@ -573,7 +574,7 @@ describe('heavy attack and run attack', () => {
     it('走り攻撃は 48 ダメージ・強靭度削り 40 で 1 回だけ命中する', () => {
       game.teleportPlayer(0, -2.0, Math.PI);
       run(3);
-      const before = game.hitCount;
+      const before = gameStats(game).hitCount;
       input.setMove(0, 1);
       input.setSprint(true);
       run(18);
@@ -582,8 +583,8 @@ describe('heavy attack and run attack', () => {
       input.setMove(0, 0);
       input.setSprint(false);
       run(55);
-      expect(game.hitCount).toBe(before + 1);
-      const e = game.hitLog.at(-1);
+      expect(gameStats(game).hitCount).toBe(before + 1);
+      const e = gameStats(game).hitLog.at(-1);
       expect(e?.attackId).toBe('runAttack');
       expect(e?.baseDamage).toBe(48);
       expect(e?.poiseDamage).toBe(40);
@@ -592,10 +593,10 @@ describe('heavy attack and run attack', () => {
     it('背後のダミーには当たらない', () => {
       game.teleportPlayer(0, -4.5, 0);
       run(3);
-      const before = game.hitCount;
+      const before = gameStats(game).hitCount;
       tapHeavy();
       run(70);
-      expect(game.hitCount).toBe(before);
+      expect(gameStats(game).hitCount).toBe(before);
     });
   });
 });

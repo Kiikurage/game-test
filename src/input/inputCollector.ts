@@ -1,7 +1,8 @@
 import { ACTIONS, type Action, type Vec2 } from '../core/input';
 import { clampLength } from './deadzone';
 
-export type InputSource = 'keyboard' | 'mouse' | 'gamepad' | 'touch';
+/** `dev` は E2E・撮影用の入力注入（`InputSystem.inject*`）。 */
+export type InputSource = 'keyboard' | 'mouse' | 'gamepad' | 'touch' | 'dev';
 
 export interface CollectedButton {
   pressed: boolean;

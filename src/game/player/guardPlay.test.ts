@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { HitEvent } from '../combat';
 import { GUARD, PLAYER_ACTIONS, PLAYER_STATS, POISE, attackDamage, totalFrames } from '../data';
@@ -132,7 +133,7 @@ describe('guard', () => {
       expect(e.guardStaminaCost).toBe(10);
       expect(stamina0 - game.player.stamina.current).toBe(10);
       expect(game.playerTarget.health.current).toBe(hp0);
-      expect(game.lastHitStopFrames).toBe(8);
+      expect(gameStats(game).lastHitStopFrames).toBe(8);
       expect(game.player.guardStunRemaining).toBe(0);
       // 押し戻しなし
       expect(game.player.reactor.sliding).toBe(false);
@@ -146,7 +147,7 @@ describe('guard', () => {
       expect(e.guard).toBe('guard');
       expect(e.guardStaminaCost).toBe(20);
       expect(stamina0 - game.player.stamina.current).toBe(20);
-      expect(game.lastHitStopFrames).toBe(4);
+      expect(gameStats(game).lastHitStopFrames).toBe(4);
       expect(game.player.guardStunRemaining).toBe(GUARD.stunFrames);
       expect(stateName()).toBe('guard');
       // ガード成功時は被弾後無敵を付与しない: すぐ次の攻撃も防げる
