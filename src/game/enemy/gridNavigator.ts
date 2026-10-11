@@ -181,6 +181,15 @@ export class GridNavigator implements Navigator {
     this.pump(this.budget);
   }
 
+  nearestWalkablePoint(x: number, z: number, out: NavPoint): NavPoint | null {
+    const grid = this.grid;
+    const idx = grid.nearestWalkable(x, z, 12);
+    if (idx < 0) return null;
+    out.x = grid.centerX(idx % grid.cols);
+    out.z = grid.centerZ(Math.floor(idx / grid.cols));
+    return out;
+  }
+
   setGateClosed(id: string, closed: boolean): void {
     this.grid.setGateClosed(id, closed);
   }

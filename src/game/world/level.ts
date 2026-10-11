@@ -1057,6 +1057,8 @@ export function levelGameOptions(
     | 'spawn'
     | 'enemies'
     | 'enemyNavigator'
+    | 'enemyDarkness'
+    | 'hearingScale'
     | 'interactables'
   >
 > {
@@ -1073,6 +1075,8 @@ export function levelGameOptions(
     spawn: level.data.playerSpawn,
     enemies: level.data.enemies,
     enemyNavigator: createLevelNavigator(level),
+    enemyDarkness: (x, z) => level.zoneAt(x, z).dark,
+    hearingScale: (x, y, z) => level.hearingMultiplierAt(x, z, y),
     interactables: level.data.interactables,
   };
 }

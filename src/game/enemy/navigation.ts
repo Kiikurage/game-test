@@ -30,6 +30,12 @@ export interface Navigator {
     agent?: NavAgent,
   ): NavPoint | null;
 
+  /**
+   * `(x, z)` に最も近い歩ける点を `out` に書いて返す（歩けないほど遠いときは null）。
+   * 音の位置が壁の中・崖の下でも、Suspicious の敵が着ける場所へ丸めるのに使う。直線の実装は持たない。
+   */
+  nearestWalkablePoint?(x: number, z: number, out: NavPoint): NavPoint | null;
+
   /** 毎ステップ 1 回、敵の更新の前に呼ばれる。経路探索を複数ステップに分けて進める。 */
   update?(): void;
 

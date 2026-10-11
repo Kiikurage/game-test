@@ -106,6 +106,10 @@ export interface GameOptions {
   readonly enemies?: readonly EnemySpawn[];
   /** 敵の経路問い合わせ。省略時は直線。レベルでは `levelGameOptions` が格子ナビゲータを渡す。 */
   readonly enemyNavigator?: Navigator;
+  /** 暗所か（敵の視覚ゲージ ×0.7）。レベルでは `levelGameOptions` が渡す。省略時は常に明所。 */
+  readonly enemyDarkness?: (x: number, z: number) => boolean;
+  /** 音の発生位置での聴覚半径の倍率（反響ゾーン ×1.3）。省略時は 1。 */
+  readonly hearingScale?: (x: number, y: number, z: number) => number;
   /** 調べる対象の配置（レベルデータの `interactables`。篝火など）。省略時はなし。登録式のシステムが読む。 */
   readonly interactables?: readonly InteractableSpawn[];
   /** セーブ（篝火の点火・休憩の保存先）。省略時はメモリのみ（保存されない）。本番は main.ts が `SaveStore` を渡す。 */
@@ -335,6 +339,8 @@ export class Game {
     this.enemies = new EnemyManager({
       lineOfSight: (from, to) => this.hasLineOfSight(from as Vector3, to as Vector3),
       navigator: options.enemyNavigator ?? directNavigator,
+      ...(options.enemyDarkness && { darkness: options.enemyDarkness }),
+      ...(options.hearingScale && { hearingScale: options.hearingScale }),
       // 亡者兵の攻撃（A1〜A3）。盾持ちの攻撃は別チケット（それまでは攻撃しない）
       createAttack: (init, random) =>
         init.type === 'undead_soldier'
@@ -577,6 +583,24 @@ export class Game {
   /** 音を発生させる（敵に聞こえる）。鐘・壁の崩壊・回復瓶など、game 内外の音源から呼ぶ。 */
   emitNoise(position: { x: number; y: number; z: number }, kind: NoiseKind): void {
     this.enemies.noises.emit(position, kind);
+  }
+
+  /**
+   * 半径を指定して音を出す（`emitSound` Effect の受け口。鐘 15m・壁の崩壊 12m など）。敵はこの音を聞いて
+   * 気付きゲージが溜まり、Idle なら Suspicious になって音の位置（ナビメッシュ上の最寄り点）へ歩く。
+   * `kind: 'bell'` は歩く距離が最大 15m になる。反響ゾーンの倍率は半径へ自動で掛かる。
+   */
+  emitSound(
+    position: { x: number; y: number; z: number },
+    radiusM: number,
+    kind: 'bell' | 'crash',
+  ): void {
+    this.enemies.noises.emitRadius(
+      position,
+      radiusM,
+      undefined,
+      kind === 'bell' ? 'bell' : 'wallCollapse',
+    );
   }
 
   /**
