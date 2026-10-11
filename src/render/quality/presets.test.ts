@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { detectQuality, parseFixedScale, parseQualityParam, selectQuality } from './quality';
+import {
+  detectQuality,
+  parseFixedScale,
+  parseQualityParam,
+  QUALITY_PRESETS,
+  selectQuality,
+} from './presets';
 
 describe('parseQualityParam', () => {
   it('accepts the three levels', () => {
@@ -49,5 +55,28 @@ describe('parseFixedScale', () => {
     expect(parseFixedScale('')).toBeNull();
     expect(parseFixedScale('?scale=2')).toBeNull();
     expect(parseFixedScale('?scale=abc')).toBeNull();
+  });
+});
+
+describe('機能フラグ（#316: level での分岐をプリセットの値に置き換えた）', () => {
+  it('high は分岐していた頃と同じ値', () => {
+    const p = QUALITY_PRESETS.high;
+    expect(p.materialDetail).toBe(2);
+    expect(p.cloudOctaves).toBe(4);
+    expect(p.rockCrackFar).toBe(45);
+    expect(p.fogGate).toEqual({ lite: false, wallLayers: 2, pillarLayers: 2, groundMist: 1 });
+  });
+
+  it('段階が下がるほど重くならない', () => {
+    const { low, medium, high } = QUALITY_PRESETS;
+    for (const [a, b] of [
+      [low, medium],
+      [medium, high],
+    ] as const) {
+      expect(a.materialDetail).toBeLessThanOrEqual(b.materialDetail);
+      expect(a.cloudOctaves).toBeLessThanOrEqual(b.cloudOctaves);
+      expect(a.water.reflection).toBeLessThanOrEqual(b.water.reflection);
+      expect(a.budget.drawCalls).toBeLessThanOrEqual(b.budget.drawCalls);
+    }
   });
 });

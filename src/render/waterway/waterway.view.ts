@@ -20,7 +20,6 @@ import { buildWaterGrid, buildWaterSurface, isWater } from './waterLayout';
 import { createLightRig } from './waterLighting';
 import { createWaterMaterial } from './waterMaterial';
 import type { WaterFields } from './waterNodes';
-import { WATER_QUALITY } from './waterQuality';
 import { buildWaterShell } from './waterShell';
 import { WaterSim } from './waterSim';
 import {
@@ -165,7 +164,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
     };
   }
 
-  const quality = WATER_QUALITY[gameRenderer.quality.preset.level];
+  const { water: quality, materialDetail } = gameRenderer.quality.preset;
   const drawEnabled = !new URLSearchParams(location.search).has('nodraw');
   const grid = buildWaterGrid(waterLayoutInput(level, way), quality.simCell);
   const holeY = hatchBox ? hatchBox.y + hatchBox.hy : grid.floorY + 2.4;
@@ -195,7 +194,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
     const group = new Group();
     group.name = 'waterway-water';
 
-    const shell = buildWaterShell(level, way, fields, rig, quality.detail);
+    const shell = buildWaterShell(level, way, fields, rig, materialDetail);
     for (const m of shell.meshes) m.layers.enable(REFLECT_LAYER);
     group.add(shell.root);
 

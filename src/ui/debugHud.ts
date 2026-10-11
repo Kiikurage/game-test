@@ -1,5 +1,5 @@
 import type { RenderStats } from '../render/renderer';
-import { formatProfile, type RenderProfile } from '../render/renderProfile';
+import { formatProfile, type RenderProfile } from '../render/quality';
 
 export interface DebugHudInfo {
   quality: string;

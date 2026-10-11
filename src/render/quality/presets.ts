@@ -1,5 +1,11 @@
-import { applyPerfToggles, parsePerfToggles, type PerfToggles } from './perfToggles';
-import type { ResolutionLimits } from './resolution';
+import { MATERIAL_GROUPS, type MaterialGroup } from '../materialGroups';
+import type { ResolutionLimits } from './dynamicResolution';
+
+/*
+ * 品質設定（#316）。描画の品質段階・端末判定・URL トグルをここに集約する。
+ * 各機能は `QualityPreset` の機能フラグ・数値を読むだけにし、`level` で分岐しない。
+ * 判定基準は PC high（#294）。low は E2E（`?quality=low`）と非力な端末向けに残す。
+ */
 
 export type QualityLevel = 'low' | 'medium' | 'high';
 
@@ -29,6 +35,45 @@ export interface CharacterLodQuality {
   readonly nearDistance: number;
 }
 
+/** 地下水路の水（#270）の品質ノブ。 */
+export interface WaterQuality {
+  /** 波のシミュレーションのセル（m）。小さいほど細かい波紋が出るが、セル数は 1/cell² で増える。 */
+  readonly simCell: number;
+  /** 水面のメッシュの格子（m）。頂点の変位（波紋の盛り上がり）の細かさ。 */
+  readonly meshStep: number;
+  /** 平面反射の解像度（描画解像度に対する倍率）。0 なら反射を描かず、暗い既定色 + ハイライトだけ。 */
+  readonly reflection: number;
+  /** しぶきのバースト同時数。 */
+  readonly splashSlots: number;
+  /** 霧の板の枚数（0..2）。 */
+  readonly mistLayers: number;
+}
+
+/**
+ * 描画負荷の予算（1 フレームの `renderer.info` の値。シャドウパスを含む）。
+ * 計測視点（`scripts/perfViewpoints.mjs`）のすべてで、この値以下に収める。E2E（`e2e/perf.spec.ts`）で退行を検出する。
+ * 根拠と内訳は docs/performance.md。
+ */
+export interface RenderBudget {
+  readonly drawCalls: number;
+  readonly triangles: number;
+}
+
+/** 霧の門の品質ノブ。メッシュはすべて透明の 1 枚物。 */
+export interface FogGateQuality {
+  /** 霧の壁のマテリアルを軽量版にするか。 */
+  readonly lite: boolean;
+  /** 門の霧の壁（門の中に重ねる枚数）。 */
+  readonly wallLayers: number;
+  /** 霧の柱の層数（外側の薄いハロを足す）。 */
+  readonly pillarLayers: number;
+  /** 地表の霧の円盤の枚数。 */
+  readonly groundMist: number;
+}
+
+/** マテリアルのノイズ層の数などを決める詳細度。0 = low、1 = medium、2 = high。 */
+export type MaterialDetail = 0 | 1 | 2;
+
 /** 品質プリセット。描画基盤の各機能のコスト/品質ノブをここに集約する。 */
 export interface QualityPreset {
   readonly level: QualityLevel;
@@ -54,6 +99,18 @@ export interface QualityPreset {
   readonly cliffDetail: number;
   /** 内部解像度の上限（動的解像度の最大値を決める）。 */
   readonly resolution: ResolutionLimits;
+  /** マテリアル（地形・石積み・地下墓所・水路の壁など）のノイズ層の詳細度。 */
+  readonly materialDetail: MaterialDetail;
+  /** 空の雲のノイズのオクターブ数（背景は全画面を塗るので段階化する。#236）。 */
+  readonly cloudOctaves: number;
+  /** 崖の岩の割れ目の暗線を描く距離（m。遠くでチラつかせない）。 */
+  readonly rockCrackFar: number;
+  /** 霧の門（#189）の透明メッシュの枚数と軽量版の切り替え（モバイルのオーバードロー対策）。 */
+  readonly fogGate: FogGateQuality;
+  /** 地下水路の水。 */
+  readonly water: WaterQuality;
+  /** 描画負荷の予算。 */
+  readonly budget: RenderBudget;
 }
 
 export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
@@ -78,6 +135,13 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     characterLod: { nearDistance: 8 },
     cliffDetail: 0.3,
     resolution: { maxPixelRatio: 1.5, maxPixels: 1_000_000 },
+    materialDetail: 0,
+    cloudOctaves: 1,
+    rockCrackFar: 25,
+    fogGate: { lite: true, wallLayers: 1, pillarLayers: 1, groundMist: 0 },
+    water: { simCell: 0.12, meshStep: 0.25, reflection: 0, splashSlots: 6, mistLayers: 1 },
+    // 基準機 Xperia 1 V で 30fps を出すための目安（#180）。low は medium より軽くあるべきなので同じ上限
+    budget: { drawCalls: 150, triangles: 250_000 },
   },
   medium: {
     level: 'medium',
@@ -102,6 +166,12 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     characterLod: { nearDistance: 12 },
     cliffDetail: 0.5,
     resolution: { maxPixelRatio: 2, maxPixels: 1_100_000 },
+    materialDetail: 1,
+    cloudOctaves: 2,
+    rockCrackFar: 45,
+    fogGate: { lite: false, wallLayers: 2, pillarLayers: 2, groundMist: 1 },
+    water: { simCell: 0.08, meshStep: 0.15, reflection: 0.35, splashSlots: 10, mistLayers: 2 },
+    budget: { drawCalls: 150, triangles: 250_000 },
   },
   high: {
     level: 'high',
@@ -124,6 +194,13 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     characterLod: { nearDistance: 14 },
     cliffDetail: 1,
     resolution: { maxPixelRatio: 2, maxPixels: 4_000_000 },
+    materialDetail: 2,
+    cloudOctaves: 4,
+    rockCrackFar: 45,
+    fogGate: { lite: false, wallLayers: 2, pillarLayers: 2, groundMist: 1 },
+    water: { simCell: 0.06, meshStep: 0.1, reflection: 0.5, splashSlots: 16, mistLayers: 2 },
+    // PC 向け。草・影・LOD 距離が増える分だけ緩める
+    budget: { drawCalls: 200, triangles: 350_000 },
   },
 };
 
@@ -210,5 +287,71 @@ export function selectQuality(search: string, hints: DeviceHints): QualitySelect
     fixedScale: parseFixedScale(search) ?? (toggles.bench ? initialScaleFor(hints.isMobile) : null),
     isMobile: hints.isMobile,
     targetFps: targetFpsFor(hints.isMobile),
+  };
+}
+
+/**
+ * 実機での負荷の切り分け用トグル（URL クエリ）。使い方は `docs/performance.md`。
+ * 既定はすべて無効（通常のゲームには影響しない）。
+ */
+export interface PerfToggles {
+  /** `?perf`: 計測 HUD を表示する（GPU 時間の計測も有効にする）。`?bench` でも有効。 */
+  readonly perf: boolean;
+  /** `?bench`: ベンチマークモード（決められたシナリオを自動で計測して結果を表にする。`render/bench/`）。 */
+  readonly bench: boolean;
+  /** `?noshadow`: シャドウマップを描かない。 */
+  readonly noShadow: boolean;
+  /** `?nobloom`: ブルームを省く。 */
+  readonly noBloom: boolean;
+  /** `?nomsaa`: MSAA を切る。 */
+  readonly noMsaa: boolean;
+  /** `?nograss`: 草を置かない。 */
+  readonly noGrass: boolean;
+  /** `?noparticles`: パーティクルを描かない。 */
+  readonly noParticles: boolean;
+  /** `?nolights`: 篝火の点光源を置かない（ライトの数はすべてのマテリアルのフラグメント負荷に掛かる）。 */
+  readonly noLights: boolean;
+  /** `?flatmat`: 不透明メッシュの重い TSL マテリアル（地形・石積み・闘技場・亡者など）を単色の MeshStandard に差し替える。`?flatmat=terrain,masonry` でグループ単位。 */
+  readonly flatMat: boolean;
+  /**
+   * `?flatmat=terrain,masonry`: 差し替えるグループ（`MATERIAL_GROUPS`）。null は全グループ（`?flatmat` だけのとき）。
+   * `flatMat` が false のときは意味を持たない。
+   */
+  readonly flatMatGroups: ReadonlySet<MaterialGroup> | null;
+}
+
+/** `?flatmat` の値を解釈する。空・'1'・'all' は全グループ（null）、それ以外はカンマ区切りのグループ名。 */
+export function parseFlatMatGroups(value: string | null): ReadonlySet<MaterialGroup> | null {
+  if (value === null || value === '' || value === '1' || value === 'all') return null;
+  const names = value.split(',').map((s) => s.trim());
+  return new Set(MATERIAL_GROUPS.filter((g) => names.includes(g)));
+}
+
+export function parsePerfToggles(search: string): PerfToggles {
+  const params = new URLSearchParams(search);
+  const on = (key: string): boolean => params.has(key) && params.get(key) !== '0';
+  return {
+    perf: on('perf') || on('bench'),
+    bench: on('bench'),
+    noShadow: on('noshadow'),
+    noBloom: on('nobloom'),
+    noMsaa: on('nomsaa'),
+    noGrass: on('nograss'),
+    noParticles: on('noparticles'),
+    noLights: on('nolights'),
+    flatMat: on('flatmat'),
+    flatMatGroups: parseFlatMatGroups(params.get('flatmat')),
+  };
+}
+
+/** トグルに応じて品質プリセットの該当項目を落とす（変更なしなら同じオブジェクトを返す）。 */
+export function applyPerfToggles(preset: QualityPreset, toggles: PerfToggles): QualityPreset {
+  if (!toggles.noBloom && !toggles.noMsaa && !toggles.noGrass && !toggles.noLights) return preset;
+  return {
+    ...preset,
+    ...(toggles.noBloom && { bloom: false, bloomStrength: 0 }),
+    ...(toggles.noMsaa && { msaa: false }),
+    ...(toggles.noGrass && { grassCount: 0 }),
+    ...(toggles.noLights && { particles: { ...preset.particles, bonfireLight: false } }),
   };
 }

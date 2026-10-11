@@ -8,7 +8,7 @@ import {
 } from 'three/webgpu';
 import { float, floor, fract, mix, texture, vec2, vec3 } from 'three/tsl';
 import type { Node } from 'three/webgpu';
-import type { QualityLevel } from './quality';
+import type { MaterialDetail } from './quality';
 
 /**
  * ロード時に一度だけ焼いたタイル可能な 3D パーリンノイズ（#236）。
@@ -204,13 +204,13 @@ export function bakedNoise2(p: Node<'vec2'>, z = 0.37): Node<'float'> {
 
 // --- マテリアルの詳細度（品質プリセット）---
 
-/** マテリアルのノイズ層の数などを決める。0 = low、1 = medium（モバイル既定）、2 = high。 */
-export type MaterialDetail = 0 | 1 | 2;
+export type { MaterialDetail };
 
 let materialDetail: MaterialDetail = 2;
 
-export function setMaterialDetail(level: QualityLevel): void {
-  materialDetail = level === 'low' ? 0 : level === 'medium' ? 1 : 2;
+/** 品質プリセットの `materialDetail` を設定する（マテリアルを作る前に呼ぶ）。 */
+export function setMaterialDetail(detail: MaterialDetail): void {
+  materialDetail = detail;
 }
 
 export function getMaterialDetail(): MaterialDetail {
