@@ -119,7 +119,8 @@ test('the player can step on the rotten floorboard, drop into the waterway, run 
   expect(p.grounded).toBe(true);
 
   // 開通前は鉄格子が塞ぐ
-  await walkThrough(page, [[72, 44.5]], 0.3);
+  // 許容 0.3m だと階段の上で回り込んで段を下りることがある（向きの補正が 4 ステップごとのため）
+  await walkThrough(page, [[72, 44.5]], 0.5);
   // 北（+z）へ押し当てる。aimCamera はプレイヤー相対なので、絶対方位 0 にするには自分の向きを引く
   // （遅い CI ではプレイヤーが水路側を向いていることがあり、相対 0 で W を押すと階段を戻って壁際に嵌まる）
   await aimCamera(page, 0 - (await sim(page)).player.yaw);
@@ -175,4 +176,33 @@ test('the burial chamber branch can be walked and the way back from D leads into
   ]);
   p = (await sim(page)).player;
   expect(p.position.y).toBeLessThan(WATER_FLOOR + 0.35);
+});
+
+test('the waterway water is built and drawn only while the player is down there, and skipped under nodraw (#270)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await boot(page);
+  const render = () => page.evaluate(() => window.__game?.dev.waterwayRender());
+  const start = (await sim(page)).player.position;
+  await expect.poll(async () => (await render())?.built).toBe(true);
+  // 地上（開始位置）では水路を描かない
+  await expect.poll(async () => (await render())?.visible).toBe(false);
+
+  await page.evaluate(() => window.__game?.dev.breakHatch());
+  await teleport(page, 47, 28, Math.PI / 2, WATER_FLOOR + 0.02);
+  await aimCamera(page, 0);
+  await expect.poll(async () => (await render())?.visible).toBe(true);
+  await expect.poll(async () => (await render())?.moodWeight ?? 0).toBeGreaterThan(0.99);
+  // low は平面反射を描かない
+  expect((await render())?.reflection).toBe(false);
+
+  // ?nodraw では GPU の波のシミュレーションを作らない（歩いても進まない）
+  await holdKey(page, 'KeyW', 30);
+  expect((await render())?.simSteps).toBe(0);
+
+  // 地上へ戻ると描かない・霧の調子も戻る
+  await teleport(page, start.x, start.z, 0, start.y);
+  await expect.poll(async () => (await render())?.visible).toBe(false);
+  await expect.poll(async () => (await render())?.moodWeight ?? 1).toBeLessThan(0.01);
 });
