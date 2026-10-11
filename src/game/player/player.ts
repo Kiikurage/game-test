@@ -3,6 +3,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputReader, InputSnapshot } from '../../core/input';
 import {
+  AMBUSH,
   HEAVY_CHARGE_MOVE_SPEED,
   HEAVY_FULL_CHARGE_STAMINA_EXTRA,
   MOVEMENT,
@@ -44,6 +45,13 @@ import {
   yawOf,
   type Vec2Like,
 } from './movement';
+import {
+  snapDelta,
+  snapGoal,
+  snapProgress,
+  type AmbushCandidate,
+  type AmbushSource,
+} from './ambush';
 import { Flask } from './flask';
 import { ForcedWalkInput } from './forcedWalk';
 import {
@@ -220,6 +228,8 @@ const LUNGE: Readonly<Record<PlayerAttackId, readonly number[]>> = {
   heavy: attackLungeProfile('heavy'),
   heavyCharged: attackLungeProfile('heavyCharged'),
   runAttack: attackLungeProfile('runAttack'),
+  // 致命の一撃は前進ではなく吸着（`updateAmbushSnap`）で動く。この表は使わない
+  backstab: [],
   guardCounter: attackLungeProfile('guardCounter'),
 };
 
@@ -296,6 +306,17 @@ export class Player {
   /** 状況アクションの長さ（フレーム）と、向ける先（`beginScripted`）。 */
   private scriptedFrames = 0;
   private scriptedFaceYaw: number | null = null;
+  /** 致命の一撃（#115）: 対象の探索と拘束の口（`ambush.system.ts` が Game 起動時に差す）。 */
+  ambushSource: AmbushSource | null = null;
+  /** いまの入力で致命の一撃が出せる（条件成立中）。剣の縁の光（HUD 表示は出さない）。 */
+  ambushReady = false;
+  /** 致命の一撃の発動中の対象と、吸着の始点・目標・始点のヨー。 */
+  private ambushTarget: AmbushCandidate | null = null;
+  private pendingAmbush: AmbushCandidate | null = null;
+  private readonly snapStart = { x: 0, z: 0 };
+  private readonly snapOffset = { x: 0, z: 0 };
+  private snapYawStart = 0;
+  private snapYawDelta = 0;
   /** 演出による強制歩行（`beginForcedWalk`）。 */
   private forcedWalk: { frames: number; yaw: () => number } | null = null;
   private readonly forcedInput = new ForcedWalkInput();
@@ -723,10 +744,12 @@ export class Player {
       this.enterState(next);
     }
     // イベントマーカーは、最終的に落ち着いた状態のフレームで発火する（途中で捨てた状態の分は出さない）
+    if (this.ambushTarget && this.state !== 'backstab') this.endAmbush();
     this.markers.advance(this.fsm.stateFrame, this.markerEvents);
     this.applyHealMarkers();
     this.applySuperArmor();
     this.stampFootstepGait();
+    this.updateAmbushReady();
 
     this.applyFacing(frame, dt);
     this.stamina.update(dt, this.staminaContext());
@@ -758,6 +781,7 @@ export class Player {
       case 'heavyCharged':
       case 'runAttack':
       case 'guardCounter':
+      case 'backstab':
         return this.updateAttack(this.state, frame);
       case 'heavyCharge':
         return this.updateHeavyCharge(dt, snap, frame);
@@ -847,6 +871,13 @@ export class Player {
         this.lastAttack = null;
         this.stamina.consume(PLAYER_ACTIONS.runAttack.staminaCost);
         this.attackSerial++;
+        this.events.push({ type: 'attackStart', id: next });
+        break;
+      case 'backstab':
+        this.lastAttack = null;
+        this.stamina.consume(PLAYER_ACTIONS.backstab.staminaCost);
+        this.attackSerial++;
+        this.beginAmbush();
         this.events.push({ type: 'attackStart', id: next });
         break;
       case 'guardCounter':
@@ -941,11 +972,73 @@ export class Player {
   private tryLightAttack(
     frame: PlayerFrame,
     id: LightAttackId | 'runAttack',
-  ): LightAttackId | 'runAttack' | null {
+  ): LightAttackId | 'runAttack' | 'backstab' | null {
     if (!frame.input.hasBuffered('lightAttack')) return null;
-    if (!this.stamina.canStart(PLAYER_ACTIONS[id].staminaCost)) return null;
+    // 致命の一撃: 軽 1・走り攻撃になる入力で、動作の開始（F1）に条件を評価する（先行入力でも同じ）。
+    // 次段のコンボ（軽 2・3）は対象外。条件を外していれば通常の軽攻撃のまま。
+    let actual: LightAttackId | 'runAttack' | 'backstab' = id;
+    let ambush: AmbushCandidate | null = null;
+    if (id === 'light1' || id === 'runAttack') {
+      ambush = this.ambushSource?.find(this.position) ?? null;
+      if (ambush) actual = 'backstab';
+    }
+    if (!this.stamina.canStart(PLAYER_ACTIONS[actual].staminaCost)) return null;
     frame.input.consumeBuffered('lightAttack');
-    return id;
+    this.pendingAmbush = ambush;
+    return actual;
+  }
+
+  /** 致命の一撃の発動（F1）: 対象を拘束し、吸着の始点・向きを決める。 */
+  private beginAmbush(): void {
+    const target = this.pendingAmbush;
+    this.pendingAmbush = null;
+    this.ambushTarget = target;
+    if (!target) return;
+    this.ambushSource?.begin(target);
+    this.snapStart.x = this.position.x;
+    this.snapStart.z = this.position.z;
+    snapGoal(target.position, target.yaw, this.snapOffset);
+    snapDelta(this.snapStart, this.snapOffset, this.snapOffset);
+    // 吸着後に対象の背中を向く
+    const goalX = this.snapStart.x + this.snapOffset.x;
+    const goalZ = this.snapStart.z + this.snapOffset.z;
+    this.snapYawStart = this.yaw;
+    this.snapYawDelta = wrapAngle(
+      yawOf(target.position.x - goalX, target.position.z - goalZ) - this.yaw,
+    );
+  }
+
+  private endAmbush(): void {
+    const target = this.ambushTarget;
+    this.ambushTarget = null;
+    if (target) this.ambushSource?.end(target);
+  }
+
+  /** 条件が成立している間だけ true（地上で動作可能なとき）。剣の縁の光に使う。 */
+  private updateAmbushReady(): void {
+    const s = this.state;
+    this.ambushReady =
+      this.ambushSource !== null &&
+      (s === 'idle' || s === 'move' || s === 'dash') &&
+      this.stamina.canStart(PLAYER_ACTIONS.backstab.staminaCost) &&
+      this.ambushSource.find(this.position) !== null;
+  }
+
+  /**
+   * 吸着: 動作の最初の 6F で、対象の背後 0.9m へ（最大 1.2m の補正）寄り、対象の背中を向く。
+   * 毎ステップ「進み具合に対応する位置」との差分を速度にして、壁・地形には衝突判定が従う。
+   */
+  private updateAmbushSnap(dt: number): void {
+    const f = this.stateFrame;
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    if (!this.ambushTarget || f > AMBUSH.snapFrames) return;
+    const k = snapProgress(f);
+    const wantX = this.snapStart.x + this.snapOffset.x * k;
+    const wantZ = this.snapStart.z + this.snapOffset.z * k;
+    this.velocity.x = (wantX - this.position.x) / dt;
+    this.velocity.y = (wantZ - this.position.z) / dt;
+    this.yaw = wrapAngle(this.snapYawStart + this.snapYawDelta * k);
   }
 
   /** 先行入力（攻撃 10F）を消費して強攻撃の溜めを始める。スタミナ 0 では開始できない。 */
@@ -1012,10 +1105,14 @@ export class Player {
     const f = this.stateFrame;
     const data = PLAYER_ACTIONS[id];
 
-    // 前進: 向いている方向へ、モーションの踏み込み量だけ（硬直中は止まる）
-    const dist = LUNGE[id][f - 1] ?? 0;
-    this.velocity.x = Math.sin(this.yaw) * dist * 60;
-    this.velocity.y = Math.cos(this.yaw) * dist * 60;
+    // 前進: 向いている方向へ、モーションの踏み込み量だけ（硬直中は止まる）。致命の一撃は吸着
+    if (id === 'backstab') {
+      this.updateAmbushSnap(1 / 60);
+    } else {
+      const dist = LUNGE[id][f - 1] ?? 0;
+      this.velocity.x = Math.sin(this.yaw) * dist * 60;
+      this.velocity.y = Math.cos(this.yaw) * dist * 60;
+    }
 
     // キャンセル: ロール / バックステップ（持続終了の 2F 後〜）、次段の軽攻撃（持続終了 + 4F 〜 全体 + 12F）
     if (this.fsm.canCancelTo('dodge')) {
@@ -1504,6 +1601,8 @@ export class Player {
    */
   private applyAttackFacing(frame: PlayerFrame, dt: number): void {
     const id = this.state as PlayerAttackId;
+    // 致命の一撃の向きは吸着（`updateAmbushSnap`）が決める。入力・ロックオンでは回さない
+    if (id === 'backstab') return;
     if (this.stateFrame > PLAYER_ACTIONS[id].startup) return;
     let target: number | null = null;
     if (frame.lockTarget) target = this.toTargetYaw;

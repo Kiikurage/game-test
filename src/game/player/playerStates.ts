@@ -22,6 +22,8 @@ export type PlayerStateId =
   | 'heavy'
   | 'heavyCharged'
   | 'runAttack'
+  // 致命の一撃（#115）: 未発見の敵の背面からの軽攻撃。発生 10 / 持続 3 / 硬直 34。背後へ吸着し、対象を拘束する。
+  | 'backstab'
   // 回復瓶（#48）: 全体 54F（F26 で HP 加算）/ 残数 0 の空振り 20F
   | 'heal'
   | 'healEmpty'
@@ -51,14 +53,16 @@ export const HEAVY_ATTACK_IDS = ['heavy', 'heavyCharged'] as const;
 export type HeavyAttackId = (typeof HEAVY_ATTACK_IDS)[number];
 
 /** 攻撃判定を出す動作の ID（軽攻撃・強攻撃・走り攻撃・ガードカウンター）。状態 ID・`PLAYER_ACTIONS` のキー・マーカー表が一致する。 */
-export type PlayerAttackId = LightAttackId | HeavyAttackId | 'runAttack' | 'guardCounter';
+export type PlayerAttackId =
+  LightAttackId | HeavyAttackId | 'runAttack' | 'guardCounter' | 'backstab';
 
 export function isAttackState(state: PlayerStateId): state is PlayerAttackId {
   return (
     isLightAttackState(state) ||
     isHeavyAttackState(state) ||
     state === 'runAttack' ||
-    state === 'guardCounter'
+    state === 'guardCounter' ||
+    state === 'backstab'
   );
 }
 
@@ -92,6 +96,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       'fall',
       'guard',
       ...LIGHT_ATTACK_IDS,
+      'backstab',
       HEAVY_ENTRY,
       ...HEALS,
       ...SCRIPTED,
@@ -108,6 +113,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       'fall',
       'guard',
       ...LIGHT_ATTACK_IDS,
+      'backstab',
       HEAVY_ENTRY,
       'runAttack',
       ...HEALS,
@@ -125,6 +131,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
       'fall',
       'guard',
       ...LIGHT_ATTACK_IDS,
+      'backstab',
       HEAVY_ENTRY,
       'runAttack',
       ...HEALS,
@@ -135,9 +142,23 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   // ロール終了・キャンセル: 移動・ダッシュ（ボタン保持）・停止・落下・攻撃・ガード・回復（F26 以降）
   roll: {
     kind: 'action',
-    to: ['idle', 'move', 'dash', 'fall', 'light1', HEAVY_ENTRY, 'guard', ...HEALS, ...REACTIONS],
+    to: [
+      'idle',
+      'move',
+      'dash',
+      'fall',
+      'light1',
+      'backstab',
+      HEAVY_ENTRY,
+      'guard',
+      ...HEALS,
+      ...REACTIONS,
+    ],
   },
-  backstep: { kind: 'action', to: ['idle', 'move', 'light1', HEAVY_ENTRY, ...REACTIONS] },
+  backstep: {
+    kind: 'action',
+    to: ['idle', 'move', 'light1', 'backstab', HEAVY_ENTRY, ...REACTIONS],
+  },
   // 小さな段差の乗り降りは着地せず立ち・移動へ戻る
   fall: { kind: 'move', to: ['idle', 'move', 'land', ...REACTIONS] },
   // 着地硬直: 途中からロール系で抜けられる
@@ -171,10 +192,23 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   },
   // 走り攻撃: キャンセル窓なし。終わりで移動系へ
   runAttack: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
+  // 致命の一撃: キャンセル窓なし（47F 通しで出す）。終わりで移動系へ
+  backstab: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   // 回復: F30 からロールへ、F36 から攻撃・ガードへキャンセル可。終了で移動系へ
   heal: {
     kind: 'action',
-    to: ['idle', 'move', 'fall', 'roll', 'backstep', 'light1', HEAVY_ENTRY, 'guard', ...REACTIONS],
+    to: [
+      'idle',
+      'move',
+      'fall',
+      'roll',
+      'backstep',
+      'light1',
+      'backstab',
+      HEAVY_ENTRY,
+      'guard',
+      ...REACTIONS,
+    ],
   },
   healEmpty: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   // 被弾の硬直。終了後は移動・待機・落下へ（硬直中は行動不能。再被弾は restart / 転倒への格上げ）
@@ -199,7 +233,7 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
   // 解除の硬直 8F。再入力で即ガード復帰、終わりで（先行入力の）通常攻撃か移動系へ。
   guardRelease: {
     kind: 'move',
-    to: ['idle', 'move', 'fall', 'guard', 'light1', ...REACTIONS],
+    to: ['idle', 'move', 'fall', 'guard', 'light1', 'backstab', ...REACTIONS],
   },
   // ガード崩し: 54F の行動不能（被ダメージ 1.5 倍）。途中の被弾でも姿勢は崩れたまま。
   guardBreak: { kind: 'stagger', to: ['idle', 'move', 'fall', 'dead'] },

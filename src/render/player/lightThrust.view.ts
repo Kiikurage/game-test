@@ -6,7 +6,7 @@ import { StepClock } from './stepClock';
 import { thrustPose } from './thrustPose';
 
 /**
- * 軽攻撃 3 段目を「突き」に見せる手続き的な補正（#173）。
+ * 軽攻撃 3 段目と致命の一撃（#115）を「突き」に見せる手続き的な補正（#173）。
  *
  * ベースは派生クリップ `Sword_Thrust`（跳ねを除いた下半身・踏み込み。`anim/thrustClip.ts`）。ここでは
  * ミキサーの後に、(1) 体幹を溜めでひねり・突きで回し込み、前かがみの踏み込みを起こす、(2) モデルを前へ踏み込ませる、
@@ -29,6 +29,14 @@ const MAX_TORSO_PITCH = 0.22;
 const AXIS_X = new Vector3(1, 0, 0);
 const AXIS_Y = new Vector3(0, 1, 0);
 const BLADE_LOCAL = new Vector3(0, 1, 0);
+
+/**
+ * 致命の一撃（#115）は同じ突きを発生 10F（軽 3 は 16F）で出す。判定開始（F11 = 軽 3 の F17）に合わせて、
+ * それまでを 1.6 倍速で進め、以降は同じ速さで続ける（姿勢の時間割 `thrustPose` は軽 3 の F 基準）。
+ */
+function backstabToThrustFrame(frame: number): number {
+  return frame <= 11 ? 1 + (frame - 1) * 1.6 : frame + 6;
+}
 
 registerViewPlugin('light-thrust', ({ game, view }) => {
   const handLocal = new Vector3();
@@ -89,7 +97,7 @@ registerViewPlugin('light-thrust', ({ game, view }) => {
       if (!root) return;
       const rig = lookup(root);
       if (!rig) return;
-      if (anim.state !== 'light3') {
+      if (anim.state !== 'light3' && anim.state !== 'backstab') {
         clock.reset();
         rig.guard.restore();
         return;
@@ -107,7 +115,7 @@ registerViewPlugin('light-thrust', ({ game, view }) => {
       if (!spine1 || !spine2 || !spine3 || !neck || !upper || !lower || !hand || !sword) return;
 
       const frame = clock.update(dt, anim.stateFrame, anim.frozen);
-      const p = thrustPose(frame);
+      const p = thrustPose(anim.state === 'backstab' ? backstabToThrustFrame(frame) : frame);
       if (p.weight <= 0) {
         rig.guard.restore();
         return;

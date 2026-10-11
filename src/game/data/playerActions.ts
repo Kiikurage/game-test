@@ -132,7 +132,7 @@ export const PLAYER_ACTIONS = {
     poiseDamage: 100,
     moveDistance: 0.9,
     cancels: [],
-    note: '致命の一撃（#39）。未発見の敵の背面 ±60°・1.6m 以内で軽攻撃。背後へ吸着',
+    note: '致命の一撃（#39）。未発見の敵の背面 ±60°・1.6m 以内で軽攻撃。背後 0.9m へ 6F で吸着（条件・吸着の数値は AMBUSH）',
   },
   plunge: {
     id: 'plunge',

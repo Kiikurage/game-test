@@ -1,4 +1,4 @@
-import { PLAYER_ACTIONS, activeWindow } from '../data';
+import { AMBUSH, PLAYER_ACTIONS, activeWindow } from '../data';
 import type { LightAttackId, PlayerAttackId } from '../player/playerStates';
 import { vec3, type Capsule, type Vec3 } from './geometry';
 import { playerAttackProfile } from './debugSwing';
@@ -99,6 +99,21 @@ function slashCapsule(
     feet.y + height + dy * (grip + len),
     feet.z + dz * (grip + len),
   );
+  return out;
+}
+
+/**
+ * 致命の一撃（Sword_Thrust の突き）の判定: 脇に引いた剣を胸の高さで正面へ真っ直ぐ突き出す（左右の振れなし）。
+ * 剣先は体の前 `AMBUSH.reachM`（吸着後の対象は体の前 0.9m）まで届く。`p` は持続中の進行。
+ */
+export function backstabCapsule(feet: Vec3, yaw: number, p: number, out: Capsule): Capsule {
+  const len = WEAPON_CAPSULE.length;
+  const sx = Math.sin(yaw);
+  const sz = Math.cos(yaw);
+  const s = THRUST_GRIP_START + (AMBUSH.reachM - len - THRUST_GRIP_START) * p;
+  set(out.a, feet.x + sx * s, feet.y + THRUST_HEIGHT, feet.z + sz * s);
+  set(out.b, feet.x + sx * (s + len), feet.y + THRUST_HEIGHT, feet.z + sz * (s + len));
+  out.radius = WEAPON_CAPSULE.radius;
   return out;
 }
 
@@ -223,6 +238,9 @@ export class PlayerAttackDriver {
         break;
       case 'runAttack':
         runAttackCapsule(source.feet, source.yaw, p, this.scratch);
+        break;
+      case 'backstab':
+        backstabCapsule(source.feet, source.yaw, p, this.scratch);
         break;
       default:
         lightAttackCapsule(id, source.feet, source.yaw, p, this.scratch);
