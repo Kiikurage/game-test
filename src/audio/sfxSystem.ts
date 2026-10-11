@@ -44,10 +44,16 @@ export function createSfxSystem(
   const player = new SfxPlayer(ctx, engine, library, { maxVoices: maxVoicesFor(opts.isMobile) });
   const bgm = new BgmController(ctx, engine, library);
   const unbindSfx = bindSfxEvents(events, player);
-  const unbindBgm = bindBgmEvents(events, bgm, engine, (id) => library.get(id) !== undefined);
   const ready = library.loadManifest(`${audioBase}manifest.json`).catch((e: unknown) => {
     console.warn('audio: manifest unavailable, running silent', e);
   });
+  const unbindBgm = bindBgmEvents(
+    events,
+    bgm,
+    engine,
+    (id) => library.get(id) !== undefined,
+    ready,
+  );
   return {
     library,
     player,
