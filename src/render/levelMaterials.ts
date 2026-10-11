@@ -13,6 +13,7 @@ import {
   instanceIndex,
   min,
   mix,
+  positionGeometry,
   positionLocal,
   positionWorld,
   normalWorld,
@@ -129,14 +130,16 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
   const rock = rockSurface(positionWorld, {
     damp: attribute('damp', 'float'),
     up: normalWorld.y,
+    normal: normalWorld,
   });
   const rocky = mix(vec3(1), rock.tone, rockMask);
-  if (detail >= 2) material.normalNode = bumpedNormal(rock.height, rockMask.mul(0.6));
+  if (detail >= 2) material.normalNode = bumpedNormal(rock, rockMask.mul(0.6));
 
   const factor = mix(
     dirt.mul(tread).mul(verge).mul(rocky),
     flag.mul(dirt.mul(0.5).add(0.5)).mul(vec3(1)),
-    stone.mul(patch),
+    // 敷石は XZ 平面への投影なので、急斜面では縦に引き伸ばされる。岩肌の所には出さない（#267）
+    stone.mul(patch).mul(float(1).sub(rockMask)),
   );
   material.colorNode = vec4(factor, 1);
   return tagMaterial(material, 'terrain');
@@ -145,14 +148,19 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
 /** 枯れ草: 根元が暗く、先が明るい。風でゆっくり揺れる（インスタンスごとの位相）。 */
 export function createGrassMaterial(): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0, side: DoubleSide });
-  const h = positionLocal.y;
+  // 高さは房のジオメトリ空間（根元 0）で測る。`positionLocal` は InstancedMesh ではインスタンス行列を
+  // 掛けた後（= ワールド高さ）なので、それで揺れ幅を決めると高所の房ほど h² で何 m も伸びて
+  // 空中を刃のような破片が飛ぶ（#266）
+  const h = positionGeometry.y;
   const phase = hash(instanceIndex).mul(6.28);
   const sway = sin(time.mul(1.4).add(phase)).mul(0.045).mul(h.mul(h).mul(3.5));
   const sway2 = cos(time.mul(1.1).add(phase.mul(1.7)))
     .mul(0.03)
     .mul(h.mul(h).mul(3.5));
   material.positionNode = positionLocal.add(vec3(sway, 0, sway2));
-  const tip = smoothstep(0.0, 0.5, h);
+  // 地面の房は高さ 0.28〜0.58m なので、根元から 0.3m で明るい色に届くようにする（以前はワールド高さで
+  // 計算していて実質すべて明るかった。根元だけ暗くして、近景で黒い棘に見えないようにする）
+  const tip = smoothstep(0.0, 0.3, h);
   const base = color(0x14110a);
   const lit = color(0x5c5233);
   const tone = hash(instanceIndex.add(7)).mul(0.7).add(0.6);
