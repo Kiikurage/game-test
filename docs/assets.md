@@ -472,7 +472,7 @@ boss.setEmber(emberAtTransitionFrame(frame));                           // 移�
 
 - `window.__game.dev.cryptInfo()` / `dev.poseCrypt({ lid, gate, lever })`（0 = 閉〜1 = 開）で E2E・撮影ができる。
 - `LevelView` は `cryptLayout.isMasonryProp(id)`（`d-*` / `e-*` / `lane-*`）のグレーボックスと、G1 の鉄門・レバーのグレーボックスを描かない。霧の門（E4-4d）のグレーボックスはそのまま。
-- 撮影: `SHOT_TOUR='名前:x,z,yaw,yawOffset[,距離,ピッチ];...' node scripts/shot-tour.mjs shots/tour`（1 回の読み込みで複数地点を撮る。`SHOT_ONLY=pc|mobile`、`SHOT_SKIP_BUILD=1`）。
+- 撮影: 視点を `scripts/heroShots.json` に足し（確認用なら `"optional": true`）、`npm run heroshots -- shots/x --only <名前>` で撮る（1 回の読み込みで複数地点を撮る。`--mobile`、`HERO_SKIP_BUILD=1`）。
 
 ### 7.14 Blender のヘッドレス生成パイプライン（Issue #327）
 
