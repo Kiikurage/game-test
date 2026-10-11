@@ -1,12 +1,4 @@
-import {
-  BOSS_KILL_SLOWMO,
-  CAMERA,
-  HIT_FLASH,
-  HIT_STOP,
-  KILL_SLOWMO,
-  LOCK_ON,
-  MOVEMENT,
-} from './data';
+import { BOSS_KILL_SLOWMO, CAMERA, HIT_FLASH, HIT_STOP, LOCK_ON, MOVEMENT } from './data';
 
 /**
  * プレイヤー・カメラ・ロックオンの調整値を一箇所に集約したもの。
@@ -69,9 +61,10 @@ export type Tuning = {
     guardSuccess: number;
     justGuard: number;
     kill: number;
-    /** 撃破スロー（グローバルのタイムスケールと、その長さ = シミュレーションフレーム数）。 */
+    /** 雑魚敵の撃破（トドメ）の凍結フレーム数。スローは入れない（#277）。 */
+    enemyKill: number;
+    /** ボス撃破のスロー（グローバルのタイムスケールと、その長さ = シミュレーションフレーム数）。 */
     killSlowmoScale: number;
-    killSlowmoFrames: number;
     bossKillSlowmoFrames: number;
     /** フル溜め強攻撃の画面振動（度・フレーム）。 */
     redFlashFrames: number;
@@ -165,8 +158,8 @@ function createTuning(): Tuning {
       guardSuccess: HIT_STOP.guardSuccess,
       justGuard: HIT_STOP.justGuard,
       kill: HIT_STOP.kill,
-      killSlowmoScale: KILL_SLOWMO.timeScale,
-      killSlowmoFrames: KILL_SLOWMO.frames,
+      enemyKill: HIT_STOP.enemyKill,
+      killSlowmoScale: BOSS_KILL_SLOWMO.timeScale,
       bossKillSlowmoFrames: BOSS_KILL_SLOWMO.frames,
       redFlashFrames: HIT_FLASH.redFrames,
       whiteFlashFrames: HIT_FLASH.whiteFrames,
