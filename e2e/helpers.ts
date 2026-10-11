@@ -9,6 +9,17 @@ export async function startGame(page: Page): Promise<void> {
 }
 
 /**
+ * ローディング完了 → `dev.start()` で開始する（開始画面をクリックしない。Pointer Lock を取らず、実マウスに触れない）。
+ * 以降の入力は `window.__game.dev.input.*` で注入する（ロックなしのクリックも攻撃として扱われる）。
+ */
+export async function startGameDev(page: Page): Promise<void> {
+  const app = page.locator('#app');
+  await expect(app).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
+  await page.evaluate(() => window.__game?.dev.start());
+  await expect(app).toHaveAttribute('data-state', 'running');
+}
+
+/**
  * キーの短押し（keydown → keyup を同一タスクで発火する）。
  * `page.keyboard.press` は keydown と keyup の間に CDP の往復が入り、遅い CI では 0.5 秒近く空くことがある。
  * 回避の短押し判定（実時間 0.25 秒）に影響するため、短押しの検証にはこちらを使う。

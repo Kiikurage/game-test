@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, UNDEAD_SOLDIER_ATTACKS } from '../data';
 import { Game } from '../game';
@@ -419,7 +420,7 @@ describe('roll vs. a real enemy attack (simulation)', () => {
     input.setMove(1, 0);
     input.press('dodge');
     for (let i = 0; i < 60; i++) run(1);
-    return game.hitLog.filter((e) => e.targetId === 'player').length;
+    return gameStats(game).hitLog.filter((e) => e.targetId === 'player').length;
   }
 
   it('passes through when roll F4.. covers the whole swing, is hit on F3', async () => {

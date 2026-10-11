@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { GameEventMap } from '../../core/gameEvents';
 import { capsule, capsuleShape, vec3 } from '../combat';
@@ -158,8 +159,8 @@ describe('heal flask', () => {
       expect(heals).toHaveLength(1);
       expect(heals[0]?.amount).toBe(50);
       expect(heals[0]?.hp).toBe(PLAYER_STATS.hp);
-      expect(game.eventCounts.healStart).toBe(1);
-      expect(game.eventCounts.healApply).toBe(1);
+      expect(gameStats(game).eventCounts.healStart).toBe(1);
+      expect(gameStats(game).eventCounts.healApply).toBe(1);
     });
 
     it('飲む音（開始）と光の音（F26）を sound イベントで鳴らす', () => {
@@ -210,7 +211,7 @@ describe('heal flask', () => {
       game.events.on('sound', (e) => cues.push(e.cue));
       drink();
       expect(stateName()).toBe('healEmpty');
-      expect(game.eventCounts.healEmpty).toBe(1);
+      expect(gameStats(game).eventCounts.healEmpty).toBe(1);
       expect(HEAL_EMPTY_FRAMES).toBe(20);
       run(19); // F20
       expect(stateName()).toBe('healEmpty');
@@ -244,7 +245,7 @@ describe('heal flask', () => {
       expect(stateName()).not.toBe('flinch');
       expect(hp()).toBe(hpAfterHit);
       expect(game.player.flask.count).toBe(2);
-      expect(game.eventCounts.healApply).toBe(0);
+      expect(gameStats(game).eventCounts.healApply).toBe(0);
     });
 
     it('F26 以降に仰け反っても、すでに加算された回復は残る', () => {

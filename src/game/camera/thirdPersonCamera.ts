@@ -86,6 +86,12 @@ export class ThirdPersonCamera {
   /** 壁際で腕が縮んだときの見下ろし補正（ラジアン、平滑化済み）。視点を上げてプレイヤーの背中で画面が埋まるのを避ける。 */
   private collisionPitch = 0;
   private armTarget: number = tuning.camera.distance;
+  /** 撮影用: 通常時のアーム長を `tuning.camera.distance` の代わりにこの値にする（`dev.view`）。 */
+  distanceOverride: number | undefined;
+
+  private get baseDistance(): number {
+    return this.distanceOverride ?? tuning.camera.distance;
+  }
 
   /** 実際のカメラの向き（前方の単位ベクトル）。ロックオン対象の選択に使う。 */
   readonly forward = new Vector3(0, 0, 1);
@@ -106,7 +112,7 @@ export class ThirdPersonCamera {
       playerPosition.y + tuning.camera.pivotHeight,
       playerPosition.z,
     );
-    this.armLength = tuning.camera.distance;
+    this.armLength = this.baseDistance;
     this.initialized = true;
     this.placeFree();
     this.transform.snap();
@@ -127,7 +133,7 @@ export class ThirdPersonCamera {
     if (input.lockTarget) {
       this.armTarget = this.updateLocked(dt, input, input.lockTarget);
     } else {
-      this.armTarget = tuning.camera.distance;
+      this.armTarget = this.baseDistance;
       this.updateFree(dt, input);
     }
     this.armTarget += this.presentation.armOffsetM;

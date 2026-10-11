@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { findEnemyClipEvents } from '../anim/enemyClips';
 import {
@@ -157,9 +158,9 @@ describe('undead soldier in the game (Rapier)', () => {
     const hp0 = game.playerTarget.health.current;
     let hitAt = -1;
     for (let i = 0; i < 40 && hitAt < 0; i++) {
-      const before = game.hitCount;
+      const before = gameStats(game).hitCount;
       run(1);
-      if (game.hitCount > before) hitAt = enemy.fsm.stateFrame;
+      if (gameStats(game).hitCount > before) hitAt = enemy.fsm.stateFrame;
     }
     expect(hitAt).toBe(UNDEAD_SOLDIER_ATTACKS.a1.startup + 1);
     expect(game.playerTarget.health.current).toBe(hp0 - 45);
@@ -183,7 +184,7 @@ describe('undead soldier in the game (Rapier)', () => {
         }
       }
       expect(covered).toBe(true);
-      expect(game.hitLog.filter((e) => e.targetId === 'player')).toHaveLength(0);
+      expect(gameStats(game).hitLog.filter((e) => e.targetId === 'player')).toHaveLength(0);
       expect(game.playerTarget.health.current).toBe(hp0);
     });
 
@@ -194,7 +195,7 @@ describe('undead soldier in the game (Rapier)', () => {
       input.setMove(1, 0);
       input.press('dodge');
       run(def.startup + def.active + 4);
-      expect(game.hitLog.filter((e) => e.targetId === 'player')).toHaveLength(0);
+      expect(gameStats(game).hitLog.filter((e) => e.targetId === 'player')).toHaveLength(0);
     });
   }
 
@@ -216,7 +217,7 @@ describe('undead soldier in the game (Rapier)', () => {
       if (i % 6 === 0) input.press('lightAttack');
       run(1);
     }
-    expect(game.hitLog.filter((e) => e.attackerId === 'player')).toHaveLength(3);
+    expect(gameStats(game).hitLog.filter((e) => e.attackerId === 'player')).toHaveLength(3);
     expect(enemy.alive).toBe(false);
     expect(enemy.state).toBe('dead');
     expect(enemy.hp).toBe(0);

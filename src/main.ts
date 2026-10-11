@@ -6,7 +6,8 @@ import {
   installAudioUnlock,
   type BgmState,
 } from './audio';
-import { Game, type GameDebugState } from './game/game';
+import { Game } from './game/game';
+import { simDebugState, type SimDebugState } from './game/debug/stats.system';
 import { preloadPhysics } from './game/physics';
 import { InputSystem, type InputDebugState } from './input';
 import { createRenderer } from './render/renderer';
@@ -35,13 +36,15 @@ interface DebugState {
   readonly backend: 'webgpu';
   readonly frames: number;
   readonly steps: number;
+  /** シミュレーションが止まっているか（開始前・一時停止中・`dev.pause(true)`）。 */
+  readonly paused: boolean;
   readonly input: InputDebugState;
   readonly quality: string;
   readonly resolutionScale: number;
   /** `?clip=` / `?view=` 指定時のキャラクター確認表示（アセットパイプライン確認用）。 */
   readonly showcase?: ShowcaseState;
   /** プレイヤー・カメラ・ロックオンの状態（E2E 用）。 */
-  readonly sim: GameDebugState;
+  readonly sim: SimDebugState;
   /** E2E 用の操作（テレポートなど）。各機能が `*.dev.ts` の `registerDevHooks` で足す（src/devHooks.ts）。 */
   readonly dev: DevHooks;
   /** プレイヤーの描画状態（読み込み失敗時は undefined）。 */
@@ -71,6 +74,11 @@ export interface GameApp {
   /** AudioContext を resume する（ユーザー操作のハンドラ内で呼ぶ）。 */
   resumeAudio(): void;
   requestPointerLock(): void;
+  /**
+   * `window.__game.dev.start()`（E2E・撮影用の開始口）が呼ぶ処理を登録する。開始画面を出した時点で boot.ts が登録する。
+   * 処理は開始画面のクリックと同じ開始を、Pointer Lock を取らずに行う。
+   */
+  onDevStart(handler: () => Promise<void>): void;
 }
 
 /**
@@ -190,11 +198,9 @@ export async function createGameApp(
     void sfx?.preloadGroup('title'); // 暫定: タイトル画面ができたらそこで呼ぶ（field は敵・ボス SE 用）
 
     // 開始画面のタップまでシミュレーションは進めない（boot.ts が setPaused(false) → start() する）
-    let paused = true;
     const loop = new MainLoop(
       {
         update: (dt) => {
-          if (paused) return;
           input.step(dt); // 入力スナップショットを確定してから game が読む
           game.update(dt);
         },
@@ -206,6 +212,8 @@ export async function createGameApp(
       },
       { timeScale: () => game.timeScale.current },
     );
+    loop.paused = true;
+    let devStartHandler: (() => Promise<void>) | undefined;
 
     window.__game = {
       backend: 'webgpu',
@@ -214,6 +222,9 @@ export async function createGameApp(
       },
       get steps() {
         return loop.stepCount;
+      },
+      get paused() {
+        return loop.paused;
       },
       get input() {
         return input.debugState;
@@ -243,15 +254,18 @@ export async function createGameApp(
         return showcase?.state;
       },
       get sim() {
-        return game.debugState;
+        return simDebugState(game);
       },
       dev: createDevHooks({
         game,
         view,
         input,
         playerView: () => playerView,
-        setPaused: (p) => {
-          paused = p;
+        loop,
+        start: () => {
+          if (!devStartHandler) throw new Error('the start screen is not ready yet');
+          input.enableDevMode();
+          return devStartHandler();
         },
       }),
       get playerView() {
@@ -264,7 +278,7 @@ export async function createGameApp(
         loop.start();
       },
       setPaused: (p) => {
-        paused = p;
+        loop.paused = p;
         audio?.setPaused(p);
       },
       resumeAudio: () => {
@@ -272,6 +286,9 @@ export async function createGameApp(
       },
       requestPointerLock: () => {
         input.requestPointerLock();
+      },
+      onDevStart: (handler) => {
+        devStartHandler = handler;
       },
     };
   } catch (e) {

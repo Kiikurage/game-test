@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { capsule, capsuleShape, vec3 } from '../combat';
 import { PLAYER_STATS, UNDEAD_SOLDIER_ATTACKS, type UndeadAttackId } from '../data';
@@ -54,19 +55,19 @@ describe('enemy attacks in the game (Rapier)', () => {
     // 予備動作の間は当たらない。発生の次のフレーム（F(発生+1)）に命中する
     let hitFrame = -1;
     for (let f = 1; f <= def.startup + def.active; f++) {
-      const hits = game.hitCount;
+      const hits = gameStats(game).hitCount;
       run(1);
-      if (game.hitCount > hits && hitFrame < 0) hitFrame = enemy.fsm.stateFrame;
+      if (gameStats(game).hitCount > hits && hitFrame < 0) hitFrame = enemy.fsm.stateFrame;
       if (hitFrame >= 0) break;
     }
     expect(hitFrame).toBe(def.startup + 1);
     expect(game.playerTarget.health.current).toBe(hp0 - def.damage);
-    expect(game.hitLog.at(-1)?.attackerId).toBe('t-soldier');
-    expect(game.hitLog.at(-1)?.targetId).toBe('player');
+    expect(gameStats(game).hitLog.at(-1)?.attackerId).toBe('t-soldier');
+    expect(gameStats(game).hitLog.at(-1)?.targetId).toBe('player');
 
     // 被弾リアクション（A1: 強靭度削り 25 → 仰け反り / A2: 50 → 転倒）とヒットストップ 6F（攻撃側の敵も凍結）
     expect(game.player.state).toBe(def.poiseDamage >= 50 ? 'knockdown' : 'flinch');
-    expect(game.lastHitStopFrames).toBe(6);
+    expect(gameStats(game).lastHitStopFrames).toBe(6);
     expect(enemy.fsm.freezeRemaining).toBe(6);
     const frame = enemy.fsm.stateFrame;
     run(6);
@@ -77,7 +78,9 @@ describe('enemy attacks in the game (Rapier)', () => {
     // 攻撃が終われば Recover へ。同じ攻撃で 2 度は当たらない
     for (let i = 0; i < 200 && enemy.state === 'attack'; i++) run(1);
     expect(enemy.state).not.toBe('attack');
-    expect(game.hitLog.filter((e) => e.attackerId === 't-soldier').length).toBeLessThanOrEqual(2);
+    expect(
+      gameStats(game).hitLog.filter((e) => e.attackerId === 't-soldier').length,
+    ).toBeLessThanOrEqual(2);
   });
 
   it('lets a well-timed roll dodge the attack through its invulnerability frames', async () => {
@@ -97,10 +100,10 @@ describe('enemy attacks in the game (Rapier)', () => {
         invulnerableDuringActive = true;
       }
     }
-    expect(game.eventCounts.rollStart).toBe(1);
+    expect(gameStats(game).eventCounts.rollStart).toBe(1);
     expect(invulnerableDuringActive).toBe(true);
     expect(game.playerTarget.health.current).toBe(hp0);
-    expect(game.hitLog.filter((e) => e.targetId === 'player')).toHaveLength(0);
+    expect(gameStats(game).hitLog.filter((e) => e.targetId === 'player')).toHaveLength(0);
     expect(game.player.dead).toBe(false);
   });
 
@@ -135,9 +138,9 @@ describe('enemy attacks in the game (Rapier)', () => {
     input.press('guard'); // ボタン保持（敵の攻撃が出る頃には構え・ジャストガード窓を過ぎている）
     const id = runUntilAttack();
     const def = UNDEAD_SOLDIER_ATTACKS[id];
-    for (let i = 0; i < def.startup + def.active + 4 && game.hitCount === 0; i++) run(1);
-    expect(game.hitCount).toBe(1);
-    const e = game.hitLog.at(-1);
+    for (let i = 0; i < def.startup + def.active + 4 && gameStats(game).hitCount === 0; i++) run(1);
+    expect(gameStats(game).hitCount).toBe(1);
+    const e = gameStats(game).hitLog.at(-1);
     expect(e?.targetId).toBe('player');
     expect(e?.guard).toBe('guard');
     expect(game.playerTarget.health.current).toBe(hp0 - Math.floor(def.damage * 0.1));
