@@ -3,6 +3,8 @@ import { launchOptions } from './scripts/chromium.mjs';
 
 // 並行する作業ツリーでポートが衝突しないよう E2E_PORT で変更できる（CI は既定の 4173）。
 const PORT = Number(process.env.E2E_PORT ?? 4173);
+// CI は build ジョブの dist を取得して使うので、E2E_PREBUILT=1 のときはビルドを省いて preview だけ行う。
+const BUILD = process.env.E2E_PREBUILT ? '' : 'npm run build && ';
 
 export default defineConfig({
   testDir: './e2e',
@@ -19,7 +21,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: `npm run build && npx vite preview --host 127.0.0.1 --port ${PORT} --strictPort`,
+    command: `${BUILD}npx vite preview --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}/game-test/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
