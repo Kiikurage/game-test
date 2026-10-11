@@ -25,7 +25,8 @@
     "assets:equipment": "node scripts/assets/build-equipment.mjs",
     "assets:exploration": "node scripts/assets/build-exploration.mjs",
     "assets:environment": "node scripts/assets/build-environment.mjs",
-    "assets:player": "node scripts/assets/build-player.mjs"
+    "assets:player": "node scripts/assets/build-player.mjs",
+    "assets:water": "node scripts/assets/build-water-textures.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",
