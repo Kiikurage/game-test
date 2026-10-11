@@ -38,6 +38,9 @@ export interface BossSpawnOptions {
 export class BossSystem {
   boss: Boss | null = null;
   private heart: UprightTarget | null = null;
+  private reactor: HitReactor | null = null;
+  /** `game.registerCombatant` の登録解除。 */
+  private unregister: (() => void) | null = null;
 
   constructor(private readonly game: Game) {
     // プレイヤーの死亡（演出の開始）・篝火の休憩でボスを戻す（撃破済みのボスは戻さない）
@@ -54,13 +57,13 @@ export class BossSystem {
    * 交戦中だったら `bossReset` を発行する。
    */
   reset(cause: 'death' | 'rest' = 'death'): void {
-    const { boss, heart, game } = this;
+    const { boss, heart } = this;
     if (!boss || !heart || !boss.alive) return;
     boss.reset(cause);
     heart.health.refill();
     heart.invulnerable = false;
     heart.staggered = false;
-    game.reactors.get(BOSS_ID)?.reset();
+    this.reactor?.reset();
     heart.place(boss.position.x, boss.position.y, boss.position.z, boss.yaw);
   }
 
@@ -103,13 +106,17 @@ export class BossSystem {
       uprightHeartbox(BOSS_STATS.radius, BOSS_STATS.height),
     ]);
     heart.place(boss.position.x, boss.position.y, boss.position.z, boss.yaw);
-    game.combat.addTarget(heart);
-    game.addReactor(BOSS_ID, reactor, heart);
-    game.registerFreezable(BOSS_ID, boss);
-    game.bossIds.add(BOSS_ID);
-    game.lockOnTargets.push(boss);
+    this.unregister = game.registerCombatant({
+      id: BOSS_ID,
+      lockOn: boss,
+      heart,
+      reactor,
+      freezable: boss,
+      boss: true,
+    });
     this.boss = boss;
     this.heart = heart;
+    this.reactor = reactor;
     if (options.engage ?? true) boss.engage();
     return boss;
   }
@@ -118,16 +125,12 @@ export class BossSystem {
   remove(): void {
     const { boss } = this;
     if (!boss) return;
-    const { game } = this;
-    game.combat.removeTarget(BOSS_ID);
-    game.removeReactor(BOSS_ID);
-    game.unregisterFreezable(BOSS_ID);
-    game.bossIds.delete(BOSS_ID);
-    const i = game.lockOnTargets.indexOf(boss);
-    if (i >= 0) game.lockOnTargets.splice(i, 1);
+    this.unregister?.();
+    this.unregister = null;
     boss.dispose();
     this.boss = null;
     this.heart = null;
+    this.reactor = null;
   }
 
   update(dt: number): void {
@@ -159,7 +162,7 @@ export class BossSystem {
   }
 
   onHit(e: HitEvent): void {
-    const { boss, heart, game } = this;
+    const { boss, heart } = this;
     if (!boss || !heart || e.targetId !== BOSS_ID) return;
     boss.setHp(heart.health.current);
     if (heart.health.dead) {
@@ -167,8 +170,7 @@ export class BossSystem {
       return;
     }
     // 崩し（強靭度が尽きた）だけが技を打ち切る。通常攻撃では中断しない
-    const reactor = game.reactors.get(BOSS_ID);
-    const reaction = reactor?.lastReaction;
+    const reaction = this.reactor?.lastReaction;
     if (reaction?.kind === 'stagger') boss.stagger(reaction.frames);
   }
 }
