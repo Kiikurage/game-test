@@ -1,6 +1,8 @@
 import type { Group } from 'three/webgpu';
 import { corpsePlacement } from '../../core/corpses';
 import { WORLD_INTERACTABLES } from '../../game/data/world/interactables';
+import type { Interactable } from '../../game/data/world/types';
+import { hasFlagIn } from '../../game/interactable/interactable';
 import { applyCharacterLight } from '../characterLight';
 import { CharacterAssets } from '../assets/characterAssets';
 import { EquipmentAssets } from '../assets/equipment';
@@ -23,7 +25,11 @@ registerViewPlugin('corpse', ({ game, view, level }) => {
   const placed = new Set(level.data.interactables.map((i) => i.id));
   const defs = WORLD_INTERACTABLES.filter((d) => d.corpse && placed.has(d.id));
   if (defs.length === 0) return {};
-  const bodies: { id: string; x: number; z: number; group: Group }[] = [];
+  const bodies: { id: string; x: number; z: number; group: Group; def: Interactable }[] = [];
+  // 瀕死の騎士（生きている間）と遺体（息絶えた後）は、`requires` のフラグで出し分ける
+  const present = (d: Interactable): boolean =>
+    (d.requires?.flagSet === undefined || hasFlagIn(game, d.requires.flagSet)) &&
+    (d.requires?.flagUnset === undefined || !hasFlagIn(game, d.requires.flagUnset));
   /** 最初の更新は全部を描く（ウォームアップでマテリアルのパイプラインを作る）。 */
   let warm = true;
   return {
@@ -56,14 +62,14 @@ registerViewPlugin('corpse', ({ game, view, level }) => {
           o.castShadow = false;
         });
         view.scene.add(group);
-        bodies.push({ id: d.id, x: d.x, z: d.z, group });
+        bodies.push({ id: d.id, x: d.x, z: d.z, group, def: d });
       });
     },
     update: () => {
       const { x, z } = game.player.feet;
       if (bodies.length === 0) return;
       for (const b of bodies) {
-        b.group.visible = warm || Math.hypot(b.x - x, b.z - z) < CORPSE_FAR;
+        b.group.visible = warm || (Math.hypot(b.x - x, b.z - z) < CORPSE_FAR && present(b.def));
         if (warm) b.group.traverse((o) => (o.frustumCulled = false));
       }
       if (warm) {

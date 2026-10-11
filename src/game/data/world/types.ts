@@ -18,10 +18,18 @@ export interface StatMod {
 }
 
 export type Effect =
-  | { readonly type: 'showText'; readonly textId: TextId; readonly seconds?: number }
+  | {
+      readonly type: 'showText';
+      readonly textId: TextId;
+      readonly seconds?: number;
+      /** 初回だけ出す（2 回目以降は省略。鐘の `bell_first`）。出したら `shown.<textId>` をセーブする。 */
+      readonly firstOnly?: boolean;
+    }
   | { readonly type: 'giveItem'; readonly itemId: string; readonly count?: number }
   | { readonly type: 'setFlag'; readonly flag: Flag }
   | { readonly type: 'emitSound'; readonly radiusM: number; readonly kind: 'bell' | 'crash' }
+  /** 効果音（SFX のキュー名。素材の接続は別チケット）。位置は対象の位置。 */
+  | { readonly type: 'playSound'; readonly cue: string }
   | { readonly type: 'playClip'; readonly clip: string; readonly durationF: number }
   | { readonly type: 'ambientDuck'; readonly db: number; readonly frames: number }
   | {
@@ -39,7 +47,7 @@ export type InteractableKind =
  */
 export type InteractableSite = 'main' | 'side_roof' | 'side_ledge' | 'side_wall' | 'side_waterway';
 
-/** 遺体として描く対象（調べる対象が遺体のとき）。描画は `render/item/corpse.view.ts`。 */
+/** 遺体（と、もたれて座る瀕死の騎士）として描く対象。描画は `render/item/corpse.view.ts`。 */
 export interface CorpseLook {
   /** 姿勢（`core/corpses` の `CorpsePose`）。 */
   readonly pose: 'sitting' | 'prone' | 'praying' | 'leaning';
@@ -67,6 +75,14 @@ export interface Interactable {
   readonly effects: readonly Effect[];
   /** breakable の HP。 */
   readonly hp?: number;
+  /** 状況アクションの動作の長さ（フレーム。bell / pray / push。省略時は loot と同じ）。この間は無防備。 */
+  readonly actionF?: number;
+  /** 動作の開始からこのフレームで効果が出る（bell は F20 で鳴る）。省略時は loot と同じ。途中で被弾して中断されたら出ない。 */
+  readonly effectF?: number;
+  /** floorHatch の板の半幅（m）。接触の判定は `FLOOR_HATCH.contactMarginM` だけ内側。 */
+  readonly halfM?: number;
+  /** 開閉・崩壊で衝突を無効にする静的な箱の ID（`BoxSpec.id`。鉄格子・崩れる壁）。 */
+  readonly colliderId?: string;
   /** 遺体として描く（仮の遺体。未指定なら目印だけ）。 */
   readonly corpse?: CorpseLook;
 }

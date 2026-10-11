@@ -1,11 +1,19 @@
 // インタラクト対象の配置データ（仕様書 14.5 節の配置一覧 26 件）。座標は初期値（グレーボックスで調整する）。
-// 実動作があるのは read / loot だけ（`game/interactable`）。他の種別（pray / bell / talk / push / breakable）は
-// 後続（#123）が実動作を入れるので、ここではデータだけを置く（`IMPLEMENTED_KINDS` に入っていない種別は登録されない）。
+// 実動作は `game/interactable`（read / loot / pray / bell / talk / push / breakable / floorHatch）。
 // どれが実際に置かれるかは、レベルの地形（脇道の足場など）が存在するかで決まる（`ashenFoundation.ts`、`site`）。
 import type { Interactable, InteractableKind } from './types';
 
 /** 実動作がある種別。 */
-export const IMPLEMENTED_KINDS: ReadonlySet<InteractableKind> = new Set(['read', 'loot']);
+export const IMPLEMENTED_KINDS: ReadonlySet<InteractableKind> = new Set([
+  'read',
+  'loot',
+  'pray',
+  'bell',
+  'talk',
+  'push',
+  'breakable',
+  'floorHatch',
+]);
 
 const read = (
   id: string,
@@ -71,6 +79,8 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
     z: 20,
     site: 'main',
     prompt: 'pray',
+    actionF: 120,
+    effectF: 0,
     effects: [
       { type: 'playClip', clip: 'Pray', durationF: 120 },
       { type: 'ambientDuck', db: -6, frames: 180 },
@@ -78,6 +88,19 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
     ],
   },
   read('grave_c_floor', 45, 27),
+  // 腐った床板（C 祭壇裏の北西。`world/waterway.ts` の `HATCH` と同じ位置）。3m 以内で軋み、踏むと割れて水路へ落ちる
+  {
+    id: 'hatch_c',
+    kind: 'floorHatch',
+    x: 44,
+    z: 28,
+    site: 'main',
+    radiusM: 3,
+    halfM: 1,
+    colliderId: 'floor-hatch',
+    prompt: null,
+    effects: [{ type: 'playSound', cue: 'sfx.hatch-break' }],
+  },
   {
     id: 'bell_c',
     kind: 'bell',
@@ -86,10 +109,13 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
     site: 'side_ledge',
     prompt: 'bell',
     cooldownF: 1800,
+    actionF: 90,
+    effectF: 20,
     effects: [
       { type: 'playClip', clip: 'Bell', durationF: 90 },
+      { type: 'playSound', cue: 'sfx.bell' },
       { type: 'emitSound', radiusM: 15, kind: 'bell' },
-      { type: 'showText', textId: 'bell_first' },
+      { type: 'showText', textId: 'bell_first', firstOnly: true },
     ],
   },
   {
@@ -122,6 +148,7 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
     site: 'side_waterway',
     prompt: 'talk',
     requires: { flagUnset: 'knight.dead' },
+    corpse: { pose: 'leaning', variant: 'warrior', yawDeg: 300 },
     effects: [
       {
         type: 'dialogue',
@@ -143,9 +170,12 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
     kind: 'push',
     x: 72,
     z: 45,
-    site: 'main',
+    site: 'side_waterway',
     prompt: 'push',
     once: true,
+    actionF: 90,
+    effectF: 45,
+    colliderId: 'iron-grate',
     effects: [
       { type: 'playClip', clip: 'Push', durationF: 90 },
       { type: 'setFlag', flag: 'world.grateDOpen' },
@@ -157,7 +187,9 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
     kind: 'breakable',
     x: 82,
     z: 41,
-    site: 'main',
+    // 蔵の崩れる壁（#112）の地形ができるまで本番レベルには置かない（`side_wall` の足場がないので配置されない）
+    site: 'side_wall',
+    colliderId: 'wall-g1',
     prompt: null,
     hp: 150,
     effects: [
@@ -183,6 +215,8 @@ export const WORLD_INTERACTABLES: readonly Interactable[] = [
     z: 64,
     site: 'main',
     prompt: 'pray',
+    actionF: 120,
+    effectF: 0,
     effects: [
       { type: 'playClip', clip: 'Pray', durationF: 120 },
       { type: 'ambientDuck', db: -6, frames: 180 },

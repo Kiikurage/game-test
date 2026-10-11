@@ -4,7 +4,7 @@
 // - `once`: loot は取得済み（`loot.<id>` フラグ）なら非表示。他の種別は 2 回目以降は効果を実行しない（`done.<id>`）。
 // - `cooldownF`: 実行から `cooldownF` ステップは使えない。
 // - read は実行すると読んだ印（`read.<id>`）を立てる。loot は終わると `loot.<id>` を立てる。
-import { lootFlag, readFlag } from '../data/world/lootTuning';
+import { lootFlag, readFlag, shownFlag } from '../data/world/lootTuning';
 import type { Effect, Interactable } from '../data/world/types';
 
 /** Effect の副作用の窓口。実装のない種別（emitSound など。#123）は省略してよい（何もしない）。 */
@@ -12,6 +12,7 @@ export interface EffectHost {
   hasFlag(flag: string): boolean;
   setFlag(flag: string): void;
   showText(textId: string): void;
+  playSound?(cue: string, source: Interactable): void;
   giveItem(itemId: string, count: number, source: Interactable): void;
   emitSound?(radiusM: number, kind: 'bell' | 'crash', source: Interactable): void;
   playClip?(clip: string, durationF: number, source: Interactable): void;
@@ -29,7 +30,15 @@ export function runEffects(
   for (const e of effects) {
     switch (e.type) {
       case 'showText':
+        // 初回だけの文（鐘）: 出したら印を残し、2 回目以降は出さない
+        if (e.firstOnly) {
+          if (host.hasFlag(shownFlag(e.textId))) break;
+          host.setFlag(shownFlag(e.textId));
+        }
         host.showText(e.textId);
+        break;
+      case 'playSound':
+        host.playSound?.(e.cue, source);
         break;
       case 'giveItem':
         host.giveItem(e.itemId, e.count ?? 1, source);
@@ -86,6 +95,11 @@ export class InteractableRunner {
     if (requires?.flagUnset !== undefined && this.host.hasFlag(requires.flagUnset)) return false;
     if (def.kind === 'loot' && this.isDone(def)) return false;
     return this.cooldownRemaining(def) === 0;
+  }
+
+  /** 使えるかの判定を通さずに効果だけ実行する（壊れた壁・割れた床板など、状況ボタンを介さない対象）。 */
+  run(def: Interactable): void {
+    runEffects(def.effects, this.host, def);
   }
 
   /** 効果を実行する（使えないときは何もしない。戻り値は実行したか）。loot の動作時間は呼び出し側が待ってから呼ぶ。 */

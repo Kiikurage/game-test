@@ -31,6 +31,8 @@ export class TextPanelModel {
   private originX = 0;
   private originZ = 0;
   private nextId = 1;
+  /** 会話を最後の行まで読み切った（最後の行で進めて閉じた）回数。中断（動いて閉じた）では増えない。 */
+  completions = 0;
   current: TextPanelPage | null = null;
 
   get active(): boolean {
@@ -57,6 +59,7 @@ export class TextPanelModel {
   advance(): void {
     if (this.mode !== 'conversation' || !this.current) return;
     if (this.index + 1 >= this.lines.length) {
+      this.completions++;
       this.close();
       return;
     }

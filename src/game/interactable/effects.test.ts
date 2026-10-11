@@ -30,6 +30,27 @@ const base = (extra: Partial<Interactable>): Interactable => ({
 });
 
 describe('runEffects', () => {
+  it('shows a firstOnly text once and marks it as shown', () => {
+    const { host, log, flags } = fakeHost();
+    const def = base({});
+    const effects = [{ type: 'showText', textId: 'bell_first', firstOnly: true }] as const;
+    runEffects(effects, host, def);
+    runEffects(effects, host, def);
+    expect(log.filter((l) => l === 'text:bell_first')).toHaveLength(1);
+    expect(flags.has('shown.bell_first')).toBe(true);
+  });
+
+  it('plays a sound cue through the host', () => {
+    const { host } = fakeHost();
+    const cues: string[] = [];
+    runEffects(
+      [{ type: 'playSound', cue: 'sfx.bell' }],
+      { ...host, playSound: (c) => cues.push(c) },
+      base({}),
+    );
+    expect(cues).toEqual(['sfx.bell']);
+  });
+
   it('runs effects in order and ignores effects the host does not implement', () => {
     const { host, log } = fakeHost();
     const def = base({});

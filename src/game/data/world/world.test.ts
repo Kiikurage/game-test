@@ -20,8 +20,8 @@ function* allEffects(effects: readonly Effect[]): Generator<Effect> {
 }
 
 describe('world interactable data (spec 14.5 / 14.6 / 14.8)', () => {
-  it('has the 26 placements with unique ids', () => {
-    expect(WORLD_INTERACTABLES).toHaveLength(26);
+  it('has the 27 placements (26 + the floor hatch) with unique ids', () => {
+    expect(WORLD_INTERACTABLES).toHaveLength(27);
     const ids = WORLD_INTERACTABLES.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
