@@ -9,6 +9,8 @@ export const CAMERA_FX = {
   slam: { shakeDeg: 1.2, shakeFrames: 24, near: 3, far: 24 },
   /** 強攻撃（`heavy` / `heavyCharged`）のヒット。 */
   playerHeavyHit: { shakeDeg: 0.4, shakeFrames: 8 },
+  /** 落下攻撃の着地（14.3.3 節）: 0.3°。命中・空振りとも。 */
+  plungeLand: { shakeDeg: 0.3, shakeFrames: 8 },
   /** 効果の FOV 補正（合計）の上下限（度）。複数の演出が重なっても画角が破綻しない。 */
   fovOffsetMinDeg: -10,
   fovOffsetMaxDeg: 12,

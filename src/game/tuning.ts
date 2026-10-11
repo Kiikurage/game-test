@@ -46,11 +46,6 @@ export type Tuning = {
     gravity: number;
     /** 接地が切れてから落下状態になるまでの猶予フレーム。 */
     coyoteFrames: number;
-    /** この高さ（m）以上落ちると着地硬直。 */
-    landMinHeight: number;
-    landFrames: number;
-    hardLandHeight: number;
-    hardLandFrames: number;
     /** 着地硬直中の移動速度の係数。 */
     landSpeedFactor: number;
     /** 空中での水平加速度（m/s²）。 */
@@ -151,12 +146,8 @@ function createTuning(): Tuning {
       rollTurnDegPerSecond: 1800,
       attackTurnDegPerSecond: 540,
       attackTurnResponse: 30,
-      gravity: 22,
+      gravity: 20,
       coyoteFrames: 4,
-      landMinHeight: 1.2,
-      landFrames: 10,
-      hardLandHeight: 3,
-      hardLandFrames: 22,
       landSpeedFactor: 0.35,
       airAccel: 9,
       controllerOffset: 0.02,

@@ -9,6 +9,7 @@ import {
   MOVEMENT,
   PLAYER_ACTIONS,
   PLAYER_STATS,
+  PLUNGE,
   RUN_ATTACK_MIN_SPEED_RATIO,
   STAMINA,
   inWindow,
@@ -33,7 +34,7 @@ import type { PlayerAttackInfo } from '../combat/playerAttack';
 import type { LockOnTarget } from '../lockOn/targets';
 import type { Physics } from '../physics';
 import { tuning } from '../tuning';
-import { PLAYER_GROUPS } from '../world/groups';
+import { PLAYER_GROUPS, SIGHT_QUERY_GROUPS } from '../world/groups';
 import {
   approachVelocity,
   cameraRelativeMove,
@@ -45,6 +46,7 @@ import {
   yawOf,
   type Vec2Like,
 } from './movement';
+import { airCorrection, canStartPlunge, landStiffnessFrames, plungeMultiplier } from './plunge';
 import {
   snapDelta,
   snapGoal,
@@ -231,6 +233,7 @@ const LUNGE: Readonly<Record<PlayerAttackId, readonly number[]>> = {
   // 致命の一撃は前進ではなく吸着（`updateAmbushSnap`）で動く。この表は使わない
   backstab: [],
   guardCounter: attackLungeProfile('guardCounter'),
+  plunge: attackLungeProfile('plunge'),
 };
 
 /**
@@ -285,7 +288,28 @@ export class Player {
   private airFrames = 0;
   private lastGroundY = 0;
   private fallStartY = 0;
+  /**
+   * 直近の接地中の足元の高さ（8F 分）。縁を踏み出すとき、カプセルの丸みで縁を数 cm〜20cm ほど滑り降りてから
+   * 接地が切れるので、落下の始点は「滑り始める前」の最大値とする（`fallStartY`。仕様の高さは踏み出した足場から）。
+   */
+  private readonly groundHistory = new Float64Array(8);
+  private groundHistoryIndex = 0;
   private landFrames = 0;
+  /** 落下に入った（踏み出した）ときの水平速度。空中ではこれに入力の補正（±1.5 m/s）を足した速度で動く。 */
+  private readonly airBase: Vec2Like = { x: 0, y: 0 };
+  private readonly airTarget: Vec2Like = { x: 0, y: 0 };
+  private readonly airFix: Vec2Like = { x: 0, y: 0 };
+  /** 足元から真下の地面までの距離（m）。地面がなければ null。 */
+  private readonly groundClearanceProbe: (x: number, y: number, z: number) => number | null;
+  /** 落下攻撃の倍率（着地の瞬間に落下高さから決まる。`plunge` の間だけ有効）。 */
+  private plungeMult = 0;
+  /**
+   * 落下攻撃を出してよいか（下に敵がいるか）を水平位置と半径で問い合わせる口。`plunge.system.ts` が差し込む。
+   * null なら常に可（Player 単体のテスト用）。水路の床板などで「下に敵がいない落下」では落下攻撃を出さない（仕様書 14.1.3 節）。
+   */
+  plungeTargetNear: ((x: number, z: number, radius: number) => boolean) | null = null;
+  /** ロックオン対象への空中補正の上限（m/s）。標準 2.5、入力補助の強は 3.5（11.2 節。適用は E10-4）。 */
+  airLockOnSpeed: number = PLUNGE.airLockCorrection;
   /** ロール終了時にボタンが押されていたら、押している間ダッシュを続ける。 */
   private dashLatch = false;
   /** スタミナ切れでダッシュが止まったら、ボタンを離すまで再開しない。 */
@@ -349,6 +373,18 @@ export class Player {
     readonly health: Health = new Health(PLAYER_STATS.hp),
   ) {
     const { rapier, world } = physics;
+    this.groundClearanceProbe = (x, y, z) => {
+      // 足元の少し上から真下へ。地形・静的物だけを見る（敵・ターゲットは足場にしない）
+      const lift = 0.1;
+      const hit = world.castRay(
+        new rapier.Ray({ x, y: y + lift, z }, { x: 0, y: -1, z: 0 }),
+        PLUNGE.maxHeight + 3,
+        true,
+        undefined,
+        SIGHT_QUERY_GROUPS,
+      );
+      return hit ? Math.max(0, hit.timeOfImpact - lift) : null;
+    };
     this.position.copy(spawn);
     this.yaw = yaw;
     // スタミナが 0 に達した瞬間（動作開始の消費・ダッシュの継続消費・ガード被弾のどれでも）を通知する
@@ -356,6 +392,7 @@ export class Player {
       this.events.push({ type: 'staminaEmpty' });
     });
     this.lastGroundY = spawn.y;
+    this.groundHistory.fill(spawn.y);
     this.visualY = spawn.y;
 
     this.body = world.createRigidBody(
@@ -666,6 +703,7 @@ export class Player {
     this.verticalVelocity = 0;
     this.airFrames = 0;
     this.lastGroundY = position.y;
+    this.groundHistory.fill(position.y);
     this.fsm.reset('idle');
     this.scriptedFrames = 0;
     this.scriptedFaceYaw = null;
@@ -774,6 +812,10 @@ export class Player {
         return this.updateFall(dt, snap, frame);
       case 'land':
         return this.updateLand(dt, snap, frame);
+      case 'plungeFall':
+        return this.updatePlungeFall(dt, frame);
+      case 'plunge':
+        return this.updatePlunge();
       case 'light1':
       case 'light2':
       case 'light3':
@@ -832,7 +874,19 @@ export class Player {
         this.events.push({ type: 'backstepStart' });
         break;
       case 'fall':
-        this.fallStartY = this.lastGroundY;
+        this.fallStartY = Math.max(this.lastGroundY, ...this.groundHistory);
+        this.airBase.x = this.velocity.x;
+        this.airBase.y = this.velocity.y;
+        break;
+      case 'plungeFall':
+        // 入力時にスタミナ 20 を消費する。踏み出しの速度（airBase）と落下の始点はそのまま引き継ぐ
+        this.lastAttack = null;
+        this.stamina.consume(PLUNGE.staminaMin);
+        break;
+      case 'plunge':
+        this.lastAttack = null;
+        this.attackSerial++;
+        this.events.push({ type: 'attackStart', id: next });
         break;
       case 'heal':
         this.lastAttack = null;
@@ -1151,7 +1205,12 @@ export class Player {
       id: this.state,
       serial: this.attackSerial,
       frame: this.stateFrame,
-      hitActive: this.markers.hitActive,
+      // 落下攻撃はマーカー表を持たない: 着地の F1〜F4（持続 4F）が当たり窓
+      hitActive:
+        this.state === 'plunge'
+          ? this.stateFrame <= PLAYER_ACTIONS.plunge.active
+          : this.markers.hitActive,
+      ...(this.state === 'plunge' && { plungeMultiplier: this.plungeMult }),
     };
   }
 
@@ -1413,19 +1472,106 @@ export class Player {
   }
 
   private updateFall(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
+    if (this.grounded) return this.landed(this.fallStartY - this.position.y);
+    const plunge = this.tryPlunge(frame);
+    if (plunge) return plunge;
+    if (this.fallStartY - this.position.y < PLUNGE.freeSteerDrop) {
+      // 階段の段差・縁の出っ張りなどの小さな落ち込みは、地上と同じように操作できる（粘らない）。
+      // 速度を引き継ぎ点とし、本格的な落下になってから「踏み出しの速度 ± 1.5 m/s」に切り替わる
+      this.computeLocomotion(dt, snap, frame, 1, 'air');
+      this.airBase.x = this.velocity.x;
+      this.airBase.y = this.velocity.y;
+      return null;
+    }
+    this.driveAir(dt, frame);
+    return null;
+  }
+
+  /**
+   * 着地。高さ 2.0m 以上は硬直 10F（`Jump_Land` 圧縮）、2.0m 未満は硬直なし（落下ダメージなし）。
+   * 高さ 2m 以上の着地は音（半径 6m）を出す（`land` イベント → Game が敵へ）。
+   */
+  private landed(height: number): PlayerStateId {
+    this.events.push({ type: 'land', fallHeight: height });
+    const frames = landStiffnessFrames(height);
+    if (frames > 0) {
+      this.landFrames = frames;
+      return 'land';
+    }
+    return this.moveMagnitude > 0 ? 'move' : 'idle';
+  }
+
+  /**
+   * 落下中の攻撃入力（軽・強どちらも）で落下攻撃に入れるか（14.3.3 節）。地面から 0.6m 以上離れて下降中・有効な落下高さ
+   * 1.0〜3.0m・スタミナ 20 以上・下に敵がいること。満たさないときは入力を残す（着地後の先行入力として通常の攻撃になる）。
+   */
+  private tryPlunge(frame: PlayerFrame): 'plungeFall' | null {
+    const light = frame.input.hasBuffered('lightAttack');
+    const heavy = frame.input.hasBuffered('heavyAttack');
+    if (!light && !heavy) return null;
+    const clearance = this.groundClearanceProbe(this.position.x, this.position.y, this.position.z);
+    const height = this.fallStartY - (this.position.y - (clearance ?? 0));
+    if (
+      !canStartPlunge({
+        stamina: this.stamina.current,
+        clearance,
+        height,
+        descending: this.verticalVelocity < 0,
+      })
+    ) {
+      return null;
+    }
+    if (
+      this.plungeTargetNear &&
+      !this.plungeTargetNear(this.position.x, this.position.z, PLUNGE.targetReach)
+    ) {
+      return null;
+    }
+    frame.input.consumeBuffered('lightAttack');
+    frame.input.consumeBuffered('heavyAttack');
+    return 'plungeFall';
+  }
+
+  /** 落下攻撃の空中: 振りかぶりを保持して落ちる。着地の高さが有効なら `plunge`、そうでなければ通常の着地。 */
+  private updatePlungeFall(dt: number, frame: PlayerFrame): PlayerStateId | null {
     if (this.grounded) {
       const height = this.fallStartY - this.position.y;
-      const p = tuning.player;
-      if (height >= p.landMinHeight) {
-        this.landFrames = height >= p.hardLandHeight ? p.hardLandFrames : p.landFrames;
-        this.events.push({ type: 'land', fallHeight: height });
-        return 'land';
-      }
+      const multiplier = plungeMultiplier(height);
+      if (multiplier === null) return this.landed(height);
+      this.plungeMult = multiplier;
       this.events.push({ type: 'land', fallHeight: height });
-      return this.moveMagnitude > 0 ? 'move' : 'idle';
+      return 'plunge';
     }
-    this.computeLocomotion(dt, snap, frame, 1, 'air');
+    this.driveAir(dt, frame);
     return null;
+  }
+
+  /** 落下攻撃の着地: 判定 4F（円）+ 硬直 24F。動けず、ロールもできない。 */
+  private updatePlunge(): PlayerStateId | null {
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    this.turnRate = 0;
+    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (this.stateFrame > totalFrames(PLAYER_ACTIONS.plunge)) return this.afterAttackState();
+    return null;
+  }
+
+  /**
+   * 空中の水平速度: 踏み出し時の速度を保ち、入力で ±1.5 m/s まで補正する。ロックオン対象へは最大
+   * `airLockOnSpeed`（2.5 m/s）で寄せる（着地点で敵を捉えやすく）。
+   */
+  private driveAir(dt: number, frame: PlayerFrame): void {
+    const lock = frame.lockTarget
+      ? {
+          dx: frame.lockTarget.position.x - this.position.x,
+          dz: frame.lockTarget.position.z - this.position.z,
+        }
+      : null;
+    airCorrection(this.worldMove, lock, this.airLockOnSpeed, this.airFix);
+    this.airTarget.x = this.airBase.x + this.airFix.x;
+    this.airTarget.y = this.airBase.y + this.airFix.y;
+    const accel = tuning.player.airAccel;
+    approachVelocity(this.velocity, this.airTarget, accel, accel, dt);
   }
 
   private updateLand(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
@@ -1663,6 +1809,8 @@ export class Player {
     if (this.grounded) {
       this.airFrames = 0;
       this.lastGroundY = this.position.y;
+      this.groundHistory[this.groundHistoryIndex] = this.position.y;
+      this.groundHistoryIndex = (this.groundHistoryIndex + 1) % this.groundHistory.length;
       if (!wasGrounded) this.verticalVelocity = 0;
     } else {
       this.airFrames++;
@@ -1696,6 +1844,7 @@ export class Player {
       this.state !== 'roll' &&
       this.state !== 'backstep' &&
       this.state !== 'land' &&
+      this.state !== 'plungeFall' &&
       this.state !== 'heavyCharge' &&
       !isAttackState(this.state) &&
       this.state !== 'guardRelease' &&

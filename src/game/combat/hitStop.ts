@@ -1,3 +1,4 @@
+import { PLUNGE } from '../data';
 import type { HitEvent } from './hitResolver';
 
 /**
@@ -87,6 +88,8 @@ export function playerAttackFrames(attackId: string, config: HitStopConfig): num
       return config.playerLight;
     case 'heavyCharged':
       return config.playerHeavyCharged;
+    case 'plunge':
+      return PLUNGE.hitStopFrames;
     case 'backstab':
       return config.playerBackstab;
     default:

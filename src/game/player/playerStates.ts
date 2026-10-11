@@ -13,6 +13,9 @@ export type PlayerStateId =
   | 'backstep'
   | 'fall'
   | 'land'
+  // 落下攻撃（#116）: 落下中の攻撃入力で `plungeFall`（空中で振りかぶりを保持）→ 着地で `plunge`（円の判定 4F + 硬直 24F）。
+  | 'plungeFall'
+  | 'plunge'
   | 'light1'
   | 'light2'
   | 'light3'
@@ -54,7 +57,7 @@ export type HeavyAttackId = (typeof HEAVY_ATTACK_IDS)[number];
 
 /** 攻撃判定を出す動作の ID（軽攻撃・強攻撃・走り攻撃・ガードカウンター）。状態 ID・`PLAYER_ACTIONS` のキー・マーカー表が一致する。 */
 export type PlayerAttackId =
-  LightAttackId | HeavyAttackId | 'runAttack' | 'guardCounter' | 'backstab';
+  LightAttackId | HeavyAttackId | 'runAttack' | 'guardCounter' | 'backstab' | 'plunge';
 
 export function isAttackState(state: PlayerStateId): state is PlayerAttackId {
   return (
@@ -62,7 +65,8 @@ export function isAttackState(state: PlayerStateId): state is PlayerAttackId {
     isHeavyAttackState(state) ||
     state === 'runAttack' ||
     state === 'guardCounter' ||
-    state === 'backstab'
+    state === 'backstab' ||
+    state === 'plunge'
   );
 }
 
@@ -160,7 +164,11 @@ export const PLAYER_STATE_GRAPH: StateGraph<PlayerStateId> = {
     to: ['idle', 'move', 'light1', 'backstab', HEAVY_ENTRY, ...REACTIONS],
   },
   // 小さな段差の乗り降りは着地せず立ち・移動へ戻る
-  fall: { kind: 'move', to: ['idle', 'move', 'land', ...REACTIONS] },
+  fall: { kind: 'move', to: ['idle', 'move', 'land', 'plungeFall', ...REACTIONS] },
+  // 落下攻撃の空中: 着地で `plunge`（有効な高さ）か通常の着地へ。被弾すると仰け反り、終わると `fall` に戻る（着地まで攻撃不可）。
+  plungeFall: { kind: 'move', to: ['plunge', 'idle', 'move', 'land', ...REACTIONS] },
+  // 落下攻撃の着地: 判定 4F + 硬直 24F。ロール不可（行動不能）。被弾・死亡だけ割り込める。
+  plunge: { kind: 'action', to: ['idle', 'move', 'fall', ...REACTIONS] },
   // 着地硬直: 途中からロール系で抜けられる
   land: { kind: 'action', to: ['idle', 'move', 'roll', 'backstep', 'fall', ...REACTIONS] },
   // 軽攻撃: 次段（キャンセル窓）・ロール/バックステップ（キャンセル窓）・終了で移動系へ

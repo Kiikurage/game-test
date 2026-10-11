@@ -75,6 +75,8 @@ export interface AttackProfile {
   readonly guardStaminaCost?: number;
   /** ガード不能（落下攻撃・強い攻撃など）。 */
   readonly unblockable?: boolean;
+  /** 対象ごとのダメージ値（未発見の敵への倍率など）。なければ `damage`。命中の瞬間（反応で気付かれる前）に問い合わせる。 */
+  readonly damageFor?: (targetId: string) => number;
   /**
    * 未ガードで命中したときの後退距離（m）の上書き（ボスの盾打ち 3m など）。省略すると被弾側のリアクションの既定
    * （`KNOCKBACK`）。重い被弾（強靭度削り 50 以上）のプレイヤーの転倒にだけ効く。
@@ -262,6 +264,7 @@ export class HitResolver {
     hurtboxIndex: number,
   ): HitEvent {
     const profile = attack.profile;
+    const baseDamage = profile.damageFor?.(target.id) ?? profile.damage;
     const position: Vec3 = { ...this.contact };
     const guard: GuardOutcome = profile.unblockable
       ? 'none'
@@ -276,7 +279,7 @@ export class HitResolver {
     let poiseDamage: number;
     let guardStaminaCost = 0;
     if (guard === 'guard') {
-      damage = guardChipDamage(profile.damage);
+      damage = guardChipDamage(baseDamage);
       poiseDamage = 0;
       guardStaminaCost = guardCost;
     } else if (guard === 'just') {
@@ -285,7 +288,7 @@ export class HitResolver {
       guardStaminaCost = justGuardStamina(guardCost);
     } else {
       multiplier = target.staggered ? STAGGERED_DAMAGE_MULTIPLIER : 1;
-      damage = scaledDamage(profile.damage, multiplier);
+      damage = scaledDamage(baseDamage, multiplier);
       poiseDamage = profile.poiseDamage;
     }
     const wasAlive = !target.health.dead;
@@ -296,7 +299,7 @@ export class HitResolver {
       attackId: profile.id,
       attackInstanceId: attack.instanceId,
       damage,
-      baseDamage: profile.damage,
+      baseDamage,
       multiplier,
       poiseDamage,
       attackPoiseDamage: profile.poiseDamage,

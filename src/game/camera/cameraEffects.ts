@@ -192,6 +192,11 @@ export class CameraEffects {
     this.shake(CAMERA_FX.playerHeavyHit.shakeDeg, CAMERA_FX.playerHeavyHit.shakeFrames);
   }
 
+  /** 落下攻撃の着地。 */
+  plungeLand(): void {
+    this.shake(CAMERA_FX.plungeLand.shakeDeg, CAMERA_FX.plungeLand.shakeFrames);
+  }
+
   /** ボスの叩きつけ。`distance` は叩きつけの位置とプレイヤーの水平距離 [m]（省略時は減衰なし）。 */
   slam(distance = 0): void {
     const c = CAMERA_FX.slam;

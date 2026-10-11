@@ -61,9 +61,13 @@ describe('decideHitStop（4.1 節の表）', () => {
 
   it('その他のプレイヤー動作（走り攻撃・ガードカウンターなど）は強攻撃（溜めなし）と同じ 8F', () => {
     const c = cfg();
-    for (const id of ['runAttack', 'guardCounter', 'plunge']) {
+    for (const id of ['runAttack', 'guardCounter']) {
       expect(playerAttackFrames(id, c)).toBe(8);
     }
+  });
+
+  it('落下攻撃は 10F（14.3.3 節）', () => {
+    expect(playerAttackFrames('plunge', cfg())).toBe(10);
   });
 
   it('敵の攻撃がプレイヤーに命中 6F（赤フラッシュ 4F）、ボスなら 8F', () => {
