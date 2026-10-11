@@ -202,6 +202,16 @@ export interface GameEventMap {
     readonly position: Vec3Like;
   };
   /**
+   * テキストパネルの表示依頼（#120。碑文・遺体・祈り・瀕死の騎士の会話）。`text` が文面（配列は会話の 1 行ずつ）、
+   * なければ `id` で文面データ（`game/data/texts.ts`）を引く。`mode` 省略時は 'read'（非ブロック、最長 6 秒、2m 移動で閉じる）。
+   * 'conversation' は決定ボタンで 1 行ずつ進み、動いたら閉じる。文面中の「（改行）」は改行になる。
+   */
+  showText: {
+    readonly id?: string;
+    readonly text?: string | readonly string[];
+    readonly mode?: 'read' | 'conversation';
+  };
+  /**
    * 休憩（篝火で休む）またはリスポーン（死亡後）。HP・瓶・敵の復活は発行側が済ませている。
    * ボス（E5）はこれを購読し、`defeatedBosses` に自分がいなければ HP 全回復・待機位置へ戻る。
    * スポーン管理（E4-6）は敵の配置の検証などに使える。
