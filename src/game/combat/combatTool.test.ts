@@ -2,7 +2,6 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { describePlayerAction } from './actionDebug';
 import { combatToolOf } from './combatTool.system';
 
@@ -64,10 +63,9 @@ describe('combat debug tool', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
   });
 
   function tick(): void {

@@ -1,4 +1,4 @@
-import { Quaternion, Vector3 } from 'three/webgpu';
+import { Quaternion, Vector3 } from 'three';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   FreezeCounter,
@@ -14,7 +14,6 @@ import { CAMERA_FX } from '../data/cameraEffects';
 import { deathOf } from '../death/death.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import { PHASE_TRANSITION_CLIP } from './cameraClips';
 import { cameraEffectsOf, cameraReactionFor, slamAt } from './cameraEffects.system';
 
@@ -89,10 +88,9 @@ describe('camera effects (Game)', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     run(10);
   });
 

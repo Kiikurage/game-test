@@ -1,3 +1,4 @@
+import { gameStats } from '../../debug/stats.system';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { findBossClipEvents } from '../../anim/bossClips';
 import { markersOfType, playbackRate } from '../../anim/eventMarkers';
@@ -466,14 +467,18 @@ describe('技 4・5: simulation against the real player', () => {
   it('shield bash: a standing player is knocked down 3m, then the follow-up lunges in and hits', async () => {
     const { game, step } = await setup('shieldBash', 2.5);
     const hp0 = game.playerTarget.health.current;
-    const log = game.hitLog.length;
+    const log = gameStats(game).hitLog.length;
     let slashFrame = -1;
     for (let f = 1; f <= 140; f++) {
       step();
-      const hits = game.hitLog.slice(log).filter((e) => e.targetId === 'player');
+      const hits = gameStats(game)
+        .hitLog.slice(log)
+        .filter((e) => e.targetId === 'player');
       if (hits.length >= 2 && slashFrame < 0) slashFrame = f;
     }
-    const hits = game.hitLog.slice(log).filter((e) => e.targetId === 'player');
+    const hits = gameStats(game)
+      .hitLog.slice(log)
+      .filter((e) => e.targetId === 'player');
     expect(hits.map((e) => [e.attackId, e.baseDamage])).toEqual([
       ['boss.shieldBash.1', 60],
       ['boss.shieldBash.2', 100],

@@ -37,7 +37,7 @@ E3-1c（[enemy-attack.md](enemy-attack.md)）の枠組みの上に載せてい�
 - **ロール連打の補正で三連撃が選ばれたとき**は、1 段目の発生が 30F 未満なら 30F に延ばす。補正は「次の近距離技」で使い切る。
 - **背後 / ロール連打の追跡**（`PlayerTracker`）は本実装の解釈: 背後 = ボスの真後ろから ±60°（距離は問わない）。ロール連打 = 前のロールが終わってから 60F 以内に
   次のロールを始めることを 3 回。
-- **中断しない**: 通常攻撃では技は止まらない。止まるのは `Poise` が崩れたとき（`boss.system.ts` の `onHit` が `reaction.kind === 'stagger'` で `stagger`）と撃破のみ。
+- **中断しない**: 通常攻撃では技は止まらない。止まるのは `Poise` が崩れたとき（`boss.system.ts` の `onImpact` → `BossSystem.onHit` が `reaction.kind === 'stagger'` で `stagger`）と撃破のみ。
   崩しの「フェーズに 1 回」の制約・フェーズ移行は次節。
 
 ## 技の追加（E5-3〜E5-5 向け）

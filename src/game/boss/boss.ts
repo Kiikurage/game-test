@@ -1,4 +1,4 @@
-import { Quaternion, Vector3 } from 'three/webgpu';
+import { Quaternion, Vector3 } from 'three';
 import type { GameEventBus } from '../../core/gameEvents';
 import { InterpolatedTransform } from '../../core/interpolated';
 import {

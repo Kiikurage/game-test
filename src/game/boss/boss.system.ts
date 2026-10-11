@@ -81,7 +81,7 @@ export class BossSystem {
     this.remove();
     const { game } = this;
     const y = options.y ?? game.player.feet.y;
-    const reactor = new HitReactor(BOSS_REACTOR);
+    const reactor = new HitReactor(BOSS_REACTOR, game.tuning);
     const moves =
       options.moves ??
       (options.stubs === false
@@ -189,8 +189,8 @@ registerGameSystem('boss', (game) => {
     update: (dt) => {
       system.update(dt);
     },
-    onHit: (e) => {
-      system.onHit(e);
+    onImpact: (e) => {
+      system.onHit(e.hit);
     },
   };
 });

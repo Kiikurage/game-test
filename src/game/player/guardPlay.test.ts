@@ -1,9 +1,9 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { HitEvent } from '../combat';
 import { GUARD, PLAYER_ACTIONS, PLAYER_STATS, POISE, attackDamage, totalFrames } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 
 const DT = 1 / 60;
 
@@ -22,10 +22,9 @@ describe('guard', () => {
   });
 
   beforeEach(async () => {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     input = new FakeInput();
     game = await Game.create({ input });
+    game.tuning.camera.autoFollow = false;
     run(10); // スポーンの落ち着き
   });
 
@@ -132,7 +131,7 @@ describe('guard', () => {
       expect(e.guardStaminaCost).toBe(10);
       expect(stamina0 - game.player.stamina.current).toBe(10);
       expect(game.playerTarget.health.current).toBe(hp0);
-      expect(game.lastHitStopFrames).toBe(8);
+      expect(gameStats(game).lastHitStopFrames).toBe(8);
       expect(game.player.guardStunRemaining).toBe(0);
       // 押し戻しなし
       expect(game.player.reactor.sliding).toBe(false);
@@ -146,7 +145,7 @@ describe('guard', () => {
       expect(e.guard).toBe('guard');
       expect(e.guardStaminaCost).toBe(20);
       expect(stamina0 - game.player.stamina.current).toBe(20);
-      expect(game.lastHitStopFrames).toBe(4);
+      expect(gameStats(game).lastHitStopFrames).toBe(4);
       expect(game.player.guardStunRemaining).toBe(GUARD.stunFrames);
       expect(stateName()).toBe('guard');
       // ガード成功時は被弾後無敵を付与しない: すぐ次の攻撃も防げる
@@ -298,15 +297,17 @@ describe('guard', () => {
       expect(game.playerTarget.staggered).toBe(false);
     });
 
-    it('崩しの SE（hit: guardBreak）が出る', () => {
+    it('崩しは同じ impact の guardBroken で伝わる（SE は崩し → ガードの順）', () => {
       const kinds: string[] = [];
-      game.events.on('hit', (e) => kinds.push(e.kind));
+      game.events.on('impact', (e) => {
+        kinds.push(e.kind);
+        if (e.guardBroken) kinds.push('guardBreak');
+      });
       startGuard();
       guardUntil(30);
       game.player.stamina.current = 1;
       hit({ guardStaminaCost: 20 });
-      expect(kinds).toContain('guard');
-      expect(kinds).toContain('guardBreak');
+      expect(kinds).toEqual(['guard', 'guardBreak']);
     });
 
     it('ジャストガードでも消費でスタミナが 0 になれば崩れる', () => {

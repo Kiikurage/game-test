@@ -1,4 +1,4 @@
-import { Vector3 } from 'three/webgpu';
+import { Vector3 } from 'three';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { StateKind } from '../anim/characterFsm';
 import { CharacterFsm } from '../anim/characterFsm';

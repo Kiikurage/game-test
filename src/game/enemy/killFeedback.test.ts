@@ -1,3 +1,4 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { capsule, capsuleShape, vec3 } from '../combat';
 import { KILL_FEEDBACK } from '../data';
@@ -57,7 +58,7 @@ describe('enemy kill feedback (#281)', () => {
     const hits: string[] = [];
     let frame = 0;
     game.events.on('sound', (e) => sounds.push({ cue: e.cue, frame }));
-    game.events.on('hit', (e) => hits.push(e.kind));
+    game.events.on('impact', (e) => hits.push(e.kind));
     const step = (n: number) => {
       for (let i = 0; i < n; i++) {
         run(1);
@@ -83,13 +84,13 @@ describe('enemy kill feedback (#281)', () => {
   it('ignores further attacks on the corpse (no hit, no reaction, no hit SE)', async () => {
     const { game, hit, step, hits } = await setup([spawn('k2', 0, 0)]);
     expect(hit(9999)).toHaveLength(1);
-    const hitCount = game.hitCount;
+    const hitCount = gameStats(game).hitCount;
     const hitSe = hits.length;
     for (let i = 0; i < 5; i++) {
       expect(hit(50)).toHaveLength(0);
       step(2);
     }
-    expect(game.hitCount).toBe(hitCount);
+    expect(gameStats(game).hitCount).toBe(hitCount);
     expect(hits).toHaveLength(hitSe);
   });
 

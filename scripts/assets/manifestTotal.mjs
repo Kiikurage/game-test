@@ -7,6 +7,7 @@ export function totalBytesOf(manifest) {
     (manifest.equipment?.bytes ?? 0) +
     (manifest.exploration?.bytes ?? 0) +
     (manifest.environment?.bytes ?? 0) +
-    (manifest.player?.bytes ?? 0)
+    (manifest.player?.bytes ?? 0) +
+    (manifest.blender?.bytes ?? 0)
   );
 }

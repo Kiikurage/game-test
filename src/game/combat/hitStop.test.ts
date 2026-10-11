@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CharacterFsm, type StateGraph } from '../anim/characterFsm';
-import { tuning, resetTuning } from '../tuning';
+import { createTuning } from '../tuning';
 import {
   FreezeCounter,
   decideHitStop,
@@ -45,10 +45,7 @@ const ENEMY_ATTACKS = {
 };
 
 describe('decideHitStop（4.1 節の表）', () => {
-  const cfg = () => {
-    resetTuning();
-    return tuning.hitStop;
-  };
+  const cfg = () => createTuning().hitStop;
 
   it('プレイヤーの軽攻撃 4F / 強攻撃（溜めなし）8F / 強攻撃（フル溜め）12F', () => {
     const c = cfg();
@@ -130,12 +127,11 @@ describe('decideHitStop（4.1 節の表）', () => {
   });
 
   it('tuning の数値を変えると反映される', () => {
-    resetTuning();
+    const tuning = createTuning();
     tuning.hitStop.playerLight = 7;
     expect(
       decideHitStop({ event: event('light1'), ...PLAYER_ATTACKS }, tuning.hitStop).frames,
     ).toBe(7);
-    resetTuning();
   });
 });
 

@@ -1,4 +1,3 @@
-import { tuning } from './tuning';
 import { registerDevHooks } from '../devHooks';
 
 declare module '../devHooks' {
@@ -38,7 +37,7 @@ registerDevHooks('game', ({ game }) => ({
   },
   lock: (id) => game.lockOnTo(id),
   view: (yawOffset, distance, pitchDeg) => {
-    if (distance !== undefined) tuning.camera.distance = distance;
+    if (distance !== undefined) game.camera.distanceOverride = distance;
     game.camera.reset(game.player.feet, game.player.yaw + yawOffset, pitchDeg);
   },
   noise: (x, y, z, kind) => {

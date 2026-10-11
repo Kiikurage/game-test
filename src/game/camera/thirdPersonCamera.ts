@@ -1,4 +1,4 @@
-import { Matrix4, Vector3 } from 'three/webgpu';
+import { Matrix4, Vector3 } from 'three';
 import { CameraEffects } from './cameraEffects';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputDevice } from '../../core/input';
@@ -6,7 +6,7 @@ import { LOCK_ON } from '../data';
 import type { LockOnEvent } from '../lockOn/lockOnController';
 import { chestPosition, type LockOnTarget } from '../lockOn/targets';
 import { angleDelta, smoothFactor, wrapAngle, yawOf } from '../player/movement';
-import { tuning } from '../tuning';
+import { createTuning, type Tuning } from '../tuning';
 
 const DEG = Math.PI / 180;
 const UP = new Vector3(0, 1, 0);
@@ -58,7 +58,7 @@ const tmpMatrix = new Matrix4();
  */
 export class ThirdPersonCamera {
   readonly transform = new InterpolatedTransform();
-  fovDeg: number = tuning.camera.fovPc;
+  fovDeg: number;
   /**
    * 演出による補正（死亡演出の FOV 縮小・カメラの引き。3.3 節）。基準の FOV・アーム長へ加える。
    * 書き込むのは演出（`death.system.ts`）だけで、通常は 0。
@@ -72,11 +72,11 @@ export class ThirdPersonCamera {
 
   /** 向き（ラジアン）。ピッチは下向きが正。 */
   yaw = 0;
-  pitch = tuning.camera.pitchInitial * DEG;
+  pitch: number;
   /** 平滑化済みの注視点（プレイヤー肩）。 */
   readonly pivot = new Vector3();
   /** 現在のアーム長（注視点からカメラまで）。 */
-  armLength: number = tuning.camera.distance;
+  armLength: number;
   /** ロックオン中の手動ピッチ補正（ラジアン、下向きが正）。 */
   private pitchOffset = 0;
   /** リセット動作の残りフレーム（0 なら動作中でない）。 */
@@ -85,7 +85,23 @@ export class ThirdPersonCamera {
   private initialized = false;
   /** 壁際で腕が縮んだときの見下ろし補正（ラジアン、平滑化済み）。視点を上げてプレイヤーの背中で画面が埋まるのを避ける。 */
   private collisionPitch = 0;
-  private armTarget: number = tuning.camera.distance;
+  private armTarget: number;
+  /** 撮影用: 通常時のアーム長を `tuning.camera.distance` の代わりにこの値にする（`dev.view`）。 */
+  distanceOverride: number | undefined;
+
+  constructor(
+    /** 調整値。Game は自分の `tuning` を渡す。 */
+    private readonly tuning: Tuning = createTuning(),
+  ) {
+    this.fovDeg = tuning.camera.fovPc;
+    this.pitch = this.tuning.camera.pitchInitial * DEG;
+    this.armLength = this.tuning.camera.distance;
+    this.armTarget = this.tuning.camera.distance;
+  }
+
+  private get baseDistance(): number {
+    return this.distanceOverride ?? this.tuning.camera.distance;
+  }
 
   /** 実際のカメラの向き（前方の単位ベクトル）。ロックオン対象の選択に使う。 */
   readonly forward = new Vector3(0, 0, 1);
@@ -95,7 +111,11 @@ export class ThirdPersonCamera {
   }
 
   /** プレイヤー背後へ即座に配置する（スポーン・テレポート）。 */
-  reset(playerPosition: Vector3, yaw: number, pitchDeg: number = tuning.camera.pitchInitial): void {
+  reset(
+    playerPosition: Vector3,
+    yaw: number,
+    pitchDeg: number = this.tuning.camera.pitchInitial,
+  ): void {
     this.yaw = yaw;
     this.pitch = pitchDeg * DEG;
     this.pitchOffset = 0;
@@ -103,10 +123,10 @@ export class ThirdPersonCamera {
     this.strafeFrames = 0;
     this.pivot.set(
       playerPosition.x,
-      playerPosition.y + tuning.camera.pivotHeight,
+      playerPosition.y + this.tuning.camera.pivotHeight,
       playerPosition.z,
     );
-    this.armLength = tuning.camera.distance;
+    this.armLength = this.baseDistance;
     this.initialized = true;
     this.placeFree();
     this.transform.snap();
@@ -119,7 +139,7 @@ export class ThirdPersonCamera {
   updateAim(dt: number, input: CameraFrameInput): void {
     this.transform.beginStep();
     this.fovDeg =
-      (input.device === 'touch' ? tuning.camera.fovMobile : tuning.camera.fovPc) +
+      (input.device === 'touch' ? this.tuning.camera.fovMobile : this.tuning.camera.fovPc) +
       this.presentation.fovOffsetDeg;
     if (!this.initialized) this.reset(input.playerPosition, input.playerYaw);
 
@@ -127,7 +147,7 @@ export class ThirdPersonCamera {
     if (input.lockTarget) {
       this.armTarget = this.updateLocked(dt, input, input.lockTarget);
     } else {
-      this.armTarget = tuning.camera.distance;
+      this.armTarget = this.baseDistance;
       this.updateFree(dt, input);
     }
     this.armTarget += this.presentation.armOffsetM;
@@ -137,7 +157,7 @@ export class ThirdPersonCamera {
    * 1 固定ステップの後半: プレイヤーと物理の更新後に、注視点・アーム・衝突・最終的な位置と向きを決める。
    */
   updatePlacement(dt: number, input: CameraFrameInput, collision: CameraCollision): void {
-    const cam = tuning.camera;
+    const cam = this.tuning.camera;
     const fx = this.effects.step();
     // 演出の引き・寄りはアーム長の目標へ足す（壁への押し込みは通常どおり衝突解決が行う）
     const distance = Math.max(1, this.armTarget + fx.armOffsetM);
@@ -173,7 +193,7 @@ export class ThirdPersonCamera {
     // 向き: フリーは yaw/pitch そのまま、ロックオンはプレイヤーと対象の混合点を見る
     if (input.lockTarget) {
       chestPosition(input.lockTarget, tmpChest);
-      const w = tuning.lockOn.playerWeight;
+      const w = this.tuning.lockOn.playerWeight;
       tmpLook
         .copy(this.pivot)
         .multiplyScalar(w)
@@ -212,7 +232,7 @@ export class ThirdPersonCamera {
         // 見ていた向きから連続させて、プレイヤーの向いている方向へ向け直す
         this.syncAnglesFromView();
         this.pitchOffset = 0;
-        this.resetFrames = tuning.lockOn.resetFrames;
+        this.resetFrames = this.tuning.lockOn.resetFrames;
         break;
       case 'acquired':
         this.resetFrames = 0;
@@ -224,7 +244,7 @@ export class ThirdPersonCamera {
   }
 
   private updateFree(dt: number, input: CameraFrameInput): void {
-    const cam = tuning.camera;
+    const cam = this.tuning.camera;
     const lookMagnitude = Math.abs(input.look.x) + Math.abs(input.look.y);
     if (this.resetFrames > 0) {
       if (lookMagnitude > 1e-4) {
@@ -260,8 +280,8 @@ export class ThirdPersonCamera {
 
   /** ロックオン中のヨー・ピッチを更新し、アーム長（距離）を返す。 */
   private updateLocked(dt: number, input: CameraFrameInput, target: LockOnTarget): number {
-    const lock = tuning.lockOn;
-    const cam = tuning.camera;
+    const lock = this.tuning.lockOn;
+    const cam = this.tuning.camera;
     const player = input.playerPosition;
     const dx = target.position.x - player.x;
     const dz = target.position.z - player.z;
@@ -301,7 +321,7 @@ export class ThirdPersonCamera {
   }
 
   private updatePivot(dt: number, playerPosition: Vector3, collision: CameraCollision): void {
-    const cam = tuning.camera;
+    const cam = this.tuning.camera;
     tmpRaw.set(
       playerPosition.x,
       playerPosition.y + cam.pivotHeight - this.presentation.pivotDropM,

@@ -1,13 +1,16 @@
-import { Vector3 } from 'three/webgpu';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { Vector3 } from 'three';
+import { describe, expect, it } from 'vitest';
 import { DummyTarget, chestPosition } from '../lockOn/targets';
-import { resetTuning, tuning } from '../tuning';
+import { createTuning } from '../tuning';
 import {
   NO_COLLISION,
   ThirdPersonCamera,
   type CameraCollision,
   type CameraFrameInput,
 } from './thirdPersonCamera';
+
+/** 既定の調整値（ThirdPersonCamera は引数なしで同じ初期値を作る）。 */
+const tuning = createTuning();
 
 const DT = 1 / 60;
 const DEG = Math.PI / 180;
@@ -48,10 +51,6 @@ function wallBehind(zWall: number): CameraCollision {
 }
 
 describe('ThirdPersonCamera (free)', () => {
-  beforeEach(() => {
-    resetTuning();
-  });
-
   it('starts behind the player at 4.2m and looks at the shoulder pivot', () => {
     const cam = new ThirdPersonCamera();
     cam.reset(new Vector3(0, 0, 0), 0);
@@ -170,10 +169,6 @@ describe('ThirdPersonCamera (free)', () => {
 });
 
 describe('ThirdPersonCamera (lock-on)', () => {
-  beforeEach(() => {
-    resetTuning();
-  });
-
   function project(
     cam: ThirdPersonCamera,
     point: Vector3,

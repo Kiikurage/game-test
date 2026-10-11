@@ -1,8 +1,8 @@
+import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, UNDEAD_SOLDIER_ATTACKS } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { resetTuning, tuning } from '../tuning';
 import type { EnemySpawn } from '../world/level';
 import { angleDelta } from './movement';
 
@@ -21,10 +21,9 @@ describe('roll / backstep frame boundaries', () => {
   });
 
   async function setup(options: Partial<GameOptions> = {}) {
-    resetTuning();
-    tuning.camera.autoFollow = false;
     const input = new FakeInput();
     const game = await Game.create({ input, dummies: [], boxes: [], ...options });
+    game.tuning.camera.autoFollow = false;
     const h = {
       game,
       input,
@@ -419,7 +418,7 @@ describe('roll vs. a real enemy attack (simulation)', () => {
     input.setMove(1, 0);
     input.press('dodge');
     for (let i = 0; i < 60; i++) run(1);
-    return game.hitLog.filter((e) => e.targetId === 'player').length;
+    return gameStats(game).hitLog.filter((e) => e.targetId === 'player').length;
   }
 
   it('passes through when roll F4.. covers the whole swing, is hit on F3', async () => {

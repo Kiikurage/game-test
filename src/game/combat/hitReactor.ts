@@ -1,5 +1,5 @@
 import { KNOCKBACK, POISE, isHeavyHit } from '../data';
-import { tuning } from '../tuning';
+import { createTuning, type Tuning } from '../tuning';
 import type { HitEvent } from './hitResolver';
 import type { Freezable } from './hitStop';
 import { Poise } from './poise';
@@ -145,7 +145,11 @@ export class HitReactor implements Freezable {
   /** 直近の反応（デバッグ・描画用）。 */
   lastReaction: HitReaction = NO_REACTION;
 
-  constructor(readonly profile: ReactorProfile) {
+  constructor(
+    readonly profile: ReactorProfile,
+    /** 押し戻しのフレーム数（`reaction`）を読む調整値。Game は自分の `tuning` を渡す。 */
+    private readonly tuning: Tuning = createTuning(),
+  ) {
     this.poise = new Poise(profile.poiseMax);
   }
 
@@ -223,7 +227,7 @@ export class HitReactor implements Freezable {
   private compute(event: HitEvent, awayX: number, awayZ: number): HitReaction {
     if (event.killed) return NO_REACTION;
     const { profile } = this;
-    const slideFrames = tuning.reaction;
+    const slideFrames = this.tuning.reaction;
 
     if (event.guard === 'just') return NO_REACTION;
     if (event.guard === 'guard') {

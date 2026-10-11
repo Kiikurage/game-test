@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { waitFrames, waitSteps } from './helpers';
+import { waitFrames, waitLoopSteps } from './helpers';
 
 // 起動体験（ローディング → 開始画面 → タップで全画面・横向きロック → 一時停止と復帰）。
 // ヘッドレスではフルスクリーン・向きロック・Pointer Lock が検証できないので、API をモックして呼び出しを記録する。
@@ -108,7 +108,7 @@ test.describe('mobile', () => {
     await page.evaluate(() => {
       (window as unknown as MockWindow).__exitFullscreen();
     });
-    await waitSteps(page, 120); // 全画面解除の判定後もシミュレーションが進み続ける
+    await waitLoopSteps(page, 120); // 全画面解除の判定後もシミュレーションが進み続ける
     await expect(page.locator('#app')).toHaveAttribute('data-state', 'running');
     expect(errors).toEqual([]);
   });

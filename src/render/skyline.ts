@@ -29,7 +29,7 @@ import {
 } from 'three/tsl';
 import { sunDirection } from './environment';
 import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
-import { valueNoise } from './terrain';
+import { valueNoise } from '../game/world/terrain';
 
 /** 遠景の山並みの 1 層。半径が大きいほど遠く、霞に溶ける。 */
 export interface RidgeLayer {

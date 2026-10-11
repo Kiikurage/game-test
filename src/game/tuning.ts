@@ -3,6 +3,7 @@ import { BOSS_KILL_SLOWMO, CAMERA, HIT_FLASH, HIT_STOP, LOCK_ON, MOVEMENT } from
 /**
  * プレイヤー・カメラ・ロックオンの調整値を一箇所に集約したもの。
  * 仕様書由来の値は `game/data/` から初期化し、仕様書にない「手触り」の値はここで持つ。
+ * `Game` が生成時に自分用の値を作って `game.tuning` に持つ（Game 同士・テスト間で干渉しない）。
  * 実行時に書き換え可能（`?debug` の調整パネルから変更できる。`ui/tuningPanel.ts`）。
  * ロジックは毎ステップここを読むので、書き換えは即座に反映される。
  */
@@ -117,7 +118,8 @@ export type Tuning = {
   };
 };
 
-function createTuning(): Tuning {
+/** 初期値の調整値を新しく作る。 */
+export function createTuning(): Tuning {
   return {
     player: {
       walkMinInput: 0.25,
@@ -208,11 +210,8 @@ function createTuning(): Tuning {
   };
 }
 
-/** 現在の調整値（ミュータブル）。 */
-export const tuning: Tuning = createTuning();
-
-/** 初期値へ戻す。 */
-export function resetTuning(): void {
+/** `tuning` を初期値へ戻す（同じオブジェクトを書き換えるので、参照を持つ側にも反映される）。 */
+export function resetTuning(tuning: Tuning): void {
   const fresh = createTuning();
   for (const group of Object.keys(fresh) as (keyof Tuning)[]) {
     Object.assign(tuning[group], fresh[group]);

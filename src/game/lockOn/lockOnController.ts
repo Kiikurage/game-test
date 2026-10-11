@@ -1,6 +1,6 @@
-import { Vector3 } from 'three/webgpu';
+import { Vector3 } from 'three';
 import { LOCK_ON } from '../data';
-import { tuning } from '../tuning';
+import { createTuning, type Tuning } from '../tuning';
 import {
   selectLockOnTarget,
   selectSwitchTarget,
@@ -48,6 +48,8 @@ export class LockOnController {
   private switchCooldown = 0;
   private deadFrames = 0;
 
+  constructor(private readonly tuning: Tuning = createTuning()) {}
+
   get active(): boolean {
     return this.target !== null;
   }
@@ -87,7 +89,7 @@ export class LockOnController {
     // 距離（ヒステリシス: 取得 15m / 解除 20m）
     const dx = target.position.x - frame.playerPosition.x;
     const dz = target.position.z - frame.playerPosition.z;
-    if (Math.hypot(dx, dz) > tuning.lockOn.releaseRange) return this.release('range');
+    if (Math.hypot(dx, dz) > this.tuning.lockOn.releaseRange) return this.release('range');
 
     // 対象の死亡: 既定は 0.5s 後（雑魚敵は即時。#281）に 10m 以内の次の対象へ、なければ解除
     if (!target.alive) {
@@ -112,7 +114,7 @@ export class LockOnController {
     // 視線遮断が 2 秒続いたら解除
     if (frame.isVisible(frame.camera.position, chestPosition(target, scratch))) {
       this.lostSightFrames = 0;
-    } else if (++this.lostSightFrames >= tuning.lockOn.lostSightFrames) {
+    } else if (++this.lostSightFrames >= this.tuning.lockOn.lostSightFrames) {
       return this.release('lostSight');
     }
 
@@ -127,7 +129,7 @@ export class LockOnController {
       );
       if (next) {
         this.set(next);
-        this.switchCooldown = tuning.lockOn.switchCooldownFrames;
+        this.switchCooldown = this.tuning.lockOn.switchCooldownFrames;
         return 'switched';
       }
     }
@@ -149,9 +151,9 @@ export class LockOnController {
   private options(frame: LockOnFrame, exclude: LockOnTarget | null): SelectOptions {
     return {
       playerPosition: frame.playerPosition,
-      acquireRange: tuning.lockOn.acquireRange,
-      viewHalfH: tuning.lockOn.viewHalfH,
-      viewHalfV: tuning.lockOn.viewHalfV,
+      acquireRange: this.tuning.lockOn.acquireRange,
+      viewHalfH: this.tuning.lockOn.viewHalfH,
+      viewHalfV: this.tuning.lockOn.viewHalfV,
       isVisible: frame.isVisible,
       exclude,
     };

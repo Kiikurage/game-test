@@ -123,7 +123,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 | `npm run perf -- [low\|medium\|high]` | 計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
 | `npm run profile -- [low\|medium\|high] [frames]` | 墓地・戦闘中の 1 フレームあたりの JS 時間を関数別に集計（CDP Profiler。手順は [`docs/performance.md`](docs/performance.md)） |
 | `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
-| `npm run heroshots -- <出力ディレクトリ> [high\|medium]` | 品質ゲートのヒーローショット（`scripts/heroShots.json` の全視点）を撮り、各 PNG と `contact-sheet.png` を出す。`--mobile`（915x412 DPR3）、`--only <名前,...>`、`--compare <変更前のディレクトリ>`（左右比較の `compare-sheet.png`）。見た目に関わる PR は変更前後を載せる（[`docs/tech-direction.md`](docs/tech-direction.md) §7.1） |
+| `npm run heroshots -- <出力ディレクトリ> [high\|medium]` | 品質ゲートのヒーローショット（`scripts/heroShots.json` の全視点）を撮り、各 PNG と `contact-sheet.png` を出す。`--mobile`（915x412 DPR3）、`--only <名前,...>`（`optional` の確認用視点も名前・area で撮れる。全部は `--all`）、`--compare <変更前のディレクトリ>`（左右比較の `compare-sheet.png`）。見た目に関わる PR は変更前後を載せる（[`docs/tech-direction.md`](docs/tech-direction.md) §7.1） |
 
 - PR 前に `npm run lint && npm run typecheck && npm test && npm run build && npm run e2e` を通す。
 - 見た目を変えたら `npm run shot` で撮って自分で画像を確認する（`shots/` は git 管理外）。
@@ -132,15 +132,25 @@ Node.js 22.12 以上。初回は `npm ci`。
   Vulkan 指定が無いとキャンバスのスワップチェーンが作れず GPU デバイスがロストする）。
   ローカルのブラウザは `CHROMIUM_PATH` で上書きできる（未指定なら `/opt/pw-browsers/chromium-1194` があればそれを使う）。
   `playwright install` はローカルでは実行しない（CI のみ）。
+- ローカル（Mac）では `GPU_MODE=hardware` で実 GPU（Metal）の WebGPU を使える。CI は未指定（SwiftShader）のまま。
+  インストール済みの Google Chrome（Playwright の channel `chrome`、新ヘッドレス）で起動し、`PW_CHANNEL` / `CHROMIUM_PATH` で上書きできる。
+  E2E は開始前に `scripts/gpuCheckSetup.mjs` がアダプタを調べ、ソフトウェア（fallback / SwiftShader）なら失敗する（`[gpu] ... -> hardware` がログに出る）。
+  ヘッドレスでアダプタが取れないときは `GPU_HEADFUL=1` でウィンドウを出す。`npm run shot` / `heroshots` / `perf` / `profile` も同じ環境変数に従う。
+  例: `GPU_MODE=hardware E2E_PORT=4321 npx playwright test e2e/launch.spec.ts --workers=1`
 - 一部の Chrome は three r186 の `GPUTextureViewDescriptor.swizzle` を受け付けないため、本番コード
   （`src/core/webgpuCompat.ts`、`boot.ts` が起動時に導入）で恒等 swizzle を除去している。E2E / shot に専用のシムは無い。
 - 起動は `src/boot.ts`（軽量エントリ）→ `src/main.ts`（動的 import。three / rapier を含む）。E2E は開始画面を経由するので
   `e2e/helpers.ts` の `startGame(page)` で開始する（`#app[data-state]`: loading → ready → running ⇄ paused）。
+  開始画面をクリックせず Pointer Lock も取らない開始口は `window.__game.dev.start()`（ヘルパーは `startGameDev(page)`）。
+  入力は `dev.input.*`（press / release / tap / move / look / switchTarget / releaseAll）で注入し、
+  `dev.pause(true)` → `dev.advance(steps, { frames?, render? })` でメインループと同じ経路を進める。一時停止は `__game.paused`。
   `npm run shot` は既定で開始後を撮る。`SHOT_STATE=ready|loading` で開始画面・ローディング画面を撮れる。
 
 ### テストの安定性（時間依存のテストを書かない）
 
 - E2E で `page.waitForTimeout` や実時間の締切（`Date.now()`）を使わない。待ちはシミュレーション基準にする: `e2e/helpers.ts` の `waitSteps`（ステップ数）・`waitFrames`（描画フレーム数）・`holdKey`（ステップ数だけキー保持）・`tapKey`（短押し）、`expect.poll` による状態待ち、`window.__game.dev.advance(steps)`。
+  `waitSteps` / `holdKey` はページ内で「一時停止 → `dev.advance(n)` → 状態を戻す」を同期実行する（ループ自体の動作を確かめるときだけ `waitLoopSteps`）。
+- 新しい spec は `bootGame(page, { scene?, enemies?, at?, paused?, quality?, draw?, params? })` で起動する（`dev.start()` で開始・Pointer Lock を取らない・既定で一時停止のまま。戻り値はコンソールエラーの配列）。
   実時間でしか待てないもの（ループ開始前の非同期状態、実時間の入力速度が仕様のもの）だけ、理由をコメントして例外にする。
 - ロジック検証の E2E は `?quality=low&scale=0.25&nodraw` で開く（SwiftShader は遅く、実時間あたりのステップ数が大きく変動する）。
 - Rapier を使うユニットテストは必要十分なステップ数にとどめる。`vitest.config.ts` の `testTimeout` は 30 秒（並列負荷対策）。

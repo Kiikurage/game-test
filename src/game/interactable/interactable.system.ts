@@ -3,7 +3,7 @@ import { registerGameSystem } from '../systems';
 import { interactablesOf } from './interactable';
 
 // データ駆動のインタラクト（#122 / #123）。レベルに配置（`interactables` の spawn）がある対象だけを、
-// 配置データ（`data/world/interactables.ts`）の定義で登録する。壊せる壁は命中（`onHit`）で HP が減る。
+// 配置データ（`data/world/interactables.ts`）の定義で登録する。壊せる壁は命中（`onImpact`）で HP が減る。
 registerGameSystem('interactable', (game) => {
   const controller = interactablesOf(game);
   const placed = new Set(game.interactableSpawns.map((s) => s.id));
@@ -14,8 +14,8 @@ registerGameSystem('interactable', (game) => {
     update: () => {
       controller.update();
     },
-    onHit: (e) => {
-      controller.onHit(e);
+    onImpact: (e) => {
+      controller.onHit(e.hit);
     },
   };
 });

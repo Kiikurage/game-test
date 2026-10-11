@@ -1,7 +1,7 @@
 import { EventBus, type FootstepSurface, type GameEventMap } from '../core/gameEvents';
 import { MARKER_TYPES, type MarkerType } from './anim/eventMarkers';
 import type { AnimMarkerEvent } from './anim/markerDispatcher';
-import { Euler, Quaternion, Vector3 } from 'three/webgpu';
+import { Euler, Quaternion, Vector3 } from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { InputReader, InputSnapshot } from '../core/input';
 import { ThirdPersonCamera, type CameraCollision } from './camera/thirdPersonCamera';
@@ -37,8 +37,8 @@ import {
 } from './combat';
 import { PLAYER_STATS } from './data';
 import { TimeScale } from './timeScale';
-import { createGameSystems, type GameSystem } from './systems';
-import { tuning } from './tuning';
+import { createGameSystems, type GameSystem, type ImpactEvent } from './systems';
+import { createTuning, type Tuning } from './tuning';
 import {
   CAMERA_QUERY_GROUPS,
   SIGHT_QUERY_GROUPS,
@@ -129,7 +129,6 @@ export interface StaticCylinderSpec {
   readonly euler?: readonly [number, number, number];
 }
 
-const HIT_LOG_MAX = 32;
 const GROUND_FALLBACK_HALF = 100;
 /** テストシーンのダミーの HP（判定の確認用。実質壊れない）。 */
 const DUMMY_HP = 99999;
@@ -156,8 +155,10 @@ export class Game {
   readonly enemies: EnemyManager;
   /** 攻撃トークン（同時に攻撃できる敵の数。5.1 節）。 */
   readonly attackTokens = new AttackTokens();
-  readonly camera = new ThirdPersonCamera();
-  readonly lockOn = new LockOnController();
+  /** 調整値（Game ごとに持つ。`?debug` の調整パネルが書き換える）。 */
+  readonly tuning: Tuning = createTuning();
+  readonly camera = new ThirdPersonCamera(this.tuning);
+  readonly lockOn = new LockOnController(this.tuning);
   /** ロックオン対象。敵（#40 以降）は `LockOnTarget` を実装してここへ追加する。 */
   readonly lockOnTargets: LockOnTarget[] = [];
   /** テストシーンのダミー（描画用に別持ち）。 */
@@ -184,23 +185,6 @@ export class Game {
   readonly timeScale = new TimeScale();
   /** ボスの ID（ボスの攻撃・撃破でヒットストップ / スローの長さが変わる）。ボス（E5）が自分の ID を足す。 */
   readonly bossIds = new Set<string>();
-  /** ヒットストップの累計回数と直近の凍結フレーム数（デバッグ・E2E 用）。 */
-  hitStopCount = 0;
-  lastHitStopFrames = 0;
-  /** 命中イベントの累計（デバッグ・E2E 用）と直近のイベント。 */
-  readonly hitLog: HitEvent[] = [];
-  hitCount = 0;
-  /** プレイヤーイベント（ロール開始など）の累計回数（デバッグ・E2E 用）。 */
-  readonly eventCounts = {
-    rollStart: 0,
-    backstepStart: 0,
-    healStart: 0,
-    healApply: 0,
-    healEmpty: 0,
-    attackStart: 0,
-    land: 0,
-    staminaEmpty: 0,
-  };
   /** イベントマーカーの発火回数（E2E・デバッグ用）。 */
   readonly markerCounts = Object.fromEntries(MARKER_TYPES.map((t) => [t, 0])) as Record<
     MarkerType,
@@ -284,7 +268,7 @@ export class Game {
       ]);
       heart.place(d.x, y, d.z, 0);
       this.combat.addTarget(heart);
-      const reactor = new HitReactor(HOLLOW_SOLDIER_REACTOR);
+      const reactor = new HitReactor(HOLLOW_SOLDIER_REACTOR, this.tuning);
       this.reactors.set(d.id, reactor);
       this.registerFreezable(d.id, reactor);
       this.reactiveTargets.set(d.id, heart);
@@ -302,7 +286,13 @@ export class Game {
 
     // 地形・足場を問い合わせパイプラインへ反映してからプレイヤーを置く
     physics.step(1 / 60);
-    this.player = new Player(physics, this.spawnPosition, this.spawnYaw, this.playerTarget.health);
+    this.player = new Player(
+      physics,
+      this.spawnPosition,
+      this.spawnYaw,
+      this.playerTarget.health,
+      this.tuning,
+    );
     this.cameraCollision = this.createCameraCollision(rapier);
     this.camera.reset(this.player.feet, this.spawnYaw);
     this.combat.addTarget(this.playerTarget);
@@ -315,24 +305,16 @@ export class Game {
       },
     });
     this.combat.onHit((e) => {
-      this.hitCount++;
-      this.hitLog.push(e);
-      if (this.hitLog.length > HIT_LOG_MAX) this.hitLog.shift();
       const guardBreaks = this.player.guardBreakCount;
       const reaction = this.applyReaction(e);
       if (reaction) this.reactEnemy(e.targetId, reaction, e);
-      // ガードを崩された（ガード中にスタミナが 0 になった）: 崩しの SE
-      if (e.targetId === 'player' && this.player.guardBreakCount > guardBreaks) {
-        this.events.emit('hit', { kind: 'guardBreak', source: 'player', position: e.position });
-      }
+      // ガードを崩された（ガード中にスタミナが 0 になった）: 崩しの SE を重ねる
+      const guardBroken = e.targetId === 'player' && this.player.guardBreakCount > guardBreaks;
       if (e.targetId === 'player' && e.killed) this.player.die();
-      this.applyHitStop(e);
-      this.events.emit('hit', {
-        kind: e.kind,
-        source: e.attackerId === 'player' ? 'player' : 'enemy',
-        position: e.position,
-      });
-      for (const system of this.systems) system.onHit?.(e);
+      // 命中 1 回につき 1 つの `impact`（SE・聴覚・FX・カメラ・システムはこれだけを見る。#307）
+      const impact = this.applyHitStop(e, guardBroken);
+      this.events.emit('impact', impact);
+      for (const system of this.systems) system.onImpact?.(impact);
     });
 
     // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
@@ -367,8 +349,8 @@ export class Game {
       this.registerEnemy(this.enemies.spawn(spawnPoint));
     }
     // 戦闘音（命中・ガード）は敵に聞こえる
-    this.events.on('hit', (e) => {
-      if (e.position) this.enemies.noises.emit(e.position, 'combat');
+    this.events.on('impact', (e) => {
+      this.enemies.noises.emit(e.position, 'combat');
     });
     this.systems = createGameSystems(this);
   }
@@ -383,7 +365,7 @@ export class Game {
     heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
     this.combat.addTarget(heart);
     const profile = enemy.type === 'undead_shield' ? SHIELDBEARER_REACTOR : HOLLOW_SOLDIER_REACTOR;
-    this.addReactor(enemy.id, new HitReactor(profile), heart);
+    this.addReactor(enemy.id, new HitReactor(profile, this.tuning), heart);
     // ヒットストップ（攻撃側・被弾側）で状態フレーム・移動を凍結する（Enemy.update が先頭で consumeFreeze する）
     this.registerFreezable(enemy.id, enemy.fsm);
     this.enemyHearts.set(enemy.id, { enemy, heart });
@@ -508,7 +490,7 @@ export class Game {
       moveInput: snap.move,
       running:
         player.state === 'dash' ||
-        (player.state === 'move' && player.speed > tuning.player.walk + 0.5),
+        (player.state === 'move' && player.speed > this.tuning.player.walk + 0.5),
       lockTarget: this.lockOn.target,
       lockEvent: this.lastLockOnEvent,
       device: snap.device,
@@ -522,7 +504,6 @@ export class Game {
       lockTarget: this.lockOn.target,
     });
     for (const e of player.events) {
-      this.eventCounts[e.type]++;
       this.publishPlayerEvent(e);
       if (e.type === 'land' && e.fallHeight >= LAND_NOISE_MIN_HEIGHT) {
         this.enemies.noises.emit(player.feet, 'land');
@@ -680,9 +661,9 @@ export class Game {
 
   /**
    * 命中からヒットストップを決め、攻撃側・被弾側を同時に凍結する（4.1 節）。撃破スロー・画面振動も始め、
-   * 演出用の `hitStop` イベントを発行する。凍結は次のステップから効く（同じステップの `hit` SE は 0F 遅延）。
+   * 演出・SE 用の `impact` を組み立てて返す。凍結は次のステップから効く（同じステップの SE は 0F 遅延）。
    */
-  private applyHitStop(e: HitEvent): void {
+  private applyHitStop(e: HitEvent, guardBroken: boolean): ImpactEvent {
     const attackerIsPlayer = e.attackerId === 'player';
     const targetIsPlayer = e.targetId === 'player';
     const decision = decideHitStop(
@@ -693,14 +674,12 @@ export class Game {
         attackerIsBoss: this.bossIds.has(e.attackerId),
         targetIsBoss: this.bossIds.has(e.targetId),
       },
-      tuning.hitStop,
+      this.tuning.hitStop,
     );
     if (decision.frames > 0) {
       this.freeze(e.attackerId, decision.frames);
       if (e.targetId !== e.attackerId) this.freeze(e.targetId, decision.frames);
-      this.hitStopCount++;
     }
-    this.lastHitStopFrames = decision.frames;
     if (decision.slowMotion) {
       // ヒットストップが明けてから、シミュレーションの 30F（ボスは 60F）の間スロー
       this.timeScale.start(decision.slowMotion.scale, decision.slowMotion.frames, decision.frames);
@@ -719,10 +698,15 @@ export class Game {
     }
     const ny = 0.3;
     const nl = Math.hypot(nx, ny, nz);
-    this.events.emit('hitStop', {
+    return {
+      hit: e,
       attackerId: e.attackerId,
       targetId: e.targetId,
+      attackId: e.attackId,
       kind: e.kind,
+      guard: e.guard,
+      guardBroken,
+      source: attackerIsPlayer ? 'player' : 'enemy',
       frames: decision.frames,
       position: e.position,
       normal: { x: nx / nl, y: ny / nl, z: nz / nl },
@@ -732,7 +716,7 @@ export class Game {
       flash: decision.flash?.kind ?? null,
       flashFrames: decision.flash?.frames ?? 0,
       slowMotion: decision.slowMotion,
-    });
+    };
   }
 
   /** 回復瓶のイベントを、音（`sound`）と HUD・パーティクル用の `heal` へ流す。 */
@@ -780,7 +764,7 @@ export class Game {
   /** ターゲット切替要求: 入力層のフリック/ホイール/十字キー、またはロックオン中のマウスの急な横移動。 */
   private resolveSwitch(snap: InputSnapshot): -1 | 0 | 1 {
     if (snap.targetSwitch !== 0) return snap.targetSwitch;
-    if (this.lockOn.active && Math.abs(snap.look.x) > tuning.lockOn.flickLookThreshold) {
+    if (this.lockOn.active && Math.abs(snap.look.x) > this.tuning.lockOn.flickLookThreshold) {
       return snap.look.x > 0 ? 1 : -1;
     }
     return 0;
@@ -952,17 +936,12 @@ export class Game {
         targetId: this.lockOn.target?.id ?? null,
         lastEvent: this.lastLockOnEvent,
       },
-      events: { ...this.eventCounts },
       markers: { ...this.markerCounts },
       enemies: this.enemies.debugInfo,
       combat: {
-        hits: this.hitCount,
         playerHp: this.playerTarget.health.current,
         playerDead: this.player.dead,
         flask: this.player.flask.count,
-        lastHitTarget: this.hitLog.at(-1)?.targetId ?? null,
-        hitStops: this.hitStopCount,
-        lastHitStopFrames: this.lastHitStopFrames,
         playerFreeze: this.player.fsm.freezeRemaining,
         timeScale: this.timeScale.current,
       },
@@ -999,33 +978,16 @@ export interface GameDebugState {
     readonly pivot: { readonly x: number; readonly y: number; readonly z: number };
   };
   readonly lockOn: { readonly targetId: string | null; readonly lastEvent: string };
-  readonly events: Readonly<
-    Record<
-      | 'rollStart'
-      | 'backstepStart'
-      | 'attackStart'
-      | 'healStart'
-      | 'healApply'
-      | 'healEmpty'
-      | 'land'
-      | 'staminaEmpty',
-      number
-    >
-  >;
   /** イベントマーカーの種別ごとの発火回数。 */
   readonly markers: Readonly<Record<MarkerType, number>>;
   /** 敵の状態（気付きゲージ・見失いなど）。 */
   readonly enemies: readonly EnemyDebugInfo[];
-  /** 判定の状態（命中の累計・プレイヤー HP・直近の被弾側）。 */
+  /** 判定の状態（プレイヤー HP・死亡・回復瓶の残り）。 */
   readonly combat: {
-    readonly hits: number;
     readonly playerHp: number;
     readonly playerDead: boolean;
     readonly flask: number;
-    readonly lastHitTarget: string | null;
-    /** ヒットストップの累計回数・直近の凍結フレーム数・プレイヤーの凍結の残り・現在のタイムスケール。 */
-    readonly hitStops: number;
-    readonly lastHitStopFrames: number;
+    /** プレイヤーの凍結の残り・現在のタイムスケール。 */
     readonly playerFreeze: number;
     readonly timeScale: number;
   };

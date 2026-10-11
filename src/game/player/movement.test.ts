@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resetTuning, tuning } from '../tuning';
+import { createTuning } from '../tuning';
 import {
   angleDelta,
   approachVelocity,
@@ -63,8 +63,7 @@ describe('cameraRelativeMove', () => {
 });
 
 describe('speedForMagnitude', () => {
-  resetTuning();
-  const p = tuning.player;
+  const p = createTuning().player;
 
   it('is 0 without input and never exceeds the run speed', () => {
     expect(speedForMagnitude(0, p)).toBe(0);

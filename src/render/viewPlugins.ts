@@ -6,7 +6,7 @@
 //   registerViewPlugin('bonfire', ({ view, game }) => {
 //     const root = new Group();
 //     view.scene.add(root);
-//     game.events.on('hitStop', ...);          // game のイベント購読もここで行う
+//     game.events.on('impact', ...);           // game のイベント購読もここで行う
 //     return {
 //       load: async () => { /* アセット読み込み。失敗してもゲームは続行する */ },
 //       update: (dt) => { /* 毎フレーム（dt は秒） */ },

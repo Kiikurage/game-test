@@ -1,4 +1,4 @@
-import { Quaternion, Vector3 } from 'three/webgpu';
+import { Quaternion, Vector3 } from 'three';
 
 /**
  * シミュレーション側が持つ「直前ステップ / 最新ステップ」の位置・回転。

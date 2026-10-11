@@ -1,4 +1,4 @@
-import { Quaternion, Vector3 } from 'three/webgpu';
+import { Quaternion, Vector3 } from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { InterpolatedTransform } from '../../core/interpolated';
 import type { InputReader, InputSnapshot } from '../../core/input';
@@ -33,7 +33,7 @@ import { findPlayerClipEvents } from '../anim/playerClips';
 import type { PlayerAttackInfo } from '../combat/playerAttack';
 import type { LockOnTarget } from '../lockOn/targets';
 import type { Physics } from '../physics';
-import { tuning } from '../tuning';
+import { createTuning, type Tuning } from '../tuning';
 import { PLAYER_GROUPS, SIGHT_QUERY_GROUPS } from '../world/groups';
 import {
   approachVelocity,
@@ -249,7 +249,7 @@ export class Player {
   /** 回復瓶の残数（#48）。 */
   readonly flask = new Flask();
   /** 強靭度・被弾後無敵・押し戻し（#50）。敵と共通の `HitReactor`。 */
-  readonly reactor = new HitReactor(PLAYER_REACTOR);
+  readonly reactor: HitReactor;
 
   /** 状態機械（遷移の検証・状態フレーム・キャンセル窓・ヒットストップ）。 */
   readonly fsm = new CharacterFsm<PlayerStateId>(PLAYER_STATE_GRAPH, 'idle', {
@@ -371,7 +371,10 @@ export class Player {
     yaw: number,
     /** HP（回復の加算先）。Game は被弾側（`playerTarget`）の Health を渡す。 */
     readonly health: Health = new Health(PLAYER_STATS.hp),
+    /** 調整値。Game は自分の `tuning` を渡す。 */
+    private readonly tuning: Tuning = createTuning(),
   ) {
+    this.reactor = new HitReactor(PLAYER_REACTOR, tuning);
     const { rapier, world } = physics;
     this.groundClearanceProbe = (x, y, z) => {
       // 足元の少し上から真下へ。地形・静的物だけを見る（敵・ターゲットは足場にしない）
@@ -410,10 +413,10 @@ export class Player {
       this.body,
     );
 
-    const c = world.createCharacterController(tuning.player.controllerOffset);
+    const c = world.createCharacterController(this.tuning.player.controllerOffset);
     c.setUp({ x: 0, y: 1, z: 0 });
-    c.enableAutostep(MOVEMENT.stepHeight, tuning.player.autostepMinWidth, false);
-    c.enableSnapToGround(tuning.player.snapToGround);
+    c.enableAutostep(MOVEMENT.stepHeight, this.tuning.player.autostepMinWidth, false);
+    c.enableSnapToGround(this.tuning.player.snapToGround);
     c.setMaxSlopeClimbAngle(MAX_SLOPE_RAD);
     c.setMinSlopeSlideAngle(MAX_SLOPE_RAD);
     c.setSlideEnabled(true);
@@ -764,8 +767,8 @@ export class Player {
         frame.lockTarget.position.z - this.position.z,
       );
     }
-    this.turnRate = tuning.player.turnDegPerSecond * DEG;
-    this.turnResponse = tuning.player.turnResponse;
+    this.turnRate = this.tuning.player.turnDegPerSecond * DEG;
+    this.turnResponse = this.tuning.player.turnResponse;
     this.dashing = false;
 
     // ダッシュのラッチ解除
@@ -959,7 +962,7 @@ export class Player {
 
   /** idle / move / dash 共通。 */
   private updateGround(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
 
     // 回避（先行入力を含む）。ボタンを離した瞬間に確定した入力が対象。スタミナ 0 では開始できない。
     const dodge = this.tryDodge(frame);
@@ -1019,7 +1022,7 @@ export class Player {
     if (this.state === 'dash') return true;
     if (this.state !== 'move') return false;
     const speed = Math.hypot(this.velocity.x, this.velocity.y);
-    return speed >= tuning.player.run * RUN_ATTACK_MIN_SPEED_RATIO;
+    return speed >= this.tuning.player.run * RUN_ATTACK_MIN_SPEED_RATIO;
   }
 
   /** 先行入力（攻撃 10F）を消費して `id` を始める。スタミナ 0 では開始できない（入力は残り、期限で消える）。 */
@@ -1113,7 +1116,7 @@ export class Player {
     snap: InputSnapshot,
     frame: PlayerFrame,
   ): PlayerStateId | null {
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
     const dodge = this.tryDodge(frame);
     if (dodge) return dodge;
     // F1 = 入力のステップ。ボタンを保持したステップ数 = stateFrame − 1（離した時点のステップは数えない）
@@ -1194,7 +1197,7 @@ export class Player {
   }
 
   private afterAttackState(): PlayerStateId {
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
     return this.moveMagnitude > 0 ? 'move' : 'idle';
   }
 
@@ -1277,8 +1280,8 @@ export class Player {
     const speed = maxSpeed * Math.min(1, m / 0.6);
     this.tmpVelocity.x = m > 0 ? (this.worldMove.x / m) * speed : 0;
     this.tmpVelocity.y = m > 0 ? (this.worldMove.y / m) * speed : 0;
-    const accel = tuning.player.run / (tuning.player.accelFrames / 60);
-    const decel = tuning.player.run / (tuning.player.stopFrames / 60);
+    const accel = this.tuning.player.run / (this.tuning.player.accelFrames / 60);
+    const decel = this.tuning.player.run / (this.tuning.player.stopFrames / 60);
     approachVelocity(this.velocity, this.tmpVelocity, accel, decel, dt);
   }
 
@@ -1303,7 +1306,7 @@ export class Player {
   ): void {
     const airborne = mode === 'air';
     const guarding = mode === 'guard';
-    const p = tuning.player;
+    const p = this.tuning.player;
     const m = this.moveMagnitude;
     const wantsDash =
       (snap.sprint || this.dashLatch) &&
@@ -1409,7 +1412,7 @@ export class Player {
   private updateRoll(snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
     const f = this.stateFrame;
     // 向きは入力方向へ素早く合わせる（ロックオン中も、終了後に対象方向へ戻す）
-    this.turnRate = tuning.player.rollTurnDegPerSecond * DEG;
+    this.turnRate = this.tuning.player.rollTurnDegPerSecond * DEG;
     this.turnResponse = 40;
 
     const dist = ROLL_PROFILE[f - 1] ?? 0;
@@ -1466,7 +1469,7 @@ export class Player {
 
   /** ロール終了・キャンセル時の遷移先。ボタンが押されていればダッシュへ（2.3 節）。 */
   private afterDodgeState(snap: InputSnapshot): PlayerStateId {
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
     if (snap.buttons.dodge.held && this.moveMagnitude > 0.1) this.dashLatch = true;
     return this.moveMagnitude > 0 ? (this.dashLatch ? 'dash' : 'move') : 'idle';
   }
@@ -1551,7 +1554,7 @@ export class Player {
     this.velocity.x = 0;
     this.velocity.y = 0;
     this.turnRate = 0;
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
     if (this.stateFrame > totalFrames(PLAYER_ACTIONS.plunge)) return this.afterAttackState();
     return null;
   }
@@ -1570,19 +1573,19 @@ export class Player {
     airCorrection(this.worldMove, lock, this.airLockOnSpeed, this.airFix);
     this.airTarget.x = this.airBase.x + this.airFix.x;
     this.airTarget.y = this.airBase.y + this.airFix.y;
-    const accel = tuning.player.airAccel;
+    const accel = this.tuning.player.airAccel;
     approachVelocity(this.velocity, this.airTarget, accel, accel, dt);
   }
 
   private updateLand(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
     // 着地の途中からロールで抜けられる
     if (this.stateFrame >= 4) {
       const dodge = this.tryDodge(frame);
       if (dodge) return dodge;
     }
     if (this.stateFrame > this.landFrames) return this.moveMagnitude > 0 ? 'move' : 'idle';
-    this.computeLocomotion(dt, snap, frame, tuning.player.landSpeedFactor, 'land');
+    this.computeLocomotion(dt, snap, frame, this.tuning.player.landSpeedFactor, 'land');
     return null;
   }
 
@@ -1592,7 +1595,7 @@ export class Player {
     this.velocity.y = 0;
     this.turnRate = 0;
     if (this.stateFrame > this.reactionFrames) {
-      if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+      if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
       return this.moveMagnitude > 0 ? 'move' : 'idle';
     }
     return null;
@@ -1606,7 +1609,7 @@ export class Player {
    */
   private updateGuard(dt: number, snap: InputSnapshot, frame: PlayerFrame): PlayerStateId | null {
     this.guardAge++;
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
 
     const dodge = this.tryDodge(frame);
     if (dodge) return dodge;
@@ -1652,7 +1655,7 @@ export class Player {
     snap: InputSnapshot,
     frame: PlayerFrame,
   ): PlayerStateId | null {
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
     if (!snap.buttons.guard.held) this.releaseSawUp = true;
     if (
       snap.buttons.guard.held &&
@@ -1679,7 +1682,7 @@ export class Player {
     this.velocity.y = 0;
     this.turnRate = 0;
     if (this.stateFrame > this.guardParams.breakFrames) {
-      if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+      if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
       return this.moveMagnitude > 0 ? 'move' : 'idle';
     }
     return null;
@@ -1691,11 +1694,11 @@ export class Player {
   private updateScripted(dt: number): PlayerStateId | null {
     this.tmpVelocity.x = 0;
     this.tmpVelocity.y = 0;
-    const decel = tuning.player.run / (tuning.player.stopFrames / 60);
+    const decel = this.tuning.player.run / (this.tuning.player.stopFrames / 60);
     approachVelocity(this.velocity, this.tmpVelocity, decel, decel, dt);
     if (this.state === 'rest' || this.stateFrame <= this.scriptedFrames) return null;
     if (this.state === 'sitDown') return 'rest';
-    if (!this.grounded && this.airFrames > tuning.player.coyoteFrames) return 'fall';
+    if (!this.grounded && this.airFrames > this.tuning.player.coyoteFrames) return 'fall';
     return 'idle';
   }
 
@@ -1731,8 +1734,8 @@ export class Player {
     let response = this.turnResponse;
     if (frame.lockTarget) {
       target = this.toTargetYaw;
-      rate = tuning.player.lockOnTurnDegPerSecond * DEG;
-      response = tuning.player.lockOnTurnResponse;
+      rate = this.tuning.player.lockOnTurnDegPerSecond * DEG;
+      response = this.tuning.player.lockOnTurnResponse;
     } else if (this.moveMagnitude > 0.001 && this.state !== 'land') {
       target = yawOf(this.worldMove.x, this.worldMove.y);
     }
@@ -1757,8 +1760,8 @@ export class Player {
     this.yaw = turnToward(
       this.yaw,
       target,
-      tuning.player.attackTurnDegPerSecond * DEG,
-      tuning.player.attackTurnResponse,
+      this.tuning.player.attackTurnDegPerSecond * DEG,
+      this.tuning.player.attackTurnResponse,
       dt,
     );
   }
@@ -1768,12 +1771,12 @@ export class Player {
     const sprinting =
       this.dashing ||
       (this.state === 'move' &&
-        Math.hypot(this.velocity.x, this.velocity.y) > tuning.player.walk + 0.3);
+        Math.hypot(this.velocity.x, this.velocity.y) > this.tuning.player.walk + 0.3);
     return { sprinting, guarding: this.state === 'guard', charging: this.state === 'heavyCharge' };
   }
 
   private moveBody(dt: number): void {
-    const p = tuning.player;
+    const p = this.tuning.player;
     if (this.grounded) {
       // 接地中は下向きの移動量を与えない（与えるとオートステップが働かない）。地面への吸着は snapToGround が担う。
       this.verticalVelocity = 0;

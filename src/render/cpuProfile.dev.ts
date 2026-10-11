@@ -44,7 +44,7 @@ declare module '../devHooks' {
   }
 }
 
-registerDevHooks('cpuProfile', ({ game, view, input, setPaused }) => {
+registerDevHooks('cpuProfile', ({ game, view, input, loop }) => {
   const original = view.render.bind(view);
   let frames = 0;
   let steps = 0;
@@ -69,7 +69,7 @@ registerDevHooks('cpuProfile', ({ game, view, input, setPaused }) => {
   return {
     cpuProfileLockstep: (on, inv = true) => {
       invulnerable = on && inv;
-      setPaused(on);
+      loop.paused = on;
       target.render = on ? lockstep : original;
     },
     cpuProfileReset: () => {

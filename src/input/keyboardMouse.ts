@@ -64,6 +64,11 @@ export class KeyboardMouseInput {
   /** 現在のロックを検出済みか。 */
   private lockSeen = false;
   private disposers: (() => void)[] = [];
+  /**
+   * Pointer Lock を使うか。false（E2E・撮影の `dev.start()`）ではロックを要求せず、ロックなしのクリックも
+   * そのまま攻撃として扱う（カメラはマウスでは動かない。入力注入で動かす）。
+   */
+  pointerLockEnabled = true;
 
   constructor(
     private readonly collector: InputCollector,
@@ -171,7 +176,7 @@ export class KeyboardMouseInput {
   private readonly onPointerDown = (e: PointerEvent): void => {
     if (e.pointerType !== 'mouse') return;
     this.onActivity();
-    if (!this.pointerLocked) {
+    if (this.pointerLockEnabled && !this.pointerLocked) {
       this.requestLock();
       return; // ロック取得クリックは攻撃にしない
     }
@@ -214,6 +219,7 @@ export class KeyboardMouseInput {
   };
 
   requestLock(): void {
+    if (!this.pointerLockEnabled) return;
     try {
       // 生のマウス移動量（加速なし）を使えるなら使う。非対応環境では通常のロックにフォールバック。
       const p = this.target.requestPointerLock({ unadjustedMovement: true }) as unknown as
