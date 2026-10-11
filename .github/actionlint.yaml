@@ -1,0 +1,4 @@
+# actionlint の設定（セルフホストランナーの独自ラベル）。docs/mac-runner.md
+self-hosted-runner:
+  labels:
+    - gpu

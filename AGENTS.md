@@ -122,6 +122,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 | `npm run e2e` | Playwright E2E（ビルド → preview 配信 → ヘッドレス WebGPU で起動確認） |
 | `npm run perf -- [low\|medium\|high]` | 計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
 | `npm run profile -- [low\|medium\|high] [frames]` | 墓地・戦闘中の 1 フレームあたりの JS 時間を関数別に集計（CDP Profiler。手順は [`docs/performance.md`](docs/performance.md)） |
+| `npm run bench -- <出力ディレクトリ>` | `?bench` を完走して `bench.json` / `bench.txt` を保存（`BENCH_QUERY` で追加クエリ。実 GPU 向け） |
 | `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
 | `npm run heroshots -- <出力ディレクトリ> [high\|medium]` | 品質ゲートのヒーローショット（`scripts/heroShots.json` の全視点）を撮り、各 PNG と `contact-sheet.png` を出す。`--mobile`（915x412 DPR3）、`--only <名前,...>`、`--compare <変更前のディレクトリ>`（左右比較の `compare-sheet.png`）。見た目に関わる PR は変更前後を載せる（[`docs/tech-direction.md`](docs/tech-direction.md) §7.1） |
 
@@ -137,6 +138,12 @@ Node.js 22.12 以上。初回は `npm ci`。
 - 起動は `src/boot.ts`（軽量エントリ）→ `src/main.ts`（動的 import。three / rapier を含む）。E2E は開始画面を経由するので
   `e2e/helpers.ts` の `startGame(page)` で開始する（`#app[data-state]`: loading → ready → running ⇄ paused）。
   `npm run shot` は既定で開始後を撮る。`SHOT_STATE=ready|loading` で開始画面・ローディング画面を撮れる。
+
+### 実 GPU での撮影・計測（オーナーの Mac。[`docs/mac-runner.md`](docs/mac-runner.md)）
+
+- 起動: GitHub MCP の `actions_run_trigger`（`run_workflow`、workflow_id `mac-verify.yml`、ref `main`、inputs `{ "branch": "<自分のブランチ>", "task": "heroshots" | "bench" | "shot" | "e2e:<spec>", "query": "", "options": "", "compare": "true" }`）。PR に `verify:mac` ラベルでも heroshots（main 比較つき）が走る。
+- 結果: `git fetch origin verify-results --depth=1` → `git show FETCH_HEAD:<ブランチ>/<run_id>/summary.md`。画像は `git archive FETCH_HEAD <ブランチ>/<run_id> | tar -x -C <作業用ディレクトリ>` で取り出して Read する。PR があればパスがコメントされる。
+- ランナーはオーナーの Mac 1 台。オフラインなら run は待ち状態のまま（待たずに SwiftShader の `npm run shot` で進めてよい）。
 
 ### テストの安定性（時間依存のテストを書かない）
 

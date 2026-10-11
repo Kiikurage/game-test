@@ -1,0 +1,332 @@
+# 実 GPU（オーナーの Mac のセルフホストランナー）でブランチを撮影・計測し、結果を verify-results ブランチと artifact に返す。
+# セットアップと使い方: docs/mac-runner.md。起動は手動（workflow_dispatch）と PR ラベル `verify:mac` のみで、
+# ランナーが未登録・オフラインでも main の CI（ci.yml）には影響しない（このワークフローの run が待ち状態になるだけ）。
+name: Mac verify (real GPU)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 対象ブランチ（空なら「Use workflow from」で選んだブランチ）
+        required: false
+        default: ''
+      task:
+        description: 'heroshots / bench / shot / e2e:<spec>（例: e2e:bench.spec.ts）'
+        required: true
+        default: bench
+      query:
+        description: 'URL クエリ。bench: ?bench に足す（例: quality=medium&nomsaa）、shot: SHOT_QUERY（例: ?quality=high）'
+        required: false
+        default: ''
+      options:
+        description: '追加オプション。heroshots: --mobile / --only a,b / medium、shot: pc か mobile、bench: mobile'
+        required: false
+        default: ''
+      compare:
+        description: 'heroshots: main 版も撮って compare-sheet.png（左 main / 右 ブランチ）を作る'
+        type: boolean
+        default: false
+      headful:
+        description: ヘッドレスでハードウェア WebGPU が取れない場合に、ウィンドウを出して Chrome を起動する
+        type: boolean
+        default: false
+  # PR に `verify:mac` ラベルを付けると heroshots（main との比較つき）を実行する。付け直すと再実行
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    # フォークからの PR では実行しない（Mac 上で第三者のコードを動かさない）。workflow_dispatch は書き込み権限者だけが起動できる
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'verify:mac' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, macOS, gpu]
+    timeout-minutes: 90
+    # Mac は 1 台なので同時実行は 1 本。実行中に来た run は待つ（待ちは最新の 1 本だけが残り、古い待ちは cancelled になる）
+    concurrency:
+      group: mac-verify
+      cancel-in-progress: false
+    permissions:
+      contents: write # verify-results ブランチへの push
+      pull-requests: write # 結果のコメント
+    env:
+      GPU_MODE: hardware
+      # ラベル起動など入力の無い run は、リポジトリ変数 MAC_VERIFY_HEADFUL=1 で headful にできる
+      GPU_HEADFUL: ${{ (inputs.headful || vars.MAC_VERIFY_HEADFUL == '1') && '1' || '0' }}
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_BRANCH: ${{ inputs.branch }}
+          IN_TASK: ${{ inputs.task }}
+          IN_QUERY: ${{ inputs.query }}
+          IN_OPTIONS: ${{ inputs.options }}
+          IN_COMPARE: ${{ inputs.compare }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            BRANCH="$PR_BRANCH"; TASK=heroshots; QUERY=''; OPTIONS=''; COMPARE=true; PR="$PR_NUMBER"
+          else
+            BRANCH="${IN_BRANCH:-$REF_NAME}"; TASK="$IN_TASK"; QUERY="$IN_QUERY"; OPTIONS="$IN_OPTIONS"
+            COMPARE="$IN_COMPARE"; PR=''
+          fi
+          # 入力はシェルに展開せず env で渡し、ここで形を検査する
+          if ! printf '%s' "$BRANCH" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$' ||
+             printf '%s' "$BRANCH" | grep -Eq '\.\.|^refs/|//'; then
+            echo "::error::invalid branch: $BRANCH"; exit 1
+          fi
+          if ! printf '%s' "$TASK" | grep -Eq '^(heroshots|bench|shot|e2e:[A-Za-z0-9._/-]+\.spec\.ts)$' ||
+             printf '%s' "$TASK" | grep -Eq '\.\.'; then
+            echo "::error::invalid task: $TASK (heroshots / bench / shot / e2e:<spec>.spec.ts)"; exit 1
+          fi
+          if ! printf '%s' "$QUERY" | grep -Eq '^[A-Za-z0-9?&=._,|%:-]*$'; then
+            echo "::error::invalid query: $QUERY"; exit 1
+          fi
+          if ! printf '%s' "$OPTIONS" | grep -Eq '^[A-Za-z0-9 ,._=-]*$'; then
+            echo "::error::invalid options: $OPTIONS"; exit 1
+          fi
+          DEST="$BRANCH/$GITHUB_RUN_ID"
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then DEST="$DEST-$GITHUB_RUN_ATTEMPT"; fi
+          {
+            echo "branch=$BRANCH"; echo "task=$TASK"; echo "query=$QUERY"; echo "options=$OPTIONS"
+            echo "compare=$COMPARE"; echo "pr=$PR"; echo "dest=$DEST"
+            echo "out=$RUNNER_TEMP/verify-out"
+          } >> "$GITHUB_OUTPUT"
+          rm -rf "$RUNNER_TEMP/verify-out" && mkdir -p "$RUNNER_TEMP/verify-out"
+          echo "branch=$BRANCH task=$TASK query=$QUERY options=$OPTIONS compare=$COMPARE dest=$DEST"
+
+      # 計測用のスクリプト（chromium.mjs / gpuCheck.mjs / bench.mjs）はこのワークフローと同じ版を使う
+      # （このワークフローより前に main から切ったブランチでも GPU_MODE=hardware で動くようにする）
+      - name: Checkout tools (workflow revision)
+        uses: actions/checkout@v4
+        with:
+          path: tools
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          path: src
+          ref: ${{ steps.resolve.outputs.branch }}
+
+      - name: Verify the branch belongs to this repository
+        working-directory: src
+        env:
+          BRANCH: ${{ steps.resolve.outputs.branch }}
+        run: git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" > /dev/null
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src
+        run: |
+          cp ../tools/scripts/chromium.mjs ../tools/scripts/gpuCheck.mjs ../tools/scripts/bench.mjs scripts/
+          npm ci --no-audit --no-fund
+
+      - name: Check WebGPU adapter (must be hardware, not SwiftShader)
+        working-directory: src
+        env:
+          OUT: ${{ steps.resolve.outputs.out }}
+        run: node scripts/gpuCheck.mjs "$OUT/gpu.json" 2>&1 | tee "$OUT/gpu.log"
+
+      - name: Run task
+        id: task
+        working-directory: src
+        env:
+          OUT: ${{ steps.resolve.outputs.out }}
+          TASK: ${{ steps.resolve.outputs.task }}
+          QUERY: ${{ steps.resolve.outputs.query }}
+          OPTIONS: ${{ steps.resolve.outputs.options }}
+          COMPARE: ${{ steps.resolve.outputs.compare }}
+        run: |
+          # macOS の bash 3.2 で動く書き方にする（連想配列・mapfile などは使わない）
+          read -r -a OPTS <<< "$OPTIONS" || true
+          run_task() {
+            case "$TASK" in
+              heroshots)
+                if [ "$COMPARE" = true ]; then
+                  MAIN_SRC="$RUNNER_TEMP/main-src"
+                  git worktree remove --force "$MAIN_SRC" 2> /dev/null || rm -rf "$MAIN_SRC"
+                  git fetch --depth=1 origin main
+                  git worktree add --detach "$MAIN_SRC" FETCH_HEAD
+                  cp scripts/chromium.mjs scripts/gpuCheck.mjs scripts/bench.mjs "$MAIN_SRC/scripts/"
+                  echo "== heroshots (main) =="
+                  (cd "$MAIN_SRC" && npm ci --no-audit --no-fund &&
+                    HERO_PORT=4178 npm run heroshots -- "$OUT/hero-main" ${OPTS[@]+"${OPTS[@]}"})
+                  echo "== heroshots (branch) =="
+                  npm run heroshots -- "$OUT/hero" ${OPTS[@]+"${OPTS[@]}"} --compare "$OUT/hero-main"
+                else
+                  npm run heroshots -- "$OUT/hero" ${OPTS[@]+"${OPTS[@]}"}
+                fi
+                ;;
+              bench)
+                BENCH_VIEWPORT="${OPTS[0]:-pc}" BENCH_QUERY="$QUERY" npm run bench -- "$OUT/bench"
+                ;;
+              shot)
+                SHOT_ONLY="${OPTS[0]:-}" SHOT_QUERY="$QUERY" npm run shot -- "$OUT/shot/shot"
+                ;;
+              e2e:*)
+                SPEC="e2e/${TASK#e2e:}"
+                if [ ! -f "$SPEC" ]; then echo "spec not found: $SPEC"; return 1; fi
+                npx playwright test "$SPEC" --workers=1 --reporter=list --output "$OUT/e2e"
+                ;;
+            esac
+          }
+          run_task 2>&1 | tee "$OUT/log.txt"
+
+      - name: Summarize
+        id: summary
+        if: always() && steps.resolve.outcome == 'success'
+        env:
+          OUT: ${{ steps.resolve.outputs.out }}
+          BRANCH: ${{ steps.resolve.outputs.branch }}
+          TASK: ${{ steps.resolve.outputs.task }}
+          QUERY: ${{ steps.resolve.outputs.query }}
+          OPTIONS: ${{ steps.resolve.outputs.options }}
+          DEST: ${{ steps.resolve.outputs.dest }}
+          OUTCOME: ${{ steps.task.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          SHA=$(git -C src rev-parse HEAD 2> /dev/null || echo unknown)
+          # shellcheck disable=SC2016 # node のテンプレート文字列（シェル展開しない）
+          GPU=$(node -e '
+            try {
+              const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              const a = r.adapter;
+              console.log(a ? `${a.vendor} / ${a.architecture} / ${a.description || a.device || "-"}${r.software ? " (SOFTWARE)" : ""}` : `no adapter (${r.reason})`);
+            } catch { console.log("unknown (gpu check failed)"); }
+          ' "$OUT/gpu.json")
+          {
+            echo "# mac-verify: $TASK"
+            echo
+            echo "- branch: \`$BRANCH\` ($SHA)"
+            echo "- task: \`$TASK\` / query: \`$QUERY\` / options: \`$OPTIONS\`"
+            echo "- outcome: **${OUTCOME:-skipped}**"
+            echo "- WebGPU adapter: $GPU"
+            echo "- run: $RUN_URL"
+            echo "- results: \`verify-results:$DEST/\`"
+            echo
+            echo "## files"
+            echo
+            echo '```'
+            (cd "$OUT" && find . -type f ! -name summary.md | sort)
+            echo '```'
+            echo
+            echo "## log (tail)"
+            echo
+            echo '```'
+            tail -n 60 "$OUT/log.txt" 2> /dev/null || tail -n 60 "$OUT/gpu.log" 2> /dev/null || true
+            echo '```'
+          } > "$OUT/summary.md"
+          cat "$OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "gpu=$GPU" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        if: always() && steps.resolve.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-verify-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.resolve.outputs.out }}
+          retention-days: 14
+
+      # orphan ブランチ verify-results の <ブランチ名>/<run_id>/ に結果を commit する（他の run と競合したら取り直して再試行）
+      - name: Push results to verify-results branch
+        id: push
+        if: always() && steps.resolve.outcome == 'success'
+        env:
+          OUT: ${{ steps.resolve.outputs.out }}
+          BRANCH: ${{ steps.resolve.outputs.branch }}
+          TASK: ${{ steps.resolve.outputs.task }}
+          DEST: ${{ steps.resolve.outputs.dest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          WORK="$RUNNER_TEMP/verify-results"
+          for attempt in 1 2 3 4 5; do
+            rm -rf "$WORK" && mkdir -p "$WORK" && cd "$WORK"
+            git init -q
+            if git fetch -q --depth=1 "$REMOTE" refs/heads/verify-results 2> /dev/null; then
+              git checkout -q -B verify-results FETCH_HEAD
+            else
+              git checkout -q --orphan verify-results
+            fi
+            mkdir -p "$DEST" && cp -R "$OUT"/. "$DEST"/
+            git add -A -- "$DEST"
+            git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -q -m "mac-verify: $BRANCH $TASK (run $GITHUB_RUN_ID)"
+            if git push -q "$REMOTE" HEAD:refs/heads/verify-results; then
+              echo "pushed: verify-results:$DEST/"
+              exit 0
+            fi
+            echo "push failed (attempt $attempt); retrying"
+            sleep $((attempt * 3))
+          done
+          exit 1
+
+      - name: Comment on the PR
+        if: always() && steps.resolve.outcome == 'success'
+        uses: actions/github-script@v7
+        env:
+          OUT: ${{ steps.resolve.outputs.out }}
+          BRANCH: ${{ steps.resolve.outputs.branch }}
+          TASK: ${{ steps.resolve.outputs.task }}
+          DEST: ${{ steps.resolve.outputs.dest }}
+          PR: ${{ steps.resolve.outputs.pr }}
+          GPU: ${{ steps.summary.outputs.gpu }}
+          SHA: ${{ steps.summary.outputs.sha }}
+          OUTCOME: ${{ steps.task.outcome }}
+          PUSHED: ${{ steps.push.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { owner, repo } = context.repo;
+            const env = process.env;
+            let pr = Number(env.PR || 0);
+            if (!pr) {
+              const { data } = await github.rest.pulls.list({
+                owner, repo, state: 'open', head: `${owner}:${env.BRANCH}`,
+              });
+              pr = data[0]?.number ?? 0;
+            }
+            if (!pr) {
+              core.info(`no open PR for ${env.BRANCH}; skip comment`);
+              return;
+            }
+            const lines = [
+              `### mac-verify: \`${env.TASK}\` — ${env.OUTCOME || 'skipped'}`,
+              '',
+              `- ブランチ: \`${env.BRANCH}\` (${env.SHA})`,
+              `- WebGPU アダプタ: ${env.GPU || 'unknown'}`,
+              env.PUSHED === 'success'
+                ? `- 結果: \`verify-results\` ブランチの \`${env.DEST}/\`（\`git fetch origin verify-results --depth=1 && git show FETCH_HEAD:${env.DEST}/summary.md\`）`
+                : `- 結果の push に失敗しました。artifact を参照してください`,
+              `- run / artifact: ${env.RUN_URL}`,
+            ];
+            const bench = path.join(env.OUT, 'bench', 'bench.txt');
+            if (fs.existsSync(bench)) {
+              lines.push('', '<details><summary>bench</summary>', '', '```', fs.readFileSync(bench, 'utf8').trim(), '```', '', '</details>');
+            }
+            lines.push('', '---', '_Generated by [Claude Code](https://claude.ai/code)_');
+            await github.rest.issues.createComment({ owner, repo, issue_number: pr, body: lines.join('\n') });
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/main-src" "$RUNNER_TEMP/verify-results"
+          git -C src worktree prune 2> /dev/null || true

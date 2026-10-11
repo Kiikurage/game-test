@@ -17,6 +17,8 @@
     "e2e": "playwright test",
     "shot": "node scripts/shot.mjs",
     "heroshots": "node scripts/heroShots.mjs",
+    "bench": "node scripts/bench.mjs",
+    "gpu-check": "node scripts/gpuCheck.mjs",
     "perf": "node scripts/perf.mjs",
     "profile": "node scripts/profile.mjs",
     "assets:fetch": "node scripts/assets/fetch.mjs",
