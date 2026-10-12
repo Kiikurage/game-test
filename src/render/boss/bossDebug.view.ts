@@ -4,11 +4,11 @@ import {
   type BossToolInfo,
   type BossToolSettings,
 } from '../../game/boss/bossDebug';
-import { bossDebugOf } from '../../game/boss/bossDebug.system';
 import type { FrameRange } from '../../game/boss/dodgeSim';
 import { isDebugEnabled } from '../../ui/debugHud';
 import { createPlaybackControls, debugButton } from '../../ui/debugPlayback';
 import { registerViewPlugin } from '../viewPlugins';
+import { bossDebugSystem } from '../../game/boss/bossDebug.system';
 
 /**
  * ボス技の回避検証ツールの UI（E5-9）。`?debug&scene=boss` のときだけ DOM パネルを出す
@@ -194,7 +194,7 @@ function buildPanel(tool: BossDebugTool): {
 
 registerViewPlugin('bossDebug', ({ game }) => {
   if (!isDebugEnabled(location.search) || !isBossToolScene(location.search)) return {};
-  const tool = bossDebugOf(game);
+  const tool = game.systems.get(bossDebugSystem);
   const panel = buildPanel(tool);
   document.body.appendChild(panel.root);
   return {

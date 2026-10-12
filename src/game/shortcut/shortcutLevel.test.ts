@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryStorage, SaveStore } from '../../core/persistence';
 import { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
 import { ASHEN_FOUNDATION } from '../world/ashenFoundation';
 import { createLevel, levelGameOptions } from '../world/level';
-import { shortcutOf } from './shortcut.system';
+import { shortcutSystem } from './shortcut.system';
+import { interactionSystem } from '../interaction/interaction.system';
 
 const DT = 1 / 60;
 const level = createLevel(ASHEN_FOUNDATION);
@@ -86,11 +86,11 @@ describe('shortcut on the real level (physics)', () => {
 
   /** 中庭側（北）のレバーの前から開通させ、扉が開ききるまで待つ。 */
   function openFromNorth(): void {
-    const sc = shortcutOf(game);
+    const sc = game.systems.get(shortcutSystem);
     if (!sc) throw new Error('no shortcut');
     game.teleportPlayer(80.2, 37, Math.atan2(80 - 80.2, 36 - 37));
     run(10);
-    expect(interactionOf(game).prompt?.id).toBe('lever-g1');
+    expect(game.systems.get(interactionSystem).prompt?.id).toBe('lever-g1');
     input.press('interact');
     run(240);
     expect(sc.state).toBe('open');

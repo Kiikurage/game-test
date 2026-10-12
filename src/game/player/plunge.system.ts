@@ -1,8 +1,8 @@
 import { PLUNGE } from '../data';
 import { PLAYER_CONTROL } from '../data/playerControl';
 import { cameraEffectsOf } from '../camera/cameraEffects.system';
-import { deathOf } from '../death/death.system';
 import { registerGameSystem } from '../systems';
+import { deathSystem } from '../death/death.system';
 
 /** 落下攻撃の着地衝撃の SE の cue（素材は E7-3 で接続。未登録の cue は無音で捨てられる）。 */
 export const PLUNGE_LAND_CUE = 'sfx.plunge-land';
@@ -15,28 +15,36 @@ export const PLUNGE_LAND_CUE = 'sfx.plunge-land';
  * - 着地（`attackStart` の `plunge`）で、砂塵（`plungeLand` イベント → 描画）・SE・カメラ振動 0.3° を出す。
  *   命中時のヒットストップ 10F・Alert・周囲 8m への通知は標準の命中処理（`Game` の `combat.onHit`）が行う。
  */
-registerGameSystem('plunge', (game) => {
-  const { player } = game;
-  player.plungeTargetNear = (x, z, radius) => {
-    const below = player.feet.y - PLAYER_CONTROL.plungeTargetBelow;
-    const near = (t: { position: { x: number; y: number; z: number }; alive: boolean }): boolean =>
-      t.alive && t.position.y < below && Math.hypot(t.position.x - x, t.position.z - z) <= radius;
-    return game.enemies.enemies.some(near) || game.dummies.some(near);
-  };
-  game.attackDriver.isUnaware = (targetId) => {
-    const enemy = game.enemies.enemies.find((e) => e.id === targetId);
-    return enemy !== undefined && (enemy.state === 'idle' || enemy.state === 'suspicious');
-  };
-  return {
-    update() {
-      for (const e of player.events) {
-        if (e.type !== 'attackStart' || e.id !== 'plunge') continue;
-        const f = player.feet;
-        const position = { x: f.x, y: f.y, z: f.z };
-        game.events.emit('plungeLand', { position, radius: PLUNGE.radius });
-        game.events.emit('sound', { cue: PLUNGE_LAND_CUE, source: 'player', position });
-        if (!deathOf(game).active) cameraEffectsOf(game).plungeLand();
-      }
-    },
-  };
-});
+registerGameSystem(
+  'plunge',
+  (game) => {
+    const { player } = game;
+    player.plungeTargetNear = (x, z, radius) => {
+      const below = player.feet.y - PLAYER_CONTROL.plungeTargetBelow;
+      const near = (t: {
+        position: { x: number; y: number; z: number };
+        alive: boolean;
+      }): boolean =>
+        t.alive && t.position.y < below && Math.hypot(t.position.x - x, t.position.z - z) <= radius;
+      return game.enemies.enemies.some(near) || game.dummies.some(near);
+    };
+    game.attackDriver.isUnaware = (targetId) => {
+      const enemy = game.enemies.enemies.find((e) => e.id === targetId);
+      return enemy !== undefined && (enemy.state === 'idle' || enemy.state === 'suspicious');
+    };
+    return {
+      update() {
+        for (const e of player.events) {
+          if (e.type !== 'attackStart' || e.id !== 'plunge') continue;
+          const f = player.feet;
+          const position = { x: f.x, y: f.y, z: f.z };
+          game.events.emit('plungeLand', { position, radius: PLUNGE.radius });
+          game.events.emit('sound', { cue: PLUNGE_LAND_CUE, source: 'player', position });
+          if (!game.systems.get(deathSystem).active) cameraEffectsOf(game).plungeLand();
+        }
+      },
+    };
+  },
+  // このステップの死亡状態を見て、カメラ演出を足す
+  { after: ['death', 'cameraEffects'] },
+);

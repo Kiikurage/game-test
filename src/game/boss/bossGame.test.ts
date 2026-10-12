@@ -1,11 +1,11 @@
-import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { sectorShape } from '../combat';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { bossSystemOf, BOSS_ID } from './boss.system';
+import { BOSS_ID, bossSystem } from './boss.system';
 import { BOSS_MOVE_IDS, BOSS_STATS } from './bossData';
 import { BossMoveRegistry, type BossMoveDef } from './bossMove';
+import { debugStatsSystem } from '../debug/stats.system';
 
 const DT = 1 / 60;
 
@@ -49,7 +49,7 @@ describe('boss system in the game (Rapier)', () => {
     const game = await Game.create({ input, boxes: [], dummies: [], enemies: [] });
     // プレイヤーはボスの正面 2.5m（ボスは南 +z を向く）
     game.teleportPlayer(0, 2.5, Math.PI);
-    const system = bossSystemOf(game);
+    const system = game.systems.get(bossSystem);
     const boss = system.spawn({ x: 0, z: 0, yaw: 0, moves: moves(), engage: true });
     const run = (frames: number) => {
       for (let i = 0; i < frames; i++) {
@@ -75,8 +75,8 @@ describe('boss system in the game (Rapier)', () => {
     for (let i = 0; i < 400 && boss.currentMove === null; i++) run(1);
     expect(boss.currentMove).not.toBeNull();
     expect(game.playerTarget.health.current).toBe(hp0); // 予備動作の間は当たらない
-    for (let i = 0; i < 100 && gameStats(game).hitCount === 0; i++) run(1);
-    expect(gameStats(game).hitCount).toBeGreaterThan(0);
+    for (let i = 0; i < 100 && game.systems.get(debugStatsSystem).hitCount === 0; i++) run(1);
+    expect(game.systems.get(debugStatsSystem).hitCount).toBeGreaterThan(0);
     expect(game.playerTarget.health.current).toBeLessThan(hp0);
   });
 

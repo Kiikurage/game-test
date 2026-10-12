@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { MainLoop } from '../core/mainLoop';
-import { gameStats } from './debug/stats.system';
 import { Game } from './game';
 import { FakeInput } from './testing/fakeInput';
+import { debugStatsSystem } from './debug/stats.system';
 
 /** ステップ番号ごとの入力（前進しながら攻撃。途中で撃破スロー相当のタイムスケールを掛ける）。 */
 function script(step: number, game: Game, input: FakeInput): void {
@@ -32,7 +32,7 @@ async function setup(): Promise<{ game: Game; loop: MainLoop }> {
 
 function snapshot(game: Game): unknown {
   const s = game.debugState;
-  const stats = gameStats(game);
+  const stats = game.systems.get(debugStatsSystem);
   return {
     player: s.player,
     camera: s.camera,
@@ -68,7 +68,7 @@ describe('MainLoop manual advance', () => {
     expect(frames).toBeGreaterThan(STEPS);
     expect(snapshot(b.game)).toEqual(snapshot(a.game));
     // 入力が実際に効いている（移動・攻撃）
-    expect(gameStats(a.game).eventCounts.attackStart).toBeGreaterThan(0);
+    expect(a.game.systems.get(debugStatsSystem).eventCounts.attackStart).toBeGreaterThan(0);
     const end = a.game.debugState.player.position;
     expect(Math.hypot(end.x - start.x, end.z - start.z)).toBeGreaterThan(1);
   });
