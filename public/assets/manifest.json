@@ -243,7 +243,7 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 2918420,
+  "totalBytes": 2913508,
   "equipment": {
     "file": "equipment.glb",
     "bytes": 117864,
@@ -584,7 +584,7 @@
   },
   "blender": {
     "blenderVersion": "Blender 5.2.1 LTS",
-    "bytes": 618572,
+    "bytes": 613660,
     "models": {
       "level_arena": {
         "file": "blender/level_arena.glb",
@@ -620,10 +620,10 @@
       },
       "level_crypt": {
         "file": "blender/level_crypt.glb",
-        "bytes": 336520,
-        "sha256": "eef112f3915c56792a8a8c3258905854b0c49b7c91a45cc7b1ad26756910f416",
-        "sourceHash": "c576727928c56025b7466ae0a27012dcbd5fc0d5816be7a3e62e12d43844bed5",
-        "inputHash": "e45e695d155f3bc9df6e8482f9687c9472cf75cbae4bfada1331a5d1e6028606",
+        "bytes": 331608,
+        "sha256": "a668c8a80422323414d8f986f4719db11570f2561fe6d104f45d6430b20de1f3",
+        "sourceHash": "8d95f16f589d65c0730ab83e62554a1ae79036ac24d569f38236b250744b2594",
+        "inputHash": "cf9bcf6811e26982b03fecb49e8648bc570b4d0f87b5ad303320a06550cf411d",
         "lodDistances": [
           0
         ],
@@ -685,7 +685,7 @@
           },
           "env:crypt:D": {
             "lodTriangles": [
-              2200
+              2064
             ]
           },
           "env:crypt:E": {

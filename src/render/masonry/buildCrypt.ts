@@ -170,11 +170,34 @@ export function buildCryptScene(level: Level): Group {
     [63.25, 49.75, 78.5, 49.75, 0, -1],
     [60.75, 52.75, 63.25, 52.75, 0, -1],
   ];
-  for (const [x0, z0, x1, z1, nx, nz] of dFaces) {
+  // 帯（持ち送り）。壁面ごとに 1 本ずつだが、角で隣の帯と食い違わないよう端を納める。
+  // [x0, z0, x1, z1, nx, nz, endA, endB]。出隅（通路の口の角）は片方の帯だけ張り出しの分延ばして隣の帯と角で閉じ
+  // （+1。両方延ばすと同一平面の面が重なって z-fight する）、入隅（奥の壁との角）は隣の帯の面で止める（-1）。
+  const BAND_PROTRUDE = 0.12;
+  const dBands: readonly (readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ])[] = [
+    [60.75, 35.6, 60.75, 52.75, 1, 0, 0, -1],
+    [63.25, 35.6, 63.25, 47.25, -1, 0, 0, 1],
+    [63.25, 49.75, 63.25, 52.75, -1, 0, 1, -1],
+    [63.25, 47.25, 78.5, 47.25, 0, 1, 0, 0],
+    [63.25, 49.75, 78.5, 49.75, 0, -1, 0, 0],
+    [60.75, 52.75, 63.25, 52.75, 0, -1, 0, 0],
+  ];
+  for (const [x0, z0, x1, z1, nx, nz, endA, endB] of dBands) {
     // 通路の床は傾いているので、帯は水平（ワールドの一定の高さ）にして石積みの段と平行にする
     const m = parts.D.masonry;
-    bandAt(m, [x0, z0], [x1, z1], [nx, nz], D_BAND_HEIGHTS.impost, 0.2, 0.13, TINT_D);
-    bandAt(m, [x0, z0], [x1, z1], [nx, nz], D_BAND_HEIGHTS.impost + 0.2, 0.1, 0.07, TINT_D);
+    const a = [x0, z0] as const;
+    const b = [x1, z1] as const;
+    const n = [nx, nz] as const;
+    bandAt(m, a, b, n, D_BAND_HEIGHTS.impost, 0.3, BAND_PROTRUDE, TINT_D, endA, endB);
   }
   for (const [x0, z0, x1, z1, nx, nz] of dFaces) {
     addDebris(parts.D.masonry, ground, [x0, z0], [x1, z1], [nx, nz], 0.35, 0.18, 'D', TINT_D);
@@ -362,14 +385,19 @@ function bandAt(
   height: number,
   protrude: number,
   tint: Vec3,
+  /** 端の納め（a 側・b 側）。+1 は張り出しの分だけ延ばす（出隅）、-1 は縮める（入隅）、0 はそのまま。 */
+  endA = 0,
+  endB = 0,
 ): void {
-  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const dx = (b[0] - a[0]) / len;
-  const dz = (b[1] - a[1]) / len;
+  const wallLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const dx = (b[0] - a[0]) / wallLen;
+  const dz = (b[1] - a[1]) / wallLen;
+  const len = wallLen + (endA + endB) * protrude;
+  const shift = ((endB - endA) * protrude) / 2;
   m.addBox({
-    x: (a[0] + b[0]) / 2 + n[0] * protrude * 0.5,
+    x: (a[0] + b[0]) / 2 + dx * shift + n[0] * protrude * 0.5,
     y: yBottom + height / 2,
-    z: (a[1] + b[1]) / 2 + n[1] * protrude * 0.5,
+    z: (a[1] + b[1]) / 2 + dz * shift + n[1] * protrude * 0.5,
     hx: protrude / 2,
     hy: height / 2,
     hz: len / 2,
