@@ -193,9 +193,9 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      # 閾値の根拠は docs/performance.md の「CPU 時間の回帰ゲート」（CI 上のばらつきから 1.6 倍以上の余裕）
       - name: CPU regression gate (npm run profile)
         env:
           PROFILE_MAX_DRAW_MS: '18'
           PROFILE_MAX_NODRAW_MS: '2'
-          PROFILE_BURN_MS: '4'
         run: npm run profile -- high 240
