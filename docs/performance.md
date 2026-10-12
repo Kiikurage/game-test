@@ -173,6 +173,9 @@ vsync 無しの frame は 1.6〜2.5ms（400fps 以上）で、PC high の 120fps
   （`window.__game.dev.perfProbe().pipelineTimings`）。区間はシェーダ生成・バインディング更新・パイプライン作成の完了待ちを含む。
   パイプラインを作らなかった区間（キャッシュ済み）は表に入らないので、区間の合計は `warm-up/compile` より短い。
 
+**再訪問の測り方（#403）**: `PERF_REVISIT=1 PERF_PC=1 GPU_MODE=hardware GPU_NOVSYNC=1 npm run perf -- high`。永続プロファイル（一時ディレクトリ）で同じページを 2 回開き、
+1 回目（first）と 2 回目（revisit。HTTP キャッシュ・Service Worker が効く）の startup と `load:*` を 1 つの表に並べる（視点ごとの計測はしない）。
+
 **冷えた状態（シェーダキャッシュなし）の測り方**: Chrome の Metal キャッシュを一時的に別名へ退避して 1 回測り、終わったら必ず戻す。
 
 ```sh
