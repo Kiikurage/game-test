@@ -1,6 +1,5 @@
 import { Color } from 'three/webgpu';
 import { registerViewPlugin } from '../viewPlugins';
-import { localLightsOf } from './localLights';
 
 /**
  * プレイヤーの照り返し（#322）。カメラ側（プレイヤーとカメラの間、胸より少し上）に置く弱い実点光源。
@@ -16,8 +15,8 @@ const FILL = {
   height: 1.6,
 } as const;
 
-registerViewPlugin('player-fill-light', ({ game, view }) => {
-  const light = localLightsOf(view.scene).add({
+registerViewPlugin('player-fill-light', ({ game, view, services }) => {
+  const light = services.lights.add({
     position: [0, -1000, 0],
     color: FILL.color,
     intensity: FILL.intensity,

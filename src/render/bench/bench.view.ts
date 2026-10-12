@@ -9,6 +9,7 @@ import { perfProbe } from '../perfProbe';
 import type { GameRenderer } from '../renderer';
 import type { GameView } from '../gameView';
 import { registerViewPlugin } from '../viewPlugins';
+import type { ViewServices } from '../viewServices';
 import {
   BenchSectionRun,
   benchStatus,
@@ -46,11 +47,12 @@ interface Ctx {
   readonly game: Game;
   readonly view: GameView;
   readonly gameRenderer: GameRenderer;
+  readonly services: ViewServices;
 }
 
-registerViewPlugin('bench', ({ game, view, gameRenderer }) => {
+registerViewPlugin('bench', ({ game, view, gameRenderer, services }) => {
   if (!gameRenderer.quality.toggles.bench) return {};
-  const ctx: Ctx = { game, view, gameRenderer };
+  const ctx: Ctx = { game, view, gameRenderer, services };
   const sections = buildSections(ctx);
   const timing = benchTimingFor(location.search);
   const rows: BenchRow[] = [];
@@ -163,7 +165,7 @@ function buildSections(ctx: Ctx): Section[] {
 
 /** 墓地視点で 1 つずつ切り替える区間。基準（graveyard:base）と比べて差を読む。 */
 function isolationSections(ctx: Ctx): Section[] {
-  const { game, view, gameRenderer } = ctx;
+  const { game, view, gameRenderer, services } = ctx;
   const { renderer, quality } = gameRenderer;
   const { preset, toggles } = quality;
   const base = placeAt(game, 'graveyard');
@@ -241,7 +243,7 @@ function isolationSections(ctx: Ctx): Section[] {
     toggle(
       'noparticles',
       () => {
-        hide((o) => o === view.particles.root);
+        hide((o) => o === services.fx.root);
       },
       unhide,
     ),
@@ -276,7 +278,7 @@ function isolationSections(ctx: Ctx): Section[] {
 
 /** 礼拝堂の敵 3 体のそばで、死亡ディゾルブ・ヒットエフェクト・火の粉を出す。 */
 function combatSection(ctx: Ctx): Section {
-  const { game, view } = ctx;
+  const { game, services } = ctx;
   let targets: Enemy[] = [];
   let embers: EmberField | null = null;
   let frame = 0;
@@ -301,7 +303,7 @@ function combatSection(ctx: Ctx): Section {
       if (first) game.teleportPlayer(first.position.x, first.position.z - 4, 0, first.position.y);
       yaw = game.player.yaw;
       const p = game.player.feet;
-      embers = view.particles.acquireEmberField(p.x, p.y, p.z + 2, 3, 2.5);
+      embers = services.fx.acquireEmberField(p.x, p.y, p.z + 2, 3, 2.5);
       embers.setActive(true);
       frame = 0;
       killed = 0;
@@ -316,12 +318,12 @@ function combatSection(ctx: Ctx): Section {
         if (e) {
           pos.set(e.position.x, e.position.y + 1.2, e.position.z);
           normal.copy(game.player.feet).sub(e.position).setY(0).normalize();
-          view.particles.hit(pos, normal, 1);
+          services.fx.hit(pos, normal, 1);
         }
       }
     },
     exit: () => {
-      if (embers) view.particles.releaseEmberField(embers);
+      if (embers) services.fx.releaseEmberField(embers);
       embers = null;
     },
   };

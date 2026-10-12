@@ -7,7 +7,7 @@ import { registerViewPlugin } from '../viewPlugins';
  * ここでは到達の瞬間（game の `sound` イベント = SE と同じ契機）に刃先から小さな火花を散らす。
  * パーティクルは既存のバーストレイヤ（`particles.chargeGlint`）を使い、追加の描画パスは無い。
  */
-registerViewPlugin('heavy-charge', ({ game, view }) => {
+registerViewPlugin('heavy-charge', ({ game, view, services }) => {
   let pending = false;
   game.events.on('sound', (e) => {
     if (e.cue === HEAVY_CHARGE_FULL_CUE) pending = true;
@@ -36,7 +36,7 @@ registerViewPlugin('heavy-charge', ({ game, view }) => {
       const root = view.shadowFocusTarget;
       if (!root || !root.visible) return;
       root.updateWorldMatrix(true, true);
-      if (swordTip(root, tip)) view.particles.chargeGlint(tip);
+      if (swordTip(root, tip)) services.fx.chargeGlint(tip);
     },
   };
 });
