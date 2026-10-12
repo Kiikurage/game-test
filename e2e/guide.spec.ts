@@ -1,15 +1,7 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { holdKey, startGame, tapKey, waitSteps } from './helpers';
+import { bootGame, holdKey, stepUntil, tapKey, waitSteps } from './helpers';
 
-test.describe.configure({ timeout: 120_000 });
-
-async function boot(page: Page): Promise<void> {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
-  await expect.poll(() => page.evaluate(() => window.__game?.sim.player.grounded)).toBe(true);
-}
+const boot = (page: Page) => bootGame(page, { enemies: false });
 
 const guide = (page: Page) =>
   page.evaluate(() => {
@@ -30,17 +22,26 @@ test('PC: context button shows the key, runs with E; the move hint goes away on 
 }) => {
   await boot(page);
   // 開始時のヒント（移動）が出て、移動すると次（カメラ）へ
-  await expect.poll(async () => (await guide(page)).hint).toBe('move');
+  await stepUntil(
+    page,
+    async () => (await guide(page)).hint,
+    (v) => v === 'move',
+  );
   await expect(page.getByTestId('guide-hint')).toHaveText('WASD で移動');
   await expect(page.getByTestId('guide-hint')).toHaveClass(/is-visible/);
   await holdKey(page, 'KeyW', 60);
-  await expect.poll(async () => (await guide(page)).hint).toBe('camera');
+  await stepUntil(
+    page,
+    async () => (await guide(page)).hint,
+    (v) => v === 'camera',
+  );
   expect((await guide(page)).doneHints).toEqual(['move']);
 
   // 篝火の近くで状況ボタン「E 火を灯す」
   await page.evaluate(() => {
     window.__game?.dev.teleport(0, -1.2, 0);
   });
+  await waitSteps(page, 2);
   const prompt = page.getByTestId('guide-prompt');
   await expect(prompt).toHaveClass(/is-visible/);
   await expect(prompt).toContainText('火を灯す');
@@ -49,7 +50,11 @@ test('PC: context button shows the key, runs with E; the move hint goes away on 
   await expect(page.locator('.touch-btn--interact')).toBeHidden();
 
   await tapKey(page, 'KeyE');
-  await expect.poll(async () => (await bonfire(page)).playerState).toBe('interact');
+  await stepUntil(
+    page,
+    async () => (await bonfire(page)).playerState,
+    (v) => v === 'interact',
+  );
   await expect(prompt).not.toHaveClass(/is-visible/);
 });
 
@@ -59,6 +64,7 @@ test('notice: queued notices show one at a time for 3 seconds', async ({ page })
     window.__game?.dev.pushNotice('回復瓶を手に入れた');
     window.__game?.dev.pushNotice('近道が開いた');
   });
+  await waitSteps(page, 1);
   const notice = page.getByTestId('guide-notice');
   await expect(notice).toHaveText('回復瓶を手に入れた');
   await expect(notice).toHaveClass(/is-visible/);
@@ -87,6 +93,7 @@ test.describe('touch', () => {
     await page.evaluate(() => {
       window.__game?.dev.teleport(0, -1.2, 0);
     });
+    await waitSteps(page, 2);
     await expect(btn).toHaveClass(/is-available/);
     await expect(btn).toHaveText('タップ：火を灯す');
     const box = await btn.boundingBox();
@@ -95,7 +102,11 @@ test.describe('touch', () => {
     const point = { id: 1, x: box.x + box.width / 2, y: box.y + box.height / 2 };
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await expect.poll(async () => (await bonfire(page)).playerState).toBe('interact');
+    await stepUntil(
+      page,
+      async () => (await bonfire(page)).playerState,
+      (v) => v === 'interact',
+    );
     await expect(btn).not.toHaveClass(/is-available/);
   });
 });

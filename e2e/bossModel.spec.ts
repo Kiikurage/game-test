@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, waitFrames } from './helpers';
+import { startGameDev, waitFrames } from './helpers';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -13,10 +13,10 @@ function collectErrors(page: Page): string[] {
 test('shows the boss model in phase 1 and phase 2 without errors (#57)', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('./?scene=test&bossmodel=1&cam=combat&quality=low&scale=0.25');
-  await startGame(page);
+  await startGameDev(page);
   await waitFrames(page, 10);
   await page.goto('./?scene=test&bossmodel=2&cam=up&quality=low&scale=0.25');
-  await startGame(page);
+  await startGameDev(page);
   await waitFrames(page, 10);
   expect(errors).toEqual([]);
 });
@@ -24,7 +24,7 @@ test('shows the boss model in phase 1 and phase 2 without errors (#57)', async (
 test('throws the shield away on the phase transition without errors (#57)', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('./?scene=test&bossmodel=2&throw=1&cam=wide&quality=low&scale=0.25');
-  await startGame(page);
+  await startGameDev(page);
   await waitFrames(page, 30);
   expect(errors).toEqual([]);
 });
@@ -37,7 +37,7 @@ for (const [id, speed] of [
   test(`the stance foot keeps up with the ground speed at ${id} (#57)`, async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto(`./?scene=test&bossmodel=1&gait=${id}&quality=low&scale=0.25&nodraw`);
-    await startGame(page);
+    await startGameDev(page);
     // 歩行位相は固定刻み（1/60 秒）でフレームごとに進む。1 サイクル（約 1.5 秒 = 90 フレーム）を超えるまで待つ
     await expect
       .poll(() => page.evaluate(() => window.__bossGait?.samples ?? 0), { timeout: 120_000 })

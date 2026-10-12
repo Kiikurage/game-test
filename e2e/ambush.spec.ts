@@ -1,25 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { clickInPage, startGame } from './helpers';
+import { bootGame, clickInPage } from './helpers';
 
 /** 致命の一撃（#115）。戦闘デバッグシーンの亡者兵（(0, -3.5) で +z を向く）の背後から軽攻撃する。ロジック検証なので描画なし。 */
-const QUERY = 'quality=low&scale=0.25&nodraw';
 
 test('a light attack from behind an unaware soldier becomes a fatal strike (?scene=combat)', async ({
   page,
 }) => {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto(`./?scene=combat&${QUERY}`);
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
-  await expect
-    .poll(() => page.evaluate(() => document.pointerLockElement !== null), { timeout: 10_000 })
-    .toBe(true);
+  const errors = await bootGame(page, { scene: 'combat' });
 
   // 敵の背後 1.2m（北側）に立つ。敵は Idle のまま
   await page.evaluate(() => {

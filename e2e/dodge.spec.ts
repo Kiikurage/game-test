@@ -1,28 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
+import { bootGame, tapKey } from './helpers';
 
-test.describe.configure({ timeout: 120_000 });
-
-/** ロール / バックステップのフレーム検証。シミュレーションを止めて 1 ステップずつ進め、実キャラクターのクリップも読む。 */
-async function boot(page: Page): Promise<string[]> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=test&quality=low&scale=0.25');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 60_000 })
-    .toBeGreaterThan(30);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.sim.player.grounded ?? false))
-    .toBe(true);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
-  return errors;
-}
+/** ロール / バックステップのフレーム検証。シミュレーションを止めて 1 ステップずつ進め、実キャラクターのクリップも読む（描画あり）。 */
+const boot = (page: Page) =>
+  bootGame(page, { scene: 'test', draw: true, params: { scale: '0.25' } });
 
 /**
  * 1 ステップ進めて、プレイヤーの状態・F・無敵・再生中のクリップを返す。
