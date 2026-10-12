@@ -17,8 +17,9 @@ declare module './devHooks' {
      * 開始画面を経ずにゲームを開始する（開始画面のクリックと同じ開始。Pointer Lock を取らない）。
      * 以降の入力は dev モード（ロックなしのクリックも攻撃・押下時間はシミュレーション時刻）。
      * 開始画面（`#app[data-state=ready]`）が出てから呼ぶ。
+     * `paused: true` なら一時停止のまま開始する（`pause(false)` で再開。撮影で、開始直後に実時間でステップが進まないようにする）。
      */
-    start(): Promise<void>;
+    start(options?: { paused?: boolean }): Promise<void>;
     /** シミュレーションの一時停止（撮影用）。状態は `window.__game.paused` で読める。 */
     pause(paused: boolean): void;
     /**

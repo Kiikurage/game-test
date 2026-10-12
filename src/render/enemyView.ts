@@ -25,6 +25,7 @@ import { createLodBuilder, type CharacterLod } from './assets/characterLod';
 import { createCanvasSampler } from './assets/textureSampler';
 import { captureUndeadSources, createUndeadColorizer } from './undead/undeadLod';
 import { UNDEAD_VARIANTS, createRng, pickVariantId, type UndeadVariantId } from './undead/variants';
+import { renderClock } from './renderClock';
 
 const Y_AXIS = new Vector3(0, 1, 0);
 /** 命中点が分からない撃破（デバッグの `kill` など）で、燃え尽きを始める高さ（身長に対する比）。 */
@@ -172,8 +173,8 @@ export class EnemyViews {
    * `shadowFocus`: 影の焦点（プレイヤー）。この近くの敵だけ影の簡略メッシュを出す。
    */
   update(alpha: number, camera?: Camera, shadowFocus?: Vector3): void {
-    this.timer.update();
-    const dt = Math.min(this.timer.getDelta(), 0.1);
+    this.timer.update(renderClock.nowMs);
+    const dt = Math.min(Math.max(this.timer.getDelta(), 0), 0.1); // 時計を止めた直後の最初の差は負になりうる
     if (camera) {
       camera.updateMatrixWorld();
       this.projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);

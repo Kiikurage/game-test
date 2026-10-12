@@ -26,7 +26,7 @@ export interface DevContext {
   /** メインループ（`paused` で進行を止める / `step` / `frame` で手動で進める）。 */
   readonly loop: MainLoop;
   /** 開始画面を経ずに開始する（Pointer Lock を取らない。入力は dev モード）。開始画面が出る前に呼ぶと例外。 */
-  readonly start: () => Promise<void>;
+  readonly start: (options?: { paused?: boolean }) => Promise<void>;
 }
 
 /** `window.__game.dev` の型。各 `*.dev.ts` が宣言マージでメンバーを足す。 */

@@ -77,7 +77,8 @@ async function shootAll() {
   const groups = new Map();
   for (const shot of shots) {
     const enemies = shot.enemies ?? defaults.enemies ?? true;
-    const params = new URLSearchParams({ quality, scale: '1' });
+    // shot: 描画側の時計をロード直後から止める（再現性。src/render/renderClock.ts）
+    const params = new URLSearchParams({ quality, scale: '1', shot: '1' });
     if (!enemies) params.set('enemies', '0');
     for (const [k, v] of Object.entries(shot.query ?? {})) params.set(k, String(v));
     const query = `?${params.toString()}`;
@@ -93,7 +94,7 @@ async function shootAll() {
     });
     await page.goto(session.url(query));
     // ローディング（アセット読み込み・初回シェーダコンパイル = GameView.warmUp）の完了を待って開始
-    await startGame(page);
+    await startGame(page, { paused: true });
     if (!(defaults.hud ?? false)) await hideHud(page);
     for (const shot of group) {
       const t0 = performance.now();

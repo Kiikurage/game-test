@@ -27,6 +27,7 @@ import { placeCorpsePreview } from '../corpses/corpsePreview';
 import { WEAPON_TELEGRAPH, parseTelegraphKind } from '../telegraph/weaponTelegraph';
 import { applyUndeadLook, type UndeadLook } from '../undead/undeadMaterial';
 import { UNDEAD_VARIANTS, UNDEAD_VARIANT_IDS, parseVariantId } from '../undead/variants';
+import { renderClock } from '../renderClock';
 
 /** E2E / デバッグ用に公開する状態。 */
 export interface ShowcaseState {
@@ -200,8 +201,8 @@ export class CharacterShowcase {
 
   /** 毎フレーム呼ぶ。実時間でアニメーションを進める。 */
   update(): void {
-    this.timer.update();
-    const dt = this.timer.getDelta();
+    this.timer.update(renderClock.nowMs);
+    const dt = Math.max(this.timer.getDelta(), 0);
     // 外套は姿勢を固定していても（&t=）実時間で揺れる（ポーズごとの傾きに追従して垂れる）
     for (const cape of this.capes) cape.update(dt, { forwardSpeed: this.speed, turnRate: 0 });
     if (this.frozen) return;

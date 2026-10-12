@@ -118,7 +118,7 @@ async function measure(extra) {
     });
   }
   await page.goto(session.url(`?quality=${quality}&${target.query}${extra}`));
-  await startGame(page, 600_000);
+  await startGame(page, { timeout: 600_000 });
   // 墓地の視点（perfViewpoints の graveyard）。墓地の亡者 2 体と礼拝堂の門の 1 体を戦闘の音で呼ぶ
   await setViewpoint(page, { x: 14, z: 6, yaw: Math.PI / 2 });
   await page.evaluate(() => {

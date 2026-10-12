@@ -108,11 +108,14 @@ export async function waitReady(page, timeout = 300_000) {
   return page.evaluate(() => document.getElementById('app')?.dataset.state);
 }
 
-/** 開始画面まで待ち、`dev.start()` で開始して running になるまで待つ。 */
-export async function startGame(page, timeout = 300_000) {
+/**
+ * 開始画面まで待ち、`dev.start()` で開始して running になるまで待つ。
+ * `paused: true` なら一時停止のまま開始する（開始直後に実時間でシミュレーションが進まない。撮影の再現性用）。
+ */
+export async function startGame(page, { paused = false, timeout = 300_000 } = {}) {
   const state = await waitReady(page, timeout);
   if (state !== 'ready') throw new Error(`game did not become ready (state=${state})`);
-  await page.evaluate(() => window.__game.dev.start());
+  await page.evaluate((p) => window.__game.dev.start({ paused: p }), paused);
   await page.waitForFunction(
     () => document.getElementById('app')?.dataset.state === 'running',
     null,
@@ -183,7 +186,9 @@ export function resolveShot(shot, defaults = {}) {
 
 /**
  * 視点の状態を作る（resolveShot の結果）。シミュレーションを止め、dev → 配置 → steps だけ進める → actions → 自由視点。
- * その後、描画側（パーティクル・ムードの補間・影）の立ち上がりを spec.frames フレーム待つ。
+ * その後、描画側（パーティクル・ムードの補間・影）の立ち上がりを spec.frames フレーム分、1/60 秒ずつ時間を進めながら描く。
+ * 描画側の時間（パーティクル・揺らぎ・ミキサー）は実時間ではなく `dev.freezeRenderTime` で止めた時計から取るので、
+ * 同じビルド・同じ視点なら実時間や rAF のフレーム数によらず同じ画像になる。
  */
 export async function stageShot(page, spec) {
   await page.evaluate((s) => {
@@ -197,6 +202,7 @@ export async function stageShot(page, spec) {
       return fn.apply(owner, args);
     };
     dev.pause(true);
+    dev.freezeRenderTime(true);
     dev.input.releaseAll();
     dev.freeCam(null);
     // 前の視点のボスを残さない（出す視点は dev で bossSpawn / arenaEnter を呼ぶ）
@@ -208,6 +214,8 @@ export async function stageShot(page, spec) {
     dev.advance(s.steps);
     for (const c of s.actions) call(c);
     if (s.freeCam) dev.freeCam(s.freeCam.position, s.freeCam.target);
+    dev.renderFrames(s.frames);
   }, spec);
-  await waitFrames(page, spec.frames);
+  // 最後に描いた絵がキャンバスに出るまで（rAF の描画は時間を進めないので、同じ絵を描き直すだけ）
+  await waitFrames(page, 2);
 }
