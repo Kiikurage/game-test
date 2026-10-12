@@ -189,6 +189,7 @@ src/
 | フレームのパス（GTAO・体積霧・TAAU・ポストなど） | `src/render/<feature>/<feature>.pass.ts` | `registerFramePass({ id, stage, order?, gbuffer?, enabled?, build })`（`src/render/pipeline/framePasses.ts`。パス別 GPU 時間は `?debug` / `?perf`） |
 | E2E・撮影用のデバッグフック（`window.__game.dev.*`） | `<feature>.dev.ts`（任意のディレクトリ） | `registerDevHooks(name, (ctx) => ({ ... }))` ＋ `declare module` で `DevHooks` に型を足す（`src/devHooks.ts`） |
 | `?scene=xxx` で選ぶシーン（ワールドの組み立て） | `src/game/**/<name>.scene.ts` | `registerScene(id, (params) => ({ level, options, cylinders }))`（`src/game/scenes.ts`）。レベルは `src/game/world/levels/*.json`（`loadLevelData` がスキーマ検証） |
+| 調整値などのゲームデータ | `src/game/data/<name>.json` ＋ 同名の `.ts`（スキーマ `s.*` を定義） | `loadData(schema, json, '<name>.json')`（`src/game/data/loadData.ts`）。data 配下の JSON は `data.test.ts` が全件の検証を確かめる |
 | `?xxx=` で起動する showcase（キャラクター確認表示） | `<feature>.dev.ts` | `registerShowcaseParams('xxx')`（`src/devHooks.ts`） |
 
 - 登録式にしていない既存の機能（プレイヤー・敵・被弾処理など）を変更するときは、従来どおり各ファイルを編集する。
