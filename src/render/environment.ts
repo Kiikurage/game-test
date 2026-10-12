@@ -12,7 +12,6 @@ import {
   clamp,
   floor,
   fract,
-  hash,
   length,
   step,
   dot,
@@ -32,7 +31,7 @@ import {
   densityFogFactor,
 } from 'three/tsl';
 import type { QualityPreset } from './quality';
-import { bakedFractal } from './bakedNoise';
+import { bakedFractal, bakedHash } from './bakedNoise';
 import { SHADOW_PROXY_LAYER } from './layers';
 import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
 
@@ -211,10 +210,16 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
       // 星（天頂付近にまばらに。闘技場のムードでだけ出る）
       const grid = dir.mul(240);
       const cell = floor(grid);
-      const seed = hash(cell.x.add(cell.y.mul(57.3)).add(cell.z.mul(131.7)));
-      const star = step(0.9988, seed)
+      const seed = bakedHash(cell.x.add(cell.y.mul(57.3)).add(cell.z.mul(131.7)));
+      // 焼いた白色ノイズは 8bit（1/256 刻み）なので、最上位の値をもう 1 つの乱数で間引いて元の密度（約 0.12%）にする
+      const star = step(0.999, seed)
+        .mul(step(0.7, bakedHash(cell.x.mul(3.1).add(cell.z.mul(17.9)).add(cell.y))))
         .mul(smoothstep(0.42, 0.0, length(fract(grid).sub(0.5))))
-        .mul(hash(seed.mul(91.7)).mul(0.7).add(0.5))
+        .mul(
+          bakedHash(cell.y.add(cell.z.mul(17.1)).add(cell.x.mul(0.37)))
+            .mul(0.7)
+            .add(0.5),
+        )
         .mul(smoothstep(0.32, 0.75, up));
       col = col.add(vec3(0.8, 0.86, 1.0).mul(star).mul(starAmount).mul(2.2));
 

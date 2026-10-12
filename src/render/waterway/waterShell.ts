@@ -1,10 +1,4 @@
-import {
-  Group,
-  Mesh,
-  type BufferGeometry,
-  type Material,
-  type MeshStandardNodeMaterial,
-} from 'three/webgpu';
+import { Group, Mesh, type BufferGeometry, type Material } from 'three/webgpu';
 import {
   abs,
   attribute,
@@ -20,14 +14,14 @@ import {
   smoothstep,
   vec2,
   vec3,
-  vec4,
 } from 'three/tsl';
 import type { Level, WaterwayDef, WaterwayRect } from '../../game/world/level';
 import { bakedNoise } from '../bakedNoise';
 import { createMetalMaterial } from '../levelMaterials';
 import { createFlameMaterial, FxBuilder } from '../masonry/glowMaterials';
 import { MasonryBuilder, hashSeed, type Vec3 } from '../masonry/masonryGeometry';
-import { createMasonryMaterial } from '../masonry/masonryMaterial';
+import { createMasonryMaterial, type MasonrySurface } from '../masonry/masonryMaterial';
+import type { UberSurface } from '../uberMaterial';
 import { PropBuilder } from '../masonry/propBuilder';
 import { LIGHT_KIND, MOSS_PATCHES, torchFlame, waterwayTorches } from './waterwayLevel';
 import { lightAt, specularAt, type WaterLightRig } from './waterLighting';
@@ -73,16 +67,12 @@ function nearestRect(rects: readonly WaterwayRect[], x: number, z: number): Wate
   return best;
 }
 
-function wrapMaterial(
-  material: MeshStandardNodeMaterial,
-  fields: WaterFields,
-  rig: WaterLightRig,
-): void {
+/** 石積みの surface に、水際の濡れ・藻・光る苔・偽のライト・コースティクスを重ねる。 */
+function wetSurface(base: MasonrySurface, fields: WaterFields, rig: WaterLightRig): UberSurface {
   const mx = attribute('mx', 'vec3');
   const mu = attribute('mu', 'vec2');
-  const baseColor = material.colorNode as unknown as { xyz: V3 };
-  const albedo0 = baseColor.xyz;
-  const baseRough = (material.roughnessNode ?? float(0.92)) as F;
+  const albedo0 = base.color;
+  const baseRough = base.roughness;
   const wp = positionWorld;
   const nw = normalWorld;
   // mx.z = 水面（水の区画）/ 床（段・出口）からの高さ
@@ -109,8 +99,7 @@ function wrapMaterial(
   let albedo: V3 = albedo0.mul(mix(float(1), float(0.48), wet)).mul(tide.mul(0.45).add(1));
   albedo = mix(albedo, vec3(0.035, 0.05, 0.035), algae.mul(0.55));
   albedo = mix(albedo, vec3(0.03, 0.07, 0.06), mossMask.mul(0.8));
-  material.colorNode = vec4(albedo, 1);
-  material.roughnessNode = mix(baseRough, float(0.2), wet.mul(float(1).sub(submerged.mul(0.4))));
+  const roughness = mix(baseRough, float(0.2), wet.mul(float(1).sub(submerged.mul(0.4))));
 
   // --- 床板の穴の光・苔（シェーダ側の光）+ コースティクス。たいまつは実ライト（#322）が照らす ---
   const lit = lightAt(rig, wp, nw, [LIGHT_KIND.shaft, LIGHT_KIND.moss]);
@@ -136,7 +125,12 @@ function wrapMaterial(
     wet.mul(float(1).sub(submerged)).mul(0.05),
   );
   const mossGlow = vec3(0.05, 0.3, 0.34).mul(mossMask.mul(1.6));
-  material.emissiveNode = under.add(bounce).add(glossy).add(mossGlow);
+  return {
+    ...(base.normal && { normal: base.normal }),
+    color: albedo,
+    roughness,
+    emissive: under.add(bounce).add(glossy).add(mossGlow),
+  };
 }
 
 /** 壁のたいまつ（金具・柄・炭 + 炎の板）。地下墓所のものより短い（天井が低い）。 */
@@ -235,8 +229,10 @@ export function buildWaterShell(
     });
   }
 
-  const material = createMasonryMaterial({ detail });
-  wrapMaterial(material, fields, rig);
+  const material = createMasonryMaterial({
+    detail,
+    wrap: { id: 'wet', fn: (base) => wetSurface(base, fields, rig) },
+  });
 
   const props = new PropBuilder();
   const flames = new FxBuilder();

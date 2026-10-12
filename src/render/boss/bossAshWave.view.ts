@@ -1,12 +1,7 @@
+import { createInstancedMesh } from '../instancing';
+import { createUberMaterial } from '../uberMaterial';
 import type { BufferGeometry } from 'three/webgpu';
-import {
-  ConeGeometry,
-  Euler,
-  InstancedMesh,
-  MeshStandardNodeMaterial,
-  Object3D,
-  Vector3,
-} from 'three/webgpu';
+import { ConeGeometry, Euler, Object3D, Vector3 } from 'three/webgpu';
 import { atan, float, mix, positionGeometry, pow, sin, smoothstep, vec3 } from 'three/tsl';
 import {
   ASH_LENGTH,
@@ -128,21 +123,25 @@ export function spikeGrowth(age: number): number {
 registerViewPlugin('boss-ash-wave', ({ game, view, services }) => {
   const spikes = buildSpikes();
   const geometry = jaggedSpikeGeometry();
-  const material = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0, flatShading: true });
   const h = positionGeometry.y.clamp(0, 1);
-  // 根元は灰色、先は炭のように黒く焦げている。根元と割れ目に熾火が灯る
-  material.colorNode = mix(
-    vec3(0.05, 0.047, 0.045),
-    vec3(0.004, 0.003, 0.003),
-    smoothstep(0.25, 0.85, h),
-  );
   const around = atan(positionGeometry.x, positionGeometry.z);
   const crack = smoothstep(0.965, 1.0, sin(around.mul(3).add(h.mul(10)))).mul(
     float(1).sub(smoothstep(0.35, 0.85, h)),
   );
   const baseGlow = pow(float(1).sub(h), 24).mul(0.9);
-  material.emissiveNode = vec3(1.0, 0.3, 0.05).mul(baseGlow.add(crack.mul(1.4)));
-  const mesh = new InstancedMesh(geometry, material, COUNT);
+  const material = createUberMaterial(
+    {
+      shading: 'lit',
+      flatShading: true,
+      surface: () => ({
+        // 根元は灰色、先は炭のように黒く焦げている。根元と割れ目に熾火が灯る
+        color: mix(vec3(0.05, 0.047, 0.045), vec3(0.004, 0.003, 0.003), smoothstep(0.25, 0.85, h)),
+        emissive: vec3(1.0, 0.3, 0.05).mul(baseGlow.add(crack.mul(1.4))),
+      }),
+    },
+    { roughness: 1, metalness: 0 },
+  );
+  const mesh = createInstancedMesh(geometry, material, COUNT);
   mesh.frustumCulled = false;
   mesh.castShadow = false;
   mesh.visible = false;

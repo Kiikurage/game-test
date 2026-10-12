@@ -109,6 +109,7 @@ function createMesh(
   shade: ParticleShade,
   alive: F,
 ): Mesh {
+  // ウーバーマテリアルの例外: ビルボードのスプライト（頂点をカメラ基準で展開する別系統。#326）
   const material = new SpriteNodeMaterial();
   material.positionNode = shade.position;
   material.scaleNode = vec2(

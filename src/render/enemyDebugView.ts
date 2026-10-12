@@ -124,6 +124,7 @@ export class EnemyDebugView {
     const fan = fanGeometry();
     const ring = ringGeometry(ENEMY_VISION.range);
     for (const enemy of enemies) {
+      // ウーバーマテリアルの例外: デバッグ表示の線（Line はメッシュのシェーダと別系統。#326）
       const material = new LineBasicNodeMaterial({ color: 0x6fd36f });
       material.depthTest = false;
       material.transparent = true;

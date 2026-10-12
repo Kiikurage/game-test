@@ -1,5 +1,5 @@
 import { FlatMaterials } from './flatMaterials';
-import { perfProbe } from './perfProbe';
+import { perfProbe, pipelineLabel } from './perfProbe';
 import type { GameRenderer } from './renderer';
 import { registerViewPlugin } from './viewPlugins';
 
@@ -8,6 +8,7 @@ import { registerViewPlugin } from './viewPlugins';
 
 interface BackendLike {
   createRenderPipeline?: (...args: unknown[]) => unknown;
+  getRenderCacheKey?: (renderObject: unknown) => string;
 }
 
 registerViewPlugin('perf', ({ view, gameRenderer }) => {
@@ -19,6 +20,10 @@ registerViewPlugin('perf', ({ view, gameRenderer }) => {
   if (original) {
     backend.createRenderPipeline = function (this: unknown, ...args: unknown[]) {
       perfProbe.pipelineCreations++;
+      perfProbe.pipelineLabels.push(pipelineLabel(args[0]));
+      perfProbe.pipelineDetails.push(
+        pipelineLabel(args[0], backend.getRenderCacheKey?.call(backend, args[0]) ?? ''),
+      );
       return original.apply(this, args);
     };
   }

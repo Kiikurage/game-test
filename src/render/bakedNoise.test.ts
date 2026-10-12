@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DataUtils } from 'three/webgpu';
-import { bakePerlin, buildNoiseAtlas } from './bakedNoise';
+import { bakeCells, bakePerlin, buildNoiseAtlas } from '../../scripts/assets/noise.mjs';
 
 const half = (v: number): number => DataUtils.fromHalfFloat(v);
 
@@ -58,5 +58,54 @@ describe('buildNoiseAtlas', () => {
     expect(texel(0, 0, 0, 0)).toBe(volume[(size - 1) * size + (size - 1)] ?? -1);
     // 右下の余白は最初のボクセル
     expect(texel(0, tile - 1, tile - 1, 0)).toBe(volume[0]);
+  });
+});
+
+describe('bakeCells', () => {
+  const size = 64;
+  const cells = bakeCells(size, 4);
+
+  it('fills R with uniform-ish white noise', () => {
+    let sum = 0;
+    for (let i = 0; i < size * size; i++) sum += cells[i * 2] ?? 0;
+    const mean = sum / (size * size);
+    expect(mean).toBeGreaterThan(110);
+    expect(mean).toBeLessThan(145);
+  });
+
+  it('puts cell borders (F2 - F1 near 0) in G and tiles seamlessly', () => {
+    const g = (x: number, y: number): number => cells[(y * size + x) * 2 + 1] ?? 0;
+    let borders = 0;
+    let seam = 0;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) if (g(x, y) < 20) borders++;
+      seam = Math.max(seam, Math.abs(g(0, y) - g(size - 1, y)));
+    }
+    expect(borders).toBeGreaterThan(size);
+    // 巻き付けた隣のテクセルとの差は 1 テクセル分の距離変化程度
+    expect(seam).toBeLessThan(60);
+  });
+});
+
+// 配布をやめた KTX2（perlin.ktx2 / cells.ktx2 の levelData）と同じ中身であることの担保。
+// 期待値は削除前の KTX2 の levelData と照合して一致を確認したもの（FNV-1a 32bit）。
+describe('full-size noise (same as the removed KTX2)', () => {
+  const fnv = (a: ArrayBufferView): string => {
+    let h = 0x811c9dc5;
+    for (const x of new Uint8Array(a.buffer, a.byteOffset, a.byteLength))
+      h = Math.imul(h ^ x, 0x01000193) >>> 0;
+    return h.toString(16);
+  };
+
+  it('perlin atlas', () => {
+    const atlas = buildNoiseAtlas(bakePerlin());
+    expect(atlas.byteLength).toBe(1048576);
+    expect(fnv(atlas)).toBe('58085355');
+  });
+
+  it('cells', () => {
+    const cells = bakeCells();
+    expect(cells.byteLength).toBe(524288);
+    expect(fnv(cells)).toBe('63b9b282');
   });
 });

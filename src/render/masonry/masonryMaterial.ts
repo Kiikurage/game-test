@@ -1,4 +1,5 @@
-import { MeshStandardNodeMaterial } from 'three/webgpu';
+import type { MeshStandardNodeMaterial } from 'three/webgpu';
+import type { Node } from 'three/webgpu';
 import {
   attribute,
   cross,
@@ -9,7 +10,6 @@ import {
   floor,
   fract,
   fwidth,
-  hash,
   max,
   min,
   mix,
@@ -20,10 +20,9 @@ import {
   smoothstep,
   step,
   vec3,
-  vec4,
 } from 'three/tsl';
-import { bakedNoise } from '../bakedNoise';
-import { tagMaterial } from '../materialGroups';
+import { bakedHash, bakedNoise } from '../bakedNoise';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
 
 /**
  * 石積みマテリアル（TSL。1 マテリアルで地下墓所・中庭の壁・柱・噴水・石棺・門柱をまかなう）。
@@ -40,6 +39,16 @@ import { tagMaterial } from '../materialGroups';
  */
 export interface MasonryMaterialOptions {
   readonly detail: 0 | 1 | 2;
+  /**
+   * 石積みの surface を受け取って加工する（水路の濡れ・コースティクスなど）。加工した系統は `surfaceId` で別の系統になる。
+   */
+  readonly wrap?: { readonly id: string; readonly fn: (surface: MasonrySurface) => UberSurface };
+}
+
+/** 石積みの surface（加工する側が色・粗さを読めるよう、必須にしたもの）。 */
+export interface MasonrySurface extends UberSurface {
+  readonly color: Node<'vec3'>;
+  readonly roughness: Node<'float'>;
 }
 
 const JOINT_WIDTH = 0.024;
@@ -47,8 +56,24 @@ const JOINT_WIDTH = 0.024;
 const JOINT_AVERAGE = 0.17;
 
 export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStandardNodeMaterial {
+  // 色・法線・発光は系統固有のノード（surface）。レンダーステートは汎用の lit と同じ。
+  // 地下墓所・中庭など全部の石積みで同じシェーダになるよう、材質ごとの差（たいまつ）はユニフォームで持つ（#326）
+  return createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => {
+        const base = masonrySurface(options);
+        return options.wrap ? options.wrap.fn(base) : base;
+      },
+      surfaceId: options.wrap ? `masonry+${options.wrap.id}` : 'masonry',
+      group: 'masonry',
+    },
+    { roughness: 0.92, metalness: 0 },
+  );
+}
+
+function masonrySurface(options: MasonryMaterialOptions): MasonrySurface {
   const { detail } = options;
-  const material = new MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
 
   const mu = attribute('mu', 'vec2');
   const mx = attribute('mx', 'vec3');
@@ -60,18 +85,18 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
   const pairH = float(0.72);
   const pair = floor(mu.y.div(pairH));
   const inPair = mu.y.sub(pair.mul(pairH));
-  const split = hash(pair.add(2.3)).mul(0.2).add(0.28);
+  const split = bakedHash(pair.add(2.3)).mul(0.2).add(0.28);
   const upper = step(split, inPair);
   const rowH = mix(split, pairH.sub(split), upper);
   const fr = inPair.sub(upper.mul(split)).div(rowH);
   const row = pair.mul(2).add(upper);
 
   // --- 石の長さ・位置（円筒面は 1 周を偶数個に割る）---
-  const planarLen = hash(row.add(11.3)).mul(0.75).add(0.62);
+  const planarLen = bakedHash(row.add(11.3)).mul(0.75).add(0.62);
   const len = mix(planarLen, rd.x, round);
   const stagger = mod(row, 2)
     .mul(0.5)
-    .add(floor(hash(row.add(5.1)).mul(8)));
+    .add(floor(bakedHash(row.add(5.1)).mul(8)));
   const q = mu.x.div(len).add(stagger);
   const col = floor(q);
   const fc = fract(q);
@@ -93,8 +118,8 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
   const joint = mix(jointSharp, float(JOINT_AVERAGE), far);
 
   // --- 石ごとのばらつき ---
-  const tone = hash(blockSeed).mul(0.62).add(0.66);
-  const warm = hash(blockSeed.add(19.1)).sub(0.5);
+  const tone = bakedHash(blockSeed).mul(0.62).add(0.66);
+  const warm = bakedHash(blockSeed.add(19.1)).sub(0.5);
   const base = vec3(
     float(1).add(warm.mul(0.12)),
     float(1).sub(warm.mul(0.02)),
@@ -145,8 +170,8 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
     moss.mul(0.6),
   );
 
-  material.colorNode = vec4(albedo, 1);
-  material.roughnessNode = mix(float(0.93), float(0.5), damp.mul(0.75));
+  const roughness = mix(float(0.93), float(0.5), damp.mul(0.75));
+  let normal: Node | undefined;
 
   // --- 目地と欠けを高さ場にして法線を揺らす（Mikkelsen。高さは m）---
   if (detail > 0) {
@@ -165,8 +190,9 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
     const r2 = cross(normalView, sx);
     const det = dot(sx, r1);
     const grad = sign(det).mul(dhx.mul(r1).add(dhy.mul(r2)));
-    material.normalNode = det.abs().mul(normalView).sub(grad).normalize();
+    normal = det.abs().mul(normalView).sub(grad).normalize();
   }
 
-  return tagMaterial(material, 'masonry');
+  // たいまつの光は実ライト（`lighting/localLights.ts`、#322）が照らす（マテリアルは光を足さない）
+  return { color: albedo, roughness, ...(normal && { normal }) };
 }

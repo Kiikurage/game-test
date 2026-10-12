@@ -178,6 +178,7 @@ try {
       draws: window.__game.dev.renderInfo().drawCalls,
       tris: window.__game.dev.renderInfo().triangles,
       profile: window.__game.dev.renderProfile(),
+      pipelines: window.__game.dev.perfProbe().pipelineCreations,
     }));
     rows.push({
       name: v.name,
@@ -205,6 +206,25 @@ try {
   // 全視点を回った後のレンダーパイプライン生成数（マテリアル統合の効果の目安。#325）
   const pipelines = await page.evaluate(() => window.__game.dev.perfProbe().pipelineCreations);
   console.log(`\n${quality} / ${target.name} / pipelines ${pipelines}`);
+  // 視点ごとの累計と、その視点で新たに作られた数（#326）
+  console.log('\n| viewpoint | pipelines (cumulative) | new |\n| --- | --- | --- |');
+  let prev = 0;
+  for (const r of rows) {
+    console.log(`| ${r.name} | ${r.pipelines} | ${r.pipelines - prev} |`);
+    prev = r.pipelines;
+  }
+  // 何がパイプラインを分けているか（マテリアルの種類・ウーバーのバリアント・メッシュの種類で集計）
+  const labels = await page.evaluate(() => window.__game.dev.perfProbe().pipelineLabels);
+  const counts = new Map();
+  for (const l of labels) counts.set(l, (counts.get(l) ?? 0) + 1);
+  console.log('\n| pipelines | label |\n| --- | --- |');
+  for (const [l, n] of [...counts].sort((a, b) => b[1] - a[1])) console.log(`| ${n} | ${l} |`);
+  if (process.env.PIPELINE_DETAIL) {
+    // v / f = 頂点・フラグメントのシェーダコード、s = レンダーステート（ブレンド・深度・サンプル数・ジオメトリ）のハッシュ
+    const details = await page.evaluate(() => window.__game.dev.perfProbe().pipelineDetails);
+    console.log('\n# pipeline details');
+    for (const d of [...details].sort()) console.log(d);
+  }
   if (timing) {
     console.log(
       '\n| viewpoint | draws | tris | gpu busy ms (med) | gpu span ms (med) | gpu raw-sum ms (med) | frame ms (med) | render cpu ms (med) |\n| --- | --- | --- | --- | --- | --- | --- | --- |',

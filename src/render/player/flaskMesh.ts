@@ -1,12 +1,5 @@
-import {
-  CylinderGeometry,
-  Group,
-  LatheGeometry,
-  Mesh,
-  MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
-  Vector2,
-} from 'three/webgpu';
+import { createUberMaterial } from '../uberMaterial';
+import { CylinderGeometry, Group, LatheGeometry, Mesh, Vector2 } from 'three/webgpu';
 
 /**
  * 回復瓶（#173。自作のプロシージャルメッシュ、素材ライセンスの問題なし）。
@@ -64,18 +57,14 @@ export function createFlask(): FlaskMesh {
   const liquidGeometry = new LatheGeometry(LIQUID_PROFILE, 12);
   const corkGeometry = new CylinderGeometry(0.0155, 0.0135, 0.03, 8);
 
-  const glassMaterial = new MeshStandardNodeMaterial({
-    color: 0xaecbc4,
-    roughness: 0.12,
-    metalness: 0,
-    transparent: true,
-    opacity: 0.32,
-    depthWrite: false,
-  });
-  const liquidMaterial = new MeshBasicNodeMaterial({ color: 0xffffff });
+  const glassMaterial = createUberMaterial(
+    { shading: 'lit', transparent: true },
+    { color: 0xaecbc4, roughness: 0.12, metalness: 0, opacity: 0.32 },
+  );
+  const liquidMaterial = createUberMaterial({ shading: 'unlit' });
   // 琥珀色（HDR。トーンマップとブルームで発光して見える）
   liquidMaterial.color.setRGB(1.25, 0.55, 0.07);
-  const corkMaterial = new MeshStandardNodeMaterial({ color: 0x6e4a2a, roughness: 0.9 });
+  const corkMaterial = createUberMaterial({ shading: 'lit' }, { color: 0x6e4a2a, roughness: 0.9 });
 
   const glass = new Mesh(glassGeometry, glassMaterial);
   glass.renderOrder = 2;

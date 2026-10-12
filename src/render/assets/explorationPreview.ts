@@ -1,10 +1,10 @@
+import { createUberMaterial } from '../uberMaterial';
 import {
   BoxGeometry,
   CircleGeometry,
   DirectionalLight,
   HemisphereLight,
   Mesh,
-  MeshStandardMaterial,
   type Camera,
   type Object3D,
   type Scene,
@@ -57,8 +57,8 @@ export function applyCharacterPreview(
   assets.setGreatswordMount(character, mount);
 }
 
-const BEAM = new MeshStandardMaterial({ color: 0x2a211a, roughness: 0.95 });
-const GROUND = new MeshStandardMaterial({ color: 0x4a4238, roughness: 1 });
+const BEAM = createUberMaterial({ shading: 'lit' }, { color: 0x2a211a, roughness: 0.95 });
+const GROUND = createUberMaterial({ shading: 'lit' }, { color: 0x4a4238, roughness: 1 });
 
 function block(w: number, h: number, d: number, x: number, y: number, z: number): Mesh {
   const mesh = new Mesh(new BoxGeometry(w, h, d), BEAM);

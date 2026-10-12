@@ -1,13 +1,5 @@
-import {
-  Euler,
-  Group,
-  InstancedMesh,
-  Matrix4,
-  Quaternion,
-  Vector3,
-  type Mesh,
-  type Object3D,
-} from 'three/webgpu';
+import { createInstancedMesh } from '../instancing';
+import { Euler, Group, Matrix4, Quaternion, Vector3, type Mesh, type Object3D } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { PlantedSwordPlacement } from '../../core/plantedSwords';
@@ -180,7 +172,7 @@ export class ExplorationAssets {
     root.traverse((obj) => {
       if (!(obj as { isMesh?: boolean }).isMesh) return;
       const mesh = obj as Mesh;
-      const instanced = new InstancedMesh(mesh.geometry, mesh.material, matrices.length);
+      const instanced = createInstancedMesh(mesh.geometry, mesh.material, matrices.length);
       matrices.forEach((placement, i) => {
         instanced.setMatrixAt(i, m.multiplyMatrices(placement, mesh.matrixWorld));
       });
