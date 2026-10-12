@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { WORLD_INTERACTABLES } from '../data/world/interactables';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { textPanelOf } from './textPanel.system';
+import { textPanelSystem } from './textPanel.system';
 
 const DT = 1 / 60;
 
@@ -39,7 +39,7 @@ describe('textPanel system', () => {
     run(5);
     game.events.emit('showText', { text: ['a', 'b', 'c'], mode: 'conversation' });
     run(2);
-    const panel = textPanelOf(game);
+    const panel = game.systems.get(textPanelSystem);
     expect(panel.current).toMatchObject({ mode: 'conversation', index: 0 });
     tap();
     expect(panel.current?.index).toBe(1);

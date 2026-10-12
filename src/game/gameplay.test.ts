@@ -1,10 +1,10 @@
-import { gameStats } from './debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS } from './data';
 import { Game } from './game';
 import { angleDelta } from './player/movement';
 import { FakeInput } from './testing/fakeInput';
 import { DUMMIES, PLAYER_SPAWN } from './world/playground';
+import { debugStatsSystem } from './debug/stats.system';
 
 const DT = 1 / 60;
 
@@ -134,7 +134,7 @@ describe('gameplay (player controller + camera + lock-on)', () => {
       input.setSprint(true);
       run(30);
       expect(game.player.stamina.current).toBe(0);
-      expect(gameStats(game).eventCounts.staminaEmpty).toBe(1);
+      expect(game.systems.get(debugStatsSystem).eventCounts.staminaEmpty).toBe(1);
     });
 
     it('does not regenerate while dashing or running, only after slowing to a walk or stopping', () => {
@@ -153,13 +153,13 @@ describe('gameplay (player controller + camera + lock-on)', () => {
     it('starts a roll with less stamina than its cost, then reports empty and refuses the next one', () => {
       run(10);
       game.player.stamina.consume(90); // 残り 10 < ロールの 20
-      gameStats(game).eventCounts.staminaEmpty = 0;
+      game.systems.get(debugStatsSystem).eventCounts.staminaEmpty = 0;
       input.setMove(0, 1);
       input.press('dodge');
       run(1);
       expect(game.player.state).toBe('roll');
       expect(game.player.stamina.current).toBe(0);
-      expect(gameStats(game).eventCounts.staminaEmpty).toBe(1);
+      expect(game.systems.get(debugStatsSystem).eventCounts.staminaEmpty).toBe(1);
       run(PLAYER_ACTIONS.roll.startup + PLAYER_ACTIONS.roll.recovery + 1);
       expect(game.player.state).not.toBe('roll');
       input.press('dodge');

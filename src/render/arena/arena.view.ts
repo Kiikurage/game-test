@@ -1,5 +1,5 @@
 import { Color, Group, Mesh, Vector3 } from 'three/webgpu';
-import type { Game } from '../../game/game';
+import type { GameView } from '../gameView';
 import { arenaMoodWeight, arenaOf, type ArenaDef } from '../../game/world/arena';
 import type { Level } from '../../game/world/level';
 import { ARENA_MOOD, type Environment } from '../environment';
@@ -56,9 +56,9 @@ export interface PillarHit {
 }
 
 /**
- * 闘技場の描画の窓口。`arenaViewOf(game)` で取る（レベルに闘技場がない・`?scene=test` では `null`）。
+ * 闘技場の描画の窓口。`arenaViewOf(view)` で取る（レベルに闘技場がない・`?scene=test` では `null`）。
  *
- *   const arena = arenaViewOf(game);
+ *   const arena = arenaViewOf(view);
  *   arena.def.bonfireSlot;                          // 撃破後に篝火を灯す位置（台座の上面の中央）
  *   arena.onPillarHit((hit) => spawnDebris(hit));   // 柱の破片の口（E5-8b）
  */
@@ -78,14 +78,14 @@ export interface ArenaView {
   readonly stats: { readonly triangles: number; readonly meshes: number };
 }
 
-const views = new WeakMap<Game, ArenaView>();
+const views = new WeakMap<GameView, ArenaView>();
 
 /** 壁のたいまつの光（実ライト）。 */
 const ARENA_TORCH_LIGHT = { color: new Color(1, 0.52, 0.2), intensity: 18, distance: 11 };
 
-/** `game` の闘技場の描画。闘技場を描いていないときは `null`。 */
-export function arenaViewOf(game: Game): ArenaView | null {
-  return views.get(game) ?? null;
+/** `view` の闘技場の描画。闘技場を描いていないときは `null`。 */
+export function arenaViewOf(view: GameView): ArenaView | null {
+  return views.get(view) ?? null;
 }
 
 function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
@@ -310,7 +310,7 @@ registerViewPlugin('arena', ({ game, view, level }) => {
     },
     stats: { triangles: built.triangles, meshes: built.meshes },
   };
-  views.set(game, api);
+  views.set(view, api);
 
   return {
     update: (dt) => {

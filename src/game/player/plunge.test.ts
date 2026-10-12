@@ -1,4 +1,3 @@
-import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, PLUNGE, attackDamage, totalFrames } from '../data';
 import {
@@ -10,7 +9,6 @@ import {
   type Capsule,
   type HitTarget,
 } from '../combat';
-import { bossSystemOf } from '../boss/boss.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
 import { playerAttackProfile } from '../combat/debugSwing';
@@ -23,6 +21,8 @@ import {
   plungeDamage,
   plungeMultiplier,
 } from './plunge';
+import { debugStatsSystem } from '../debug/stats.system';
+import { bossSystem } from '../boss/boss.system';
 
 const DT = 1 / 60;
 
@@ -227,7 +227,7 @@ describe('落下攻撃の結合（Rapier）', () => {
     expect(game.player.stateFrame).toBe(1);
     expect(game.player.attack?.hitActive).toBe(true);
     run(1);
-    const hit = gameStats(game).hitLog.find((e) => e.attackId === 'plunge');
+    const hit = game.systems.get(debugStatsSystem).hitLog.find((e) => e.attackId === 'plunge');
     expect(hit?.targetId).toBe('e1');
     expect(hit?.damage).toBe(132);
     expect(hit?.guard).toBe('none');
@@ -245,12 +245,12 @@ describe('落下攻撃の結合（Rapier）', () => {
     attackInAir('heavyAttack'); // 強攻撃入力でも同じ
     for (let i = 0; i < 60 && game.player.state === 'plungeFall'; i++) run(1);
     run(1);
-    const hit = gameStats(game).hitLog.find((e) => e.attackId === 'plunge');
+    const hit = game.systems.get(debugStatsSystem).hitLog.find((e) => e.attackId === 'plunge');
     expect(hit?.damage).toBe(88);
     expect(hit?.killed).toBe(false);
     // 強靭度削り 60 で亡者兵（強靭度 50）が崩れる
     expect(enemy.state).toBe('staggered');
-    expect(gameStats(game).lastHitStopFrames).toBe(10);
+    expect(game.systems.get(debugStatsSystem).lastHitStopFrames).toBe(10);
   });
 
   it('着地後 24F は行動不能（ロール不可）で、28F 後に戻る', async () => {
@@ -285,12 +285,14 @@ describe('落下攻撃の結合（Rapier）', () => {
     expect(stamina).toBeGreaterThan(PLAYER_STATS.stamina - 20);
     for (let i = 0; i < 60 && game.player.state === 'fall'; i++) run(1);
     expect(game.player.state).toBe('land');
-    expect(gameStats(game).hitLog.some((e) => e.attackId === 'plunge')).toBe(false);
+    expect(game.systems.get(debugStatsSystem).hitLog.some((e) => e.attackId === 'plunge')).toBe(
+      false,
+    );
   });
 
   it('ボスには発生しない（下にいるのがボスだけなら落下攻撃は出ない）', async () => {
     const { game, stepOff, attackInAir } = await setup({ enemies: [] });
-    bossSystemOf(game).spawn({ x: 0, z: 5.2, yaw: 0, y: 0.02, engage: true });
+    game.systems.get(bossSystem).spawn({ x: 0, z: 5.2, yaw: 0, y: 0.02, engage: true });
     stepOff();
     attackInAir();
     expect(game.player.state).toBe('fall');

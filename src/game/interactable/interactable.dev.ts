@@ -1,6 +1,6 @@
 import { registerDevHooks } from '../../devHooks';
 import type { Interactable } from '../data/world/types';
-import { interactablesOf } from './interactable';
+import { interactableSystem } from './interactable.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -22,17 +22,17 @@ declare module '../../devHooks' {
 
 registerDevHooks('interactables', ({ game }) => ({
   interactables: () => ({
-    ids: interactablesOf(game).ids,
-    usable: interactablesOf(game).usableIds,
-    looting: interactablesOf(game).isLooting,
+    ids: game.systems.get(interactableSystem).ids,
+    usable: game.systems.get(interactableSystem).usableIds,
+    looting: game.systems.get(interactableSystem).isLooting,
     flags: game.save.get().flags,
   }),
   placeInteractable: (def) => {
-    const c = interactablesOf(game);
+    const c = game.systems.get(interactableSystem);
     if (c.ids.includes(def.id)) return false;
     c.add(def);
     return true;
   },
-  wallHp: (id) => interactablesOf(game).wallHp(id) ?? null,
-  hatchBroken: (id) => interactablesOf(game).isHatchBroken(id),
+  wallHp: (id) => game.systems.get(interactableSystem).wallHp(id) ?? null,
+  hatchBroken: (id) => game.systems.get(interactableSystem).isHatchBroken(id),
 }));

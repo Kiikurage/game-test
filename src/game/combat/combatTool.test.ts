@@ -3,7 +3,7 @@ import { PLAYER_ACTIONS } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
 import { describePlayerAction } from './actionDebug';
-import { combatToolOf } from './combatTool.system';
+import { combatToolSystem } from './combatTool.system';
 
 const DT = 1 / 60;
 
@@ -74,7 +74,7 @@ describe('combat debug tool', () => {
   }
 
   it('advances the player action one frame per step', () => {
-    const tool = combatToolOf(game);
+    const tool = game.systems.get(combatToolSystem);
     input.press('lightAttack');
     tick();
     const frames: number[] = [tool.info().action.frame];
@@ -88,7 +88,7 @@ describe('combat debug tool', () => {
   });
 
   it('restores player resources and resets dummies', () => {
-    const tool = combatToolOf(game);
+    const tool = game.systems.get(combatToolSystem);
     game.playerTarget.health.damage(40);
     game.player.stamina.consume(30);
     const dummy = game.dummies[0];
@@ -105,7 +105,7 @@ describe('combat debug tool', () => {
   });
 
   it('slow motion scales the time scale and clears back to normal', () => {
-    const tool = combatToolOf(game);
+    const tool = game.systems.get(combatToolSystem);
     tool.setSlow(0.25);
     expect(game.timeScale.current).toBe(0.25);
     expect(tool.info().slow).toBe(0.25);
