@@ -1,5 +1,6 @@
 import { Quaternion, Vector3 } from 'three';
 import { PLAYER_ACTIONS } from '../data';
+import { PLAYER_CONTROL } from '../data/playerControl';
 import { PLAYER_GROUPS } from '../world/groups';
 import { turnToward, yawOf } from './movement';
 import { CENTER_Y, DEG, type PlayerCore, type PlayerFrame } from './playerCore';
@@ -81,7 +82,9 @@ function applyAttackFacing(c: PlayerCore, frame: PlayerFrame, dt: number): void 
 export function staminaContext(c: PlayerCore): StaminaContext {
   const sprinting =
     c.dashing ||
-    (c.state === 'move' && Math.hypot(c.velocity.x, c.velocity.y) > c.tuning.player.walk + 0.3);
+    (c.state === 'move' &&
+      Math.hypot(c.velocity.x, c.velocity.y) >
+        c.tuning.player.walk + PLAYER_CONTROL.sprintSpeedMargin);
   return { sprinting, guarding: c.state === 'guard', charging: c.state === 'heavyCharge' };
 }
 
@@ -91,7 +94,10 @@ export function moveBody(c: PlayerCore, dt: number): void {
     // 接地中は下向きの移動量を与えない（与えるとオートステップが働かない）。地面への吸着は snapToGround が担う。
     c.verticalVelocity = 0;
   } else {
-    c.verticalVelocity = Math.max(-45, c.verticalVelocity - p.gravity * dt);
+    c.verticalVelocity = Math.max(
+      -PLAYER_CONTROL.maxFallSpeed,
+      c.verticalVelocity - p.gravity * dt,
+    );
   }
 
   c.controller.setOffset(p.controllerOffset);

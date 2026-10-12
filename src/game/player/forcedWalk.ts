@@ -1,5 +1,6 @@
 import type { Action, InputReader, InputSnapshot } from '../../core/input';
 import { ACTIONS } from '../../core/input';
+import { PLAYER_CONTROL } from '../data/playerControl';
 
 const IDLE_BUTTON = { pressed: false, held: false, released: false } as const;
 const IDLE_BUTTONS = Object.fromEntries(ACTIONS.map((a) => [a, IDLE_BUTTON])) as Record<
@@ -8,7 +9,7 @@ const IDLE_BUTTONS = Object.fromEntries(ACTIONS.map((a) => [a, IDLE_BUTTON])) as
 >;
 
 /** 強制歩行の移動入力の強さ（0.25..0.55 は歩き）。 */
-export const FORCED_WALK_INPUT = 0.4;
+export const FORCED_WALK_INPUT = PLAYER_CONTROL.forcedWalkInput;
 
 /**
  * 演出で「入力を奪って歩かせる」ための入力（霧の門の入場など）。ボタンはすべて離した状態で、移動入力だけが

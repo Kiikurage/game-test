@@ -1,0 +1,52 @@
+{
+  "weapon": {
+    "radius": 0.25,
+    "length": 1.1
+  },
+  "grip": 0.35,
+  "thrust": {
+    "height": 1.25,
+    "gripStart": 0.6,
+    "sweepRatio": 0.25
+  },
+  "light1": {
+    "height": 1.15,
+    "elevationDeg": {
+      "start": -25,
+      "sweep": 60
+    }
+  },
+  "light2": {
+    "height": 1.3,
+    "elevationDeg": {
+      "start": 10,
+      "sweep": -25
+    }
+  },
+  "runAttack": {
+    "arcDeg": 100,
+    "height": 1.0,
+    "elevationDeg": {
+      "start": -15,
+      "sweep": 25
+    }
+  },
+  "heavy": {
+    "height": 1.5,
+    "forward": 0.6,
+    "elevationDeg": {
+      "start": 80,
+      "sweep": -125
+    }
+  },
+  "guardCounter": {
+    "side": -0.15,
+    "distance": {
+      "start": 0.55,
+      "sweep": 0.55
+    },
+    "bottom": 0.7,
+    "top": 1.5,
+    "radius": 0.3
+  }
+}

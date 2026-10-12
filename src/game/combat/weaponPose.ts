@@ -1,8 +1,9 @@
 import type { Capsule, Vec3 } from './geometry';
+import { PLAYER_HIT_SHAPES } from '../data/playerHitShapes';
 import { capsuleShape, type CapsuleShape } from './shapes';
 
 /** 武器の判定カプセル（2.3 節: 半径 0.25m、長さ 1.1m、剣先から根元まで）。 */
-export const WEAPON_CAPSULE = { radius: 0.25, length: 1.1 } as const;
+export const WEAPON_CAPSULE = PLAYER_HIT_SHAPES.weapon;
 
 /**
  * 武器の現在のワールド姿勢の取得元（ボーン姿勢の抽象）。
