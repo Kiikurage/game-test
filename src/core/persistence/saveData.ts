@@ -1,83 +1,19 @@
-import { PersistentStore, type LoadStatus, type StoreSchema } from './store';
+import { PersistentStore, type LoadStatus } from './store';
 import type { KeyValueStorage } from './storage';
-import { asOneOf, asStringSet, isRecord } from './validate';
+import { MAX_ITEM_COUNT, saveSchema, type SaveData, type WeaponId } from './saveSchema';
 
-export const SAVE_KEY = 'gametest.save.v1';
-/**
- * エンベロープのバージョン。キー名（`.v1`）は互換のため据え置く（仕様書 14.8 節）。
- * v1: items は取得済み ID の配列 / v2: items は ID → 所持数、flags・equippedWeapon を追加。
- */
-export const SAVE_VERSION = 2;
-
-/** 所持数の上限（不正に大きい値の補正用）。 */
-export const MAX_ITEM_COUNT = 999;
-
-export const WEAPON_IDS = ['sword', 'sword_gravekeeper'] as const;
-export type WeaponId = (typeof WEAPON_IDS)[number];
-export const DEFAULT_WEAPON: WeaponId = 'sword';
-
-/**
- * セーブデータ（仕様書 1 章）。位置・HP は保存しない。
- * ID は文字列（篝火 ID、ショートカット ID、アイテム ID、ボス ID）。配列は重複なし・ソート済み。
- */
-export interface SaveData {
-  readonly bonfires: readonly string[];
-  readonly shortcuts: readonly string[];
-  /** アイテム ID → 所持数（取得済み = 1 以上。消耗品は所持数）。0 のエントリは持たない。 */
-  readonly items: Readonly<Record<string, number>>;
-  /** 立っているフラグ（`read.<id>` / `pray.gate` / `world.wallG1Broken` / `world.grateDOpen` など）。 */
-  readonly flags: readonly string[];
-  readonly equippedWeapon: WeaponId;
-  readonly bosses: readonly string[];
-}
-
-export function createDefaultSave(): SaveData {
-  return {
-    bonfires: [],
-    shortcuts: [],
-    items: {},
-    flags: [],
-    equippedWeapon: DEFAULT_WEAPON,
-    bosses: [],
-  };
-}
-
-/** 所持数の記録を検証する。不正な値・0 以下は捨て、整数に丸め、キー順を安定させる。旧形式（ID 配列）は各 1 個として読む。 */
-function asItemCounts(v: unknown): Record<string, number> {
-  if (Array.isArray(v)) return Object.fromEntries(asStringSet(v).map((id) => [id, 1]));
-  if (!isRecord(v)) return {};
-  const entries: [string, number][] = [];
-  for (const [id, n] of Object.entries(v)) {
-    if (id.length === 0 || typeof n !== 'number' || !Number.isFinite(n)) continue;
-    const count = Math.min(MAX_ITEM_COUNT, Math.floor(n));
-    if (count >= 1) entries.push([id, count]);
-  }
-  return Object.fromEntries(entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-}
-
-export function sanitizeSave(raw: unknown): SaveData {
-  const r = isRecord(raw) ? raw : {};
-  return {
-    bonfires: asStringSet(r['bonfires']),
-    shortcuts: asStringSet(r['shortcuts']),
-    items: asItemCounts(r['items']),
-    flags: asStringSet(r['flags']),
-    equippedWeapon: asOneOf(r['equippedWeapon'], WEAPON_IDS, DEFAULT_WEAPON),
-    bosses: asStringSet(r['bosses']),
-  };
-}
-
-/** 将来のバージョンアップ用。`migrations[n]` は v n の data を v n+1 へ変換する。 */
-export const saveSchema: StoreSchema<SaveData> = {
-  key: SAVE_KEY,
-  version: SAVE_VERSION,
-  createDefaults: createDefaultSave,
-  sanitize: sanitizeSave,
-  migrations: {
-    // v1 → v2: items（ID 配列）を ID → 所持数へ。flags / equippedWeapon は sanitize が既定値で補う。
-    1: (data) => (isRecord(data) ? { ...data, items: asItemCounts(data['items']) } : data),
-  },
-};
+export {
+  SAVE_KEY,
+  SAVE_VERSION,
+  MAX_ITEM_COUNT,
+  WEAPON_IDS,
+  DEFAULT_WEAPON,
+  type WeaponId,
+  createDefaultSave,
+  sanitizeSave,
+  saveSchema,
+  type SaveData,
+} from './saveSchema';
 
 /**
  * ゲーム層が使うセーブの窓口。ストレージ実装（localStorage 等）は注入されるため

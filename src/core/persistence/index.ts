@@ -13,6 +13,7 @@ export {
   type SaveData,
   type SaveGateway,
 } from './saveData';
+export { SAVE_FLAGS, BOSS_FLAG_PREFIX, bossIdOfFlag, isFlagSet } from './saveSchema';
 export {
   SettingsStore,
   SETTINGS_KEY,
