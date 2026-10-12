@@ -180,13 +180,14 @@ src/
 ### 新しいサブシステムの追加手順（共有ファイルを編集しない）
 
 `src/main.ts` / `src/game/game.ts` / `src/render/gameView.ts` は、新機能のために既存行を編集しない（並行 PR の競合を避ける）。
-自分のファイルを作り、次の登録口に登録する。`*.dev.ts` / `*.system.ts` / `*.view.ts` は各ファイルが自動で読み込まれる。
+自分のファイルを作り、次の登録口に登録する。`*.dev.ts` / `*.system.ts` / `*.view.ts` / `*.scene.ts` は各ファイルが自動で読み込まれる。
 
 | 足すもの | 作るファイル | 呼ぶ API |
 | --- | --- | --- |
 | ゲームロジック（毎ステップの更新・命中時の処理） | `src/game/<feature>/<feature>.system.ts` | `registerGameSystem(id, (game) => ({ update?(dt), onHit?(e) }))`（`src/game/systems.ts`） |
 | 描画（シーンへの追加・毎フレーム更新・アセット読み込み） | `src/render/<feature>/<feature>.view.ts` | `registerViewPlugin(id, ({ game, view, gameRenderer, level }) => ({ load?(), update?(dt) }))`（`src/render/viewPlugins.ts`） |
 | E2E・撮影用のデバッグフック（`window.__game.dev.*`） | `<feature>.dev.ts`（任意のディレクトリ） | `registerDevHooks(name, (ctx) => ({ ... }))` ＋ `declare module` で `DevHooks` に型を足す（`src/devHooks.ts`） |
+| `?scene=xxx` で選ぶシーン（ワールドの組み立て） | `src/game/**/<name>.scene.ts` | `registerScene(id, (params) => ({ level, options, cylinders }))`（`src/game/scenes.ts`）。レベルは `src/game/world/levels/*.json`（`loadLevelData` がスキーマ検証） |
 | `?xxx=` で起動する showcase（キャラクター確認表示） | `<feature>.dev.ts` | `registerShowcaseParams('xxx')`（`src/devHooks.ts`） |
 
 - 登録式にしていない既存の機能（プレイヤー・敵・被弾処理など）を変更するときは、従来どおり各ファイルを編集する。
