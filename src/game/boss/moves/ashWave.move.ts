@@ -1,4 +1,5 @@
 import { capsuleShape, type HitShape } from '../../combat';
+import { BOSS_MOVES_DATA } from '../../data/bossMoves';
 import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
 
 /**
@@ -22,49 +23,32 @@ import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bo
  */
 
 /** 発生（斧が地面へ入る F）。1 本目はこの次のフレームから走り出す。 */
-export const ASH_STARTUP = 50;
+const { params: P, ...MOVE } = BOSS_MOVES_DATA.ashWave;
+
+export const ASH_WAVE: BossStageDef = MOVE.stages[0] as BossStageDef;
+
+export const ASH_STARTUP = ASH_WAVE.startup;
 /** 棘が走る長さ（m）と、その所要（F）= 0.2s。 */
-export const ASH_LENGTH = 12;
-export const ASH_RUN_FRAMES = 12;
+export const ASH_LENGTH = ASH_WAVE.range;
+export const ASH_RUN_FRAMES = P.runFrames;
 /** 棘の走る速さ（m/F）= 12m / 0.2s。 */
 export const ASH_SPEED = ASH_LENGTH / ASH_RUN_FRAMES;
 /** 棘の線の幅（m）。判定カプセルの半径はこの半分。 */
-export const ASH_WIDTH = 1.5;
+export const ASH_WIDTH = P.width;
 /** 3 本の発生間隔（F）。 */
-export const ASH_LINE_INTERVAL = 12;
+export const ASH_LINE_INTERVAL = P.lineInterval;
 /** 3 本の向き（正面と左右 ±25°。発生順）。 */
-export const ASH_LINE_ANGLES_DEG = [0, 25, -25] as const;
+export const ASH_LINE_ANGLES_DEG = P.lineAnglesDeg;
 /** 地面予告を出し始める F（発生 F18）。 */
-export const ASH_TELEGRAPH_FRAME = 18;
+export const ASH_TELEGRAPH_FRAME = P.telegraphFrame;
 /** 判定の高さ（足元から。m）: カプセルの芯の高さ。 */
-export const ASH_HIT_HEIGHT = 0.9;
+export const ASH_HIT_HEIGHT = P.hitHeight;
 /** 向きの追尾を終える F（発生の 12F 前）。 */
-export const ASH_TRACK_END = ASH_STARTUP - 12;
+export const ASH_TRACK_END = ASH_WAVE.trackEndFrame ?? 0;
 
 const DEG = Math.PI / 180;
 
 /** 持続 = 最後の本が走り終えるまで。 */
-const ACTIVE = ASH_LINE_INTERVAL * (ASH_LINE_ANGLES_DEG.length - 1) + ASH_RUN_FRAMES;
-
-export const ASH_WAVE: BossStageDef = {
-  id: 'ashWave.1',
-  startup: ASH_STARTUP,
-  active: ACTIVE,
-  recovery: 54,
-  damage: 90,
-  poiseDamage: 40,
-  guardStaminaCost: 55,
-  moveDistance: 0,
-  // 扇形としては使わない（`shape` が線分を返す）。デバッグ表示用の目安
-  arcDeg: 50,
-  range: ASH_LENGTH,
-  heavy: true,
-  telegraph: 'heavy',
-  trackEndFrame: ASH_TRACK_END,
-  trackRate: 1,
-};
-
-/** `line` 本目（0 始まり）が走り出す直前の段 F（この F の次から走る）。 */
 export function ashLineStart(line: number): number {
   return ASH_STARTUP + line * ASH_LINE_INTERVAL;
 }
@@ -154,10 +138,7 @@ export function ashTelegraphVisible(frame: number, line: number): boolean {
 
 registerBossMove({
   id: 'ashWave',
-  name: '灰の波',
-  phases: [2],
-  stages: [ASH_WAVE],
-  // 中・遠距離の技。その場から斧を叩き込む（接近しない）
+  ...MOVE,
   hooks: {
     onStageStart(ctx) {
       const { boss } = ctx;
