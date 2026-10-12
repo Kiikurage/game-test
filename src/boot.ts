@@ -8,6 +8,7 @@ import {
   type ImmersiveEnv,
   type ImmersiveResult,
 } from './core/immersive';
+import { beginLoadSpan } from './core/loadTiming';
 import { LOAD_STAGES, ProgressTracker } from './core/progress';
 import { installWebGPUCompat } from './core/webgpuCompat';
 import { checkWebGPUSupport } from './core/webgpuSupport';
@@ -203,8 +204,10 @@ async function boot(): Promise<void> {
   try {
     const code = progress.task('code');
     code.set(0.05); // ダウンロード中の進捗は取れないので、読み込み開始だけ示す
+    const endCode = beginLoadSpan('code');
     const { createGameApp } = await import('./main');
     code.done();
+    endCode();
     const app = await createGameApp(root, progress);
     loading.setProgress(1);
     loading.remove();
