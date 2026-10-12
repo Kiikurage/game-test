@@ -1,14 +1,14 @@
 import { registerViewPlugin } from '../viewPlugins';
 import { MAX_BONFIRES } from '../particles';
-import { localLightsOf, type LocalLight } from './localLights';
+import type { LocalLight } from './localLights';
 
 /**
  * 篝火の光（#322）。篝火のスロットごとに点光源を 1 つ持ち、灯っている篝火をすべて照らす
  * （以前はプレイヤーに最も近い 1 つだけ）。光の組を変えないよう、スロット数ぶんを起動時に登録し、消灯は強さ 0。
  */
-registerViewPlugin('bonfire-lights', ({ view, gameRenderer }) => {
+registerViewPlugin('bonfire-lights', ({ gameRenderer, services }) => {
   if (!gameRenderer.quality.preset.particles.bonfireLight) return {};
-  const registry = localLightsOf(view.scene);
+  const { lights: registry, fx } = services;
   const lights: LocalLight[] = [];
   for (let i = 0; i < MAX_BONFIRES; i++) {
     lights.push(
@@ -17,8 +17,8 @@ registerViewPlugin('bonfire-lights', ({ view, gameRenderer }) => {
   }
   return {
     update: () => {
-      const slots = view.particles.bonfireSlots;
-      const t = view.particles.elapsed;
+      const slots = fx.bonfireSlots;
+      const t = fx.elapsed;
       lights.forEach((light, i) => {
         const b = slots[i] ?? null;
         if (!b || b.litAmount <= 0.001) {

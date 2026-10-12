@@ -28,7 +28,6 @@ import {
   layoutTorches,
   torchLightPosition,
 } from './arenaTorches';
-import { localLightsOf } from '../lighting/localLights';
 
 /** 床の円盤を地面よりわずかに浮かせる（m）。 */
 const FLOOR_LIFT = 0.012;
@@ -238,13 +237,13 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
 // 闘技場の見た目: 石畳の床・外周の壁・柱 4 本・中央の台座（`arenaOf(level)` と同じ寸法）と、
 // 近づくと黄昏 → 夕闇（ほぼ夜）へ移るライティング（`Environment.setMood`）。
 // 柱の破片の口（`PillarHit`）は `bossPillarHit` から開く。演出本体は E5-8b。
-registerViewPlugin('arena', ({ game, view, level }) => {
+registerViewPlugin('arena', ({ game, view, level, services }) => {
   const def = level ? arenaOf(level) : null;
   if (!level || !def) return {};
 
   const built = createArena(level, def, (dir) => view.environment.skyAt(dir));
   view.scene.add(built.root);
-  const lights = localLightsOf(view.scene);
+  const { lights } = services;
   for (const t of built.torches) {
     lights.add({
       position: torchLightPosition(t),
@@ -265,7 +264,7 @@ registerViewPlugin('arena', ({ game, view, level }) => {
   const open = (hit: PillarHit): void => {
     hitCount++;
     // 既定: 砂煙と火花（破片の演出が入るまでの代わり）
-    view.particles.hit(hit.position, hit.normal, 1.15);
+    services.fx.hit(hit.position, hit.normal, 1.15);
     for (const l of listeners) l(hit);
   };
   const fromEvent = (pillar: number, position: Vector3, moveId: string): void => {
