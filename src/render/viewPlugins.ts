@@ -3,10 +3,11 @@
 // 新しい描画機能は `src/render/<feature>/<feature>.view.ts` を作り、`registerViewPlugin` を呼ぶだけでよい。
 // `src/render/**/*.view.ts` は gameView.ts が自動で読み込む（gameView.ts / main.ts を編集しない）。
 //
-//   registerViewPlugin('bonfire', ({ view, game }) => {
+//   registerViewPlugin('bonfire', ({ view, game, services }) => {
 //     const root = new Group();
 //     view.scene.add(root);
 //     game.events.on('impact', ...);           // game のイベント購読もここで行う
+//     services.lights.add({ ... });            // 光源・FX・レイヤーは共通サービス経由（viewServices.ts）
 //     return {
 //       load: async () => { /* アセット読み込み。失敗してもゲームは続行する */ },
 //       update: (dt) => { /* 毎フレーム（dt は秒） */ },
@@ -18,6 +19,7 @@ import type { Game } from '../game/game';
 import type { Level } from '../game/world/level';
 import type { GameRenderer } from './renderer';
 import type { GameView } from './gameView';
+import { createViewServices, type ViewServices } from './viewServices';
 
 export interface ViewPluginContext {
   readonly game: Game;
@@ -25,6 +27,8 @@ export interface ViewPluginContext {
   readonly gameRenderer: GameRenderer;
   /** レベルを描いているときだけ（`?scene=test` では undefined）。 */
   readonly level: Level | undefined;
+  /** 光源・FX・レイヤーの共通サービス（`viewServices.ts`）。 */
+  readonly services: ViewServices;
 }
 
 export interface ViewPlugin {
@@ -45,6 +49,9 @@ export function registerViewPlugin(id: string, create: ViewPluginFactory): void 
 }
 
 /** 登録済みの描画機能を生成する（GameView のコンストラクタが呼ぶ）。 */
-export function createViewPlugins(ctx: ViewPluginContext): readonly ViewPlugin[] {
+export function createViewPlugins(
+  base: Omit<ViewPluginContext, 'services'>,
+): readonly ViewPlugin[] {
+  const ctx: ViewPluginContext = { ...base, services: createViewServices(base.view) };
   return factories.map((f) => f.create(ctx));
 }

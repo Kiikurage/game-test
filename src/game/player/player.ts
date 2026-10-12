@@ -1,6 +1,7 @@
 import type { Vector3 } from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { PLAYER_ACTIONS, PLAYER_STATS } from '../data';
+import { PLAYER_CONTROL } from '../data/playerControl';
 import {
   Health,
   knockdownInvulnerable,
@@ -385,7 +386,7 @@ export class Player {
    * 水平方向に `(dx, dz)` m を `frames` ステップかけて押し出す（状態は変えない。壁・床の衝突は通常の移動と同じ）。
    * ボスの跳躍の着地でプレイヤーが体に重なったときなどに使う。残りがあれば足し合わせる。
    */
-  shove(dx: number, dz: number, frames = 6): void {
+  shove(dx: number, dz: number, frames: number = PLAYER_CONTROL.shoveFrames): void {
     const s = this.c.shoveLeft;
     s.x += dx;
     s.z += dz;

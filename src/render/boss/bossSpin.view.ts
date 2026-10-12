@@ -34,7 +34,7 @@ const TRAIL_HEIGHT = 1.5;
 /** 軌跡の内側の半径（m）。外縁の細い帯だけ見せる（プレイヤーに平たい膜をかけない）。 */
 const TRAIL_INNER = 3.5;
 
-registerViewPlugin('boss-spin', ({ game, view }) => {
+registerViewPlugin('boss-spin', ({ game, view, services }) => {
   const head = uniform(0);
   const amount = uniform(0);
   const geometry = new RingGeometry(TRAIL_INNER, SPIN_RADIUS, 64, 1);
@@ -96,7 +96,7 @@ registerViewPlugin('boss-spin', ({ game, view }) => {
           boss.position.z + Math.cos(a) * 4,
         );
         normal.set(Math.sin(a + 1.2), 0.8, Math.cos(a + 1.2)).normalize();
-        view.particles.hit(position, normal, 0.9);
+        services.fx.hit(position, normal, 0.9);
       }
       lastFrame = state.frame;
       lastRotation = state.rotation;

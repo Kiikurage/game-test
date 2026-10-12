@@ -147,7 +147,7 @@ const smooth01 = (t: number): number => {
   return k * k * (3 - 2 * k);
 };
 
-registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
+registerViewPlugin('arena-bonfire', ({ game, view, level, services }) => {
   const def = level ? arenaOf(level) : null;
   if (!def) return {};
   const slot = def.bonfireSlot;
@@ -196,7 +196,7 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
   view.scene.add(near.mesh, far.mesh);
 
   // 炎・火の粉（パーティクルのエミッタ）。光源はシーン全体で 1 灯だけで、最も近い灯っている篝火へ付け替わる
-  const emitter: Bonfire = view.particles.acquireBonfire(slot.x, slot.y + 0.12, slot.z);
+  const emitter: Bonfire = services.fx.acquireBonfire(slot.x, slot.y + 0.12, slot.z);
   emitter.setLit(false);
 
   const up = new Vector3(0, 1, 0);
@@ -211,9 +211,9 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
     ignited = true;
     emitter.setLit(true);
     emitter.boost = 3.2;
-    view.particles.hit(at, up, 1.8);
-    view.particles.hit(at, up, 1.4);
-    view.particles.deathAsh(SCRATCH_V.set(slot.x, slot.y, slot.z), 0.55, 0.5, 2.6);
+    services.fx.hit(at, up, 1.8);
+    services.fx.hit(at, up, 1.4);
+    services.fx.deathAsh(SCRATCH_V.set(slot.x, slot.y, slot.z), 0.55, 0.5, 2.6);
   };
 
   return {
@@ -248,7 +248,7 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
         kindle.value = 0.1 + 0.9 * smooth01(t / KINDLE);
         if (clock >= nextSpark) {
           nextSpark = clock + 0.16;
-          view.particles.chargeGlint(at, 0.8 + 0.6 * smooth01(t / KINDLE));
+          services.fx.chargeGlint(at, 0.8 + 0.6 * smooth01(t / KINDLE));
         }
         if (t >= KINDLE) ignite();
       } else if (t >= KINDLE) {

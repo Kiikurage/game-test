@@ -120,7 +120,7 @@ export function spikeGrowth(age: number): number {
   return 1 - sink * sink * sink;
 }
 
-registerViewPlugin('boss-ash-wave', ({ game, view }) => {
+registerViewPlugin('boss-ash-wave', ({ game, view, services }) => {
   const spikes = buildSpikes();
   const geometry = jaggedSpikeGeometry();
   const h = positionGeometry.y.clamp(0, 1);
@@ -270,10 +270,10 @@ registerViewPlugin('boss-ash-wave', ({ game, view }) => {
             if (!rose && !crumbled) continue;
             feet.set(origin.x + Math.sin(yaw) * d, origin.y + 0.1, origin.z + Math.cos(yaw) * d);
             if (rose) {
-              view.particles.deathAsh(feet, 0.5, 0.7, 1.6);
-              view.particles.hit(feet, up, 0.45);
+              services.fx.deathAsh(feet, 0.5, 0.7, 1.6);
+              services.fx.hit(feet, up, 0.45);
             } else {
-              view.particles.deathAsh(feet, 0.45, 1.2, 0.9);
+              services.fx.deathAsh(feet, 0.45, 1.2, 0.9);
             }
           }
         }

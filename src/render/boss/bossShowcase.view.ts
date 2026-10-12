@@ -74,7 +74,7 @@ function median(values: number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? 0;
 }
 
-registerViewPlugin('bossShowcase', ({ view, gameRenderer }) => {
+registerViewPlugin('bossShowcase', ({ view, gameRenderer, services }) => {
   const params = new URLSearchParams(location.search);
   const requested = params.get('bossmodel');
   let boss: BossCharacter | undefined;
@@ -113,7 +113,7 @@ registerViewPlugin('bossShowcase', ({ view, gameRenderer }) => {
       };
       boss.root.position.copy(BOSS_AT);
       view.scene.add(boss.root);
-      boss.bindParticles(view.particles);
+      boss.bindParticles(services.fx);
       animator = new BossAnimator(boss, assets);
       if (params.has('axegrip')) animator.gripOverride = Number(params.get('axegrip'));
       if (params.get('throw') === '1') {

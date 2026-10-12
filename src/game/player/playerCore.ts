@@ -12,6 +12,7 @@ import {
   inWindow,
   type CancelWindow,
 } from '../data';
+import { PLAYER_CONTROL } from '../data/playerControl';
 import type { Health } from '../combat';
 import { HitReactor, PLAYER_REACTOR } from '../combat';
 import { CharacterFsm } from '../anim/characterFsm';
@@ -388,7 +389,7 @@ export class PlayerCore {
   /** 回復中の移動: 入力方向へ 1.0 m/s（強さに比例）。ロックオン中も同じ（ストレイフはしない）。 */
   driftVelocity(dt: number, maxSpeed: number = MOVEMENT.heal): void {
     const m = this.moveMagnitude;
-    const speed = maxSpeed * Math.min(1, m / 0.6);
+    const speed = maxSpeed * Math.min(1, m / PLAYER_CONTROL.driftFullInput);
     this.tmpVelocity.x = m > 0 ? (this.worldMove.x / m) * speed : 0;
     this.tmpVelocity.y = m > 0 ? (this.worldMove.y / m) * speed : 0;
     const accel = this.tuning.player.run / (this.tuning.player.accelFrames / 60);
@@ -420,7 +421,7 @@ export class PlayerCore {
     const m = this.moveMagnitude;
     const wantsDash =
       (snap.sprint || this.dashLatch) &&
-      m > 0.1 &&
+      m > PLAYER_CONTROL.dashMinInput &&
       !this.dashLocked &&
       this.stamina.canStartAction &&
       !airborne &&
