@@ -5,7 +5,7 @@ import {
   initialScaleFor,
   type QualitySelection,
 } from './quality';
-import { setMaterialDetail } from './bakedNoise';
+import { loadNoiseTextures, setMaterialDetail } from './bakedNoise';
 import { configureKtx2Loader } from './assets/ktx2';
 
 /** デバッグ表示（`?debug`）用の計測値。 */
@@ -68,6 +68,10 @@ export async function createRenderer(
   }
   // KTX2 の変換先（ASTC / BC など）をデバイスの圧縮テクスチャ機能から決める（#328）
   configureKtx2Loader(renderer);
+  // マテリアルの焼いたノイズ（#326）。失敗しても模様が消えるだけでゲームは続ける
+  await loadNoiseTextures().catch((e: unknown) => {
+    console.warn('noise textures failed to load', e);
+  });
 
   renderer.shadowMap.enabled = !quality.toggles.noShadow;
   renderer.shadowMap.type = PCFShadowMap;
