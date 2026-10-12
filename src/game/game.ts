@@ -1,146 +1,67 @@
 import { EventBus, type FootstepSurface, type GameEventMap } from '../core/gameEvents';
 import { MARKER_TYPES, type MarkerType } from './anim/eventMarkers';
-import type { AnimMarkerEvent } from './anim/markerDispatcher';
-import { Euler, Quaternion, Vector3 } from 'three';
-import type RAPIER from '@dimforge/rapier3d-compat';
+import { Vector3 } from 'three';
 import type { InputReader, InputSnapshot } from '../core/input';
 import { ThirdPersonCamera, type CameraCollision } from './camera/thirdPersonCamera';
 import { LockOnController, type LockOnEvent } from './lockOn/lockOnController';
-import { DummyTarget, type LockOnTarget } from './lockOn/targets';
-import { ENEMY_STATS, LAND_NOISE_MIN_HEIGHT, UNDEAD_ATTACK_RULES, type NoiseKind } from './data';
-import { RapierEnemyBody } from './enemy/enemyBody';
+import type { DummyTarget, LockOnTarget } from './lockOn/targets';
+import { LAND_NOISE_MIN_HEIGHT, PLAYER_STATS, type NoiseKind } from './data';
 import { AttackTokens } from './enemy/attackRunner';
-import { createUndeadAttack } from './enemy/undeadAttack';
-import { EnemyManager } from './enemy/enemyManager';
-import { NO_ATTACK, type Enemy, type EnemyDebugInfo } from './enemy/enemy';
-import { directNavigator, type Navigator } from './enemy/navigation';
-import { motionNoise, playerMotion } from './enemy/perception';
+import type { EnemyManager } from './enemy/enemyManager';
+import { EnemyRoster } from './enemy/enemyRoster';
 import { createPhysics, type Physics } from './physics';
-import { Player, type PlayerEvent } from './player/player';
+import { Player } from './player/player';
 import {
   DebugSwing,
-  decideHitStop,
   type Freezable,
-  HOLLOW_SOLDIER_REACTOR,
-  SHIELDBEARER_REACTOR,
-  HitReactor,
+  type HitReactor,
   HitResolver,
   PlayerAttackDriver,
   PLAYER_HEARTBOXES,
-  capsule,
-  capsuleShape,
-  vec3,
   UprightTarget,
-  uprightHeartbox,
   type HitEvent,
-  type HitReaction,
 } from './combat';
-import { PLAYER_STATS } from './data';
+import { handleHit, type HitContext } from './hitHandling';
+import { registerCombatant, type Combatant } from './combat/combatant';
+import { ReactorRegistry } from './combat/reactorRegistry';
 import { TimeScale } from './timeScale';
-import { createGameSystems, type GameSystem, type ImpactEvent } from './systems';
+import { createGameSystems, type GameSystem } from './systems';
 import { createTuning, type Tuning } from './tuning';
-import {
-  CAMERA_QUERY_GROUPS,
-  SIGHT_QUERY_GROUPS,
-  TARGET_GROUPS,
-  WORLD_GROUPS,
-} from './world/groups';
-import type { EnemySpawn, InteractableSpawn } from './world/level';
+import type { InteractableSpawn } from './world/level';
 import { SaveStore, type SaveGateway } from '../core/persistence';
+import { DUMMIES, PLAYER_SPAWN, PLAYGROUND_BOXES } from './world/playground';
+import { StaticWorld } from './world/staticWorld';
+import { spawnDummies } from './world/dummies';
+import { NULL_INPUT, type GameOptions, type StaticCylinderSpec } from './gameOptions';
+import { cameraFrameInput, resolveSwitch } from './stepInputs';
+import { publishMarker, publishPlayerEvent } from './eventPublishing';
 import {
-  DUMMIES,
-  PLAYER_SPAWN,
-  PLAYGROUND_BOXES,
-  type BoxSpec,
-  type DummySpec,
-} from './world/playground';
+  buildDebugState,
+  debugHitPlayer,
+  type DebugHitOptions,
+  type GameDebugState,
+} from './gameDebug';
+
+export {
+  NULL_INPUT,
+  type GameOptions,
+  type StaticCylinderSpec,
+  type TerrainCollisionMesh,
+} from './gameOptions';
+export type { GameDebugState } from './gameDebug';
 
 // `*.system.ts`（登録式のゲームシステム。systems.ts 参照）を自動で読み込む。新機能は game.ts を編集しない。
 import.meta.glob('./**/*.system.ts', { eager: true });
-
-/** 何も入力しない InputReader（入力システムなしで Game を作るテスト・起動時用）。 */
-export const NULL_INPUT: InputReader = (() => {
-  const idle = { pressed: false, held: false, released: false };
-  const snapshot: InputSnapshot = {
-    move: { x: 0, y: 0 },
-    look: { x: 0, y: 0 },
-    sprint: false,
-    targetSwitch: 0,
-    buttons: {
-      lightAttack: idle,
-      heavyAttack: idle,
-      dodge: idle,
-      guard: idle,
-      lockOn: idle,
-      item: idle,
-      interact: idle,
-    },
-    device: 'kbm',
-  };
-  return {
-    snapshot,
-    consumeBuffered: () => false,
-    hasBuffered: () => false,
-    clearBuffer: () => undefined,
-  };
-})();
-
-/** 地形の衝突メッシュ（描画と同じ頂点から作ると見た目と当たりが一致する）。 */
-export interface TerrainCollisionMesh {
-  readonly vertices: Float32Array;
-  readonly indices: Uint32Array;
-}
-
-export interface GameOptions {
-  /** ゲームロジックが読む入力。省略時は何も入力されない。 */
-  readonly input?: InputReader;
-  /** 地形の衝突メッシュ。省略時は y=0 の平らな地面（半径 100m）。 */
-  readonly terrain?: TerrainCollisionMesh;
-  /** 地形の高さ関数（ダミーの接地位置に使う）。省略時は 0。 */
-  readonly terrainHeight?: (x: number, z: number) => number;
-  /** 静的な箱（壁・段差など）。省略時はテストシーンの足場。レベルデータ（`world/level.ts`）はここへ渡す。 */
-  readonly boxes?: readonly BoxSpec[];
-  /** ロックオン用のダミー。省略時はテストシーンのダミー（レベルでは空配列を渡す）。 */
-  readonly dummies?: readonly DummySpec[];
-  /** 敵の配置（レベルデータの `enemies`）。省略時は敵なし。 */
-  readonly enemies?: readonly EnemySpawn[];
-  /** 敵の経路問い合わせ。省略時は直線。レベルでは `levelGameOptions` が格子ナビゲータを渡す。 */
-  readonly enemyNavigator?: Navigator;
-  /** 暗所か（敵の視覚ゲージ ×0.7）。レベルでは `levelGameOptions` が渡す。省略時は常に明所。 */
-  readonly enemyDarkness?: (x: number, z: number) => boolean;
-  /** 音の発生位置での聴覚半径の倍率（反響ゾーン ×1.3）。省略時は 1。 */
-  readonly hearingScale?: (x: number, y: number, z: number) => number;
-  /** 調べる対象の配置（レベルデータの `interactables`。篝火など）。省略時はなし。登録式のシステムが読む。 */
-  readonly interactables?: readonly InteractableSpawn[];
-  /** セーブ（篝火の点火・休憩の保存先）。省略時はメモリのみ（保存されない）。本番は main.ts が `SaveStore` を渡す。 */
-  readonly save?: SaveGateway;
-  /** プレイヤーの開始位置と向き（ヨー）。省略時はテストシーンの広場。 */
-  readonly spawn?: { readonly x: number; readonly z: number; readonly yaw: number };
-}
-
-/** 静的な円柱（柱・岩など）の衝突。`y` は底面の高さ。 */
-export interface StaticCylinderSpec {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-  readonly radius: number;
-  readonly height: number;
-  /** XYZ オイラー角（ラジアン）。指定すると倒れた柱として扱い、`y` は中心の高さになる。 */
-  readonly euler?: readonly [number, number, number];
-}
-
-const GROUND_FALLBACK_HALF = 100;
-/** テストシーンのダミーの HP（判定の確認用。実質壊れない）。 */
-const DUMMY_HP = 99999;
-const TMP_QUAT = new Quaternion();
-const EULER_X = new Vector3(1, 0, 0);
-const EULER_Y = new Vector3(0, 1, 0);
 
 /**
  * ゲームのシミュレーション状態（60Hz 固定ステップ）。描画（three）には依存せず、
  * 描画側は `player.transform` / `camera.transform` 等の補間用 Transform を読み取るだけにする。
  *
- * 1 ステップの順序: ロックオン → カメラの向き → プレイヤー → 物理 → カメラの位置（衝突）。
+ * 部品: 静的な衝突と問い合わせ（`world/staticWorld`）、ダミー（`world/dummies`）、被弾側の登録簿
+ * （`combat/reactorRegistry`）、命中の演出（`combat/impact`）、雑魚敵（`enemy/enemyRoster`）、
+ * デバッグ（`gameDebug`）。Game は組み立てとステップ順序だけを持つ。
+ *
+ * 1 ステップの順序: ロックオン → カメラの向き → プレイヤー → 敵 → 反応体 → 攻撃 → システム → 判定 → 物理 → カメラの位置（衝突）。
  */
 export class Game {
   /** game が発行するイベント（音など）。audio 層が購読する。game は Web Audio に依存しない。 */
@@ -162,10 +83,10 @@ export class Game {
   /** ロックオン対象。敵（#40 以降）は `LockOnTarget` を実装してここへ追加する。 */
   readonly lockOnTargets: LockOnTarget[] = [];
   /** テストシーンのダミー（描画用に別持ち）。 */
-  readonly dummies: DummyTarget[] = [];
+  readonly dummies: readonly DummyTarget[];
   /** 判定・ダメージ解決（#40）。攻撃側は `combat.startAttack` / `resolve`、被弾側は `combat.addTarget`。 */
   readonly combat = new HitResolver({
-    isBlocked: (from, to) => this.isBlockedByWorld(from, to),
+    isBlocked: (from, to) => this.staticWorld.isBlocked(from, to),
   });
   /** プレイヤーの被弾側（ハートボックス・HP・無敵）。 */
   readonly playerTarget = new UprightTarget('player', 'player', PLAYER_STATS.hp, PLAYER_HEARTBOXES);
@@ -173,18 +94,20 @@ export class Game {
   readonly debugSwing = new DebugSwing(this.combat);
   /** プレイヤーの攻撃動作（軽攻撃 3 段）と判定のつなぎ。 */
   readonly attackDriver = new PlayerAttackDriver(this.combat);
+  /** プレイヤー以外の被弾側の強靭度・押し戻し・ヒットストップの凍結口・ボス ID。 */
+  private readonly registry = new ReactorRegistry();
   /**
    * プレイヤー以外の被弾側の強靭度・押し戻し（`HitReactor`）。テストシーンのダミーは亡者兵相当（強靭度 50）。
    * 敵（#42 以降）は自分の `HitReactor` を作って `addReactor` し、命中時の反応を自分の状態機械へ反映する。
    */
-  readonly reactors = new Map<string, HitReactor>();
+  readonly reactors = this.registry.reactors;
   /**
    * グローバルのタイムスケール（撃破スローなど）。メインループが `current` を実時間へ掛ける。
    * シミュレーションはスロー中もフレーム単位で決定的（`timeScale.ts`）。
    */
   readonly timeScale = new TimeScale();
-  /** ボスの ID（ボスの攻撃・撃破でヒットストップ / スローの長さが変わる）。ボス（E5）が自分の ID を足す。 */
-  readonly bossIds = new Set<string>();
+  /** ボスの ID（ボスの攻撃・撃破でヒットストップ / スローの長さが変わる）。`registerCombatant` が足す。 */
+  readonly bossIds = this.registry.bossIds;
   /** イベントマーカーの発火回数（E2E・デバッグ用）。 */
   readonly markerCounts = Object.fromEntries(MARKER_TYPES.map((t) => [t, 0])) as Record<
     MarkerType,
@@ -195,25 +118,16 @@ export class Game {
   /** 直近ステップのロックオンイベント（デバッグ・E2E 用）。 */
   lastLockOnEvent: LockOnEvent = 'none';
 
-  /** 強靭度崩し中の 1.5 倍を反映する対象（`reactors` と同じ ID）。 */
-  private readonly reactiveTargets = new Map<string, UprightTarget>();
-  private readonly dummyReactorIds = new Set<string>();
-  /** 敵 AI 本体とその被弾側（ハートボックス）の対応（id → 敵）。被弾リアクションを敵の状態へ反映するのに使う。 */
-  private readonly enemyHearts = new Map<string, { enemy: Enemy; heart: UprightTarget }>();
-  private readonly slideScratch = { x: 0, z: 0 };
-  /** プレイヤーのロール中・ロール終了からの経過ステップ（敵の攻撃選択が「ロール直後」を見る）。 */
-  private stepsSinceRoll = Number.POSITIVE_INFINITY;
-  /** ヒットストップで凍結するもの（ID → 凍結口）。プレイヤー・登録済みの被弾リアクタは自動、敵は自分で `registerFreezable`。 */
-  private readonly freezables = new Map<string, Freezable[]>();
+  /** 地形の高さ（足元の y の基準）。 */
+  readonly heightAt: (x: number, z: number) => number;
   private input: InputReader;
   private pendingLockEvent: LockOnEvent | null = null;
+  private readonly staticWorld: StaticWorld;
+  private readonly roster: EnemyRoster;
   private readonly cameraCollision: CameraCollision;
   private readonly spawnPosition = new Vector3();
   private readonly spawnYaw: number;
-  /** 地形の高さ（足元の y の基準）。 */
-  readonly heightAt: (x: number, z: number) => number;
   private readonly cameraForwardScratch = new Vector3();
-  private readonly boxColliders = new Map<string, RAPIER.Collider>();
   /** 登録式のシステム（`systems.ts`）。コンストラクタの最後に生成する。 */
   private systems: readonly GameSystem[] = [];
 
@@ -224,61 +138,19 @@ export class Game {
     this.input = options.input ?? NULL_INPUT;
     this.save = options.save ?? new SaveStore(null);
     this.interactableSpawns = options.interactables ?? [];
-    const { rapier, world } = physics;
 
-    // 地形
-    if (options.terrain) {
-      world.createCollider(
-        rapier.ColliderDesc.trimesh(
-          options.terrain.vertices,
-          options.terrain.indices,
-        ).setCollisionGroups(WORLD_GROUPS),
-      );
-    } else {
-      world.createCollider(
-        rapier.ColliderDesc.cuboid(GROUND_FALLBACK_HALF, 0.5, GROUND_FALLBACK_HALF)
-          .setTranslation(0, -0.5, 0)
-          .setCollisionGroups(WORLD_GROUPS),
-      );
-    }
-
-    // テストシーンの足場とダミー
-    for (const b of options.boxes ?? PLAYGROUND_BOXES) {
-      const q = TMP_QUAT.setFromAxisAngle(EULER_Y, ((b.yawDeg ?? 0) * Math.PI) / 180);
-      const qx = new Quaternion().setFromAxisAngle(EULER_X, ((b.pitchDeg ?? 0) * Math.PI) / 180);
-      q.multiply(qx);
-      const collider = world.createCollider(
-        rapier.ColliderDesc.cuboid(b.hx, b.hy, b.hz)
-          .setTranslation(b.x, b.y, b.z)
-          .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
-          .setCollisionGroups(WORLD_GROUPS),
-      );
-      if (b.enabled === false) collider.setEnabled(false);
-      this.boxColliders.set(b.id, collider);
-    }
+    // 地形・足場 → テストシーンのダミー（コライダーの生成順を変えない）
+    this.staticWorld = new StaticWorld(physics, options.terrain, options.boxes ?? PLAYGROUND_BOXES);
     const heightAt = options.terrainHeight ?? (() => 0);
     this.heightAt = heightAt;
-    for (const d of options.dummies ?? DUMMIES) {
-      const y = heightAt(d.x, d.z);
-      const target = new DummyTarget(d.id, d.x, y, d.z, d.height, d.radius);
-      this.dummies.push(target);
-      this.lockOnTargets.push(target);
-      const heart = new UprightTarget(d.id, 'enemy', DUMMY_HP, [
-        uprightHeartbox(d.radius, d.height),
-      ]);
-      heart.place(d.x, y, d.z, 0);
-      this.combat.addTarget(heart);
-      const reactor = new HitReactor(HOLLOW_SOLDIER_REACTOR, this.tuning);
-      this.reactors.set(d.id, reactor);
-      this.registerFreezable(d.id, reactor);
-      this.reactiveTargets.set(d.id, heart);
-      this.dummyReactorIds.add(d.id);
-      world.createCollider(
-        rapier.ColliderDesc.cylinder(d.height / 2, d.radius)
-          .setTranslation(d.x, y + d.height / 2, d.z)
-          .setCollisionGroups(TARGET_GROUPS),
-      );
-    }
+    this.dummies = spawnDummies(options.dummies ?? DUMMIES, {
+      physics,
+      combat: this.combat,
+      reactors: this.registry,
+      tuning: this.tuning,
+      lockOnTargets: this.lockOnTargets,
+      heightAt,
+    });
 
     const spawn = options.spawn ?? PLAYER_SPAWN;
     this.spawnYaw = spawn.yaw;
@@ -293,7 +165,7 @@ export class Game {
       this.playerTarget.health,
       this.tuning,
     );
-    this.cameraCollision = this.createCameraCollision(rapier);
+    this.cameraCollision = this.staticWorld.createCameraCollision(this.player.rigidBody);
     this.camera.reset(this.player.feet, this.spawnYaw);
     this.combat.addTarget(this.playerTarget);
     // ガード判定（構え完了・正面 120°・ジャストガード）はプレイヤーが決める（#53）
@@ -304,97 +176,44 @@ export class Game {
         this.player.hitStop(frames);
       },
     });
-    this.combat.onHit((e) => {
-      const guardBreaks = this.player.guardBreakCount;
-      const reaction = this.applyReaction(e);
-      if (reaction) this.reactEnemy(e.targetId, reaction, e);
-      // ガードを崩された（ガード中にスタミナが 0 になった）: 崩しの SE を重ねる
-      const guardBroken = e.targetId === 'player' && this.player.guardBreakCount > guardBreaks;
-      if (e.targetId === 'player' && e.killed) this.player.die();
-      // 命中 1 回につき 1 つの `impact`（SE・聴覚・FX・カメラ・システムはこれだけを見る。#307）
-      const impact = this.applyHitStop(e, guardBroken);
-      this.events.emit('impact', impact);
-      for (const system of this.systems) system.onImpact?.(impact);
-    });
 
     // 敵（亡者兵など）。地形が問い合わせパイプラインへ反映された後に置く
-    this.enemies = new EnemyManager({
-      lineOfSight: (from, to) => this.hasLineOfSight(from as Vector3, to as Vector3),
-      navigator: options.enemyNavigator ?? directNavigator,
-      ...(options.enemyDarkness && { darkness: options.enemyDarkness }),
-      ...(options.hearingScale && { hearingScale: options.hearingScale }),
-      // 亡者兵の攻撃（A1〜A3）。盾持ちの攻撃は別チケット（それまでは攻撃しない）
-      createAttack: (init, random) =>
-        init.type === 'undead_soldier'
-          ? createUndeadAttack({
-              combat: this.combat,
-              tokens: this.attackTokens,
-              random,
-              poiseOf: (id) => this.reactors.get(id)?.poise,
-            })
-          : NO_ATTACK,
-      createBody: (init) => {
-        const stats = ENEMY_STATS[init.type];
-        return new RapierEnemyBody(
-          physics,
-          init.x,
-          heightAt(init.x, init.z) + 0.02,
-          init.z,
-          stats.height,
-          stats.radius,
-        );
+    this.roster = new EnemyRoster(
+      {
+        physics,
+        combat: this.combat,
+        reactors: this.registry,
+        attackTokens: this.attackTokens,
+        tuning: this.tuning,
+        events: this.events,
+        lockOnTargets: this.lockOnTargets,
+        heightAt,
+        hasLineOfSight: (from, to) => this.staticWorld.hasLineOfSight(from, to),
+        footstepSurface: (x, z, y) => this.footstepSurface(x, z, y),
+        ...(options.enemyNavigator && { navigator: options.enemyNavigator }),
+        ...(options.enemyDarkness && { darkness: options.enemyDarkness }),
+        ...(options.hearingScale && { hearingScale: options.hearingScale }),
       },
+      options.enemies ?? [],
+    );
+    this.enemies = this.roster.manager;
+    const hitContext: HitContext = {
+      player: this.player,
+      registry: this.registry,
+      roster: this.roster,
+      events: this.events,
+      timeScale: this.timeScale,
+      tuning: this.tuning,
+      systems: () => this.systems,
+    };
+    this.combat.onHit((e) => {
+      handleHit(hitContext, e);
     });
-    for (const spawnPoint of options.enemies ?? []) {
-      this.registerEnemy(this.enemies.spawn(spawnPoint));
-    }
     // 戦闘音（命中・ガード）は敵に聞こえる
     this.events.on('impact', (e) => {
       this.enemies.noises.emit(e.position, 'combat');
     });
     this.systems = createGameSystems(this);
-  }
-
-  /** 敵をロックオン対象・被弾側（ハートボックスと強靭度）として登録する。 */
-  private registerEnemy(enemy: Enemy): void {
-    if (!this.lockOnTargets.includes(enemy)) this.lockOnTargets.push(enemy);
-    const stats = ENEMY_STATS[enemy.type];
-    const heart = new UprightTarget(enemy.id, 'enemy', enemy.maxHp, [
-      uprightHeartbox(stats.radius, stats.height),
-    ]);
-    heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
-    this.combat.addTarget(heart);
-    const profile = enemy.type === 'undead_shield' ? SHIELDBEARER_REACTOR : HOLLOW_SOLDIER_REACTOR;
-    this.addReactor(enemy.id, new HitReactor(profile, this.tuning), heart);
-    // ヒットストップ（攻撃側・被弾側）で状態フレーム・移動を凍結する（Enemy.update が先頭で consumeFreeze する）
-    this.registerFreezable(enemy.id, enemy.fsm);
-    this.enemyHearts.set(enemy.id, { enemy, heart });
-  }
-
-  /** 命中の結果を敵 AI へ反映する: HP、気付き（被弾で Alert）、崩しの行動不能、死亡。 */
-  private reactEnemy(id: string, reaction: HitReaction, e: HitEvent): void {
-    const entry = this.enemyHearts.get(id);
-    if (!entry) return;
-    const { enemy, heart } = entry;
-    enemy.hp = heart.health.current;
-    if (heart.health.dead) {
-      enemy.kill();
-      this.combat.removeTarget(id);
-      this.removeReactor(id);
-      this.enemyHearts.delete(id);
-      return;
-    }
-    enemy.provoke(e.attackerPosition.x, e.attackerPosition.z);
-    if (reaction.blocksAction) enemy.stagger(reaction.frames);
-  }
-
-  /** 敵のハートボックスを現在位置へ追従させ、押し戻しの変位を敵の体へ足す。 */
-  private syncEnemyHearts(): void {
-    for (const { enemy, heart } of this.enemyHearts.values()) {
-      if (!enemy.alive) continue;
-      heart.place(enemy.position.x, enemy.position.y, enemy.position.z, enemy.yaw);
-      enemy.hp = heart.health.current;
-    }
   }
 
   static async create(options: GameOptions = {}): Promise<Game> {
@@ -411,16 +230,7 @@ export class Game {
    * 登録し直す。ボスは敵とは別（`rest` イベントを購読して自分で戻る）。
    */
   respawnEnemies(): void {
-    const revived = new Set(this.enemies.respawnAll());
-    for (const enemy of this.enemies.enemies) {
-      if (revived.has(enemy)) {
-        this.registerEnemy(enemy);
-      } else {
-        this.enemyHearts.get(enemy.id)?.heart.health.refill();
-        this.reactors.get(enemy.id)?.reset();
-      }
-    }
-    this.syncEnemyHearts();
+    this.roster.respawnAll();
   }
 
   /** 入力を差し替える。 */
@@ -438,28 +248,14 @@ export class Game {
 
   /** 静的な箱（門など。id は `BoxSpec.id`）の衝突を有効 / 無効にする。該当する id がなければ false。 */
   setBoxEnabled(id: string, enabled: boolean): boolean {
-    const collider = this.boxColliders.get(id);
-    if (!collider) return false;
-    collider.setEnabled(enabled);
+    if (!this.staticWorld.setBoxEnabled(id, enabled)) return false;
     this.enemies.navigator.setGateClosed?.(id, enabled); // 敵の経路も門の開閉に合わせる
     return true;
   }
 
   /** 静的な円柱の衝突（柱・大岩など）を追加する。 */
   addStaticCylinders(cylinders: readonly StaticCylinderSpec[]): void {
-    const { rapier, world } = this.physics;
-    for (const c of cylinders) {
-      const desc = rapier.ColliderDesc.cylinder(c.height / 2, c.radius).setCollisionGroups(
-        WORLD_GROUPS,
-      );
-      if (c.euler) {
-        const q = new Quaternion().setFromEuler(new Euler(c.euler[0], c.euler[1], c.euler[2]));
-        desc.setTranslation(c.x, c.y, c.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
-      } else {
-        desc.setTranslation(c.x, c.y + c.height / 2, c.z);
-      }
-      world.createCollider(desc);
-    }
+    this.staticWorld.addStaticCylinders(cylinders);
   }
 
   /** 固定タイムステップで 1 ステップ進める。 */
@@ -470,31 +266,21 @@ export class Game {
 
     // 1. ロックオン（カメラは前ステップの姿勢で判定する）
     this.cameraForwardScratch.copy(camera.forward);
-    const switchDir = this.resolveSwitch(snap);
+    const switchDir = resolveSwitch(snap, this.lockOn, this.tuning);
     const lockEvent = this.lockOn.update({
       toggle: snap.buttons.lockOn.pressed,
       switchDir,
       targets: this.lockOnTargets,
       playerPosition: player.feet,
       camera: { position: camera.position, forward: this.cameraForwardScratch },
-      isVisible: (from, to) => this.hasLineOfSight(from, to),
+      isVisible: (from, to) => this.staticWorld.hasLineOfSight(from, to),
     });
     this.lastLockOnEvent = this.pendingLockEvent ?? lockEvent;
     this.pendingLockEvent = null;
 
     // 2. カメラの向き（このステップの回転入力を、移動の基準方向に反映する）
-    const cameraInput = () => ({
-      look: snap.look,
-      playerPosition: player.feet,
-      playerYaw: player.yaw,
-      moveInput: snap.move,
-      running:
-        player.state === 'dash' ||
-        (player.state === 'move' && player.speed > this.tuning.player.walk + 0.5),
-      lockTarget: this.lockOn.target,
-      lockEvent: this.lastLockOnEvent,
-      device: snap.device,
-    });
+    const cameraInput = () =>
+      cameraFrameInput(snap, player, this.lockOn, this.lastLockOnEvent, this.tuning);
     camera.updateAim(dt, cameraInput());
 
     // 3. プレイヤー → 物理 → カメラの位置
@@ -504,17 +290,19 @@ export class Game {
       lockTarget: this.lockOn.target,
     });
     for (const e of player.events) {
-      this.publishPlayerEvent(e);
+      publishPlayerEvent(this.events, e, player.feet, this.playerTarget.health.current);
       if (e.type === 'land' && e.fallHeight >= LAND_NOISE_MIN_HEIGHT) {
         this.enemies.noises.emit(player.feet, 'land');
       }
     }
     // 敵の判定（このステップの攻撃）がこのステップのプレイヤーの位置・無敵を見るよう、先に被弾側を更新する
     this.syncPlayerTarget();
-    this.updateEnemies(dt);
-    for (const m of player.markerEvents) this.publishMarker('player', m, player.feet);
+    this.roster.update(dt, player);
+    for (const m of player.markerEvents) {
+      publishMarker(this.events, this.markerCounts, this.footstepSurface, 'player', m, player.feet);
+    }
     this.syncPlayerTarget();
-    this.stepReactors();
+    this.registry.step();
     this.attackDriver.update(player);
     // 攻撃側（プレイヤー）が凍結中は、仮の攻撃のフレームも進めない
     if (!player.fsm.isFrozenStep) this.debugSwing.update(player.feet, player.yaw);
@@ -522,43 +310,6 @@ export class Game {
     this.combat.step();
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);
-  }
-
-  /**
-   * 敵を 1 ステップ進める。プレイヤーの足音（歩き・走り・ダッシュ/ロール）をこのステップ分の音として出し、
-   * 敵はそれと視覚から気付く。
-   */
-  private updateEnemies(dt: number): void {
-    if (this.enemies.enemies.length === 0) return;
-    const { player } = this;
-    const motion = playerMotion(player.state, player.speed);
-    const kind = motionNoise(motion);
-    if (kind) this.enemies.noises.emit(player.feet, kind, { duration: dt });
-    // ロール中とロール終了から 20F 以内は「ロール直後」（ロール連打を咎める攻撃選択の入力）
-    this.stepsSinceRoll = player.state === 'roll' ? 0 : this.stepsSinceRoll + 1;
-    this.enemies.update(dt, {
-      position: player.feet,
-      motion,
-      recentRoll: this.stepsSinceRoll <= UNDEAD_ATTACK_RULES.rollPunishFrames,
-    });
-    this.syncEnemyHearts();
-    this.publishEnemyFootsteps();
-  }
-
-  /** 敵の足音（位置つき）をイベントバスへ流す。 */
-  private publishEnemyFootsteps(): void {
-    for (const enemy of this.enemies.enemies) {
-      for (const m of enemy.markerEvents) {
-        if (m.type !== 'footstep') continue;
-        const f = enemy.position;
-        this.events.emit('footstep', {
-          surface: this.footstepSurface(f.x, f.z, f.y),
-          gait: m.gait ?? 'run',
-          source: 'enemy',
-          position: { x: f.x, y: f.y, z: f.z },
-        });
-      }
-    }
   }
 
   /** 音を発生させる（敵に聞こえる）。鐘・壁の崩壊・回復瓶など、game 内外の音源から呼ぶ。 */
@@ -589,213 +340,25 @@ export class Game {
    * `target` は崩し中の被ダメージ 1.5 倍を反映する `UprightTarget`（`HitResolver` に登録済みのもの）。
    */
   addReactor(id: string, reactor: HitReactor, target?: UprightTarget): void {
-    this.reactors.set(id, reactor);
-    this.registerFreezable(id, reactor);
-    if (target) this.reactiveTargets.set(id, target);
+    this.registry.add(id, reactor, target);
   }
 
   removeReactor(id: string): void {
-    this.reactors.delete(id);
-    this.freezables.delete(id);
-    this.reactiveTargets.delete(id);
-    this.dummyReactorIds.delete(id);
-  }
-
-  /**
-   * 登録済みの反応体を 1 ステップ進める（強靭度の回復・崩しの残り・被弾後無敵）。ダミーは押し戻しを受けないので
-   * 変位を捨てる（敵は自分で `reactor.consumeSlide` を呼んで移動に足す）。
-   */
-  private stepReactors(): void {
-    for (const [id, reactor] of this.reactors) {
-      // ヒットストップ中は強靭度の回復・崩しの残り・被弾後無敵・押し戻しも止める
-      if (reactor.consumeFreeze()) continue;
-      reactor.step();
-      if (this.dummyReactorIds.has(id)) reactor.consumeSlide(this.slideScratch);
-      const enemyEntry = this.enemyHearts.get(id);
-      if (enemyEntry) {
-        // 被弾の押し戻しは敵の次の移動に足す（壁・地形には体が従う）
-        reactor.consumeSlide(this.slideScratch);
-        if (this.slideScratch.x !== 0 || this.slideScratch.z !== 0) {
-          enemyEntry.enemy.pushBy(this.slideScratch.x, this.slideScratch.z);
-        }
-      }
-      const target = this.reactiveTargets.get(id);
-      if (target) target.staggered = reactor.staggered;
-    }
-  }
-
-  /** 命中を被弾側の強靭度・押し戻し・仰け反りへ反映し、`hitReaction` を発行する。 */
-  private applyReaction(e: HitEvent): HitReaction | undefined {
-    const id = e.targetId;
-    // 押し戻しの向き: 攻撃側の原点 → 命中位置
-    const dx = e.position.x - e.attackerPosition.x;
-    const dz = e.position.z - e.attackerPosition.z;
-    let reaction: HitReaction;
-    if (id === 'player') {
-      reaction = this.player.receiveHit(e, dx, dz);
-    } else {
-      const reactor = this.reactors.get(id);
-      if (!reactor) return undefined;
-      reaction = reactor.react(e, dx, dz);
-      const target = this.reactiveTargets.get(id);
-      if (target) target.staggered = reactor.staggered;
-    }
-    this.events.emit('hitReaction', { targetId: id, ...reaction });
-    return reaction;
+    this.registry.remove(id);
   }
 
   /** ヒットストップの凍結口を登録する（敵・ボス。`CharacterFsm` はそのまま渡せる）。 */
   registerFreezable(id: string, target: Freezable): void {
-    const list = this.freezables.get(id);
-    if (list) list.push(target);
-    else this.freezables.set(id, [target]);
+    this.registry.registerFreezable(id, target);
   }
 
   unregisterFreezable(id: string): void {
-    this.freezables.delete(id);
+    this.registry.unregisterFreezable(id);
   }
 
-  /**
-   * 登録式のシステムが持つ敵（ボスなど）を、ロックオン対象・被弾側（ハートボックス・強靭度）・ヒットストップの凍結口として
-   * まとめて登録する。`boss: true` なら `bossIds` にも入れる。戻り値を呼ぶと登録をすべて解く。
-   */
-  registerCombatant(combatant: {
-    readonly id: string;
-    readonly lockOn: LockOnTarget;
-    readonly heart: UprightTarget;
-    readonly reactor: HitReactor;
-    readonly freezable: Freezable;
-    readonly boss?: boolean;
-  }): () => void {
-    const { id, lockOn, heart, reactor, freezable, boss = false } = combatant;
-    this.combat.addTarget(heart);
-    this.addReactor(id, reactor, heart);
-    this.registerFreezable(id, freezable);
-    if (boss) this.bossIds.add(id);
-    if (!this.lockOnTargets.includes(lockOn)) this.lockOnTargets.push(lockOn);
-    return () => {
-      this.combat.removeTarget(id);
-      this.removeReactor(id);
-      this.unregisterFreezable(id);
-      if (boss) this.bossIds.delete(id);
-      const i = this.lockOnTargets.indexOf(lockOn);
-      if (i >= 0) this.lockOnTargets.splice(i, 1);
-    };
-  }
-
-  private freeze(id: string, frames: number): void {
-    for (const f of this.freezables.get(id) ?? []) f.freeze(frames);
-  }
-
-  /**
-   * 命中からヒットストップを決め、攻撃側・被弾側を同時に凍結する（4.1 節）。撃破スロー・画面振動も始め、
-   * 演出・SE 用の `impact` を組み立てて返す。凍結は次のステップから効く（同じステップの SE は 0F 遅延）。
-   */
-  private applyHitStop(e: HitEvent, guardBroken: boolean): ImpactEvent {
-    const attackerIsPlayer = e.attackerId === 'player';
-    const targetIsPlayer = e.targetId === 'player';
-    const decision = decideHitStop(
-      {
-        event: e,
-        attackerIsPlayer,
-        targetIsPlayer,
-        attackerIsBoss: this.bossIds.has(e.attackerId),
-        targetIsBoss: this.bossIds.has(e.targetId),
-      },
-      this.tuning.hitStop,
-    );
-    if (decision.frames > 0) {
-      this.freeze(e.attackerId, decision.frames);
-      if (e.targetId !== e.attackerId) this.freeze(e.targetId, decision.frames);
-    }
-    if (decision.slowMotion) {
-      // ヒットストップが明けてから、シミュレーションの 30F（ボスは 60F）の間スロー
-      this.timeScale.start(decision.slowMotion.scale, decision.slowMotion.frames, decision.frames);
-    }
-
-    // 飛び散る向き: 攻撃側 → 被弾側の水平方向 + わずかに上
-    let nx = e.position.x - e.attackerPosition.x;
-    let nz = e.position.z - e.attackerPosition.z;
-    const len = Math.hypot(nx, nz);
-    if (len > 1e-6) {
-      nx /= len;
-      nz /= len;
-    } else {
-      nx = 0;
-      nz = 1;
-    }
-    const ny = 0.3;
-    const nl = Math.hypot(nx, ny, nz);
-    return {
-      hit: e,
-      attackerId: e.attackerId,
-      targetId: e.targetId,
-      attackId: e.attackId,
-      kind: e.kind,
-      guard: e.guard,
-      guardBroken,
-      source: attackerIsPlayer ? 'player' : 'enemy',
-      frames: decision.frames,
-      position: e.position,
-      normal: { x: nx / nl, y: ny / nl, z: nz / nl },
-      killed: e.killed,
-      fromPlayer: attackerIsPlayer,
-      toPlayer: targetIsPlayer,
-      flash: decision.flash?.kind ?? null,
-      flashFrames: decision.flash?.frames ?? 0,
-      slowMotion: decision.slowMotion,
-    };
-  }
-
-  /** 回復瓶のイベントを、音（`sound`）と HUD・パーティクル用の `heal` へ流す。 */
-  private publishPlayerEvent(e: PlayerEvent): void {
-    const feet = this.player.feet;
-    const position = { x: feet.x, y: feet.y, z: feet.z };
-    switch (e.type) {
-      case 'healStart':
-        this.events.emit('sound', { cue: 'sfx.heal-drink', position });
-        break;
-      case 'healApply':
-        this.events.emit('sound', { cue: 'sfx.heal-glow', position });
-        this.events.emit('heal', {
-          amount: e.amount,
-          hp: this.playerTarget.health.current,
-          position,
-        });
-        break;
-      default:
-        break;
-    }
-  }
-
-  /** アニメーションのイベントマーカーをイベントバスへ流す。足音は音のイベント（`footstep`）にも変換する。 */
-  private publishMarker(owner: string, e: AnimMarkerEvent, feet: Vector3): void {
-    this.markerCounts[e.type]++;
-    const position = { x: feet.x, y: feet.y, z: feet.z };
-    this.events.emit('animMarker', {
-      owner,
-      marker: e.type,
-      actionId: e.actionId,
-      frame: e.frame,
-      position,
-    });
-    if (e.type === 'footstep') {
-      this.events.emit('footstep', {
-        surface: this.footstepSurface(feet.x, feet.z, feet.y),
-        gait: e.gait ?? 'run',
-        source: 'player',
-        position,
-      });
-    }
-  }
-
-  /** ターゲット切替要求: 入力層のフリック/ホイール/十字キー、またはロックオン中のマウスの急な横移動。 */
-  private resolveSwitch(snap: InputSnapshot): -1 | 0 | 1 {
-    if (snap.targetSwitch !== 0) return snap.targetSwitch;
-    if (this.lockOn.active && Math.abs(snap.look.x) > this.tuning.lockOn.flickLookThreshold) {
-      return snap.look.x > 0 ? 1 : -1;
-    }
-    return 0;
+  /** 登録式のシステムが持つ敵（ボスなど）をまとめて登録する（`combat/combatant.ts`）。戻り値で登録を解く。 */
+  registerCombatant(combatant: Combatant): () => void {
+    return registerCombatant(combatant, this.combat, this.registry, this.lockOnTargets);
   }
 
   /** ハートボックスをプレイヤーの現在位置へ置き、無敵状態を反映する。 */
@@ -807,114 +370,15 @@ export class Game {
     playerTarget.staggered = player.guardBroken;
   }
 
-  /** 攻撃者から命中位置までを地形・静的物が遮っているか（壁越しに当てない）。 */
-  private isBlockedByWorld(
-    from: { x: number; y: number; z: number },
-    to: { x: number; y: number; z: number },
-  ): boolean {
-    const { rapier, world } = this.physics;
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const dz = to.z - from.z;
-    const dist = Math.hypot(dx, dy, dz);
-    if (dist < 1e-4) return false;
-    const ray = new rapier.Ray(
-      { x: from.x, y: from.y, z: from.z },
-      { x: dx / dist, y: dy / dist, z: dz / dist },
-    );
-    const hit = world.castRay(ray, dist, true, undefined, SIGHT_QUERY_GROUPS);
-    return hit !== null && hit.timeOfImpact < dist - 0.05;
-  }
-
-  /** `from` から `to` への視線が地形・静的物に遮られていないか。 */
-  private hasLineOfSight(from: Vector3, to: Vector3): boolean {
-    const { rapier, world } = this.physics;
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const dz = to.z - from.z;
-    const dist = Math.hypot(dx, dy, dz);
-    if (dist < 1e-4) return true;
-    const ray = new rapier.Ray(
-      { x: from.x, y: from.y, z: from.z },
-      { x: dx / dist, y: dy / dist, z: dz / dist },
-    );
-    const hit = world.castRay(ray, dist, true, undefined, SIGHT_QUERY_GROUPS);
-    // 対象の胸元の手前 0.3m までに何かあれば遮蔽
-    return hit === null || hit.timeOfImpact > dist - 0.3;
-  }
-
-  private createCameraCollision(rapier: Physics['rapier']): CameraCollision {
-    const { world } = this.physics;
-    const shapes = new Map<number, RAPIER.Ball>();
-    const identity = { x: 0, y: 0, z: 0, w: 1 };
-    const body = this.player.rigidBody;
-    return {
-      castSphere(origin, dir, maxDistance, radius) {
-        const key = Math.round(radius * 1000);
-        let ball = shapes.get(key);
-        if (!ball) {
-          ball = new rapier.Ball(radius);
-          shapes.set(key, ball);
-        }
-        const hit = world.castShape(
-          { x: origin.x, y: origin.y, z: origin.z },
-          identity,
-          { x: dir.x, y: dir.y, z: dir.z },
-          ball,
-          0,
-          maxDistance,
-          true,
-          undefined,
-          CAMERA_QUERY_GROUPS,
-          undefined,
-          body,
-        );
-        return hit ? Math.min(maxDistance, hit.time_of_impact) : maxDistance;
-      },
-    };
-  }
-
   /** プレイヤーを任意の位置へ移す（デバッグ・E2E）。カメラはプレイヤーの背後へ即座に置く。 */
   teleportPlayer(x: number, z: number, yaw: number, y = this.heightAt(x, z) + 0.02): void {
     this.player.teleport(new Vector3(x, y, z), yaw);
     this.camera.reset(this.player.feet, yaw);
   }
 
-  /**
-   * デバッグ・E2E 用: 敵の攻撃を 1 発、プレイヤーへ当てる（実際の敵の攻撃動作が入るまでのダミー）。
-   * `from` は攻撃者のいる方向（プレイヤーの向きに対して。front = 正面、back = 背面、left / right = 側面）。
-   * 攻撃者はプレイヤーから 1.5m 離れた位置にいる。ガード判定・削り・スタミナ消費・ヒットストップ・
-   * 被弾リアクションは本物の命中と同じ経路を通る。命中イベントの配列を返す。
-   */
-  debugHitPlayer(
-    options: {
-      readonly from?: 'front' | 'back' | 'left' | 'right';
-      readonly damage?: number;
-      readonly poiseDamage?: number;
-      readonly guardStaminaCost?: number;
-      /** 攻撃者の方位を、プレイヤーの正面からの角度（度、右が正）で直接指定する。`from` より優先。 */
-      readonly bearingDeg?: number;
-    } = {},
-  ): HitEvent[] {
-    const { player } = this;
-    const bearings = { front: 0, right: 90, back: 180, left: -90 } as const;
-    const bearing = ((options.bearingDeg ?? bearings[options.from ?? 'front']) * Math.PI) / 180;
-    const dir = player.yaw + bearing;
-    const p = player.feet;
-    const origin = vec3(p.x + Math.sin(dir) * 1.5, p.y, p.z + Math.cos(dir) * 1.5);
-    const attack = this.combat.startAttack('debug-enemy', 'enemy', {
-      id: 'debug-swing',
-      damage: options.damage ?? 30,
-      poiseDamage: options.poiseDamage ?? 20,
-      guardStaminaCost: options.guardStaminaCost ?? 20,
-    });
-    const shape = capsuleShape(
-      capsule(vec3(p.x - 0.1, p.y + 1, p.z - 0.1), vec3(p.x + 0.1, p.y + 1, p.z + 0.1), 0.15),
-      origin,
-    );
-    const events = this.combat.resolve(attack, shape);
-    this.combat.endAttack(attack);
-    return events;
+  /** デバッグ・E2E 用: 敵の攻撃を 1 発、プレイヤーへ当てる（`gameDebug.ts` の `debugHitPlayer`）。 */
+  debugHitPlayer(options: DebugHitOptions = {}): HitEvent[] {
+    return debugHitPlayer(this, options);
   }
 
   /** プレイヤーを初期位置へ戻す（デバッグ・リスポーン）。 */
@@ -929,94 +393,6 @@ export class Game {
 
   /** E2E / デバッグ用の状態。 */
   get debugState(): GameDebugState {
-    const p = this.player;
-    return {
-      player: {
-        state: p.state,
-        stateFrame: p.stateFrame,
-        position: { x: p.feet.x, y: p.feet.y, z: p.feet.z },
-        yaw: p.yaw,
-        speed: p.speed,
-        grounded: p.grounded,
-        stamina: p.stamina.current,
-        invulnerable: p.invulnerable,
-        poiseBonus: p.reactor.poise.bonus,
-        guard: {
-          phase: p.animation.guard.phase,
-          frame: p.guardFrame,
-          counterOpen: p.guardCounterOpen,
-          breaks: p.guardBreakCount,
-        },
-      },
-      camera: {
-        position: {
-          x: this.camera.position.x,
-          y: this.camera.position.y,
-          z: this.camera.position.z,
-        },
-        yaw: this.camera.yaw,
-        pitch: this.camera.pitch,
-        armLength: this.camera.armLength,
-        forward: { x: this.camera.forward.x, y: this.camera.forward.y, z: this.camera.forward.z },
-        pivot: { x: this.camera.pivot.x, y: this.camera.pivot.y, z: this.camera.pivot.z },
-      },
-      lockOn: {
-        targetId: this.lockOn.target?.id ?? null,
-        lastEvent: this.lastLockOnEvent,
-      },
-      markers: { ...this.markerCounts },
-      enemies: this.enemies.debugInfo,
-      combat: {
-        playerHp: this.playerTarget.health.current,
-        playerDead: this.player.dead,
-        flask: this.player.flask.count,
-        playerFreeze: this.player.fsm.freezeRemaining,
-        timeScale: this.timeScale.current,
-      },
-    };
+    return buildDebugState(this);
   }
-}
-
-export interface GameDebugState {
-  readonly player: {
-    readonly state: string;
-    readonly stateFrame: number;
-    readonly position: { readonly x: number; readonly y: number; readonly z: number };
-    readonly yaw: number;
-    readonly speed: number;
-    readonly grounded: boolean;
-    readonly stamina: number;
-    readonly invulnerable: boolean;
-    /** 強靭度の一時加算の残り（強攻撃のスーパーアーマー中は 40 から削られる）。 */
-    readonly poiseBonus: number;
-    /** ガードの状態（見た目の段階・構えのフレーム・ガードカウンターの受付中・崩された回数）。 */
-    readonly guard: {
-      readonly phase: string;
-      readonly frame: number;
-      readonly counterOpen: boolean;
-      readonly breaks: number;
-    };
-  };
-  readonly camera: {
-    readonly position: { readonly x: number; readonly y: number; readonly z: number };
-    readonly yaw: number;
-    readonly pitch: number;
-    readonly armLength: number;
-    readonly forward: { readonly x: number; readonly y: number; readonly z: number };
-    readonly pivot: { readonly x: number; readonly y: number; readonly z: number };
-  };
-  readonly lockOn: { readonly targetId: string | null; readonly lastEvent: string };
-  /** イベントマーカーの種別ごとの発火回数。 */
-  readonly markers: Readonly<Record<MarkerType, number>>;
-  /** 敵の状態（気付きゲージ・見失いなど）。 */
-  readonly enemies: readonly EnemyDebugInfo[];
-  /** 判定の状態（プレイヤー HP・死亡・回復瓶の残り）。 */
-  readonly combat: {
-    readonly playerHp: number;
-    readonly playerDead: boolean;
-    readonly flask: number;
-    /** プレイヤーの凍結の残り・現在のタイムスケール。 */
-    readonly playerFreeze: number;
-    readonly timeScale: number;
-  };
 }
