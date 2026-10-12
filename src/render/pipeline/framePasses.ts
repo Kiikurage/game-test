@@ -43,9 +43,11 @@ export type FrameStage = (typeof FRAME_STAGES)[number];
  * scene パスが MRT で同時に書く G バッファの出力。要求したパスがあるときだけ書く（書かなければ帯域を払わない）。
  * - normal: ビュー空間の法線（`directionToColor` で 0..1 に詰めたもの。読むときは `ctx.normal()`）
  * - velocity: 画面空間の速度（TAA・モーションブラー用。three の `velocity`）
+ * - depth: 解決済みのビュー空間の距離（-viewZ、m。half float の色テクスチャ。読むときは `ctx.resolvedDepth()`）。MSAA だと `ctx.depth` は
+ *   マルチサンプルのままで、GTAO などの `textureGather` / 任意 uv の sample ができないため（#319）
  * 深度は常に読める（`ctx.depth`）。
  */
-export type GBufferChannel = 'normal' | 'velocity';
+export type GBufferChannel = 'normal' | 'velocity' | 'depth';
 
 export interface FramePassContext {
   readonly renderer: WebGPURenderer;
@@ -60,6 +62,8 @@ export interface FramePassContext {
   normal(): Node<'vec3'>;
   /** 画面空間の速度テクスチャ。`gbuffer: ['velocity']` を宣言したパスだけが使える。 */
   velocity(): TextureNode;
+  /** 解決済み（1 サンプル）の深度テクスチャ（r にカメラからのビュー空間の距離 -viewZ、m。背景は 0）。`gbuffer: ['depth']` を宣言したパスだけが使える。 */
+  resolvedDepth(): TextureNode;
 }
 
 export interface FramePassResult {

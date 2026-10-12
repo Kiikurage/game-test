@@ -1,5 +1,15 @@
-import type { Node, RenderTarget } from 'three/webgpu';
-import { float, mix, sample, unpackRGBToNormal, vec4 } from 'three/tsl';
+import { FloatType, RedFormat, type Node, type RenderTarget } from 'three/webgpu';
+import {
+  float,
+  mix,
+  reference,
+  rtt,
+  sample,
+  select,
+  unpackRGBToNormal,
+  vec4,
+  viewZToPerspectiveDepth,
+} from 'three/tsl';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { registerFramePass } from '../pipeline/framePasses';
@@ -18,27 +28,43 @@ registerFramePass({
   id: 'gtao',
   stage: 'screenSpace',
   order: 0,
-  gbuffer: ['normal'],
+  gbuffer: ['normal', 'depth'],
   enabled: (preset) => preset.ao,
   build: (ctx, color) => {
     ctx.normal(); // G バッファの宣言を確かめる（GTAO は任意の uv で引くので、テクスチャを直接 sample で包む）
     const normalTex = ctx.scenePass.getTextureNode('normal');
     const normalAt = sample((uv) => unpackRGBToNormal(normalTex.sample(uv).rgb));
 
-    const aoNode = ao(ctx.depth, normalAt, ctx.camera);
+    // MSAA の深度はマルチサンプルのままで GTAO が引けない（textureGather 不可）ので、MRT で書いた解決済みの距離を
+    // GTAO が期待する透視深度（0..1、背景 = 1）へ 32bit で描き直す
+    const near = reference('near', 'float', ctx.camera);
+    const far = reference('far', 'float', ctx.camera);
+    const dist = ctx.resolvedDepth().r;
+    const perspective = select(
+      dist.greaterThan(0),
+      viewZToPerspectiveDepth(dist.negate(), near, far),
+      float(1),
+    );
+    const depthTex = rtt(vec4(perspective, 0, 0, 1), null, null, {
+      type: FloatType,
+      format: RedFormat,
+      depthBuffer: false,
+    });
+    const aoNode = ao(depthTex, normalAt, ctx.camera);
     aoNode.resolutionScale = 0.5;
-    aoNode.radius.value = 0.6;
-    aoNode.samples.value = 16;
+    aoNode.radius.value = 1.2;
+    aoNode.samples.value = 8;
 
-    const denoised = denoise(aoNode.getTextureNode(), ctx.depth, normalAt, ctx.camera);
+    const denoised = denoise(aoNode.getTextureNode(), depthTex, normalAt, ctx.camera);
     const occlusion = mix(float(1), (denoised as unknown as Node<'vec4'>).r, AO_STRENGTH);
 
-    const rt = (aoNode as unknown as GtaoInternals)._aoRenderTarget;
+    const aoRt = (aoNode as unknown as GtaoInternals)._aoRenderTarget;
     return {
       color: vec4(color.rgb.mul(occlusion), color.a),
-      targets: rt ? [rt] : [],
+      targets: [depthTex.renderTarget, aoRt].filter((t): t is RenderTarget => t != null),
       api: aoNode,
       dispose: () => {
+        depthTex.dispose();
         aoNode.dispose();
         denoised.dispose();
       },

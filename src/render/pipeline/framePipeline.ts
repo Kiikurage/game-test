@@ -1,6 +1,8 @@
 // フレームパイプライン（#317）: scene パス（MRT で G バッファも書く）→ 登録されたパスを段の順に通す → トーンマップ / sRGB 出力。
 // パスの追加は `framePasses.ts` の `registerFramePass`（`*.pass.ts` は自動で読み込む）。パス別 GPU 時間は `gpuTimer.ts`。
 import {
+  BlendMode,
+  NormalBlending,
   RenderPipeline,
   type Camera,
   type Node,
@@ -9,6 +11,9 @@ import {
   type WebGPURenderer,
 } from 'three/webgpu';
 import {
+  positionView,
+  float,
+  materialReference,
   unpackRGBToNormal,
   packNormalToRGB,
   mrt,
@@ -96,9 +101,17 @@ export function createFramePipeline(
   const scenePass = pass(scene, camera);
   if (gbuffer.length > 0) {
     const outputs: Record<string, Node> = { output };
-    if (gbuffer.includes('normal')) outputs.normal = packNormalToRGB(normalView);
+    // 半透明（炎・霧・水面など）は法線・深度を書かない（後ろの不透明面の値を残す）。α = 0 の通常ブレンドで書き込みを打ち消す
+    const opaque = float(1).sub(materialReference('transparent', 'float') as unknown as Node<'float'>);
+    if (gbuffer.includes('normal')) outputs.normal = vec4(packNormalToRGB(normalView), opaque);
     if (gbuffer.includes('velocity')) outputs.velocity = velocity;
-    scenePass.setMRT(mrt(outputs));
+    if (gbuffer.includes('depth')) outputs.gdepth = vec4(positionView.z.negate(), 0, 0, opaque);
+    const mrtNode = mrt(outputs);
+    if (gbuffer.includes('normal')) mrtNode.setBlendMode('normal', new BlendMode(NormalBlending));
+    if (gbuffer.includes('depth')) mrtNode.setBlendMode('gdepth', new BlendMode(NormalBlending));
+    scenePass.setMRT(mrtNode);
+    // gdepth は half float の RGBA（R32Float は MSAA の解決先にできず、R だけの形式はブレンドの α を出力できない）。
+    // 値はカメラからの距離なので half でも相対精度 0.1%
   }
   const depth = scenePass.getTextureNode('depth');
 
@@ -122,6 +135,10 @@ export function createFramePipeline(
       velocity: (): TextureNode => {
         requireChannel('velocity');
         return scenePass.getTextureNode('velocity');
+      },
+      resolvedDepth: (): TextureNode => {
+        requireChannel('depth');
+        return scenePass.getTextureNode('gdepth');
       },
     };
   };
