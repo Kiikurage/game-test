@@ -86,3 +86,26 @@ describe('bakeCells', () => {
     expect(seam).toBeLessThan(60);
   });
 });
+
+// 配布をやめた KTX2（perlin.ktx2 / cells.ktx2 の levelData）と同じ中身であることの担保。
+// 期待値は削除前の KTX2 の levelData と照合して一致を確認したもの（FNV-1a 32bit）。
+describe('full-size noise (same as the removed KTX2)', () => {
+  const fnv = (a: ArrayBufferView): string => {
+    let h = 0x811c9dc5;
+    for (const x of new Uint8Array(a.buffer, a.byteOffset, a.byteLength))
+      h = Math.imul(h ^ x, 0x01000193) >>> 0;
+    return h.toString(16);
+  };
+
+  it('perlin atlas', () => {
+    const atlas = buildNoiseAtlas(bakePerlin());
+    expect(atlas.byteLength).toBe(1048576);
+    expect(fnv(atlas)).toBe('58085355');
+  });
+
+  it('cells', () => {
+    const cells = bakeCells();
+    expect(cells.byteLength).toBe(524288);
+    expect(fnv(cells)).toBe('63b9b282');
+  });
+});

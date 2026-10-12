@@ -6,7 +6,6 @@ import {
   RGFormat,
   RepeatWrapping,
   ClampToEdgeWrapping,
-  type Texture,
 } from 'three/webgpu';
 import { float, floor, fract, max, mix, texture, vec2, vec3 } from 'three/tsl';
 import type { Node } from 'three/webgpu';
@@ -20,20 +19,19 @@ import {
   TILE,
   TILES,
 } from '../../scripts/assets/noiseLayout.mjs';
-import { getKtx2Loader } from './assets/ktx2';
-import { assetUrl } from '../core/assetUrl';
+import type { NoiseWorkerResult } from './noiseWorker';
 
 /**
- * 焼いたノイズテクスチャ（#236、#326 でオフライン生成へ）。
+ * 焼いたノイズテクスチャ（#236、#326）。
  *
  * フラグメントで `mx_noise_float`（格子 8 点のハッシュ + 勾配 + 補間で 1 回あたり数百命令）や `hash` を呼ぶ代わりに、
- * `scripts/assets/build-noise-textures.mjs`（`npm run assets:noise`）が焼いた KTX2 を引く。実行時にノイズは計算しない。
+ * ロード時に Worker（`noiseWorker.ts`）が一度だけ作った配列をテクスチャに入れて引く（配ると 1.5MB、作ると数十 ms なので配らない）。
  * - perlin: タイル可能な 3D パーリン（周期 {@link LATTICE} 格子セル × {@link SIZE} ボクセル）を 2D アトラス（RG 半精度）に並べたもの。
  *   8bit だと `dFdx(height)` で凹凸の法線を作る箇所で階段状になるので半精度。
  * - cells: R = 白色ノイズ（{@link bakedHash}）、G = セルノイズの F2 − F1（{@link bakedCellEdge}）。
  *
  * テクスチャのオブジェクトはモジュールで 1 つずつ持ち、マテリアルのグラフはそれを参照する。中身は
- * {@link loadNoiseTextures}（レンダラー初期化時に待つ）で KTX2 の画素に差し替える。読み込み前・失敗時は 0（模様なし）。
+ * {@link loadNoiseTextures}（レンダラー初期化時に待つ）で Worker の結果に差し替える。読み込み前・失敗時は 0（模様なし）。
  *
  * three の `Data3DTexture` を使わない理由: three は 3D テクスチャにも RENDER_ATTACHMENT 用途を付けるため、
  * 一部の Chrome（Dawn）が初期化時に 3D テクスチャの 2D ビューを作ろうとして検証エラーになる。
@@ -74,24 +72,26 @@ export function getCellsTexture(): DataTexture {
   return cellsTexture;
 }
 
-function adopt(target: DataTexture, loaded: Texture): void {
-  const image = loaded.image as typeof target.image;
-  if (image.width !== target.image.width || image.height !== target.image.height)
-    throw new Error(`noise texture size mismatch: ${image.width}x${image.height}`);
-  target.image = image;
-  target.needsUpdate = true;
-  loaded.dispose();
-}
-
-/** 焼いたノイズの KTX2 を読み、共有テクスチャの中身を差し替える（`configureKtx2Loader` の後に呼ぶ）。 */
+/** Worker にノイズを作らせ、共有テクスチャの中身を差し替える。 */
 export async function loadNoiseTextures(): Promise<void> {
-  const loader = getKtx2Loader();
-  const [perlin, cells] = await Promise.all([
-    loader.loadAsync(assetUrl('assets/noise/perlin.ktx2')),
-    loader.loadAsync(assetUrl('assets/noise/cells.ktx2')),
-  ]);
-  adopt(perlinTexture, perlin);
-  adopt(cellsTexture, cells);
+  const worker = new Worker(new URL('./noiseWorker.ts', import.meta.url), { type: 'module' });
+  try {
+    const result = await new Promise<NoiseWorkerResult>((resolve, reject) => {
+      worker.onmessage = (e: MessageEvent<NoiseWorkerResult>) => {
+        resolve(e.data);
+      };
+      worker.onerror = (e) => {
+        reject(new Error(e.message || 'noise worker failed'));
+      };
+    });
+    perlinTexture.image.data = result.perlin;
+    perlinTexture.needsUpdate = true;
+    cellsTexture.image.data = result.cells;
+    cellsTexture.needsUpdate = true;
+    console.info(`noise textures generated in worker: ${result.ms.toFixed(0)}ms`);
+  } finally {
+    worker.terminate();
+  }
 }
 
 /**

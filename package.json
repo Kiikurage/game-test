@@ -31,8 +31,7 @@
     "assets:water": "node scripts/assets/build-water-textures.mjs",
     "assets:blender": "node scripts/assets/build-blender.mjs",
     "assets:blender:check": "node scripts/assets/build-blender.mjs --check",
-    "assets:check": "node scripts/assets/check.mjs",
-    "assets:noise": "node scripts/assets/build-noise-textures.mjs"
+    "assets:check": "node scripts/assets/check.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",

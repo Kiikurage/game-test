@@ -1,5 +1,5 @@
-// 焼いたノイズテクスチャの生成（純粋関数。#236 → #326 でオフライン生成へ移した）。
-// build-noise-textures.mjs が KTX2 に書き、src/render/bakedNoise.ts が読む。ユニットテストもここを直接呼ぶ。
+// 焼いたノイズテクスチャの生成（純粋関数。#236 → #326）。
+// src/render/noiseWorker.ts がロード時に Worker で呼び、src/render/bakedNoise.ts がテクスチャにする。ユニットテストもここを直接呼ぶ。
 //
 // perlin: タイル可能な 3D パーリンノイズ（周期 LATTICE 格子セル、1 周期 SIZE ボクセル）を 2D アトラスに並べたもの。
 //   各スライス z のタイル（SIZE + 余白 2）を TILES × TILES に並べる。R = スライス z、G = スライス z+1（巻き付け）。
