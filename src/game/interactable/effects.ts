@@ -4,6 +4,7 @@
 // - `once`: loot は取得済み（`loot.<id>` フラグ）なら非表示。他の種別は 2 回目以降は効果を実行しない（`done.<id>`）。
 // - `cooldownF`: 実行から `cooldownF` ステップは使えない。
 // - read は実行すると読んだ印（`read.<id>`）を立てる。loot は終わると `loot.<id>` を立てる。
+import { SAVE_FLAGS } from '../../core/persistence';
 import { lootFlag, readFlag, shownFlag } from '../data/world/lootTuning';
 import type { Effect, Interactable } from '../data/world/types';
 
@@ -20,7 +21,7 @@ export interface EffectHost {
   dialogue?(lines: readonly string[], onEnd: () => void): void;
 }
 
-export const doneFlag = (id: string): string => `done.${id}`;
+export const doneFlag = SAVE_FLAGS.done;
 
 export function runEffects(
   effects: readonly Effect[],
