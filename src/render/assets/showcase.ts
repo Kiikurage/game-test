@@ -10,7 +10,7 @@ import {
   type Scene,
 } from 'three/webgpu';
 import { ATMOSPHERE } from '../environment';
-import { applyWeaponTelegraph } from '../weaponTelegraph';
+import { applyPlainLook } from '../undead/undeadMaterial';
 import { CharacterAssets } from './characterAssets';
 import { CLIP_NAMES, type ClipName } from './clips';
 import type { Character } from './character';
@@ -147,7 +147,7 @@ export class CharacterShowcase {
         look.setEmber(ember);
         look.setWeaponTelegraph(telegraph, telegraphColor);
       } else {
-        applyWeaponTelegraph(c.root).setWeaponTelegraph(telegraph, telegraphColor);
+        applyPlainLook(c.root).setWeaponTelegraph(telegraph, telegraphColor);
       }
       return c;
     };

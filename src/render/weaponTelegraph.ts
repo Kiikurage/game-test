@@ -1,13 +1,4 @@
-import {
-  Color,
-  MeshStandardNodeMaterial,
-  type ColorRepresentation,
-  type Material,
-  type Mesh,
-  type Node,
-  type Object3D,
-  type UniformNode,
-} from 'three/webgpu';
+import { Color, type Node, type Object3D, type UniformNode } from 'three/webgpu';
 import {
   abs,
   cameraPosition,
@@ -116,78 +107,6 @@ export function weaponTelegraphNode(
     glow = mix(fresnelGlow, maskGlow, controls.weaponEdge);
   }
   return controls.weaponColor.mul(controls.weapon).mul(glow);
-}
-
-/** `applyWeaponTelegraph` が返すハンドル。 */
-export interface WeaponTelegraph {
-  /** 武器の縁を光らせる（強さ 0..1、色は省略時は直前の色）。敵の攻撃予備動作（テレグラフ）演出用。 */
-  setWeaponTelegraph(
-    amount: number,
-    color?: ColorRepresentation,
-    style?: WeaponTelegraphStyle,
-  ): void;
-  readonly weaponTelegraph: number;
-  dispose(): void;
-}
-
-/**
- * 亡者マテリアルを使わないキャラクター（プレイヤーなど）の武器へテレグラフの発光を付ける。
- * `root` は `SkeletonUtils.clone` 済み。武器のメッシュの標準マテリアルだけをインスタンス専用のノードマテリアルへ置き換える
- * （テクスチャは共有。体・防具はそのまま）。亡者は `applyUndeadLook` が同じノードを内部で使うので呼ばない。
- */
-export function applyWeaponTelegraph(root: Object3D): WeaponTelegraph {
-  const controls = createTelegraphControls();
-  const created: Material[] = [];
-  const cache = new Map<string, Material>();
-  root.traverse((obj) => {
-    if (!(obj as { isMesh?: boolean }).isMesh) return;
-    const mesh = obj as Mesh;
-    if (!isWeaponObject(mesh)) return;
-    const convert = (src: Material): Material => {
-      const key = src.uuid;
-      let m = cache.get(key);
-      if (!m) {
-        m = withTelegraph(src, controls);
-        cache.set(key, m);
-        created.push(m);
-      }
-      return m;
-    };
-    mesh.material = Array.isArray(mesh.material)
-      ? mesh.material.map(convert)
-      : convert(mesh.material);
-  });
-  let amount = 0;
-  return {
-    setWeaponTelegraph(a, color, style) {
-      amount = Math.min(1, Math.max(0, a));
-      controls.weapon.value = amount;
-      if (color !== undefined) controls.weaponColor.value.set(color);
-      controls.weaponFill.value = style?.fill ?? 1;
-      controls.weaponRim.value = style?.rim ?? 1;
-      controls.weaponSharp.value = style?.sharp ?? 0;
-      controls.weaponEdge.value = style?.edge ?? 0;
-    },
-    get weaponTelegraph() {
-      return amount;
-    },
-    dispose() {
-      for (const m of created) m.dispose();
-    },
-  };
-}
-
-function withTelegraph(src: Material, controls: TelegraphControls): Material {
-  if ((src as { isNodeMaterial?: boolean }).isNodeMaterial) return src;
-  const material = new MeshStandardNodeMaterial();
-  const target = material as unknown as Record<string, unknown>;
-  const source = src as unknown as Record<string, unknown>;
-  for (const key in src) {
-    if (key === 'uuid' || key === 'id') continue;
-    target[key] = source[key];
-  }
-  material.emissiveNode = weaponTelegraphNode(controls);
-  return material;
 }
 
 /** メッシュが武器（`attach:sword` / `equip:Sword|Axe|GreatAxe`）の一部か。 */

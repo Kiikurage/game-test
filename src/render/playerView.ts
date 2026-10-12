@@ -7,7 +7,7 @@ import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
 import { PlayerKitAssets, type CapeRig } from './player/playerKit';
-import { applyWeaponTelegraph, type WeaponTelegraph } from './weaponTelegraph';
+import { applyPlainLook, type WeaponTelegraph } from './undead/undeadMaterial';
 import { AMBUSH } from '../game/data';
 import { heavyChargeGlow } from './player/heavyChargeGlow';
 
@@ -72,7 +72,7 @@ export class PlayerView {
     });
     const cape = kit?.equipKnight(character).cape;
     // 武器の発光（溜め攻撃のフィードバック）
-    const light = applyWeaponTelegraph(character.root);
+    const light = applyPlainLook(character.root);
     let triangles = 0;
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {

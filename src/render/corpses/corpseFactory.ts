@@ -23,6 +23,7 @@ import {
 import { CORPSE_POSE_DEFS, type CorpsePoseDef } from './corpsePoses';
 import { CORPSE_VARIANT_DEFS, hiddenMeshes, type CorpseVariantDef } from './corpseVariants';
 import { applyBoneTurns } from './poseMath';
+import { applyPlainLook } from '../undead/undeadMaterial';
 import { loadIndexSimplifier, simplifyGeometry, type IndexSimplifier } from './simplify';
 
 const DEG = Math.PI / 180;
@@ -195,6 +196,8 @@ export class CorpseFactory {
     }
     const finalBounds = new Box3().setFromObject(group);
     freezeStatic(group);
+    // 亡者・騎士と同じシェーダのマテリアルへ（色・マップは元のまま。パイプラインを共有する。#391）
+    applyPlainLook(group);
     // 元のキャラクター（スケルトン）はここで捨てる。ジオメトリは共有元（glb）のものなので dispose しない。
     character.dispose();
     return { pose, variant, group, triangles, meshCount, bounds: finalBounds };

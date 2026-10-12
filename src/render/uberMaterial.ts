@@ -5,7 +5,7 @@ import {
   MeshBasicNodeMaterial,
   MeshStandardNodeMaterial,
 } from 'three/webgpu';
-import type { ColorRepresentation, Node } from 'three/webgpu';
+import type { ColorRepresentation, Node, Texture, Vector2 } from 'three/webgpu';
 import {
   cos,
   float,
@@ -96,6 +96,14 @@ export interface UberParams {
   opacity?: number;
   /** 発光色（lit のみ。マテリアルの uniform）。 */
   emissive?: ColorRepresentation;
+  /**
+   * 法線マップ・粗さ/金属度マップ（lit のみ。three 標準の読み方: 法線は `normalScale`、粗さは `.g`、金属度は `.b` を係数に掛ける）。
+   * マップの有無でシェーダが変わるので、使う系統は常に渡す（無いときは白 / 平らな法線のダミーを渡して同じシェーダにする）。
+   */
+  normalMap?: Texture;
+  normalScale?: Vector2;
+  roughnessMap?: Texture;
+  metalnessMap?: Texture;
 }
 
 export type UberMaterial = MeshStandardNodeMaterial | MeshBasicNodeMaterial;
@@ -189,6 +197,12 @@ export function createUberMaterial(flags: UberFlags, params: UberParams = {}): U
       flatShading: flags.flatShading ?? false,
       ...(params.emissive !== undefined && { emissive: params.emissive }),
     });
+    if (params.normalMap) {
+      std.normalMap = params.normalMap;
+      if (params.normalScale) std.normalScale.copy(params.normalScale);
+    }
+    if (params.roughnessMap) std.roughnessMap = params.roughnessMap;
+    if (params.metalnessMap) std.metalnessMap = params.metalnessMap;
     if (rgb) std.colorNode = vec4(rgb, 1);
     if (surface?.normal) std.normalNode = surface.normal;
     if (surface?.emissive) std.emissiveNode = surface.emissive;
