@@ -40,12 +40,12 @@ test('conversation: the decision button advances line by line, moving closes it'
 }) => {
   await boot(page);
   const panel = page.getByTestId('text-panel');
-  // スポーン位置（石碑から離れた所）で話す。石碑のそばだと、会話を閉じた押下が先行入力に残り石碑を読み直す
-  const spawn = await page.evaluate(() => {
-    const p = window.__game?.sim.player.position;
-    if (!p) throw new Error('no player');
-    return { x: p.x, z: p.z };
-  });
+  // 石碑のそばで話す（会話を閉じた押下で石碑を読み直さない。#353）
+  const spawn = { x: -4.6, z: 2.2 };
+  await page.evaluate(({ x, z }) => {
+    window.__game?.dev.teleport(x, z, 0);
+  }, spawn);
+  await waitSteps(page, 2);
   await page.evaluate(() => {
     window.__game?.dev.showText(
       ['npc_knight.1', 'npc_knight.2', 'npc_knight.3', 'npc_knight.4'],
