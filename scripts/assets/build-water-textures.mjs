@@ -2,17 +2,19 @@
 //   npm run assets:water            地下水路の水（#270）のタイル可能なテクスチャを生成して public/assets/water/ に書く
 //   npm run assets:water -- --check 生成し直した結果がコミット済みのファイルとバイト単位で一致するか検査する
 //
-// 外部データは使わない。すべて固定シードの手続き生成で、同じ Node.js（zlib）なら毎回同じバイト列になる。
-// 出力（すべて 8bit RGB の PNG、リニア値。sRGB として扱わない）:
-//   water-ripple.png  512²  細かいさざ波の勾配（R = ∂h/∂u、G = ∂h/∂v を [-SLOPE_RANGE, SLOPE_RANGE] → 0..255、B = 高さ）
-//   water-swell.png   256²  ゆるいうねりの勾配（同じ符号化）
-//   water-caustics.png 512² R / G = 別の海面から焼いたコースティクス（強度 I を I / CAUSTIC_RANGE で 0..1 に。平均 ≈ 1 / CAUSTIC_RANGE）、
+// 外部データは使わない。すべて固定シードの手続き生成で、同じ Node.js（zlib）と ktx2-encoder なら毎回同じバイト列になる。
+// 8bit RGB の画像を作り、KTX2（UASTC + Zstandard、ミップマップ付き、リニア値。scripts/assets/ktx2.mjs の 'data'）で書く（#328）。
+// 画像の先頭行が v = 1 になるように上下反転して格納する（PNG を TextureLoader の flipY で読んでいたときと同じ向き）。
+//   water-ripple.ktx2  512²  細かいさざ波の勾配（R = ∂h/∂u、G = ∂h/∂v を [-SLOPE_RANGE, SLOPE_RANGE] → 0..255、B = 高さ）
+//   water-swell.ktx2   256²  ゆるいうねりの勾配（同じ符号化）
+//   water-caustics.ktx2 512² R / G = 別の海面から焼いたコースティクス（強度 I を I / CAUSTIC_RANGE で 0..1 に。平均 ≈ 1 / CAUSTIC_RANGE）、
 //                           B = 泡・浮きかすの模様（セル境界のネットワーク）
 // 勾配はタイル内の周期関数（整数の波数ベクトルの正弦波の和）から解析的に求めるので継ぎ目が出ない。
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
+import { encodeKtx2 } from './ktx2.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT_DIR = join(ROOT, 'public', 'assets', 'water');
@@ -267,16 +269,16 @@ function foam(seed, size, cells) {
   return out;
 }
 
-function build() {
+async function build() {
   const files = {};
   // 細かいさざ波（タイル 0.9m を想定: 波長 約 2〜15cm）
-  files['water-ripple.png'] = encodePng(
+  files['water-ripple.ktx2'] = encodePng(
     512,
     512,
     slopeTexture(0x270a, 512, 6, 46, 1.35, 260, 0.32),
   );
   // ゆるいうねり（タイル 4m を想定: 波長 約 0.4〜2m）。流れの方向（u）へ少し伸ばす
-  files['water-swell.png'] = encodePng(
+  files['water-swell.ktx2'] = encodePng(
     256,
     256,
     slopeTexture(0x270b, 256, 2, 10, 1.6, 70, 0.22, 0.5),
@@ -292,12 +294,15 @@ function build() {
     rgb[i * 3 + 1] = toByte(cb[i] / CAUSTIC_RANGE);
     rgb[i * 3 + 2] = toByte(fm[i]);
   }
-  files['water-caustics.png'] = encodePng(size, size, rgb);
+  files['water-caustics.ktx2'] = encodePng(size, size, rgb);
+  for (const [name, png] of Object.entries(files)) {
+    files[name] = Buffer.from(await encodeKtx2(png, 'data', { flipY: true }));
+  }
   return files;
 }
 
 const checkOnly = process.argv.includes('--check');
-const files = build();
+const files = await build();
 mkdirSync(OUT_DIR, { recursive: true });
 let mismatch = 0;
 for (const [name, data] of Object.entries(files)) {

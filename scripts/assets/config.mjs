@@ -114,7 +114,6 @@ export const CLIPS = {
 
 /** テクスチャの最大辺（スロット別）。ベースカラーは 1024、法線・金属/粗さは 512（テクスチャメモリ予算のため）。 */
 export const TEXTURE_MAX = { baseColor: 1024, normal: 512, metallicRoughness: 512 };
-export const WEBP_QUALITY = { baseColor: 85, normal: 90, metallicRoughness: 80 };
 
 /**
  * キャラクター定義。

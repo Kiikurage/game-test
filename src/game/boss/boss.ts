@@ -29,6 +29,8 @@ import {
   type BossMoveRegistry,
   type BossStageDef,
 } from './bossMove';
+import { CharacterFsm } from '../anim/characterFsm';
+import { BOSS_STATE_GRAPH, type BossStateId } from './bossStates';
 import { pinnedAgainstWall, sectorTouchesCircle, type Circle2D } from './bossBattle';
 import {
   PlayerTracker,
@@ -41,24 +43,7 @@ import {
 const DEG = Math.PI / 180;
 const Y_AXIS = new Vector3(0, 1, 0);
 
-export type BossStateId =
-  /** 戦闘前（`engage()` まで何もしない）。 */
-  | 'dormant'
-  /** ビート: 技の硬直後の睨み合い。対象へ向き直るだけ。 */
-  | 'beat'
-  /** 技の前の接近（技定義の `approach`）。 */
-  | 'approach'
-  /** 技の実行（予備動作 → 判定 → 硬直、複数段）。 */
-  | 'attack'
-  /** 選べる技がなかったので対象へ歩み寄る。 */
-  | 'reposition'
-  /** 強靭度崩し。 */
-  | 'staggered'
-  /** 壁に追い詰められた対象に、近距離技の前に 1 歩下がる（6.6 節）。 */
-  | 'stepBack'
-  /** フェーズ移行（`BOSS_BATTLE.transitionFrames` の間、無敵で行動しない。演出は E5-6）。 */
-  | 'transition'
-  | 'dead';
+export type { BossStateId };
 
 export interface BossInit {
   readonly id: string;
@@ -157,14 +142,13 @@ export class Boss implements BossMoveActor {
    */
   aiEnabled = true;
 
-  private stateId: BossStateId = 'dormant';
-  private stateFrames = 0;
+  /** 状態機械（状態・状態フレーム・ヒットストップの凍結）。 */
+  readonly fsm = new CharacterFsm<BossStateId>(BOSS_STATE_GRAPH, 'dormant');
   private beatLength = 0;
   private run: MoveRun | null = null;
   private pending: { move: BossMoveDef; rollBonus: boolean } | null = null;
   private readonly history: string[] = [];
   private lastWeights: BossWeights | null = null;
-  private freezeLeft = 0;
   private staggerLeft = 0;
   private readonly target = new Vector3();
   private approachMax = 0;
@@ -202,11 +186,11 @@ export class Boss implements BossMoveActor {
   // ---- LockOnTarget ----
 
   get alive(): boolean {
-    return this.stateId !== 'dead';
+    return this.fsm.state !== 'dead';
   }
 
   get state(): BossStateId {
-    return this.stateId;
+    return this.fsm.state;
   }
 
   /** 実行中の技（なければ null）。 */
@@ -217,7 +201,7 @@ export class Boss implements BossMoveActor {
   get debugInfo(): BossDebugInfo {
     const run = this.run;
     return {
-      state: this.stateId,
+      state: this.fsm.state,
       phase: this.phase,
       hp: this.hp,
       x: this.position.x,
@@ -231,7 +215,7 @@ export class Boss implements BossMoveActor {
       stage: run ? run.stageIndex + 1 : 0,
       stageFrame: run?.frame ?? 0,
       weights: this.lastWeights,
-      beatLeft: this.stateId === 'beat' ? Math.max(0, this.beatLength - this.stateFrames) : 0,
+      beatLeft: this.fsm.state === 'beat' ? Math.max(0, this.beatLength - this.fsm.stateFrame) : 0,
       breakUsed: this.breakUsed,
       transitionPending: this.transitionPending,
       player: {
@@ -246,7 +230,7 @@ export class Boss implements BossMoveActor {
 
   /** 戦闘を始める（最初はビートから）。 */
   engage(): void {
-    if (this.stateId !== 'dormant') return;
+    if (this.fsm.state !== 'dormant') return;
     if (!this.engaged) {
       this.engaged = true;
       this.deps.events?.emit('bossEngaged', {
@@ -284,12 +268,12 @@ export class Boss implements BossMoveActor {
 
   /** フェーズ移行の経過フレーム（開始の瞬間が 0、F1 から数える）。移行中でなければ -1。 */
   get transitionFrame(): number {
-    return this.stateId === 'transition' ? this.stateFrames : -1;
+    return this.fsm.state === 'transition' ? this.fsm.stateFrame : -1;
   }
 
   /** 無敵か（フェーズ移行中・入場演出中）。被弾側（`UprightTarget.invulnerable`）へ写す。 */
   get invulnerable(): boolean {
-    return this.stateId === 'transition' || this.introLeft > 0;
+    return this.fsm.state === 'transition' || this.introLeft > 0;
   }
 
   /** 入場演出の経過フレーム（開始 = 0。演出中でなければ -1）。描画（兜を上げて身構える）が読む。 */
@@ -302,7 +286,7 @@ export class Boss implements BossMoveActor {
    * 戦闘前（`dormant`）でなければ何もしない。始めたら true。
    */
   beginIntro(frames: number): boolean {
-    if (this.stateId !== 'dormant' || this.engaged || this.introLeft > 0 || frames <= 0)
+    if (this.fsm.state !== 'dormant' || this.engaged || this.introLeft > 0 || frames <= 0)
       return false;
     this.introLength = frames;
     this.introLeft = frames;
@@ -360,11 +344,10 @@ export class Boss implements BossMoveActor {
     this.introLeft = 0;
     this.history.length = 0;
     this.lastWeights = null;
-    this.freezeLeft = 0;
     this.staggerLeft = 0;
     this.tracker.reset();
     this.deps.poise?.reset();
-    this.enter('dormant');
+    this.fsm.reset('dormant');
     this.syncTransform();
     this.transform.snap();
     if (wasEngaged) {
@@ -379,7 +362,7 @@ export class Boss implements BossMoveActor {
 
   /** ヒットストップ（`Game.registerFreezable`）。 */
   freeze(frames: number): void {
-    this.freezeLeft = Math.max(this.freezeLeft, Math.floor(frames));
+    this.fsm.freeze(Math.max(0, Math.floor(frames)));
   }
 
   /**
@@ -387,7 +370,7 @@ export class Boss implements BossMoveActor {
    * そのフェーズの間、強靭度ダメージが無効になる（`Poise.damageDisabled`）。2 回目以降は何もしない。
    */
   stagger(frames: number): void {
-    if (!this.alive || this.stateId === 'transition' || this.breakUsed) return;
+    if (!this.alive || this.fsm.state === 'transition' || this.breakUsed) return;
     this.breakUsed = true;
     if (this.deps.poise) this.deps.poise.damageDisabled = true;
     this.cancelRun();
@@ -452,17 +435,17 @@ export class Boss implements BossMoveActor {
     this.distanceNow = Math.hypot(player.x - this.position.x, player.z - this.position.z);
     // プレイヤー状態の追跡は戦闘前・凍結中も続ける（背後・ロール連打を正しく数える）
     this.tracker.update(this.position.x, this.position.z, this.yaw, player);
-    if (this.stateId === 'dead' || this.stateId === 'dormant') {
-      if (this.introLeft > 0 && this.stateId === 'dormant' && --this.introLeft === 0) this.engage();
+    if (this.fsm.state === 'dead' || this.fsm.state === 'dormant') {
+      if (this.introLeft > 0 && this.fsm.state === 'dormant' && --this.introLeft === 0)
+        this.engage();
       this.syncTransform();
       return;
     }
-    if (this.freezeLeft > 0) {
-      this.freezeLeft--;
+    if (this.fsm.consumeFreeze()) {
       this.syncTransform();
       return;
     }
-    this.stateFrames++;
+    this.fsm.advance();
 
     // HP がフェーズ 2 の閾値以下になったら移行を予約する（技の最中なら、その技は最後まで出す）
     if (this.phase === 1 && this.hp <= BOSS_BATTLE.phase2Hp) {
@@ -471,10 +454,10 @@ export class Boss implements BossMoveActor {
     // 技の外（ビート・接近・歩み寄り・1 歩下がり）なら、すぐ移行する
     if (
       this.transitionPending &&
-      (this.stateId === 'beat' ||
-        this.stateId === 'approach' ||
-        this.stateId === 'reposition' ||
-        this.stateId === 'stepBack')
+      (this.fsm.state === 'beat' ||
+        this.fsm.state === 'approach' ||
+        this.fsm.state === 'reposition' ||
+        this.fsm.state === 'stepBack')
     ) {
       this.cancelRun();
       this.beginTransition();
@@ -482,7 +465,7 @@ export class Boss implements BossMoveActor {
       return;
     }
 
-    switch (this.stateId) {
+    switch (this.fsm.state) {
       case 'beat':
         this.updateBeat(dt);
         break;
@@ -490,7 +473,7 @@ export class Boss implements BossMoveActor {
         this.updateStepBack();
         break;
       case 'transition':
-        if (this.stateFrames >= BOSS_BATTLE.transitionFrames) {
+        if (this.fsm.stateFrame >= BOSS_BATTLE.transitionFrames) {
           this.setPhase(2);
           this.afterTransition = true;
           this.enterBeat();
@@ -506,7 +489,7 @@ export class Boss implements BossMoveActor {
         this.updateReposition(dt);
         break;
       case 'staggered':
-        if (this.stateFrames >= this.staggerLeft) this.enterBeat();
+        if (this.fsm.stateFrame >= this.staggerLeft) this.enterBeat();
         break;
       default:
         break;
@@ -516,9 +499,10 @@ export class Boss implements BossMoveActor {
 
   // ---- 状態 ----
 
+  /** 状態に入る（状態フレームを 0 へ。同じ状態なら最初からやり直す）。グラフにない遷移は例外。 */
   private enter(state: BossStateId): void {
-    this.stateId = state;
-    this.stateFrames = 0;
+    if (state === this.fsm.state) this.fsm.restart();
+    else this.fsm.transition(state);
   }
 
   /** フェーズ移行を始める（無敵・行動停止。`bossPhaseBoundary` を発行する。演出は購読側）。 */
@@ -561,13 +545,13 @@ export class Boss implements BossMoveActor {
 
   private updateBeat(dt: number): void {
     this.faceTarget(dt);
-    if (this.stateFrames >= this.beatLength) this.selectMove();
+    if (this.fsm.stateFrame >= this.beatLength) this.selectMove();
   }
 
   private updateReposition(dt: number): void {
     this.faceTarget(dt);
     this.walkToward(dt, 'walk');
-    if (this.stateFrames >= BOSS_AI.repositionFrames) this.enterBeat();
+    if (this.fsm.stateFrame >= BOSS_AI.repositionFrames) this.enterBeat();
   }
 
   /** 次の技を選び、始める。 */
@@ -626,7 +610,7 @@ export class Boss implements BossMoveActor {
     const step = BOSS_WALL.stepBackDistance / BOSS_WALL.stepBackFrames;
     if (len > 1e-3) this.moveBy((dx / len) * step, (dz / len) * step);
     this.distanceNow = Math.hypot(this.target.x - this.position.x, this.target.z - this.position.z);
-    if (this.stateFrames >= BOSS_WALL.stepBackFrames) {
+    if (this.fsm.stateFrame >= BOSS_WALL.stepBackFrames) {
       this.beginMove(true);
     }
   }
@@ -670,7 +654,7 @@ export class Boss implements BossMoveActor {
     }
     this.faceTarget(dt);
     this.walkToward(dt, a.speed);
-    if (this.distanceNow <= a.stopRange || this.stateFrames >= this.approachMax) {
+    if (this.distanceNow <= a.stopRange || this.fsm.stateFrame >= this.approachMax) {
       this.beginStage(0);
     }
   }
@@ -714,7 +698,6 @@ export class Boss implements BossMoveActor {
       ...(stage.knockback !== undefined && { knockback: stage.knockback }),
     });
     this.enter('attack');
-    this.stateFrames = 0;
     run.move.hooks?.onStageStart?.(this.moveContext());
   }
 

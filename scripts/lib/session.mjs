@@ -20,6 +20,20 @@ export const VIEWPORTS = {
 };
 
 /**
+ * perf / profile の計測対象。既定は 915x412・内部解像度 0.25（カウント用。GPU が遅い SwiftShader 向け）。
+ * `PERF_PC=1` なら PC（1280x720 DPR1・内部解像度 1 に固定）で測る（実 GPU の時間を見るとき。GPU_MODE=hardware と併用）。
+ */
+export function measureTarget() {
+  return process.env.PERF_PC
+    ? { name: 'pc 1280x720 scale=1', context: VIEWPORTS.pc, query: 'scale=1' }
+    : {
+        name: '915x412 scale=0.25',
+        context: { viewport: { width: 915, height: 412 } },
+        query: 'scale=0.25',
+      };
+}
+
+/**
  * ビルド → preview → ブラウザ起動。
  * @param {object} o
  * @param {number} o.port プレビューのポート
