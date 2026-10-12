@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MemoryStorage, SAVE_KEY } from '../../core/persistence';
 import { createHeadlessGame, settle, tap } from '../testing/headlessGame';
 import { arenaOf } from '../world/arena';
-import { bossSystemOf } from './boss.system';
+import { bossSystem } from './boss.system';
 
 /**
  * ボス撃破演出（#86）を実レベルの闘技場で通す（E2E の bossDefeat から移した）: HP 0 → 撃破のセーブ → F300 に台座の篝火 →
@@ -24,7 +24,7 @@ describe('boss defeat in the arena', () => {
       def.entry.z + (dz / len) * 5,
       Math.atan2(dx, dz),
     );
-    bossSystemOf(h.game).spawn({
+    h.game.systems.get(bossSystem).spawn({
       x: def.center.x + (dx / len) * 4,
       z: def.center.z + (dz / len) * 4,
       y: def.floorY,
