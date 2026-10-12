@@ -27,7 +27,12 @@ import { finiteColor } from './finiteColor';
 
 /** three r186 の内部 `RenderContexts`（compileScene でキャッシュキーを本描画に揃えるためだけに触る）。 */
 interface RenderContextsLike {
-  get(renderTarget: unknown, mrt: unknown, callDepth?: number): unknown;
+  get: (
+    this: RenderContextsLike,
+    renderTarget: unknown,
+    mrt: unknown,
+    callDepth?: number,
+  ) => unknown;
 }
 
 /** シーンパスが本描画で呼ばれる深さ（RenderPipeline.render → 全画面描画 → PassNode.updateBefore → renderer.render）。 */
@@ -193,7 +198,7 @@ export function createPostProcess(
       const contexts = (renderer as unknown as { _renderContexts: RenderContextsLike })
         ._renderContexts;
       const originalGet = contexts.get;
-      contexts.get = (target, mrt, _callDepth) =>
+      contexts.get = (target, mrt) =>
         originalGet.call(contexts, target, mrt, SCENE_PASS_CALL_DEPTH);
       let compiling: Promise<void>;
       try {
