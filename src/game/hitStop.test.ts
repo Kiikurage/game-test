@@ -10,9 +10,9 @@ import {
   type GuardOutcome,
   type HitEvent,
 } from './combat';
-import { gameStats } from './debug/stats.system';
 import { Game } from './game';
 import { FakeInput } from './testing/fakeInput';
+import { debugStatsSystem } from './debug/stats.system';
 
 const DT = 1 / 60;
 
@@ -96,7 +96,7 @@ describe('hit-stop (Game)', () => {
     expect(game.player.fsm.freezeRemaining).toBe(6);
     expect(enemy.freeze.remaining).toBe(6);
     expect(bystander.remaining).toBe(0);
-    expect(gameStats(game).lastHitStopFrames).toBe(6);
+    expect(game.systems.get(debugStatsSystem).lastHitStopFrames).toBe(6);
   });
 
   it('被弾リアクタ（ダミーの強靭度・崩しの残り）もヒットストップ中は進まない', () => {
@@ -140,11 +140,11 @@ describe('hit-stop (Game)', () => {
     game.debugSwing.start();
     // 発生 12F のあと、持続中に命中する
     let guard = 0;
-    while (gameStats(game).hitCount === 0 && guard++ < 60) run(1);
-    expect(gameStats(game).hitCount).toBe(1);
+    while (game.systems.get(debugStatsSystem).hitCount === 0 && guard++ < 60) run(1);
+    expect(game.systems.get(debugStatsSystem).hitCount).toBe(1);
     expect(game.player.fsm.freezeRemaining).toBe(4);
     const frame = game.player.stateFrame;
-    const stepsBefore = gameStats(game).hitStopCount;
+    const stepsBefore = game.systems.get(debugStatsSystem).hitStopCount;
     // 4F の間は凍結。その間も物理・カメラ・タイムは進む（別のキャラクターの凍結の消費は呼び出し側）
     run(4);
     expect(game.player.stateFrame).toBe(frame);
@@ -152,7 +152,7 @@ describe('hit-stop (Game)', () => {
     expect(game.player.fsm.freezeRemaining).toBe(0);
     run(1);
     expect(game.player.animation.frozen).toBe(false);
-    expect(gameStats(game).hitStopCount).toBe(stepsBefore);
+    expect(game.systems.get(debugStatsSystem).hitStopCount).toBe(stepsBefore);
   });
 
   it('シミュレーション: 軽攻撃が命中すると、攻撃側の動作が +4F 遅れて終わる', () => {
@@ -168,11 +168,11 @@ describe('hit-stop (Game)', () => {
     game.teleportPlayer(0, 3.5, Math.PI); // 周囲にダミーはいない
     run(5);
     const miss = swingSteps();
-    const hits0 = gameStats(game).hitCount;
+    const hits0 = game.systems.get(debugStatsSystem).hitCount;
     game.teleportPlayer(0, -4.5, Math.PI); // dummy-a の 1.5m 手前
     run(5);
     const hit = swingSteps();
-    expect(gameStats(game).hitCount).toBe(hits0 + 1);
+    expect(game.systems.get(debugStatsSystem).hitCount).toBe(hits0 + 1);
     expect(hit).toBe(miss + game.tuning.hitStop.playerLight);
     expect(game.tuning.hitStop.playerLight).toBe(4);
   });
@@ -215,7 +215,7 @@ describe('hit-stop (Game)', () => {
     expect(game.player.invulnerable).toBe(true);
     expect(hitPlayer('soldier-1')).toHaveLength(0);
     expect(game.player.fsm.freezeRemaining).toBe(0);
-    expect(gameStats(game).hitStopCount).toBe(0);
+    expect(game.systems.get(debugStatsSystem).hitStopCount).toBe(0);
   });
 
   it('雑魚敵の撃破: 6F 凍結だけでスローなし（#277）。死亡確定はヒットストップ前に通知される', () => {
@@ -257,8 +257,8 @@ describe('hit-stop (Game)', () => {
     hitPlayer('soldier-1');
     expect(seen).toHaveLength(1);
     // システム（onImpact）にも 1 回だけ届く
-    expect(gameStats(game).hitCount).toBe(1);
-    expect(gameStats(game).hitStopCount).toBe(1);
+    expect(game.systems.get(debugStatsSystem).hitCount).toBe(1);
+    expect(game.systems.get(debugStatsSystem).hitStopCount).toBe(1);
     expect(seen[0]).toMatchObject({
       attackerId: 'soldier-1',
       targetId: 'player',

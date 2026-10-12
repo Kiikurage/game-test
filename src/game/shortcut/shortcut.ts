@@ -1,6 +1,6 @@
 // ショートカット（#65、仕様書 7.1 節）: 鉄門 G1 とレバーの状態・操作・セーブ。
 //
-//   const sc = shortcutOf(game);            // 鉄門のないレベルでは null
+//   const sc = game.systems.get(shortcutSystem);            // 鉄門のないレベルでは null
 //   sc?.state;                              // 'closed' | 'opening' | 'open'
 //   sc?.onOpened(({ id }) => ...);          // 開通（レバーを引いた瞬間。`shortcutOpened` イベントも出る）
 //
@@ -9,9 +9,9 @@
 // - 開通は操作の瞬間にセーブ（`save.shortcuts` に 'G1'）。セーブ済みなら最初から開いた状態で始まる。
 import type { Game } from '../game';
 import { SHORTCUT } from '../data/shortcut';
-import { interactionOf } from '../interaction/interaction';
 import { yawOf } from '../player/movement';
 import type { InteractableSpawn } from '../world/level';
+import { interactionSystem } from '../interaction/interaction.system';
 
 export type ShortcutState = 'closed' | 'opening' | 'open';
 
@@ -32,7 +32,7 @@ export class Shortcut {
   ) {
     this.current = game.save.get().shortcuts.includes(SHORTCUT.gateId) ? 'open' : 'closed';
     this.applyCollider();
-    interactionOf(game).register({
+    game.systems.get(interactionSystem).register({
       id: lever.id,
       kind: 'lever',
       x: lever.x,

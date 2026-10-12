@@ -1,10 +1,10 @@
 import { ACTIONS } from '../../core/input';
 import type { DeathPhase } from '../../core/gameEvents';
-import { bonfiresOf } from '../bonfire/bonfire';
 import { DEATH } from '../data/death';
 import type { Game } from '../game';
 import { registerGameSystem } from '../systems';
 import { DeathTimeline, type DeathVisual } from './deathTimeline';
+import { bonfireSystem } from '../bonfire/bonfire.system';
 
 // 死亡処理（仕様書 8.1 / 8.2 / 8.3 / 3.3 節）。HP 0 を検知して F0 から演出のタイムラインを進め、F300 で篝火へ再開する。
 //
@@ -12,7 +12,7 @@ import { DeathTimeline, type DeathVisual } from './deathTimeline';
 //   ヒットストップ 12F は命中時の標準処理（`decideHitStop`）が行う。
 // - F12–: カメラを引き FOV を縮める（`game.camera.presentation`）。F30–: 画面の彩度・明度・周辺減光（`visual.grade`。
 //   描画は `render/death/death.view.ts`）。F60: 「YOU DIED」表示。F90 以降はボタン入力でスキップ。F240–F300 黒へ。
-// - F300: `bonfiresOf(game).respawn()`（HP・瓶・敵の復活・`rest` イベント・立ち上がり）。篝火が無い場面（テストシーン）は
+// - F300: `game.systems.get(bonfireSystem).respawn()`（HP・瓶・敵の復活・`rest` イベント・立ち上がり）。篝火が無い場面（テストシーン）は
 //   初期位置へ戻す。ボスなどのリセットは `rest`（cause: 'respawn'）を購読する。取得済みアイテム・ショートカットはセーブなので触らない。
 // 各節目は `death` イベントで通知する（`GameEventMap.death`）。
 
@@ -97,7 +97,7 @@ export class DeathController {
   private respawn(): void {
     const { game } = this;
     game.timeScale.reset();
-    if (!bonfiresOf(game).respawn()) {
+    if (!game.systems.get(bonfireSystem).respawn()) {
       game.respawn();
       game.player.stamina.refill();
       game.respawnEnemies();
@@ -112,23 +112,18 @@ export class DeathController {
   }
 }
 
-const controllers = new WeakMap<Game, DeathController>();
-
-/** `game` の死亡処理（描画・HUD・デバッグが状態を読む）。 */
-export function deathOf(game: Game): DeathController {
-  let c = controllers.get(game);
-  if (!c) {
-    c = new DeathController(game);
-    controllers.set(game, c);
-  }
-  return c;
-}
-
-registerGameSystem('death', (game) => {
-  const death = deathOf(game);
-  return {
-    update: () => {
-      death.update();
-    },
-  };
-});
+/** 死亡処理（`game.systems.get(deathSystem)`。描画・HUD・デバッグが状態を読む）。 */
+export const deathSystem = registerGameSystem(
+  'death',
+  (game) => {
+    const death = new DeathController(game);
+    return {
+      state: death,
+      update: () => {
+        death.update();
+      },
+    };
+  },
+  // 篝火の更新の後に再開（リスポーン）を呼ぶ
+  { after: ['bonfire'] },
+);

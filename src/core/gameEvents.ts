@@ -58,7 +58,7 @@ export interface BossBattleEvents {
   /**
    * フェーズ移行の演出の節目（#84 / 6.5 節）。`bossPhaseBoundary` の後、ボスの移行 F に同期して発行する（`frame` = 移行の F。開始は 0）。
    * `end` は F120（戦闘再開）。移行の途中でボスがリセットされたときは、その場で `end`（`aborted: true`）を発行する。
-   * 描画（盾投げ・咆哮・熾火・画面の縁）・UI（HP バーの境界の光）はこれと `bossTransitionOf(game).frame` を読む。
+   * 描画（盾投げ・咆哮・熾火・画面の縁）・UI（HP バーの境界の光）はこれと `game.systems.get(bossTransitionSystem).frame` を読む。
    */
   bossTransition: {
     readonly id: string;
@@ -74,7 +74,7 @@ export interface BossBattleEvents {
   /**
    * 撃破演出の節目（#86 / 8.4 節）。`bossDefeated`（F0）の後、シミュレーションの F に同期して発行する（`frame` = 撃破からのステップ数）。
    * 撃破テキスト（E6-3b）は `text`、霧の門の `unseal()` は `fogClear`、操作の復帰は `control` を購読する。
-   * 描画（崩壊・ディゾルブ・熾火・篝火の点火）は `bossDefeatOf(game).frame` を読む。
+   * 描画（崩壊・ディゾルブ・熾火・篝火の点火）は `game.systems.get(bossDefeatSystem).frame` を読む。
    */
   bossDefeatCue: {
     readonly id: string;
