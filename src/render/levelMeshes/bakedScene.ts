@@ -145,6 +145,10 @@ export function restoreBakedScene(scene: Object3D): Object3D {
       g.deleteAttribute(name);
       g.setAttribute(original.get(name.slice(1)) ?? name.slice(1), a);
     }
+    // Blender の glTF 書き出しは v を反転する（v' = 1 - v）が GLTFLoader は戻さないので、ここで戻す
+    // （fx の炎・蜘蛛の巣は uv.y を使う。反転したままだと炎が上下逆になる）
+    const uv = g.getAttribute('uv') as BufferAttribute | undefined;
+    if (uv) for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
     // 描画用には使わない（ライトマップ用・Blender が補った UV）。fx の `uv` は TEXCOORD_0 として残る
     g.deleteAttribute('uv1');
   });
