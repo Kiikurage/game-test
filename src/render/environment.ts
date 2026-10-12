@@ -33,6 +33,7 @@ import {
 import type { QualityPreset } from './quality';
 import { bakedFractal, bakedHash } from './bakedNoise';
 import { SHADOW_PROXY_LAYER } from './layers';
+import { useDeterministicPCF } from './lighting/shadowFilter';
 import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
 
 /** 太陽（シャドウカメラ）をフォーカスからどれだけ離すか（m）。 */
@@ -271,6 +272,8 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.04;
   sun.shadow.radius = 2.5;
+  // 標準の PCF は画面ノイズで回すので粒が出る（#401）。ノイズを使わない固定格子の PCF に差し替える
+  useDeterministicPCF(sun.shadow);
   sun.position.copy(sunDir).multiplyScalar(SHADOW_LIGHT_DISTANCE);
   scene.add(sun);
   scene.add(sun.target);
