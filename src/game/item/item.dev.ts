@@ -1,5 +1,5 @@
 import { registerDevHooks } from '../../devHooks';
-import { itemsOf } from './item';
+import { itemSystem } from './item.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -15,8 +15,8 @@ declare module '../../devHooks' {
 
 registerDevHooks('items', ({ game }) => ({
   items: () => ({
-    placed: itemsOf(game).ids,
-    picking: itemsOf(game).isPicking,
+    placed: game.systems.get(itemSystem).ids,
+    picking: game.systems.get(itemSystem).isPicking,
     flasks: { count: game.player.flask.count, max: game.player.flask.max },
     saved: game.save.get().items,
   }),

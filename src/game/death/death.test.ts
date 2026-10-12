@@ -1,14 +1,14 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { GameEventMap } from '../../core/gameEvents';
 import { MemoryStorage, SaveStore } from '../../core/persistence';
-import { bonfiresOf } from '../bonfire/bonfire';
 import { DEATH } from '../data/death';
 import { PLAYER_STATS } from '../data';
 import { Game } from '../game';
-import { hudModelOf } from '../hud/hud.system';
 import { FakeInput } from '../testing/fakeInput';
 import type { EnemySpawn } from '../world/level';
-import { deathOf } from './death.system';
+import { deathSystem } from './death.system';
+import { bonfireSystem } from '../bonfire/bonfire.system';
+import { hudSystem } from '../hud/hud.system';
 
 const DT = 1 / 60;
 
@@ -53,7 +53,7 @@ describe('death and respawn', () => {
       }
     };
     run(5);
-    return { game, input, events, run, death: deathOf(game) };
+    return { game, input, events, run, death: game.systems.get(deathSystem) };
   }
 
   const phases = (events: { name: string; payload: unknown }[]) =>
@@ -84,7 +84,7 @@ describe('death and respawn', () => {
     expect(phases(events)).toContain('hold');
     expect(death.visual.grade).toBe(1);
     expect(game.camera.presentation.fovOffsetDeg).toBeLessThan(-3.5);
-    expect(hudModelOf(game).opacity).toBe(0); // HUD は死亡中に隠れる
+    expect(game.systems.get(hudSystem).opacity).toBe(0); // HUD は死亡中に隠れる
 
     run(120);
     expect(phases(events)).toContain('fadeOut');
@@ -132,7 +132,7 @@ describe('death and respawn', () => {
 
   it('refills flasks, revives enemies and keeps saved progress on respawn', async () => {
     const { game, run } = await setup();
-    const bonfire = bonfiresOf(game);
+    const bonfire = game.systems.get(bonfireSystem);
     expect(bonfire.ids).toEqual(['bonfire']);
     game.player.flask.use();
     game.player.flask.use();

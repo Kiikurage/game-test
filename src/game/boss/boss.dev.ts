@@ -1,7 +1,7 @@
 import { registerDevHooks } from '../../devHooks';
 import type { BossDebugInfo } from './boss';
 import type { BossPhase } from './bossData';
-import { bossSystemOf } from './boss.system';
+import { bossSystem } from './boss.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -27,7 +27,7 @@ declare module '../../devHooks' {
 registerDevHooks('boss', ({ game }) => {
   const spawn: DevHooksSpawn = (options = {}) => {
     const p = game.player.feet;
-    bossSystemOf(game).spawn({
+    game.systems.get(bossSystem).spawn({
       x: options.x ?? p.x,
       z: options.z ?? p.z - 7,
       yaw: options.yaw ?? 0,
@@ -40,20 +40,20 @@ registerDevHooks('boss', ({ game }) => {
     spawn();
     // プレイヤーの死亡でボスは待機へ戻る（`BossSystem`）。確認シーンは入場演出がないので、復活の時点で再び交戦させる
     game.events.on('death', (e) => {
-      if (e.phase === 'respawn') bossSystemOf(game).boss?.engage();
+      if (e.phase === 'respawn') game.systems.get(bossSystem).boss?.engage();
     });
   }
   return {
     bossSpawn: spawn,
     bossRemove: () => {
-      bossSystemOf(game).remove();
+      game.systems.get(bossSystem).remove();
     },
-    bossDebug: () => bossSystemOf(game).boss?.debugInfo ?? null,
+    bossDebug: () => game.systems.get(bossSystem).boss?.debugInfo ?? null,
     bossDamage: (amount) => {
-      bossSystemOf(game).damage(amount);
+      game.systems.get(bossSystem).damage(amount);
     },
     bossPhase: (phase) => {
-      bossSystemOf(game).boss?.setPhase(phase);
+      game.systems.get(bossSystem).boss?.setPhase(phase);
     },
   };
 });

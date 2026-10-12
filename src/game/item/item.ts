@@ -7,13 +7,13 @@ import { ITEM, ITEM_DEFS } from '../data/items';
 import { lootFlag } from '../data/world/lootTuning';
 import type { Interactable } from '../data/world/types';
 import type { Game } from '../game';
-import { interactablesOf } from '../interactable/interactable';
+import { interactableSystem } from '../interactable/interactable.system';
 
 export class ItemController {
   private readonly placed = new Set<string>();
 
   constructor(private readonly game: Game) {
-    const base = interactablesOf(game);
+    const base = game.systems.get(interactableSystem);
     for (const spawn of game.interactableSpawns) {
       const def = spawn.kind === 'item' && spawn.itemId ? ITEM_DEFS[spawn.itemId] : undefined;
       if (!def) continue;
@@ -37,24 +37,12 @@ export class ItemController {
 
   /** 置かれている（未取得の）アイテムの ID（`spawn.id`）。 */
   get ids(): readonly string[] {
-    const usable = new Set(interactablesOf(this.game).usableIds);
+    const usable = new Set(this.game.systems.get(interactableSystem).usableIds);
     return [...this.placed].filter((id) => usable.has(id));
   }
 
   /** 拾う動作中か。 */
   get isPicking(): boolean {
-    return interactablesOf(this.game).isLooting;
+    return this.game.systems.get(interactableSystem).isLooting;
   }
-}
-
-const controllers = new WeakMap<Game, ItemController>();
-
-/** `game` のアイテム（なければ作る）。 */
-export function itemsOf(game: Game): ItemController {
-  let c = controllers.get(game);
-  if (!c) {
-    c = new ItemController(game);
-    controllers.set(game, c);
-  }
-  return c;
 }

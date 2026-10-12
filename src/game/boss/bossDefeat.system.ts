@@ -1,17 +1,18 @@
 import type { BossDefeatCue, Vec3Like } from '../../core/gameEvents';
-import { bonfiresOf } from '../bonfire/bonfire';
 import { cameraEffectsOf } from '../camera/cameraEffects.system';
 import { ARENA_BONFIRE_ID } from '../data/bonfire';
 import type { Game } from '../game';
+import { fogGateSystem } from '../fogGate/fogGate.system';
 import { registerGameSystem } from '../systems';
 import { BOSS_DEFEAT, defeatCuesBetween, defeatDissolve, defeatFogDensity } from './bossDefeat';
+import { bonfireSystem } from '../bonfire/bonfire.system';
 
 /**
  * ボス撃破演出の進行（#86 / 仕様書 6.6・8.4 節）。`bossDefeated`（F0）に同期して、節目（`bossDefeatCue`）・カメラ・SE・
  * BGM フェードアウト・撃破のセーブ・台座の篝火を発行する。描画（崩壊・ディゾルブ・熾火・篝火の点火・霧）は
  * `render/boss/bossDefeat.view.ts` が `frame` を読む。タイムラインの表は `bossDefeat.ts`。
  *
- *   const defeat = bossDefeatOf(game);
+ *   const defeat = game.systems.get(bossDefeatSystem);
  *   defeat.frame;                     // 撃破からのステップ数（撃破していなければ -1）
  *   defeat.on('fogClear', () => ...); // 節目の購読（霧の門 `unseal()` など）
  *   game.events.on('bossDefeatCue', (e) => ...);  // 同じ節目（`text` = 撃破テキスト、`control` = 操作可能）
@@ -127,7 +128,7 @@ export class BossDefeatDirector {
         unsealFogGate(game);
         break;
       case 'bonfire':
-        bonfiresOf(game).revealArenaBonfire(() => this.controlRestored);
+        game.systems.get(bonfireSystem).revealArenaBonfire(() => this.controlRestored);
         game.events.emit('sound', { cue: 'ui.bonfire-light', source: 'world', position });
         break;
       default:
@@ -137,39 +138,23 @@ export class BossDefeatDirector {
   }
 }
 
-/** 霧の門（#66）のモジュール。まだなければ空（`fogGateOf` を出していれば `unsealFogGate` が呼ぶ）。 */
-const fogGateModules = import.meta.glob<Record<string, unknown>>('../**/fogGate*.system.ts', {
-  eager: true,
-});
-
-/**
- * 霧の門の解除（`fogGateOf(game).unseal()`）。霧の門が `game/**` の `fogGate*.system.ts` に `fogGateOf` を出していれば呼ぶ。
- * まだなければ何もしない（購読側が `bossDefeatCue` の `fogClear` で呼んでもよい）。
- */
+/** 霧の門の解除（`unseal()`）。霧の門のないシーンでは何もしない。 */
 function unsealFogGate(game: Game): void {
-  for (const mod of Object.values(fogGateModules)) {
-    const of = mod['fogGateOf'];
-    if (typeof of !== 'function') continue;
-    const gate = (of as (g: Game) => unknown)(game) as { unseal?: () => void } | null | undefined;
-    gate?.unseal?.();
-  }
+  game.systems.get(fogGateSystem)?.unseal();
 }
 
-const directors = new WeakMap<Game, BossDefeatDirector>();
-
-/** `game` のボス撃破演出（描画が `frame` を読む）。 */
-export function bossDefeatOf(game: Game): BossDefeatDirector {
-  const d = directors.get(game);
-  if (!d) throw new Error('boss defeat system is not registered for this game');
-  return d;
-}
-
-registerGameSystem('boss-defeat', (game) => {
-  const director = new BossDefeatDirector(game);
-  directors.set(game, director);
-  return {
-    update: () => {
-      director.update();
-    },
-  };
-});
+/** ボス撃破演出（`game.systems.get(bossDefeatSystem)`。描画が `frame` を読む）。 */
+export const bossDefeatSystem = registerGameSystem(
+  'boss-defeat',
+  (game) => {
+    const director = new BossDefeatDirector(game);
+    return {
+      state: director,
+      update: () => {
+        director.update();
+      },
+    };
+  },
+  // このステップのボスの撃破を見て、カメラ演出・霧の門・篝火を動かす
+  { after: ['boss', 'cameraEffects', 'fogGate', 'bonfire'] },
+);

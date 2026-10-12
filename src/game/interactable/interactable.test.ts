@@ -3,10 +3,10 @@ import { MemoryStorage, SaveStore } from '../../core/persistence';
 import type { GameEventMap } from '../../core/gameEvents';
 import { LOOT } from '../data/world/lootTuning';
 import { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
-import { textPanelOf } from '../text/textPanel.system';
-import { interactablesOf } from './interactable';
+import { textPanelSystem } from '../text/textPanel.system';
+import { interactionSystem } from '../interaction/interaction.system';
+import { interactableSystem } from './interactable.system';
 
 const DT = 1 / 60;
 
@@ -50,18 +50,25 @@ describe('data-driven interactables (read / loot)', () => {
 
   it('registers only the targets that the level places', async () => {
     const { game } = await setup();
-    expect([...interactablesOf(game).ids].sort()).toEqual(['corpse_b_flask', 'grave_b1']);
+    expect([...game.systems.get(interactableSystem).ids].sort()).toEqual([
+      'corpse_b_flask',
+      'grave_b1',
+    ]);
   });
 
   it('read: offers 読む, shows the text without stopping, and saves read.<id>', async () => {
     const { game, save, storage, texts, run, press } = await setup();
     run(5);
-    expect(interactionOf(game).prompt).toEqual({ id: 'grave_b1', kind: 'read', label: '読む' });
+    expect(game.systems.get(interactionSystem).prompt).toEqual({
+      id: 'grave_b1',
+      kind: 'read',
+      label: '読む',
+    });
     press();
     expect(texts).toEqual([{ id: 'grave_b1', mode: 'read' }]);
     expect(game.player.state).not.toBe('interact'); // 立ち止まらない
     expect(save.hasFlag('read.grave_b1')).toBe(true);
-    expect(textPanelOf(game).current?.text).toBe(
+    expect(game.systems.get(textPanelSystem).current?.text).toBe(
       '名は風が削った。\n門の前で倒れた、とだけ残っている。',
     );
     // セーブされている（ストレージから読み直しても残る）
@@ -76,24 +83,24 @@ describe('data-driven interactables (read / loot)', () => {
     const { game, run, press } = await setup();
     run(5);
     press();
-    expect(textPanelOf(game).active).toBe(true);
+    expect(game.systems.get(textPanelSystem).active).toBe(true);
     run(60 * 6 - 5);
-    expect(textPanelOf(game).active).toBe(true);
+    expect(game.systems.get(textPanelSystem).active).toBe(true);
     run(10);
-    expect(textPanelOf(game).active).toBe(false);
+    expect(game.systems.get(textPanelSystem).active).toBe(false);
 
     press();
-    expect(textPanelOf(game).active).toBe(true);
+    expect(game.systems.get(textPanelSystem).active).toBe(true);
     game.teleportPlayer(16, 5.2, 0);
     run(2);
-    expect(textPanelOf(game).active).toBe(false);
+    expect(game.systems.get(textPanelSystem).active).toBe(false);
   });
 
   it('loot: crouches for 60F (defenseless), gets the item and the text at the effect frame, then hides', async () => {
     const { game, save, texts, picked, run, press } = await setup();
     game.teleportPlayer(24, 7.8, 0);
     run(5);
-    expect(interactionOf(game).prompt).toEqual({
+    expect(game.systems.get(interactionSystem).prompt).toEqual({
       id: 'corpse_b_flask',
       kind: 'loot',
       label: '調べる',
@@ -111,8 +118,8 @@ describe('data-driven interactables (read / loot)', () => {
     expect(game.player.state).toBe('interact'); // まだかがんでいる（動作は 60F）
     run(LOOT.frames);
     expect(game.player.state).toBe('idle');
-    expect(interactionOf(game).prompt).toBeNull();
-    expect(interactablesOf(game).usableIds).toEqual(['grave_b1']);
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
+    expect(game.systems.get(interactableSystem).usableIds).toEqual(['grave_b1']);
   });
 
   it('loot: nothing is obtained when the player is hit during the crouch', async () => {
@@ -125,7 +132,7 @@ describe('data-driven interactables (read / loot)', () => {
     run(LOOT.frames);
     expect(save.getCount('relic_flask')).toBe(0);
     expect(save.hasFlag('loot.corpse_b_flask')).toBe(false);
-    expect(interactablesOf(game).usableIds).toContain('corpse_b_flask');
+    expect(game.systems.get(interactableSystem).usableIds).toContain('corpse_b_flask');
   });
 
   it('loot: the taken state is saved and the corpse is not offered after loading', async () => {
@@ -138,6 +145,6 @@ describe('data-driven interactables (read / loot)', () => {
     second.game.teleportPlayer(24, 7.8, 0);
     second.run(5);
     expect(second.save.getCount('relic_flask')).toBe(1);
-    expect(interactionOf(second.game).prompt).toBeNull();
+    expect(second.game.systems.get(interactionSystem).prompt).toBeNull();
   });
 });

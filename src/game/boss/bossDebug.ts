@@ -3,10 +3,10 @@ import { PLAYER_ACTIONS, trackEndFrame } from '../data';
 import { yawOf } from '../player/movement';
 import { setDebugSlow } from '../timeScale';
 import type { Boss } from './boss';
-import { bossSystemOf } from './boss.system';
 import { BOSS_MOVE_IDS, type BossMoveId, type BossPhase } from './bossData';
 import { BOSS_MOVES, type BossMoveDef, type BossMoveRegistry } from './bossMove';
 import { defaultDodgeMoves, findDodgeWindows, type FrameRange } from './dodgeSim';
+import { bossSystem } from './boss.system';
 
 /**
  * ボス技の回避検証ツール（E5-9）のゲーム側。`?debug&scene=boss` で、技のレジストリに登録された技
@@ -139,7 +139,7 @@ export class BossDebugTool {
   constructor(private readonly game: Game) {}
 
   get boss(): Boss | null {
-    return bossSystemOf(this.game).boss;
+    return this.game.systems.get(bossSystem).boss;
   }
 
   moves(): BossToolMove[] {
@@ -148,7 +148,7 @@ export class BossDebugTool {
 
   /** ボスがいなければ出す（AI オフ・戦闘前の状態）。 */
   ensureBoss(): Boss {
-    const system = bossSystemOf(this.game);
+    const system = this.game.systems.get(bossSystem);
     if (system.boss?.alive) return system.boss;
     const p = this.game.player.feet;
     const boss = system.spawn({ x: p.x, z: p.z - this.settings.distance, yaw: 0, engage: false });
@@ -184,7 +184,7 @@ export class BossDebugTool {
 
   /** ボスを取り除いて、設定どおりの位置に出し直す（技は出さない）。 */
   reset(): void {
-    bossSystemOf(this.game).remove();
+    this.game.systems.get(bossSystem).remove();
     this.moveFrame = 0;
     this.idleFrames = 0;
     this.ensureBoss();

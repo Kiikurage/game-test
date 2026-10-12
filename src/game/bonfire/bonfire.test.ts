@@ -3,10 +3,10 @@ import { MemoryStorage, SaveStore, SAVE_KEY } from '../../core/persistence';
 import type { GameEventMap } from '../../core/gameEvents';
 import { BONFIRE, PLAYER_STATS } from '../data';
 import { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
 import type { EnemySpawn } from '../world/level';
-import { bonfiresOf } from './bonfire';
+import { interactionSystem } from '../interaction/interaction.system';
+import { bonfireSystem } from './bonfire.system';
 
 const DT = 1 / 60;
 
@@ -56,7 +56,7 @@ describe('bonfire (interaction, ignition, rest, respawn)', () => {
       input.press('interact');
       run(1);
     };
-    const bonfire = bonfiresOf(game);
+    const bonfire = game.systems.get(bonfireSystem);
     return { game, input, save, storage, events, run, press, bonfire };
   }
 
@@ -69,17 +69,17 @@ describe('bonfire (interaction, ignition, rest, respawn)', () => {
   it('shows the situational action for an unlit bonfire within 1.5m only', async () => {
     const { game, run } = await setup();
     run(5);
-    expect(interactionOf(game).prompt).toEqual({
+    expect(game.systems.get(interactionSystem).prompt).toEqual({
       id: 'bonfire',
       kind: 'bonfire',
       label: '火を灯す',
     });
     game.teleportPlayer(0, -1.6, 0);
     run(2);
-    expect(interactionOf(game).prompt).toBeNull();
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
     game.teleportPlayer(0, -1.5, 0);
     run(2);
-    expect(interactionOf(game).prompt?.label).toBe('火を灯す');
+    expect(game.systems.get(interactionSystem).prompt?.label).toBe('火を灯す');
   });
 
   it('ignites in 2 seconds, saves, and emits the banner event', async () => {
@@ -88,7 +88,7 @@ describe('bonfire (interaction, ignition, rest, respawn)', () => {
     expect(bonfire.isLit('bonfire')).toBe(false);
     press();
     expect(game.player.state).toBe('interact');
-    expect(interactionOf(game).prompt).toBeNull(); // 実行中は他アクション不可
+    expect(game.systems.get(interactionSystem).prompt).toBeNull(); // 実行中は他アクション不可
     // 2 秒（120F）で完了。直前まではまだ灯っていない
     run(BONFIRE.igniteFrames - 3);
     expect(bonfire.isLit('bonfire')).toBe(false);
@@ -102,7 +102,7 @@ describe('bonfire (interaction, ignition, rest, respawn)', () => {
     expect(lit[0]?.payload).toMatchObject({ id: 'bonfire', bannerSeconds: 3 });
     run(10);
     expect(game.player.state).toBe('idle');
-    expect(interactionOf(game).prompt?.label).toBe('休む');
+    expect(game.systems.get(interactionSystem).prompt?.label).toBe('休む');
   });
 
   it('cancels the ignition when the player is hit', async () => {
@@ -154,7 +154,7 @@ describe('bonfire (interaction, ignition, rest, respawn)', () => {
     // 座り込みの後は保持
     run(BONFIRE.sitDownFrames + 30);
     expect(game.player.state).toBe('rest');
-    expect(interactionOf(game).prompt?.label).toBe('立ち上がる');
+    expect(game.systems.get(interactionSystem).prompt?.label).toBe('立ち上がる');
     // 保持中は被弾しない・移動入力で動かない
     expect(game.player.invulnerable).toBe(true);
 
@@ -219,6 +219,6 @@ describe('bonfire (interaction, ignition, rest, respawn)', () => {
     const second = await setup({ storage: first.storage });
     second.run(5);
     expect(second.bonfire.isLit('bonfire')).toBe(true);
-    expect(interactionOf(second.game).prompt?.label).toBe('休む');
+    expect(second.game.systems.get(interactionSystem).prompt?.label).toBe('休む');
   });
 });
