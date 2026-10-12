@@ -31,8 +31,8 @@ export const BUDGET = {
 /** public/assets/ に置いてよい形式（§4.1: メッシュは glb、テクスチャは KTX2、音声は Ogg）。 */
 const ALLOWED_EXT = new Set(['.glb', '.ktx2', '.ogg', '.json']);
 
-/** dist で内容ハッシュ名にしなくてよいもの（入口の HTML と、three 同梱の Basis トランスコーダ。KTX2Loader が固定名で読む）。 */
-const UNHASHED_DIST = [/^index\.html$/, /^basis\//];
+// index.html と basis/ のほか、Service Worker（coi-sw.js）は登録 URL を固定する必要があるのでハッシュを付けない
+const UNHASHED_DIST = [/^index\.html$/, /^basis\//, /^coi-sw\.js$/];
 
 /** Vite が付けるハッシュ（`name-XXXXXXXX.ext`）。 */
 const VITE_HASH = /-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/;
