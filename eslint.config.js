@@ -9,7 +9,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ['*.js', '*.mjs'] },
+        projectService: { allowDefaultProject: ['*.js', '*.mjs', 'public/*.js'] },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -19,11 +19,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', '*.mjs', '*.js'],
+    files: ['scripts/**/*.mjs', '*.mjs', '*.js', 'public/*.js'],
     ...tseslint.configs.disableTypeChecked,
   },
   {
-    files: ['scripts/**/*.mjs', '*.mjs', '*.js'],
+    files: ['scripts/**/*.mjs', '*.mjs', '*.js', 'public/*.js'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 );
