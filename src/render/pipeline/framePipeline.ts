@@ -100,9 +100,16 @@ export interface FramePipeline {
   /**
    * scene パスの描画パイプラインを非同期に作る（`createRenderPipelineAsync`。メインスレッドも GPU キューも止めない）。
    * `onProgress(loaded, total)` はパイプラインが 1 つできるたびに呼ばれる（#369）。
-   * 影のパスと後段の全画面パスは対象外（初回の `render()` で作られる）。
+   * 影のパスと後段の全画面パスは対象外（`compileRest` で作る）。
    */
   compileScene(onProgress?: (loaded: number, total: number) => void): Promise<void>;
+  /**
+   * `draw`（`render()` を呼ぶ関数）を、パイプラインを非同期に作る状態で 1 回実行し、作成の完了まで待つ（#396）。
+   * `compileScene` の対象外（影・ポスト処理の全画面パス・背景）は、three に先行コンパイルの口が無く本描画の経路でしか作れない。
+   * 本描画の経路は作成中のパイプラインの描画を飛ばすだけなので、`getForRender` に promise 配列を渡して非同期に作らせ、全部まとめて待つ。
+   * 描画結果は捨てる前提（ローディング中に 1 回だけ呼ぶ）。
+   */
+  compileRest(draw: () => void): Promise<void>;
   dispose(): void;
 }
 
@@ -269,6 +276,26 @@ export function createFramePipeline(
         renderer.setRenderTarget(prevTarget);
         renderer.setMRT(prevMrt);
       }
+    },
+    compileRest: async (draw) => {
+      // 本描画の `_renderObjectDirect` は `getForRender(renderObject)`（promises なし = 同期作成）を呼ぶ。
+      // promises が無いときだけ自前の配列を渡して非同期作成にし、描画はパイプラインが無い物を飛ばす（`isReady`）。
+      const pipelines = (renderer as unknown as { _pipelines: PipelinesLike })._pipelines;
+      const originalGetForRender = pipelines.getForRender;
+      const pending: Promise<unknown>[] = [];
+      pipelines.getForRender = function (this: PipelinesLike, renderObject, promises) {
+        if (promises !== undefined) return originalGetForRender.call(this, renderObject, promises);
+        const own: Promise<unknown>[] = [];
+        const result = originalGetForRender.call(this, renderObject, own);
+        pending.push(...own);
+        return result;
+      };
+      try {
+        draw();
+      } finally {
+        pipelines.getForRender = originalGetForRender;
+      }
+      await Promise.all(pending);
     },
     dispose: () => {
       for (const d of disposers) d();
