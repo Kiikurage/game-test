@@ -2,10 +2,10 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { MemoryStorage, SaveStore } from '../../core/persistence';
 import { FOG_GATE } from '../data/fogGate';
 import { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
 import { entryVeil } from './fogGate';
-import { fogGateOf } from './fogGate.system';
+import { fogGateSystem } from './fogGate.system';
+import { interactionSystem } from '../interaction/interaction.system';
 
 const DT = 1 / 60;
 /** 門は (10, 10)、北（+z）へ通り抜ける。闘技場の入場位置は (10, 30) で北を向く。 */
@@ -49,7 +49,7 @@ describe('fog gate', () => {
         input.endStep();
       }
     };
-    const gate = fogGateOf(game);
+    const gate = game.systems.get(fogGateSystem);
     if (!gate) throw new Error('no fog gate');
     const enteredAt: number[] = [];
     let frame = 0;
@@ -65,7 +65,7 @@ describe('fog gate', () => {
 
   it('is null for a level without a fog gate', async () => {
     const game = await Game.create({ boxes: [], dummies: [], enemies: [] });
-    expect(fogGateOf(game)).toBeNull();
+    expect(game.systems.get(fogGateSystem)).toBeNull();
   });
 
   it('starts closed: shows the prompt near the gate and blocks the way', async () => {
@@ -73,7 +73,7 @@ describe('fog gate', () => {
     expect(gate.state).toBe('closed');
     expect(gate.blocked).toBe(true);
     run(5);
-    expect(interactionOf(game).prompt).toEqual({
+    expect(game.systems.get(interactionSystem).prompt).toEqual({
       id: 'fog-gate',
       kind: 'gate',
       label: '霧へ入る',
@@ -91,7 +91,7 @@ describe('fog gate', () => {
     expect(gate.state).toBe('entering');
     expect(gate.entering).toBe(true);
     expect(game.player.forcedWalking).toBe(true);
-    expect(interactionOf(game).prompt).toBeNull();
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
 
     // 入力は効かない: 後ろ向きの移動・攻撃・ロールを押しても、門の向こうへ歩く
     input.setMove(0, -1);
@@ -125,7 +125,7 @@ describe('fog gate', () => {
     expect(game.player.forcedWalking).toBe(false);
     input.setMove(0, 0);
     run(30);
-    expect(interactionOf(game).busy).toBe(false);
+    expect(game.systems.get(interactionSystem).busy).toBe(false);
     expect(['idle', 'move']).toContain(game.player.state);
   });
 
@@ -171,7 +171,7 @@ describe('fog gate', () => {
     game.playerTarget.health.damage(10_000);
     run(3);
     expect(gate.state).toBe('closed');
-    expect(interactionOf(game).busy).toBe(false);
+    expect(game.systems.get(interactionSystem).busy).toBe(false);
     expect(game.player.forcedWalking).toBe(false);
   });
 
@@ -183,7 +183,7 @@ describe('fog gate', () => {
     expect(gate.unseal()).toBe(true);
     expect(gate.state).toBe('open');
     expect(game.player.forcedWalking).toBe(false);
-    expect(interactionOf(game).busy).toBe(false);
+    expect(game.systems.get(interactionSystem).busy).toBe(false);
   });
 
   it('with a defeated boss in the save the gate is open: passable, no prompt, no rematch', async () => {
@@ -191,7 +191,7 @@ describe('fog gate', () => {
     expect(gate.state).toBe('open');
     expect(gate.blocked).toBe(false);
     run(5);
-    expect(interactionOf(game).prompt).toBeNull();
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
     expect(gate.enter()).toBe(false);
     input.setMove(0, 1);
     run(120);

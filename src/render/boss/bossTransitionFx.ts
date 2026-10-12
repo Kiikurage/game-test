@@ -1,6 +1,5 @@
 import { Quaternion, Vector3, type Object3D } from 'three/webgpu';
 import { rimAtTransitionFrame, BOSS_TRANSITION } from '../../game/boss/bossTransition';
-import { bossTransitionOf } from '../../game/boss/bossTransition.system';
 import { slamAt } from '../../game/camera/cameraEffects.system';
 import type { Game } from '../../game/game';
 import type { Boss } from '../../game/boss/boss';
@@ -10,6 +9,7 @@ import { emberAtTransitionFrame, shieldReleased } from './bossLook';
 import { bossIntroPose } from './bossIntroPose';
 import { bossTransitionPose } from './bossTransitionPose';
 import { ThrownShield } from './thrownShield';
+import { bossTransitionSystem } from '../../game/boss/bossTransition.system';
 
 const X = new Vector3(1, 0, 0);
 const Y = new Vector3(0, 1, 0);
@@ -31,7 +31,7 @@ const THROW_VELOCITY = new Vector3(5.5, 8.5, 4);
 const THROW_SPIN = new Vector3(3.2, 1.5, 7);
 
 /**
- * ボスのフェーズ移行の見た目（#84 / 6.5 節）。`bossTransitionOf(game).frame`（ボスの移行 F）に同期する。
+ * ボスのフェーズ移行の見た目（#84 / 6.5 節）。`game.systems.get(bossTransitionSystem).frame`（ボスの移行 F）に同期する。
  *  - F13: 盾が手を離れて飛び、地面に刺さる（`ThrownShield`。着地で破片・衝撃音・小さな振動）。斧は両手持ちへ。
  *  - F60–F100: 咆哮。眼窩・武器が橙に発光（`emberAtTransitionFrame`）、熾火が舞う、画面端が赤くなる（30F）。
  *  - 仰け反り・盾投げ・咆哮は `bossTransitionPose` の加算の回転（クリップ + 手続き）。
@@ -60,7 +60,7 @@ export class BossTransitionFx {
   /** 毎フレーム（フェーズの同期より前）。盾・熾火・画面の縁取りを進める。 */
   update(dt: number, boss: Boss): void {
     this.introFrame = boss.introFrame; // 入場演出（#85）の姿勢は applyPose が重ねる
-    const frame = bossTransitionOf(this.game).frame;
+    const frame = this.game.systems.get(bossTransitionSystem).frame;
     if (frame >= 0) {
       this.touched = true;
       const { model } = this;
@@ -97,7 +97,7 @@ export class BossTransitionFx {
 
   /** アニメーションの更新の後、`lateUpdate` の前に呼ぶ。手続きの姿勢を重ねる。 */
   applyPose(): void {
-    const transition = bossTransitionOf(this.game).frame;
+    const transition = this.game.systems.get(bossTransitionSystem).frame;
     const frame = transition >= 0 ? transition : this.introFrame;
     if (frame < 0) return;
     const pose = transition >= 0 ? bossTransitionPose(frame) : bossIntroPose(frame);

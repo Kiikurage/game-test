@@ -1,4 +1,3 @@
-import { gameStats } from '../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, attackDamage } from '../data';
 import type { Enemy } from '../enemy/enemy';
@@ -6,6 +5,7 @@ import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
 import type { EnemySpawn } from '../world/level';
 import type { AmbushCandidate, AmbushSource } from './ambush';
+import { debugStatsSystem } from '../debug/stats.system';
 
 const DT = 1 / 60;
 
@@ -69,16 +69,17 @@ describe('ambush strike (Rapier)', () => {
     let hitFrame = 0;
     for (let f = 2; f <= 20 && hitFrame === 0; f++) {
       tick();
-      if (gameStats(game).hitLog.some((h) => h.attackId === 'backstab')) hitFrame = f;
+      if (game.systems.get(debugStatsSystem).hitLog.some((h) => h.attackId === 'backstab'))
+        hitFrame = f;
     }
     expect(hitFrame).toBeGreaterThanOrEqual(PLAYER_ACTIONS.backstab.startup + 1);
     expect(hitFrame).toBeLessThanOrEqual(PLAYER_ACTIONS.backstab.startup + 3);
-    const hit = gameStats(game).hitLog.find((h) => h.attackId === 'backstab');
+    const hit = game.systems.get(debugStatsSystem).hitLog.find((h) => h.attackId === 'backstab');
     expect(hit?.damage).toBe(attackDamage(PLAYER_STATS.attackPower, 4.0));
     expect(hit?.damage).toBe(160);
     expect(hit?.poiseDamage).toBe(100);
     expect(hit?.killed).toBe(true);
-    expect(gameStats(game).lastHitStopFrames).toBe(14);
+    expect(game.systems.get(debugStatsSystem).lastHitStopFrames).toBe(14);
     expect(soldier.state).toBe('dead');
     expect(soldier.restrained).toBe(false);
   });
@@ -89,7 +90,7 @@ describe('ambush strike (Rapier)', () => {
     standBehind(1.2);
     press();
     run(PLAYER_ACTIONS.backstab.startup + 3);
-    const hit = gameStats(game).hitLog.find((h) => h.attackId === 'backstab');
+    const hit = game.systems.get(debugStatsSystem).hitLog.find((h) => h.attackId === 'backstab');
     expect(hit?.damage).toBe(160);
     expect(hit?.killed).toBe(false);
     expect(shield.hp).toBe(40);

@@ -1,13 +1,13 @@
 import { HUD_FADE_FRAMES } from '../../game/hud/hudModel';
 import { DEATH } from '../../game/data/death';
-import { deathOf } from '../../game/death/death.system';
 import { registerViewPlugin } from '../viewPlugins';
+import { deathSystem } from '../../game/death/death.system';
 
 // 死亡演出の描画（8.1 節）: 画面の脱色・減光・周辺減光・黒へのフェード（ポストエフェクトの `setScreenEffect`）と、
-// 「YOU DIED」テキスト。値は game の `deathOf(game).visual`（タイムラインから決定的に計算）を読むだけ。
+// 「YOU DIED」テキスト。値は game の `game.systems.get(deathSystem).visual`（タイムラインから決定的に計算）を読むだけ。
 // テキストは英字セリフ体・暗い赤・字間広めで、暗い帯の上に出す（1.05 倍へゆっくり拡大）。
 registerViewPlugin('death', ({ game, view }) => {
-  const death = deathOf(game);
+  const death = game.systems.get(deathSystem);
   // 画面中央を横切る暗い帯の上に、英字のセリフ体で「YOU DIED」
   const text = document.createElement('div');
   text.setAttribute('data-testid', 'death-text');

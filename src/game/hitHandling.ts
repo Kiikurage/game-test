@@ -4,7 +4,7 @@ import { applyHitStop } from './combat/impact';
 import type { ReactorRegistry } from './combat/reactorRegistry';
 import type { EnemyRoster } from './enemy/enemyRoster';
 import type { Player } from './player/player';
-import type { GameSystem } from './systems';
+import type { GameSystems } from './systems';
 import type { TimeScale } from './timeScale';
 import type { Tuning } from './tuning';
 
@@ -17,7 +17,7 @@ export interface HitContext {
   readonly timeScale: TimeScale;
   readonly tuning: Tuning;
   /** 登録式のシステム（Game の組み立ての最後に揃うので毎回読む）。 */
-  readonly systems: () => readonly GameSystem[];
+  readonly systems: Pick<GameSystems, 'impact'>;
 }
 
 /**
@@ -35,7 +35,7 @@ export function handleHit(ctx: HitContext, e: HitEvent): void {
   // 命中 1 回につき 1 つの `impact`（SE・聴覚・FX・カメラ・システムはこれだけを見る。#307）
   const impact = applyHitStop(e, guardBroken, ctx.registry, ctx.timeScale, ctx.tuning.hitStop);
   ctx.events.emit('impact', impact);
-  for (const system of ctx.systems()) system.onImpact?.(impact);
+  ctx.systems.impact(impact);
 }
 
 /** 命中を被弾側の強靭度・押し戻し・仰け反りへ反映し、`hitReaction` を発行する。 */

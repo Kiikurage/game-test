@@ -7,10 +7,10 @@ import {
   WAKE_CAPACITY,
   WAKE_KIND,
   WaterWake,
-  waterWakeOf,
   type WakeKind,
+  waterWakeSystem,
 } from './waterWake.system';
-import { waterwayOf } from './waterway.system';
+import { waterwaySystem } from './waterway.system';
 
 const DT = 1 / 60;
 
@@ -61,9 +61,9 @@ describe('waterWake system (fixed-step records)', () => {
     const game = await Game.create({ input, ...levelGameOptions(level), enemies: [] });
     game.tuning.camera.autoFollow = false;
     game.addStaticCylinders(level.cylinders);
-    waterwayOf(game).breakHatch();
+    game.systems.get(waterwaySystem).breakHatch();
     game.teleportPlayer(50, 28, Math.PI / 2, 1.02);
-    const wake = waterWakeOf(game);
+    const wake = game.systems.get(waterWakeSystem);
     const run = (n: number): void => {
       for (let i = 0; i < n; i++) {
         game.update(DT);

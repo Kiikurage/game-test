@@ -1,11 +1,11 @@
-import { shortcutOf } from '../../game/shortcut/shortcut.system';
 import { cryptPropsOf } from '../masonry/crypt.view';
 import { registerViewPlugin } from '../viewPlugins';
+import { shortcutSystem } from '../../game/shortcut/shortcut.system';
 
 // ショートカット（#65）の描画: 鉄門 G1 の扉とレバーの持ち手を、ゲームの状態（進み具合）に合わせて動かす。
 // メッシュは `masonry/crypt.view.ts` が作る。ここはピボットを回すだけ（追加の描画コストなし）。
 registerViewPlugin('shortcut', ({ game, view }) => {
-  const shortcut = shortcutOf(game);
+  const shortcut = game.systems.get(shortcutSystem);
   if (!shortcut) return {};
   let lastGate = -1;
   let lastLever = -1;
