@@ -5,7 +5,7 @@ import type { Level } from './level';
  * ボス戦のルール（壁際の位置取り・柱の判定）・描画・撃破演出が同じ寸法を共有する。
  *
  *   const arena = arenaOf(level);
- *   bossSystemOf(game).spawn({ x: arena.center.x, z: arena.center.z, arena: arena.circle, pillars: arena.pillars });
+ *   game.systems.get(bossSystem).spawn({ x: arena.center.x, z: arena.center.z, arena: arena.circle, pillars: arena.pillars });
  *   arena.bonfireSlot  // 撃破後に篝火を灯す位置（台座の上面の中央）
  */
 export interface ArenaDef {

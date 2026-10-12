@@ -6,12 +6,12 @@ import {
   defeatDissolve,
   defeatEmber,
 } from '../../game/boss/bossDefeat';
-import { bossDefeatOf } from '../../game/boss/bossDefeat.system';
 import type { Game } from '../../game/game';
 import type { CharacterAnimState } from '../anim/characterAnimator';
 import type { BossCharacter } from '../assets/bossCharacter';
 import type { GameView } from '../gameView';
 import type { EmberField } from '../particles';
+import { bossDefeatSystem } from '../../game/boss/bossDefeat.system';
 
 /** 崩壊の灰を出す間隔（撃破 F。F72–F162 の間）。 */
 const ASH_INTERVAL = 7;
@@ -33,7 +33,7 @@ export function advanceShownFrame(shown: number, f: number, dt: number, timeScal
 }
 
 /**
- * ボス撃破の見た目（#86 / 8.4 節）。`bossDefeatOf(game).frame`（撃破からのステップ数）に同期する。
+ * ボス撃破の見た目（#86 / 8.4 節）。`game.systems.get(bossDefeatSystem).frame`（撃破からのステップ数）に同期する。
  *  - F12–F72: `Death01` で膝をつき崩れ落ちる（ヒットストップの間は止まる）。亀裂・眼窩が燃え上がる（熾火）。
  *  - F72–F162: 全身が灰になって消えるディゾルブ（亡者マテリアルのしきい値。縁が橙に燃える）。灰と熾火が剥がれて舞い上がり、
  *    上空へ昇る熾火の柱が立つ。
@@ -59,13 +59,13 @@ export class BossDefeatFx {
 
   /** 体がまだ見えているか（撃破後、灰になって消え切るまで）。 */
   get visible(): boolean {
-    const f = Math.max(this.shown, bossDefeatOf(this.game).frame);
+    const f = Math.max(this.shown, this.game.systems.get(bossDefeatSystem).frame);
     return f >= 0 && defeatDissolve(f) < 1;
   }
 
   /** 毎フレーム（ボスの位置の同期の後、LOD 更新の前）。 */
   update(dt: number, boss: Boss): void {
-    const f = bossDefeatOf(this.game).frame;
+    const f = this.game.systems.get(bossDefeatSystem).frame;
     if (f < 0 || boss.alive) {
       if (this.shown >= 0) this.reset();
       return;

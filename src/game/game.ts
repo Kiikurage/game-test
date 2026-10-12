@@ -25,7 +25,7 @@ import { handleHit, type HitContext } from './hitHandling';
 import { registerCombatant, type Combatant } from './combat/combatant';
 import { ReactorRegistry } from './combat/reactorRegistry';
 import { TimeScale } from './timeScale';
-import { createGameSystems, type GameSystem } from './systems';
+import { GameSystems } from './systems';
 import { createTuning, type Tuning } from './tuning';
 import type { InteractableSpawn } from './world/level';
 import { SaveStore, type SaveGateway } from '../core/persistence';
@@ -128,8 +128,11 @@ export class Game {
   private readonly spawnPosition = new Vector3();
   private readonly spawnYaw: number;
   private readonly cameraForwardScratch = new Vector3();
-  /** 登録式のシステム（`systems.ts`）。コンストラクタの最後に生成する。 */
-  private systems: readonly GameSystem[] = [];
+  /**
+   * 登録式のシステム（`systems.ts`）。`game.systems.get(handle)` で状態を型付きに取る。
+   * コンストラクタの最後に全部を生成する。
+   */
+  readonly systems: GameSystems = new GameSystems(this);
 
   private constructor(
     private readonly physics: Physics,
@@ -204,7 +207,7 @@ export class Game {
       events: this.events,
       timeScale: this.timeScale,
       tuning: this.tuning,
-      systems: () => this.systems,
+      systems: this.systems,
     };
     this.combat.onHit((e) => {
       handleHit(hitContext, e);
@@ -213,7 +216,7 @@ export class Game {
     this.events.on('impact', (e) => {
       this.enemies.noises.emit(e.position, 'combat');
     });
-    this.systems = createGameSystems(this);
+    this.systems.init();
   }
 
   static async create(options: GameOptions = {}): Promise<Game> {
@@ -306,7 +309,7 @@ export class Game {
     this.attackDriver.update(player);
     // 攻撃側（プレイヤー）が凍結中は、仮の攻撃のフレームも進めない
     if (!player.fsm.isFrozenStep) this.debugSwing.update(player.feet, player.yaw);
-    for (const system of this.systems) system.update?.(dt);
+    this.systems.update(dt);
     this.combat.step();
     this.physics.step(dt);
     camera.updatePlacement(dt, cameraInput(), this.cameraCollision);

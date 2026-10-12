@@ -1,16 +1,16 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { MemoryStorage, SaveStore, SAVE_KEY } from '../../core/persistence';
 import type { GameEventMap } from '../../core/gameEvents';
-import { bonfiresOf } from '../bonfire/bonfire';
 import { sectorShape } from '../combat';
 import { ARENA_BONFIRE_ID } from '../data/bonfire';
 import { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
-import { bossSystemOf, BOSS_ID } from './boss.system';
+import { BOSS_ID, bossSystem } from './boss.system';
 import { BOSS_MOVE_IDS } from './bossData';
 import { BossMoveRegistry } from './bossMove';
-import { bossDefeatOf } from './bossDefeat.system';
+import { interactionSystem } from '../interaction/interaction.system';
+import { bonfireSystem } from '../bonfire/bonfire.system';
+import { bossDefeatSystem } from './bossDefeat.system';
 
 const DT = 1 / 60;
 const ARENA_AT = { x: 20, z: 20 };
@@ -77,7 +77,7 @@ describe('boss defeat cutscene (Rapier)', () => {
         log.push({ step, name, payload: payload }),
       );
     }
-    const system = bossSystemOf(game);
+    const system = game.systems.get(bossSystem);
     const boss =
       options.spawn === false
         ? null
@@ -115,11 +115,11 @@ describe('boss defeat cutscene (Rapier)', () => {
   it('emits the cues at F0 / F62 / F72 / F150 / F300 / F360 after the finishing blow', async () => {
     const { game, run, finish, cues, boss } = await setup();
     run(3);
-    expect(bossDefeatOf(game).frame).toBe(-1);
+    expect(game.systems.get(bossDefeatSystem).frame).toBe(-1);
     const t0 = finish();
     expect(boss?.alive).toBe(false);
     // 撃破のステップ（combat.step の中）が F0、その次のステップが F1
-    expect(bossDefeatOf(game).frame).toBe(1);
+    expect(game.systems.get(bossDefeatSystem).frame).toBe(1);
     run(365);
     const at = (c: string) => cues(c).map((e) => e.step - t0 + 1);
     expect(at('defeat')).toEqual([0]);
@@ -187,7 +187,7 @@ describe('boss defeat cutscene (Rapier)', () => {
 
   it('lights the arena bonfire at F300 (saved, usable from F360)', async () => {
     const { game, run, finish, storage, input } = await setup();
-    const bonfire = bonfiresOf(game);
+    const bonfire = game.systems.get(bonfireSystem);
     run(3);
     // 撃破前は存在しない
     expect(bonfire.ids).toEqual(['bonfire']);
@@ -200,16 +200,16 @@ describe('boss defeat cutscene (Rapier)', () => {
     expect(game.save.get().bonfires).toContain(ARENA_BONFIRE_ID);
     const raw = JSON.parse(storage.getItem(SAVE_KEY) ?? '{}') as { data: { bonfires: string[] } };
     expect(raw.data.bonfires).toContain(ARENA_BONFIRE_ID);
-    expect(bossDefeatOf(game).frame).toBeGreaterThanOrEqual(300);
+    expect(game.systems.get(bossDefeatSystem).frame).toBeGreaterThanOrEqual(300);
     expect(t0).toBeGreaterThan(0);
     // 操作可能になる F360 までは「休む」を出さない
     game.teleportPlayer(ARENA_AT.x, ARENA_AT.z - 1.2, 0);
     run(5);
-    expect(bossDefeatOf(game).controlRestored).toBe(false);
-    expect(interactionOf(game).prompt).toBeNull();
+    expect(game.systems.get(bossDefeatSystem).controlRestored).toBe(false);
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
     run(60);
-    expect(bossDefeatOf(game).controlRestored).toBe(true);
-    expect(interactionOf(game).prompt).toEqual({
+    expect(game.systems.get(bossDefeatSystem).controlRestored).toBe(true);
+    expect(game.systems.get(interactionSystem).prompt).toEqual({
       id: ARENA_BONFIRE_ID,
       kind: 'bonfire',
       label: '休む',
@@ -246,19 +246,19 @@ describe('boss defeat cutscene (Rapier)', () => {
     first.run(3);
     first.finish();
     const again = await setup(storage);
-    const bonfire = bonfiresOf(again.game);
+    const bonfire = again.game.systems.get(bonfireSystem);
     expect(bonfire.ids).toEqual(['bonfire', ARENA_BONFIRE_ID]);
     expect(bonfire.isLit(ARENA_BONFIRE_ID)).toBe(true);
     again.game.teleportPlayer(ARENA_AT.x, ARENA_AT.z - 1.2, 0);
     again.run(5);
-    expect(interactionOf(again.game).prompt?.label).toBe('休む');
-    expect(bossDefeatOf(again.game).frame).toBe(-1);
-    expect(bossDefeatOf(again.game).controlRestored).toBe(true);
+    expect(again.game.systems.get(interactionSystem).prompt?.label).toBe('休む');
+    expect(again.game.systems.get(bossDefeatSystem).frame).toBe(-1);
+    expect(again.game.systems.get(bossDefeatSystem).controlRestored).toBe(true);
   });
 
   it('does not add the arena bonfire before the boss is defeated', async () => {
     const { game } = await setup();
-    expect(bonfiresOf(game).ids).toEqual(['bonfire']);
-    expect(interactionOf(game).get(ARENA_BONFIRE_ID)).toBeUndefined();
+    expect(game.systems.get(bonfireSystem).ids).toEqual(['bonfire']);
+    expect(game.systems.get(interactionSystem).get(ARENA_BONFIRE_ID)).toBeUndefined();
   });
 });

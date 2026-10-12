@@ -1,6 +1,6 @@
 import { registerDevHooks } from '../../devHooks';
 import { isBossToolScene, type BossDebugTool } from './bossDebug';
-import { bossDebugOf } from './bossDebug.system';
+import { bossDebugSystem } from './bossDebug.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -13,7 +13,7 @@ declare module '../../devHooks' {
 }
 
 registerDevHooks('bossTool', ({ game }) => {
-  const tool = bossDebugOf(game);
+  const tool = game.systems.get(bossDebugSystem);
   if (isBossToolScene(location.search)) tool.ensureBoss();
   return { bossTool: () => tool };
 });

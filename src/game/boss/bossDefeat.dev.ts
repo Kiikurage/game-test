@@ -1,8 +1,8 @@
 import { registerDevHooks } from '../../devHooks';
-import { bonfiresOf } from '../bonfire/bonfire';
 import { ARENA_BONFIRE_ID } from '../data/bonfire';
-import { bossSystemOf } from './boss.system';
-import { bossDefeatOf } from './bossDefeat.system';
+import { bonfireSystem } from '../bonfire/bonfire.system';
+import { bossDefeatSystem } from './bossDefeat.system';
+import { bossSystem } from './boss.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -26,14 +26,14 @@ declare module '../../devHooks' {
 
 registerDevHooks('bossDefeat', ({ game }) => ({
   bossDefeat: () => {
-    const d = bossDefeatOf(game);
-    const bonfires = bonfiresOf(game);
+    const d = game.systems.get(bossDefeatSystem);
+    const bonfires = game.systems.get(bonfireSystem);
     return {
       frame: d.frame,
       dissolve: d.dissolve,
       fogDensity: d.fogDensity,
       controlRestored: d.controlRestored,
-      bossAlive: bossSystemOf(game).boss?.alive ?? null,
+      bossAlive: game.systems.get(bossSystem).boss?.alive ?? null,
       saved: game.save.get().bosses,
       arenaBonfireLit: bonfires.ids.includes(ARENA_BONFIRE_ID) && bonfires.isLit(ARENA_BONFIRE_ID),
     };

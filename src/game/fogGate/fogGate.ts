@@ -1,6 +1,6 @@
 // 霧の門（#66、仕様書 7.1 / 7.2 節）: 中庭と闘技場をつなぐ門の状態・入場演出・封鎖。
 //
-//   const gate = fogGateOf(game);            // 霧の門がないレベルでは null
+//   const gate = game.systems.get(fogGateSystem);            // 霧の門がないレベルでは null
 //   gate?.seal();                            // 通れなくする（コライダを有効に）
 //   gate?.unseal();                          // 解除（ボス撃破: 霧が消えて通れる。再戦しない）
 //   gate?.onEntered(({ position }) => ...);  // 入場演出が終わり、闘技場へ着いた（ボス入場 #85 が購読する）
@@ -16,9 +16,9 @@ import type { EventBus } from '../../core/gameEvents';
 import { BOSS_ID } from '../boss/boss.system';
 import { FOG_GATE } from '../data/fogGate';
 import type { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { yawOf } from '../player/movement';
 import type { InteractableSpawn } from '../world/level';
+import { interactionSystem } from '../interaction/interaction.system';
 
 export type FogGateState = 'closed' | 'entering' | 'sealed' | 'open';
 
@@ -69,7 +69,7 @@ export class FogGate {
     };
     this.current = this.isDefeatedInSave() ? 'open' : 'closed';
     this.applyCollider();
-    interactionOf(game).register({
+    game.systems.get(interactionSystem).register({
       id: spawn.id,
       kind: 'gate',
       x: spawn.x,
@@ -184,7 +184,7 @@ export class FogGate {
     const { game } = this;
     this.setState('entering');
     this.entryFrame = 0;
-    this.unlock = interactionOf(game).lock();
+    this.unlock = game.systems.get(interactionSystem).lock();
     game.lockOn.release('external');
     game.player.beginForcedWalk(FOG_GATE.enterFrames, () => this.walkYaw());
     return true;

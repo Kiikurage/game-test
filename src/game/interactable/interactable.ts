@@ -18,11 +18,11 @@ import { IMPLEMENTED_KINDS } from '../data/world/interactables';
 import { BREAKABLE, FLOOR_HATCH, LOOT, PRAY } from '../data/world/lootTuning';
 import type { Effect, Interactable } from '../data/world/types';
 import type { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { yawOf } from '../player/movement';
-import { textPanelOf } from '../text/textPanel.system';
 import { doneFlag, InteractableRunner, type EffectHost } from './effects';
 import './worldEvents';
+import { textPanelSystem } from '../text/textPanel.system';
+import { interactionSystem } from '../interaction/interaction.system';
 
 /** セーブのフラグを引く。`boss.<id>` は撃破済みのボス（セーブの `bosses`）。 */
 export function hasFlagIn(game: Game, flag: string): boolean {
@@ -149,7 +149,7 @@ export class InteractableController {
     const verb = def.prompt;
     // 開けたまま（push）は、再開後も最初から開いている
     if (def.kind === 'push' && this.game.save.hasFlag(stateFlagOf(def))) this.applyOpened(def);
-    return interactionOf(this.game).register({
+    return this.game.systems.get(interactionSystem).register({
       id: def.id,
       kind: def.kind,
       x: def.x,
@@ -317,7 +317,7 @@ export class InteractableController {
   private updateDialogue(): void {
     const talk = this.dialogue;
     if (!talk) return;
-    const model = textPanelOf(this.game);
+    const model = this.game.systems.get(textPanelSystem);
     if (model.completions > talk.completions) {
       this.dialogue = null;
       talk.onEnd();
@@ -378,7 +378,7 @@ export class InteractableController {
       },
       dialogue: (lines, onEnd) => {
         game.events.emit('showText', { text: lines.map(textOf), mode: 'conversation' });
-        this.dialogue = { onEnd, completions: textPanelOf(game).completions };
+        this.dialogue = { onEnd, completions: game.systems.get(textPanelSystem).completions };
       },
       giveItem: (itemId, count, source) => {
         const def = ITEM_DEFS[itemId];
@@ -401,16 +401,4 @@ export class InteractableController {
       },
     };
   }
-}
-
-const controllers = new WeakMap<Game, InteractableController>();
-
-/** `game` のインタラクト対象の管理（なければ作る）。 */
-export function interactablesOf(game: Game): InteractableController {
-  let c = controllers.get(game);
-  if (!c) {
-    c = new InteractableController(game);
-    controllers.set(game, c);
-  }
-  return c;
 }
