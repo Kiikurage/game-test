@@ -3,10 +3,10 @@ import { sectorShape } from '../combat';
 import { cameraEffectsOf } from '../camera/cameraEffects.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { bossSystemOf, BOSS_ID } from './boss.system';
+import { BOSS_ID, bossSystem } from './boss.system';
 import { BOSS_MOVE_IDS } from './bossData';
 import { BossMoveRegistry } from './bossMove';
-import { bossTransitionOf } from './bossTransition.system';
+import { bossTransitionSystem } from './bossTransition.system';
 
 const DT = 1 / 60;
 
@@ -47,7 +47,7 @@ describe('boss phase transition cutscene (Rapier)', () => {
     const input = new FakeInput();
     const game = await Game.create({ input, boxes: [], dummies: [], enemies: [] });
     game.teleportPlayer(0, 2.5, Math.PI);
-    const boss = bossSystemOf(game).spawn({
+    const boss = game.systems.get(bossSystem).spawn({
       x: 0,
       z: 0,
       yaw: 0,
@@ -94,7 +94,7 @@ describe('boss phase transition cutscene (Rapier)', () => {
     const { run, log, untilTransition, boss, game } = await setup();
     const t0 = untilTransition();
     expect(boss.transitionFrame).toBe(0);
-    expect(bossTransitionOf(game).frame).toBe(0);
+    expect(game.systems.get(bossTransitionSystem).frame).toBe(0);
     run(125);
     const cue = (c: string) =>
       log.filter((e) => e.name === 'bossTransition' && e.payload.cue === c);
@@ -120,7 +120,7 @@ describe('boss phase transition cutscene (Rapier)', () => {
     const roar = log.filter((e) => e.name === 'sound' && e.payload.cue === 'sfx.boss.roar');
     expect(roar.map((e) => e.step - t0)).toEqual([60]);
     expect(boss.phase).toBe(2);
-    expect(bossTransitionOf(game).frame).toBe(-1);
+    expect(game.systems.get(bossTransitionSystem).frame).toBe(-1);
   });
 
   it('starts the camera clip at F0 (peak at F60) and stops it when the boss is reset', async () => {
@@ -140,7 +140,7 @@ describe('boss phase transition cutscene (Rapier)', () => {
     });
     run(2);
     expect(fx.playingClips).not.toContain('phaseTransition');
-    expect(bossTransitionOf(game).frame).toBe(-1);
+    expect(game.systems.get(bossTransitionSystem).frame).toBe(-1);
   });
 
   it('keeps the boss invulnerable until F120, and the first move afterwards is leap or ashWave', async () => {

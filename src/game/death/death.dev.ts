@@ -1,7 +1,7 @@
 import { registerDevHooks } from '../../devHooks';
 import type { DeathPhase } from '../../core/gameEvents';
 import type { DeathVisual } from './deathTimeline';
-import { deathOf } from './death.system';
+import { deathSystem } from './death.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -18,7 +18,7 @@ declare module '../../devHooks' {
 
 registerDevHooks('death', ({ game }) => ({
   death: () => {
-    const d = deathOf(game);
+    const d = game.systems.get(deathSystem);
     return {
       active: d.active,
       frame: d.frame,

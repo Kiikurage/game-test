@@ -1,7 +1,7 @@
 import { registerDevHooks } from '../../devHooks';
-import { interactionOf } from '../interaction/interaction';
-import { fogGateOf } from './fogGate.system';
 import type { FogGateState } from './fogGate';
+import { fogGateSystem } from './fogGate.system';
+import { interactionSystem } from '../interaction/interaction.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -22,7 +22,7 @@ declare module '../../devHooks' {
 }
 
 registerDevHooks('fogGate', ({ game }) => {
-  const gate = fogGateOf(game);
+  const gate = game.systems.get(fogGateSystem);
   let entered = 0;
   gate?.onEntered(() => {
     entered++;
@@ -35,7 +35,7 @@ registerDevHooks('fogGate', ({ game }) => {
         entryProgress: gate.entryProgress,
         veil: gate.veil,
         entered,
-        prompt: interactionOf(game).prompt?.id === gate.id ? '霧へ入る' : null,
+        prompt: game.systems.get(interactionSystem).prompt?.id === gate.id ? '霧へ入る' : null,
         playerState: game.player.state,
         player: { x: game.player.feet.x, z: game.player.feet.z },
       },

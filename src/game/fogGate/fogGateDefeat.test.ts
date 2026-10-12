@@ -2,12 +2,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { MemoryStorage, SaveStore } from '../../core/persistence';
 import { BOSS_MOVE_IDS } from '../boss/bossData';
 import { BossMoveRegistry } from '../boss/bossMove';
-import { bossSystemOf } from '../boss/boss.system';
 import { sectorShape } from '../combat';
 import { ARENA_BONFIRE_ID } from '../data/bonfire';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { fogGateOf } from './fogGate.system';
+import { fogGateSystem } from './fogGate.system';
+import { bossSystem } from '../boss/boss.system';
 
 const DT = 1 / 60;
 
@@ -34,7 +34,7 @@ describe('fog gate and the boss defeat cutscene', () => {
       ],
       spawn: { x: 0, z: 2.5, yaw: Math.PI },
     });
-    const gate = fogGateOf(game);
+    const gate = game.systems.get(fogGateSystem);
     if (!gate) throw new Error('no fog gate');
     const reg = new BossMoveRegistry();
     for (const id of BOSS_MOVE_IDS) {
@@ -59,7 +59,9 @@ describe('fog gate and the boss defeat cutscene', () => {
         ],
       });
     }
-    bossSystemOf(game).spawnUnlessDefeated({ x: 0, z: 0, yaw: 0, moves: reg, engage: true });
+    game.systems
+      .get(bossSystem)
+      .spawnUnlessDefeated({ x: 0, z: 0, yaw: 0, moves: reg, engage: true });
     gate.seal();
     const run = (frames: number) => {
       for (let i = 0; i < frames; i++) {

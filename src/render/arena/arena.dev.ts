@@ -1,7 +1,7 @@
 import { registerDevHooks } from '../../devHooks';
-import { bossSystemOf } from '../../game/boss/boss.system';
 import { arenaOf } from '../../game/world/arena';
 import { arenaViewOf } from './arena.view';
+import { bossSystem } from '../../game/boss/boss.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -37,11 +37,11 @@ registerDevHooks('arena', ({ game, view }) => {
     const pz = def.entry.z + (dz / len) * 5;
     game.teleportPlayer(px, pz, Math.atan2(dx, dz));
     // 撮影・確認用なので、ライティングもすぐ闘技場のものにする
-    arenaViewOf(game)?.snapMood();
+    arenaViewOf(view)?.snapMood();
     if (options.boss) {
       const bx = def.center.x + (dx / len) * 4;
       const bz = def.center.z + (dz / len) * 4;
-      bossSystemOf(game).spawn({
+      game.systems.get(bossSystem).spawn({
         x: bx,
         z: bz,
         y: def.floorY,
@@ -59,7 +59,7 @@ registerDevHooks('arena', ({ game, view }) => {
   }
   return {
     arenaInfo: () => {
-      const arena = arenaViewOf(game);
+      const arena = arenaViewOf(view);
       if (!arena) return null;
       return {
         bonfireSlot: { ...arena.def.bonfireSlot },

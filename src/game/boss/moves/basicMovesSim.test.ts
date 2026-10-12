@@ -1,11 +1,11 @@
-import { gameStats } from '../../debug/stats.system';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Game } from '../../game';
 import { FakeInput } from '../../testing/fakeInput';
-import { bossSystemOf } from '../boss.system';
 import type { BossMoveId, BossPhase } from '../bossData';
 import { BOSS_MOVES, BossMoveRegistry } from '../bossMove';
 import './index';
+import { debugStatsSystem } from '../../debug/stats.system';
+import { bossSystem } from '../boss.system';
 
 /**
  * 技 1・2・3 のシミュレーションテスト（Game + Rapier + 本物のプレイヤーのロール / バックステップ）。
@@ -46,7 +46,7 @@ async function play(s: Scenario): Promise<Outcome> {
   if (!move) throw new Error(`move ${s.move} is not registered`);
   const moves = new BossMoveRegistry();
   moves.register(move);
-  const boss = bossSystemOf(game).spawn({ x: 0, z: 0, yaw: 0, moves, engage: true });
+  const boss = game.systems.get(bossSystem).spawn({ x: 0, z: 0, yaw: 0, moves, engage: true });
   boss.setPhase(s.phase ?? 1);
   const step = () => {
     game.update(DT);
@@ -58,7 +58,7 @@ async function play(s: Scenario): Promise<Outcome> {
   }
   expect(boss.state).toBe('attack');
   const hp0 = game.playerTarget.health.current;
-  const start = gameStats(game).hitLog.length;
+  const start = game.systems.get(debugStatsSystem).hitLog.length;
   let elapsed = 0;
   let pressed = false;
   const dir: Record<Dodge, readonly [number, number]> = {
@@ -75,13 +75,15 @@ async function play(s: Scenario): Promise<Outcome> {
       input.press('dodge');
       pressed = true;
     }
-    const before = gameStats(game).hitLog.length;
+    const before = game.systems.get(debugStatsSystem).hitLog.length;
     step();
     elapsed++;
     if (pressed) input.setMove(0, 0);
-    for (let k = before; k < gameStats(game).hitLog.length; k++) frames.push(elapsed);
+    for (let k = before; k < game.systems.get(debugStatsSystem).hitLog.length; k++)
+      frames.push(elapsed);
   }
-  const hits = gameStats(game)
+  const hits = game.systems
+    .get(debugStatsSystem)
     .hitLog.slice(start)
     .filter((e) => e.targetId === 'player')
     .map((e, i) => ({ attackId: e.attackId, damage: e.baseDamage, frame: frames[i] ?? -1 }));
