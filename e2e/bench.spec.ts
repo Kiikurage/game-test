@@ -1,17 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { startGame } from './helpers';
+import { bootGame } from './helpers';
 
 // ベンチマークモード（#261）: `?bench` で自動計測が完走し、全区間の行が並んだ結果テキストとパネルが出る。
 // `?bench=quick` は区間を時間ではなくフレーム数だけで進める（SwiftShader でも短時間で終わる。時間依存にしない）。
 test('?bench runs every section and shows a copyable report', async ({ page }) => {
+  // 計測は描画フレームを実際に回す（SwiftShader では数分かかる）ので、ここだけ延長する
   test.setTimeout(600_000);
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
+  const errors = await bootGame(page, {
+    draw: true,
+    paused: false,
+    params: { bench: 'quick', scale: '0.25' },
   });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?bench=quick&quality=low&scale=0.25');
-  await startGame(page);
 
   await expect
     .poll(() => page.evaluate(() => window.__game?.dev.bench().state), { timeout: 540_000 })

@@ -1,15 +1,8 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { startGame, tapKey, waitSteps } from './helpers';
+import { bootGame, tapKey, waitSteps } from './helpers';
 
-async function boot(page: Page): Promise<void> {
-  // ソフトウェア描画（SwiftShader）でも入力ステップが回るよう、描画を最小品質・低解像度にする
-  await page.goto('./?quality=low&scale=0.25&nodraw');
-  await startGame(page);
-  // 初回のパイプラインコンパイルで最初のフレームが重いので、ループが安定して回り出すまで待つ
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(30);
-}
+/** 入力層の検証なので、メインループを止めずに回す（入力スナップショットはステップごとに更新される）。 */
+const boot = (page: Page) => bootGame(page, { paused: false });
 
 const input = (page: Page) => page.evaluate(() => window.__game?.input);
 
@@ -159,8 +152,6 @@ test.describe('touch (mobile landscape)', () => {
   });
 
   test('multi-touch: stick + buttons + camera drag + flick', async ({ page }) => {
-    // ソフトウェア描画では CDP の往復とフレーム進行が遅く、描画が重いと 60 秒に収まらないことがある
-    test.setTimeout(180_000);
     await boot(page);
     const cdp = await page.context().newCDPSession(page);
 

@@ -1,7 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
-
-test.describe.configure({ timeout: 120_000 });
+import { bootGame, stepUntil, tapKey } from './helpers';
 
 const marks = (page: Page) =>
   page.evaluate(() => {
@@ -14,11 +12,7 @@ const marks = (page: Page) =>
 test('unlooted targets show a marker that disappears once looted; corpses get a placeholder body', async ({
   page,
 }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
-  await expect.poll(() => page.evaluate(() => window.__game?.sim.player.grounded)).toBe(true);
+  const errors = await bootGame(page, { enemies: false });
 
   // 開始位置から見える範囲の未取得の遺体に目印が出る
   await expect.poll(async () => (await marks(page)).marks).toContain('corpse_b_flask');
@@ -39,9 +33,11 @@ test('unlooted targets show a marker that disappears once looted; corpses get a 
 
   // 調べると目印が消える（遺体は残る）
   await tapKey(page, 'KeyE');
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.dev.interactables().flags), { timeout: 60_000 })
-    .toContain('loot.corpse_b_flask');
+  await stepUntil(
+    page,
+    () => page.evaluate(() => window.__game?.dev.interactables().flags),
+    (v) => v?.includes('loot.corpse_b_flask') ?? false,
+  );
   await expect.poll(async () => (await marks(page)).marks).not.toContain('corpse_b_flask');
   expect((await marks(page)).corpses.map((b) => b.id)).toContain('corpse_b_flask');
   expect(errors).toEqual([]);

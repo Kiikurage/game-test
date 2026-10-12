@@ -1,20 +1,15 @@
 import { expect, test } from '@playwright/test';
-import { startGame } from './helpers';
+import { bootGame } from './helpers';
 
 // #281: 雑魚敵の撃破は、トドメの命中で撃破 SE が鳴り、ロックオンが外れ（近くに次の敵がいなければ）、
 // 死体への追い打ちは命中にならない。シミュレーションを止めて dev.advance で進めるので、実時間に依存しない。
 test('killing an enemy plays the kill SE, drops the lock-on and ignores hits on the corpse', async ({
   page,
 }) => {
-  test.setTimeout(180_000);
-  const errors: string[] = [];
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw');
-  await startGame(page);
+  const errors = await bootGame(page);
   const id = await page.evaluate(() => {
     const g = window.__game;
     if (!g) throw new Error('no game');
-    g.dev.pause(true);
     g.dev.killEnemy(0, false); // 敵の手前へ移動するだけ
     return g.sim.enemies[0]?.id ?? '';
   });

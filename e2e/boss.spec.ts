@@ -1,23 +1,15 @@
 import { expect, test } from '@playwright/test';
-import { startGame } from './helpers';
+import { bootGame } from './helpers';
 
 /** ボス AI 基盤の確認シーン（`?scene=test&boss`。未実装の技はスタブで埋まる）。 */
 test('the boss showcase spawns the boss, which beats, picks moves and shows the debug overlay', async ({
   page,
 }) => {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=test&boss&debug&quality=low&scale=0.25&nodraw');
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  const errors = await bootGame(page, { scene: 'test', params: { boss: '', debug: '' } });
 
   const initial = await page.evaluate(() => window.__game?.dev.bossDebug() ?? null);
-  expect(initial?.state).toBe('beat');
+  // bootGame が着地まで進めるので、最初のビートの直後に技を選んでいることがある
+  expect(['beat', 'attack']).toContain(initial?.state);
   expect(initial?.phase).toBe(1);
   expect(initial?.hp).toBe(2400);
 

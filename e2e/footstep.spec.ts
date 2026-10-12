@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { holdKey, startGame, waitSteps } from './helpers';
+import { bootGame, holdKey, waitSteps } from './helpers';
 
 // 足音 SE（E7-3a）: 歩くと `footstep` イベントが地表素材に応じた再生要求（cue）になり、A → D の移動で素材が切り替わる。
 // 再生要求は dev フック `footstepLog`（audio 層と同じ変換）で、実際の再生は SfxPlayer の統計（played）で確認する。
@@ -23,20 +23,13 @@ async function walkFrom(page: Page, x: number, z: number, yaw: number, steps: nu
 }
 
 test('footsteps follow the ground material from area A to the crypt D', async ({ page }) => {
-  test.setTimeout(180_000);
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-
   // 経路上の敵は置かない（足音は敵のものも混ざるため、プレイヤーのものだけを見る）
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
+  const errors = await bootGame(page, { enemies: false });
   await expect
     .poll(() => page.evaluate(() => window.__game?.audio?.sfx.loaded ?? 0), { timeout: 30_000 })
     .toBeGreaterThanOrEqual(16); // 足音 16 本（title グループで先読み）
-  await page.mouse.click(200, 200); // 最初の操作で AudioContext を resume
+  // 最初の操作で AudioContext を resume する。ロックなしのクリックは攻撃になる（歩行の足音が出ない）ので、割り当てのないキーで行う
+  await page.keyboard.press('F9');
   await expect
     .poll(() => page.evaluate(() => window.__game?.audio?.state), { timeout: 10_000 })
     .toBe('running');

@@ -1,13 +1,18 @@
 import { expect, test } from '@playwright/test';
-import { startGame, waitFrames } from './helpers';
+import { bootGame, waitFrames } from './helpers';
 
 // #241: 敵が倒れる（死亡 → ディゾルブ）ときの初回パイプライン生成（カクつき）の回帰テスト。
 // 倒した後にレンダーパイプラインが新たに生成されないこと（ロード中の warmUp で済んでいること）を確認する。
 // 修正前は、詳細メッシュ（亡者マテリアル）が初めて描かれる死亡の瞬間に 6 本生成され、CPU 時間が 400〜600ms に跳ねた。
 test('killing an enemy does not create new render pipelines', async ({ page }) => {
+  // 描画しながら実ループで 150 ステップ進める（SwiftShader の medium 描画は遅い）ので延長する
   test.setTimeout(300_000);
-  await page.goto('./?quality=medium&scale=0.25');
-  await startGame(page);
+  await bootGame(page, {
+    quality: 'medium',
+    draw: true,
+    paused: false,
+    params: { scale: '0.25' },
+  });
   await waitFrames(page, 6);
   type Sample = { n: number; cpu: number };
   const probe = (): Promise<Sample> =>
