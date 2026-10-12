@@ -1,17 +1,12 @@
-import { Color, Group, Mesh, Vector3 } from 'three/webgpu';
+import { Color, Group, Mesh, Vector3, type Material, type Object3D } from 'three/webgpu';
 import type { GameView } from '../gameView';
 import { arenaMoodWeight, arenaOf, type ArenaDef } from '../../game/world/arena';
 import type { Level } from '../../game/world/level';
 import { ARENA_MOOD, type Environment } from '../environment';
+import { bakedMesh, loadBakedScene } from '../levelMeshes/bakedScene';
 import { registerViewPlugin } from '../viewPlugins';
-import {
-  createColumnGeometry,
-  createFloorDiscGeometry,
-  createPedestalGeometry,
-  createWallRingGeometry,
-  mergeAll,
-  triangleCount,
-} from './arenaGeometry';
+import { triangleCount } from './arenaGeometry';
+import { WALL_OUTER, arenaWallArc } from './arenaScene';
 import {
   backdropFade,
   createBackdropGeometry,
@@ -29,11 +24,6 @@ import {
   torchLightPosition,
 } from './arenaTorches';
 
-/** 床の円盤を地面よりわずかに浮かせる（m）。 */
-const FLOOR_LIFT = 0.012;
-/** 壁の内側 / 外側の半径。内面は当たり判定（24 角形。角で 16.14m）より内側に出ない。 */
-const WALL_INNER = 16.12;
-const WALL_OUTER = 17.3;
 /** 闘技場の中心からこの距離（m）より遠いときは闘技場を描かない。 */
 const ARENA_FAR = 80;
 /** 背景の幕が現れ始める / 完全に出る、闘技場の中心からの距離（m）。 */
@@ -87,50 +77,39 @@ export function arenaViewOf(view: GameView): ArenaView | null {
   return views.get(view) ?? null;
 }
 
-function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
-  const { center, floorY } = def;
+function createArena(baked: Object3D, level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
+  const { floorY } = def;
   const root = new Group();
   root.name = 'arena';
   const torches = layoutTorches(def);
   const sky: Mesh[] = [];
+  // 石の形状はベイク済み（`buildArenaScene` → glb `level_arena`、#329）。ここではマテリアルを付ける
+  const stone = (name: string, material: Material, cast: boolean): void => {
+    const mesh = bakedMesh(baked, name);
+    mesh.material = material;
+    mesh.castShadow = cast;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+  };
 
   // 床（敷石の円）
-  const floor = new Mesh(
-    createFloorDiscGeometry(center.x, center.z, floorY + FLOOR_LIFT, def.circle.radius + 0.5),
+  stone(
+    'arena:floor',
     createArenaFloorMaterial({
-      cx: center.x,
-      cz: center.z,
+      cx: def.center.x,
+      cz: def.center.z,
       radius: def.circle.radius,
       pillars: def.pillars,
       pedestalRadius: def.pedestal.radius,
     }),
+    false,
   );
-  floor.name = 'arena:floor';
-  floor.receiveShadow = true;
-  root.add(floor);
 
-  // 外周の壁: 霧の門側の切れ目を除く円弧。範囲は壁のコライダ（f-wall-*）の端から読む
-  const walls = level.boxes.filter((b) => /^f-wall-\d+$/.test(b.id));
-  const angleOf = (b: { x: number; z: number }): number =>
-    Math.atan2(b.z - center.z, b.x - center.x);
-  const first = walls.find((b) => b.id === 'f-wall-1');
-  const last = walls.find((b) => b.id === `f-wall-${walls.length}`);
-  if (first && last) {
-    const ring = Math.hypot(first.x - center.x, first.z - center.z);
-    const half = Math.atan(first.hx / ring);
-    const a0 = angleOf(first);
-    const span = (((angleOf(last) - a0) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    const wall = new Mesh(
-      createWallRingGeometry({
-        cx: center.x,
-        cz: center.z,
-        floorY,
-        inner: WALL_INNER,
-        outer: WALL_OUTER,
-        height: first.hy * 2,
-        start: a0 - half,
-        end: a0 + span + half,
-      }),
+  // 外周の壁: 霧の門側の切れ目を除く円弧
+  const arc = arenaWallArc(level, def);
+  if (arc) {
+    stone(
+      'arena:wall',
       createArenaMasonryMaterial({
         courseHeight: 0.62,
         blockWidth: 1.55,
@@ -138,20 +117,17 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
         cracks: 0.55,
         grime: 1,
       }),
+      true,
     );
-    wall.name = 'arena:wall';
-    wall.castShadow = true;
-    wall.receiveShadow = true;
-    root.add(wall);
 
     // 背景の幕と、壁の向こうの岩場のシルエット（外周の崖が空を覆って見えるのを避ける）
     const spec = {
-      cx: center.x,
-      cz: center.z,
+      cx: def.center.x,
+      cz: def.center.z,
       floorY,
       radius: WALL_OUTER + 0.5,
-      start: a0 - half,
-      end: a0 + span + half,
+      start: arc.start,
+      end: arc.end,
     };
     const backdrop = new Mesh(createBackdropGeometry(spec), createBackdropMaterial(skyAt));
     backdrop.name = 'arena:backdrop';
@@ -166,18 +142,8 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
   }
 
   // 柱 4 本（1 メッシュに結合）
-  const columns = new Mesh(
-    mergeAll(
-      def.pillars.map((p) =>
-        createColumnGeometry({
-          x: p.x,
-          y: floorY,
-          z: p.z,
-          radius: p.radius,
-          height: def.pillarHeight,
-        }),
-      ),
-    ),
+  stone(
+    'arena:columns',
     createArenaMasonryMaterial({
       courseHeight: 0.84,
       blockWidth: 1e3,
@@ -185,21 +151,12 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
       cracks: 0.7,
       grime: 1,
     }),
+    true,
   );
-  columns.name = 'arena:columns';
-  columns.castShadow = true;
-  columns.receiveShadow = true;
-  root.add(columns);
 
   // 中央の台座
-  const pedestal = new Mesh(
-    createPedestalGeometry({
-      x: def.pedestal.x,
-      z: def.pedestal.z,
-      y: floorY,
-      radius: def.pedestal.radius,
-      height: def.pedestal.topY - floorY,
-    }),
+  stone(
+    'arena:pedestal',
     createArenaMasonryMaterial({
       courseHeight: 0.3,
       blockWidth: 1.5,
@@ -207,11 +164,8 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
       cracks: 0.45,
       grime: 0.8,
     }),
+    true,
   );
-  pedestal.name = 'arena:pedestal';
-  pedestal.castShadow = true;
-  pedestal.receiveShadow = true;
-  root.add(pedestal);
 
   // 壁のたいまつ（燭台 + 炎。光は実ライトで、プラグインが登録する）
   const sconces = new Mesh(createSconceGeometry(torches), createSconceMaterial());
@@ -241,18 +195,8 @@ registerViewPlugin('arena', ({ game, view, level, services }) => {
   const def = level ? arenaOf(level) : null;
   if (!level || !def) return {};
 
-  const built = createArena(level, def, (dir) => view.environment.skyAt(dir));
-  view.scene.add(built.root);
-  const { lights } = services;
-  for (const t of built.torches) {
-    lights.add({
-      position: torchLightPosition(t),
-      color: ARENA_TORCH_LIGHT.color,
-      intensity: ARENA_TORCH_LIGHT.intensity,
-      distance: ARENA_TORCH_LIGHT.distance,
-      flickerPhase: t.phase,
-    });
-  }
+  let built: ReturnType<typeof createArena> | null = null;
+  const stats = { triangles: 0, meshes: 0 };
 
   const listeners = new Set<(hit: PillarHit) => void>();
   let hitCount = 0;
@@ -307,11 +251,27 @@ registerViewPlugin('arena', ({ game, view, level, services }) => {
     get moodWeight() {
       return Math.max(0, weight);
     },
-    stats: { triangles: built.triangles, meshes: built.meshes },
+    stats,
   };
   views.set(view, api);
 
   return {
+    load: async () => {
+      const baked = await loadBakedScene('level_arena');
+      built = createArena(baked, level, def, (dir) => view.environment.skyAt(dir));
+      view.scene.add(built.root);
+      for (const t of built.torches) {
+        services.lights.add({
+          position: torchLightPosition(t),
+          color: ARENA_TORCH_LIGHT.color,
+          intensity: ARENA_TORCH_LIGHT.intensity,
+          distance: ARENA_TORCH_LIGHT.distance,
+          flickerPhase: t.phase,
+        });
+      }
+      stats.triangles = built.triangles;
+      stats.meshes = built.meshes;
+    },
     update: (dt) => {
       const { feet } = game.player;
       const target = arenaMoodWeight(def, feet.x, feet.z);
@@ -329,6 +289,7 @@ registerViewPlugin('arena', ({ game, view, level, services }) => {
       const show = backdropFade.value > 0.002;
       // 遠い間は闘技場ごと描かない（崖の向こうで見えないのに、遠景の視野に入るだけで数千三角形かかる）。
       // 初回の 2 フレームは出したままにして、ローディング中のウォームアップでパイプラインを作っておく
+      if (!built) return;
       frames++;
       built.root.visible = frames <= 2 || d < ARENA_FAR;
       for (const m of built.sky) m.visible = show;

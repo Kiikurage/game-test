@@ -27,6 +27,7 @@ import {
   weld,
 } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
+import { runnerImport } from 'vite';
 import { OUT_DIR, ROOT } from './config.mjs';
 import { totalBytesOf } from './manifestTotal.mjs';
 import { BLENDER_MODELS } from './blender/models.mjs';
@@ -67,18 +68,32 @@ function blenderVersion(blender) {
   return (r.stdout.split('\n')[0] ?? '').trim();
 }
 
-/** モデルの出力を左右するファイルの SHA-256（パイプライン共通 + モデルスクリプト）。 */
-function sourceHash(name) {
+/**
+ * モデルの出力を左右するものの SHA-256（パイプライン共通 + モデルスクリプト + 入力の SHA-256）。
+ * src/render/assets/blenderModels.test.ts も同じ式で求める。
+ */
+function sourceHash(model, inputHash) {
   const h = createHash('sha256');
-  for (const rel of [...PIPELINE_FILES, `assets-src/blender/${name}.py`]) {
+  for (const rel of [...PIPELINE_FILES, `assets-src/blender/${model.script ?? model.name}.py`]) {
     h.update(rel + '\0');
     h.update(readFileSync(join(ROOT, rel)));
     h.update('\0');
   }
+  if (inputHash) h.update(`input\0${inputHash}\0`);
   return h.digest('hex');
 }
 
-function runBlender(blender, model, outFile) {
+/** `input` のあるモデル: TS の生成コード（src/render/levelMeshes/levelMeshes.bake.ts）で入力を作る。 */
+let bakeModule;
+async function modelInput(model) {
+  if (!model.input) return null;
+  bakeModule ??= (await runnerImport(join(ROOT, 'src/render/levelMeshes/levelMeshes.bake.ts')))
+    .module;
+  const text = bakeModule.bakeLevelMeshes(model.input);
+  return { text, hash: createHash('sha256').update(text).digest('hex') };
+}
+
+function runBlender(blender, model, outFile, inputFile) {
   const r = spawnSync(
     blender,
     [
@@ -90,11 +105,12 @@ function runBlender(blender, model, outFile) {
       EXPORT_PY,
       '--',
       '--model',
-      join(SRC_DIR, `${model.name}.py`),
+      join(SRC_DIR, `${model.script ?? model.name}.py`),
       '--out',
       outFile,
       '--seed',
       String(model.seed),
+      ...(inputFile ? ['--input', inputFile] : []),
     ],
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   );
@@ -150,11 +166,23 @@ async function buildModel(blender, model, outFile) {
   const tmp = mkdtempSync(join(tmpdir(), `blender-${model.name}-`));
   try {
     const raw = join(tmp, 'raw.glb');
-    runBlender(blender, model, raw);
+    const input = await modelInput(model);
+    let inputFile = null;
+    if (input) {
+      inputFile = join(tmp, 'input.json');
+      writeFileSync(inputFile, input.text);
+    }
+    runBlender(blender, model, raw, inputFile);
     const doc = await io.read(raw);
     doc.getRoot().getAsset().generator = 'game-test scripts/assets/build-blender.mjs';
     // Blender は背面カリングなしを doubleSided として書くが、閉じた静的メッシュなので片面にする
     for (const m of doc.getRoot().listMaterials()) m.setDoubleSided(false);
+    // extras.dropTexcoord0: 描画に使わない TEXCOORD_0 を捨てる（ライトマップの TEXCOORD_1 は残す。#329）
+    for (const node of doc.getRoot().listNodes()) {
+      if (node.getExtras().dropTexcoord0 !== true) continue;
+      for (const prim of node.getMesh()?.listPrimitives() ?? [])
+        prim.setAttribute('TEXCOORD_0', null);
+    }
     await doc.transform(weld());
     const lods = buildLods(doc, model);
     await doc.transform(
@@ -163,12 +191,20 @@ async function buildModel(blender, model, outFile) {
       prune({ keepLeaves: true, keepAttributes: true }),
       reorder({ encoder: MeshoptEncoder }),
       // ライトマップ UV（TEXCOORD_1）は解像度 1024 以上でも texel 内に収まるよう 16bit
-      quantize({ quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 16 }),
-      meshopt({ encoder: MeshoptEncoder, level: 'medium' }),
+      // カスタム属性（`_` 始まり。#329 のレベル形状）は、[-1, 1] に収まるものだけ 16bit（範囲外は float のまま）。
+      // meshopt の medium は内部で全属性を量子化し直すので、そちらにも同じ値を渡す
+      quantize({
+        quantizePosition: 14,
+        quantizeNormal: 10,
+        quantizeTexcoord: 16,
+        quantizeGeneric: 16,
+      }),
+      meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizeGeneric: 16 }),
     );
     const bytes = await io.writeBinary(doc);
     writeFileSync(outFile, bytes);
     return {
+      inputHash: input?.hash,
       lods,
       bytes: bytes.byteLength,
       sha256: createHash('sha256').update(bytes).digest('hex'),
@@ -209,12 +245,13 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const entries = { ...(manifest.blender?.models ?? {}) };
 for (const model of models) {
   const file = join(BLENDER_OUT, `${model.name}.glb`);
-  const { lods, bytes, sha256 } = await buildModel(blender, model, file);
+  const { lods, bytes, sha256, inputHash } = await buildModel(blender, model, file);
   entries[model.name] = {
     file: relative(OUT_DIR, file),
     bytes,
     sha256,
-    sourceHash: sourceHash(model.name),
+    sourceHash: sourceHash(model, inputHash),
+    ...(inputHash ? { inputHash } : {}),
     lodDistances: model.lods.map((l) => l.distance),
     meshes: Object.fromEntries(
       Object.entries(lods).map(([k, tris]) => [k, { lodTriangles: tris }]),

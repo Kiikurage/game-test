@@ -1,4 +1,11 @@
-import { CircleGeometry, Group, Mesh, type BufferGeometry, type Material } from 'three/webgpu';
+import {
+  CircleGeometry,
+  Group,
+  Mesh,
+  type BufferGeometry,
+  type Material,
+  type Object3D,
+} from 'three/webgpu';
 import { color, float, mix, positionWorld, time, vec3 } from 'three/tsl';
 import type { Level, PlacedBox, PlacedCylinder } from '../../game/world/level';
 import { createMetalMaterial } from '../levelMaterials';
@@ -39,7 +46,7 @@ export interface CryptProps {
    * 閉じた状態は `closed`（position / rotation.y のコピー）。起き上がり演出は `closed.y + 0.25 〜 0.5` ずらして横へずらす想定。
    */
   readonly sarcophagusLid: {
-    readonly pivot: Group;
+    readonly pivot: Object3D;
     readonly closed: { x: number; y: number; z: number; rotationY: number };
   } | null;
   /**
@@ -47,13 +54,13 @@ export interface CryptProps {
    * `closedRotationY + openDelta`（約 ±90°。北＝中庭側へ開く）へ回すと開く。持ち上げるなら `position.y` を動かす。
    */
   readonly gateLeaves: readonly {
-    readonly pivot: Group;
+    readonly pivot: Object3D;
     readonly closedRotationY: number;
     readonly openDelta: number;
   }[];
   /** レバーの持ち手。`pivot.rotation.z` を `closedRotationZ`（引く前）→ `openRotationZ`（引いた後）へ。 */
   readonly leverHandle: {
-    readonly pivot: Group;
+    readonly pivot: Object3D;
     readonly closedRotationZ: number;
     readonly openRotationZ: number;
   } | null;
@@ -87,7 +94,12 @@ interface Parts {
   readonly tint: Vec3;
 }
 
-export function buildCrypt(level: Level, detail: 0 | 1 | 2): CryptProps {
+/**
+ * 地下墓所・中庭・鉄門 G1 の形状（マテリアルなし）。ベイク時だけ呼ぶ（`npm run assets:blender`、#329）。
+ * 実行時は glb（`level_crypt`）を読み、`assembleCrypt` でマテリアルとピボットを付ける。
+ * `root.userData.torchLights` に、石積みマテリアルへ渡すたいまつの光源（エリア別）を入れる。
+ */
+export function buildCryptScene(level: Level): Group {
   const ground = (x: number, z: number): number => level.heightAt(x, z);
   const parts: Record<Area, Parts> = {
     D: makeParts(ground, TINT_D),
@@ -191,75 +203,138 @@ export function buildCrypt(level: Level, detail: 0 | 1 | 2): CryptProps {
     addTorch(parts.E, ground, frameOf(t), i + 7, 1.7);
   });
 
-  // たいまつの光は実ライトになったので、D と E で同じマテリアルを使う
-  const masonryMaterial = createMasonryMaterial({ detail });
-  const materials: Record<Area, Material> = { D: masonryMaterial, E: masonryMaterial };
-  const metal = createMetalMaterial();
-
   // --- 石棺（蓋は別メッシュ + ピボット）---
-  const lid = addSarcophagus(
+  addSarcophagus(
     parts.D.masonry,
     boxes.get('d-sarcophagus'),
     propHeight.get('d-sarcophagus') ?? 0.75,
     ground,
-    materials.D,
     extras,
   );
 
   // --- 鉄門 G1・レバー ---
-  const gate = addGateAndLever(level, lane, extras, metal);
+  addGateAndLever(level, lane, extras);
 
   // --- メッシュ化 ---
   const root = new Group();
   root.name = 'crypt';
-  let triangles = 0;
-  let meshes = 0;
-  const addMesh = (
-    geometry: BufferGeometry | null,
-    material: Material,
-    name: string,
-    cast: boolean,
-    receive: boolean,
-    into: Group = root,
-  ): Mesh | null => {
-    if (!geometry) return null;
-    const mesh = new Mesh(geometry, material);
+  root.userData.torchLights = { D: parts.D.torchLights, E: parts.E.torchLights };
+  const addMesh = (geometry: BufferGeometry | null, name: string): void => {
+    if (!geometry) return;
+    const mesh = new Mesh(geometry);
     mesh.name = name;
-    mesh.castShadow = cast;
-    mesh.receiveShadow = receive;
-    into.add(mesh);
-    triangles += (geometry.index ? geometry.index.count : 0) / 3;
-    meshes++;
-    return mesh;
+    root.add(mesh);
   };
-  addMesh(lane.build(), masonryMaterial, 'env:crypt:lane', true, true);
-  const flameMaterial = createFlameMaterial();
-  const webMaterial = createWebMaterial();
+  addMesh(lane.build(), 'env:crypt:lane');
   for (const area of ['D', 'E'] as const) {
     const p = parts[area];
-    addMesh(p.masonry.build(), materials[area], `env:crypt:${area}`, true, true);
-    addMesh(p.props.build(), metal, `env:crypt-props:${area}`, false, true);
-    const flames = addMesh(p.flames.build(), flameMaterial, `env:crypt-glow:${area}`, false, false);
-    if (flames) flames.renderOrder = 2;
-    const web = addMesh(p.webs.build(), webMaterial, `env:crypt-web:${area}`, false, false);
-    if (web) web.renderOrder = 1;
+    addMesh(p.masonry.build(), `env:crypt:${area}`);
+    addMesh(p.props.build(), `env:crypt-props:${area}`);
+    addMesh(p.flames.build(), `env:crypt-glow:${area}`);
+    addMesh(p.webs.build(), `env:crypt-web:${area}`);
   }
   root.add(extras);
-  extras.traverse((o) => {
+  return root;
+}
+
+/** 淀んだ水面（噴水）のマテリアル。 */
+function createFountainWaterMaterial(): Material {
+  return createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => {
+        const ripple = bakedNoise(
+          vec3(positionWorld.x.mul(3), positionWorld.z.mul(3), time.mul(0.35)),
+        );
+        const tone = mix(color(0x1c3330), color(0x3b5a48), ripple.mul(0.5).add(0.5));
+        return {
+          color: tone,
+          // 空を映す代わりに、弱い自己発光で水面が真っ黒にならないようにする
+          emissive: tone.mul(0.22),
+          roughness: float(0.12).add(ripple.mul(0.05)),
+        };
+      },
+      surfaceId: 'cryptWater',
+    },
+    { roughness: 0.1, metalness: 0 },
+  );
+}
+
+/**
+ * ベイク済みの形状（`buildCryptScene` → glb）にマテリアル・影・描画順を付け、可動パーツのピボットを返す。
+ * `scene` は `restoreBakedScene` 済みの木（名前・属性名がベイク前と同じ）。
+ */
+export function assembleCrypt(scene: Object3D, detail: 0 | 1 | 2): CryptProps {
+  const lights = scene.userData.torchLights as Record<
+    Area,
+    [number, number, number, number, number][]
+  >;
+  // たいまつの光は実ライトになったので、D と E で同じマテリアルを使う
+  const masonryMaterial = createMasonryMaterial({ detail });
+  const materials: Record<Area, Material> = { D: masonryMaterial, E: masonryMaterial };
+  const metal = createMetalMaterial();
+  const flameMaterial = createFlameMaterial();
+  const webMaterial = createWebMaterial();
+  /** 名前 → [マテリアル, castShadow, receiveShadow, renderOrder]。 */
+  const look = (name: string): [Material, boolean, boolean, number] => {
+    if (name === 'env:crypt:lane') return [masonryMaterial, true, true, 0];
+    if (name === 'env:crypt:D' || name === 'env:crypt:lid') return [materials.D, true, true, 0];
+    if (name === 'env:crypt:E') return [materials.E, true, true, 0];
+    if (name.startsWith('env:crypt-props:')) return [metal, false, true, 0];
+    if (name.startsWith('env:crypt-glow:')) return [flameMaterial, false, false, 2];
+    if (name.startsWith('env:crypt-web:')) return [webMaterial, false, false, 1];
+    if (name === 'env:crypt-water') return [createFountainWaterMaterial(), false, true, 0];
+    if (name === 'lever:plate') return [metal, false, false, 0];
+    if (name.startsWith('gate:') || name.startsWith('lever:')) return [metal, true, false, 0];
+    throw new Error(`crypt: unknown mesh ${name}`);
+  };
+  let triangles = 0;
+  let meshes = 0;
+  scene.traverse((o) => {
     const mesh = o as Mesh;
-    if ((mesh as { isMesh?: boolean }).isMesh === true) {
-      const g = mesh.geometry;
-      triangles += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
-      meshes++;
-    }
+    if ((o as { isMesh?: boolean }).isMesh !== true) return;
+    [mesh.material, mesh.castShadow, mesh.receiveShadow, mesh.renderOrder] = look(mesh.name);
+    const g = mesh.geometry;
+    triangles += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+    meshes++;
   });
+
+  const lidPivot = scene.getObjectByName('sarcophagus-lid:d-sarcophagus');
+  const leaves: CryptProps['gateLeaves'][number][] = [];
+  for (const side of ['left', 'right'] as const) {
+    const pivot = scene.getObjectByName(`gate:G1:leaf:${side}`);
+    if (!pivot) continue;
+    const yaw = pivot.userData.yaw as number;
+    // glb の四元数から戻した Euler は |yaw| > 90° で x・z が π になるので、組み直す
+    pivot.rotation.set(0, yaw, 0);
+    leaves.push({
+      pivot,
+      closedRotationY: yaw,
+      openDelta: side === 'left' ? -Math.PI / 2 : Math.PI / 2,
+    });
+  }
+  const leverPivot = scene.getObjectByName('lever:lever-g1:handle');
+  let leverHandle: CryptProps['leverHandle'] = null;
+  if (leverPivot) {
+    leverPivot.rotation.set(0, leverPivot.userData.yaw as number, -0.7);
+    leverHandle = { pivot: leverPivot, closedRotationZ: -0.7, openRotationZ: 0.7 };
+  }
+  let sarcophagusLid: CryptProps['sarcophagusLid'] = null;
+  if (lidPivot) {
+    lidPivot.rotation.set(0, 0, 0);
+    const { x, y, z } = lidPivot.position;
+    sarcophagusLid = { pivot: lidPivot, closed: { x, y, z, rotationY: 0 } };
+  }
+  const root = new Group();
+  root.name = 'crypt';
+  for (const child of [...scene.children]) root.add(child);
   return {
     root,
-    sarcophagusLid: lid,
-    gateLeaves: gate?.leaves ?? [],
-    leverHandle: gate?.lever ?? null,
+    torchLights: [...lights.D, ...lights.E],
+    sarcophagusLid,
+    gateLeaves: leaves,
+    leverHandle,
     stats: { triangles, meshes },
-    torchLights: [...parts.D.torchLights, ...parts.E.torchLights],
   };
 }
 
@@ -722,31 +797,11 @@ function addFountain(m: MasonryBuilder, cyl: PlacedCylinder, extras: Group): voi
     scatter: true,
     cell: 0.3,
   });
-  // 淀んだ水面
-  const water = createUberMaterial(
-    {
-      shading: 'lit',
-      surface: () => {
-        const ripple = bakedNoise(
-          vec3(positionWorld.x.mul(3), positionWorld.z.mul(3), time.mul(0.35)),
-        );
-        const tone = mix(color(0x1c3330), color(0x3b5a48), ripple.mul(0.5).add(0.5));
-        return {
-          color: tone,
-          // 空を映す代わりに、弱い自己発光で水面が真っ黒にならないようにする
-          emissive: tone.mul(0.22),
-          roughness: float(0.12).add(ripple.mul(0.05)),
-        };
-      },
-      surfaceId: 'cryptWater',
-    },
-    { roughness: 0.1, metalness: 0 },
-  );
-  const surface = new Mesh(new CircleGeometry(R - 0.4, 32), water);
+  // 淀んだ水面（マテリアルは assembleCrypt）
+  const surface = new Mesh(new CircleGeometry(R - 0.4, 32));
   surface.rotation.x = -Math.PI / 2;
   surface.position.set(cyl.x, gy + 0.72 * k, cyl.z);
   surface.name = 'env:crypt-water';
-  surface.receiveShadow = true;
   extras.add(surface);
 }
 
@@ -756,10 +811,9 @@ function addSarcophagus(
   box: PlacedBox | undefined,
   height: number,
   ground: (x: number, z: number) => number,
-  material: Material,
   extras: Group,
-): NonNullable<CryptProps['sarcophagusLid']> | null {
-  if (!box) return null;
+): void {
+  if (!box) return;
   const base = box.y + box.hy - height;
   const yaw = (box.yawDeg ?? 0) * DEG;
   const tint = TINT_D;
@@ -811,31 +865,19 @@ function addSarcophagus(
   pivot.name = 'sarcophagus-lid:d-sarcophagus';
   pivot.position.set(box.x, pivotY, box.z);
   pivot.rotation.y = 0;
-  const lidMesh = new Mesh(geometry, material);
+  const lidMesh = new Mesh(geometry);
   lidMesh.name = 'env:crypt:lid';
-  lidMesh.castShadow = true;
-  lidMesh.receiveShadow = true;
   pivot.add(lidMesh);
   extras.add(pivot);
-  return { pivot, closed: { x: box.x, y: pivotY, z: box.z, rotationY: 0 } };
 }
 
 // ---------------------------------------------------------------------------
 // 鉄門 G1 とレバー
 
-interface GateResult {
-  readonly leaves: CryptProps['gateLeaves'];
-  readonly lever: CryptProps['leverHandle'];
-}
-
-function addGateAndLever(
-  level: Level,
-  lane: MasonryBuilder,
-  extras: Group,
-  metal: Material,
-): GateResult | null {
+/** 鉄門 G1 とレバー。扉・持ち手のピボットは `userData.yaw`（閉じた向き）を持つ。 */
+function addGateAndLever(level: Level, lane: MasonryBuilder, extras: Group): void {
   const g = level.gates.find((p) => p.def.id === 'G1');
-  if (!g) return null;
+  if (!g) return;
   const { def } = g;
   const yaw = def.yawDeg * DEG;
   const nx = Math.sin(yaw);
@@ -902,7 +944,6 @@ function addGateAndLever(
   });
 
   // 扉 2 枚（ローカル座標 = 門の向き。蝶番を原点に作り、pivot を蝶番へ置く）
-  const leaves: { pivot: Group; closedRotationY: number; openDelta: number }[] = [];
   const leafBuilders: { builder: PropBuilder; pivot: Group }[] = [];
   const leafW = half - 0.04;
   for (const side of [-1, 1] as const) {
@@ -946,14 +987,13 @@ function addGateAndLever(
     const [hx0, hz0] = pos(side * (half - 0.02));
     pivot.position.set(hx0, gy, hz0);
     pivot.rotation.y = yaw;
-    leaves.push({ pivot, closedRotationY: yaw, openDelta: side < 0 ? -Math.PI / 2 : Math.PI / 2 });
+    pivot.userData.yaw = yaw;
     leafBuilders.push({ builder: b, pivot });
     extras.add(pivot);
   }
 
   // レバー（石の台 + 鉄の持ち手。持ち手は pivot.rotation.z で倒す）
   const leverDef = level.data.interactables.find((i) => i.kind === 'lever');
-  let lever: CryptProps['leverHandle'] = null;
   let leverPivot: Group | null = null;
   let leverBuilder: PropBuilder | null = null;
   if (leverDef) {
@@ -996,6 +1036,7 @@ function addGateAndLever(
     pivot.name = 'lever:lever-g1:handle';
     pivot.position.set(leverDef.x + nx * 0.23, ly + 0.9, leverDef.z + nz * 0.23);
     pivot.rotation.set(0, yaw, -0.7);
+    pivot.userData.yaw = yaw;
     const b = new PropBuilder();
     b.box([0, 0.32, 0], [0.025, 0.32, 0.025], IRON);
     b.cylinder([0, 0.66, 0], 0.055, 0.055, 0.07, RUST, {}, 10);
@@ -1003,7 +1044,6 @@ function addGateAndLever(
     // 扇形の目盛板（台の前面）
     leverPivot = pivot;
     leverBuilder = b;
-    lever = { pivot, closedRotationZ: -0.7, openRotationZ: 0.7 };
     extras.add(pivot);
     const plate = new PropBuilder();
     plate.box(
@@ -1014,7 +1054,7 @@ function addGateAndLever(
     );
     const plateGeometry = plate.build();
     if (plateGeometry) {
-      const plateMesh = new Mesh(plateGeometry, metal);
+      const plateMesh = new Mesh(plateGeometry);
       plateMesh.name = 'lever:plate';
       extras.add(plateMesh);
     }
@@ -1023,18 +1063,16 @@ function addGateAndLever(
   for (const { builder, pivot } of leafBuilders) {
     const geometry = builder.build();
     if (!geometry) continue;
-    const mesh = new Mesh(geometry, metal);
-    mesh.castShadow = true;
+    const mesh = new Mesh(geometry);
     mesh.name = `${pivot.name}:mesh`;
     pivot.add(mesh);
   }
   if (leverPivot && leverBuilder) {
     const geometry = leverBuilder.build();
     if (geometry) {
-      const mesh = new Mesh(geometry, metal);
-      mesh.castShadow = true;
+      const mesh = new Mesh(geometry);
+      mesh.name = `${leverPivot.name}:mesh`;
       leverPivot.add(mesh);
     }
   }
-  return { leaves, lever };
 }

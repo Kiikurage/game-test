@@ -243,7 +243,7 @@
     "bytes": 18096,
     "triangles": 950
   },
-  "totalBytes": 2567060,
+  "totalBytes": 2918420,
   "equipment": {
     "file": "equipment.glb",
     "bytes": 117864,
@@ -584,24 +584,150 @@
   },
   "blender": {
     "blenderVersion": "Blender 5.2.1 LTS",
-    "bytes": 267212,
+    "bytes": 618572,
     "models": {
-      "broken_column": {
-        "file": "blender/broken_column.glb",
-        "bytes": 267212,
-        "sha256": "07c5df183346cdfac45838bbf3cb550a6911906fa2eb804119df604ccf967193",
-        "sourceHash": "c4fa1739a23eaefc6e956a9a53691572cd1f67cb06ff06720ab5f59af1f86c90",
+      "level_arena": {
+        "file": "blender/level_arena.glb",
+        "bytes": 190140,
+        "sha256": "f2ce9dcd7b1a0b66ed12c043e4323336453853f812f605cd56c75fc33796bddb",
+        "sourceHash": "ee24c2828f6173cca7ef78a6f308b64e0329510ecb429686460a9201c6b874e9",
+        "inputHash": "510d421838f2d21f4b3629c94f53258a5b5d2591814abd17ff1eb2e09ff4a39b",
         "lodDistances": [
-          0,
-          12,
-          35
+          0
         ],
         "meshes": {
-          "broken_column": {
+          "arena:columns": {
             "lodTriangles": [
-              17588,
-              4396,
-              1054
+              7392
+            ]
+          },
+          "arena:floor": {
+            "lodTriangles": [
+              72
+            ]
+          },
+          "arena:pedestal": {
+            "lodTriangles": [
+              760
+            ]
+          },
+          "arena:wall": {
+            "lodTriangles": [
+              1238
+            ]
+          }
+        }
+      },
+      "level_crypt": {
+        "file": "blender/level_crypt.glb",
+        "bytes": 336520,
+        "sha256": "eef112f3915c56792a8a8c3258905854b0c49b7c91a45cc7b1ad26756910f416",
+        "sourceHash": "c576727928c56025b7466ae0a27012dcbd5fc0d5816be7a3e62e12d43844bed5",
+        "inputHash": "e45e695d155f3bc9df6e8482f9687c9472cf75cbae4bfada1331a5d1e6028606",
+        "lodDistances": [
+          0
+        ],
+        "meshes": {
+          "env:crypt-water": {
+            "lodTriangles": [
+              32
+            ]
+          },
+          "gate:G1:leaf:left:mesh": {
+            "lodTriangles": [
+              392
+            ]
+          },
+          "gate:G1:leaf:right:mesh": {
+            "lodTriangles": [
+              392
+            ]
+          },
+          "lever:lever-g1:handle:mesh": {
+            "lodTriangles": [
+              92
+            ]
+          },
+          "lever:plate": {
+            "lodTriangles": [
+              12
+            ]
+          },
+          "env:crypt:lid": {
+            "lodTriangles": [
+              48
+            ]
+          },
+          "env:crypt-glow:D": {
+            "lodTriangles": [
+              28
+            ]
+          },
+          "env:crypt-glow:E": {
+            "lodTriangles": [
+              32
+            ]
+          },
+          "env:crypt-props:D": {
+            "lodTriangles": [
+              868
+            ]
+          },
+          "env:crypt-props:E": {
+            "lodTriangles": [
+              992
+            ]
+          },
+          "env:crypt-web:D": {
+            "lodTriangles": [
+              72
+            ]
+          },
+          "env:crypt:D": {
+            "lodTriangles": [
+              2200
+            ]
+          },
+          "env:crypt:E": {
+            "lodTriangles": [
+              3222
+            ]
+          },
+          "env:crypt:lane": {
+            "lodTriangles": [
+              476
+            ]
+          }
+        }
+      },
+      "level_waterway": {
+        "file": "blender/level_waterway.glb",
+        "bytes": 91912,
+        "sha256": "126da73feae8c19df3dd41f205b6e11e38a9be37e66945a330456d644c8d3137",
+        "sourceHash": "fefd512a04487228e346e96d791c17871fe770e3b82509e0f51ad26d51845ba7",
+        "inputHash": "e4ec7dce09c0e9fe4029b3ccde1dca8912588edac4043d297418bd13680800f5",
+        "lodDistances": [
+          0
+        ],
+        "meshes": {
+          "env:waterway-flames": {
+            "lodTriangles": [
+              12
+            ]
+          },
+          "env:waterway-lid": {
+            "lodTriangles": [
+              12
+            ]
+          },
+          "env:waterway-masonry": {
+            "lodTriangles": [
+              1660
+            ]
+          },
+          "env:waterway-torches": {
+            "lodTriangles": [
+              372
             ]
           }
         }

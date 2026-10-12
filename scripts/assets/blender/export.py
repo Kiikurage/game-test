@@ -5,7 +5,10 @@
 #
 # 1. 空のシーンを作り、モデルスクリプトの build(ctx) を呼んでオブジェクトを作らせる
 # 2. メッシュごとにライトマップ用 UV（2 番目の UV マップ "lightmap" → glTF の TEXCOORD_1）を作る
-# 3. 選択中のメッシュを glb に書き出す（LOD・圧縮は Node 側で行う）
+# 3. メッシュと空オブジェクト（階層・ピボット）を glb に書き出す（LOD・圧縮は Node 側で行う）。
+#    `_` で始まる点属性はカスタム属性として出る（export_attributes）
+#
+# models.mjs の `input` があるモデルは、Node 側が作った入力ファイルのパスを ctx["input"] で受け取る。
 #
 # 決定性: 乱数はモデルスクリプトに渡す random.Random(seed) だけを使う。--factory-startup で
 # ユーザー設定・アドオンの影響を受けない。
@@ -24,6 +27,7 @@ def parse_args():
     p.add_argument("--model", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--input", default=None)
     return p.parse_args(argv)
 
 
@@ -73,7 +77,7 @@ def main():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    ctx = {"bpy": bpy, "rng": random.Random(args.seed)}
+    ctx = {"bpy": bpy, "rng": random.Random(args.seed), "input": args.input}
     module.build(ctx)
 
     meshes = sorted((o for o in bpy.context.scene.objects if o.type == "MESH"), key=lambda o: o.name)
@@ -84,8 +88,9 @@ def main():
         add_lightmap_uv(obj, margin)
 
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in meshes:
-        obj.select_set(True)
+    for obj in bpy.context.scene.objects:
+        if obj.type in ("MESH", "EMPTY"):
+            obj.select_set(True)
     bpy.ops.export_scene.gltf(
         filepath=args.out,
         export_format="GLB",
@@ -93,6 +98,7 @@ def main():
         export_apply=True,
         export_yup=True,
         export_extras=True,
+        export_attributes=True,
         export_texcoords=True,
         export_normals=True,
         export_materials="EXPORT",

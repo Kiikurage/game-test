@@ -20,6 +20,7 @@ import { createLightRig } from './waterLighting';
 import { createWaterMaterial } from './waterMaterial';
 import type { WaterFields } from './waterNodes';
 import { buildWaterShell } from './waterShell';
+import { loadBakedScene } from '../levelMeshes/bakedScene';
 import { WaterSim } from './waterSim';
 import {
   createLayoutTexture,
@@ -207,7 +208,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer, services }) =
   let reflectionNode: ReturnType<typeof reflector> | null = null;
   let reflectionEnabled = false;
 
-  const build = (textures: WaterTextures): void => {
+  const build = (textures: WaterTextures, baked: Object3D): void => {
     const fields: WaterFields = {
       grid,
       sim: sim ? sim.texture : layoutTexture,
@@ -218,7 +219,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer, services }) =
     const group = new Group();
     group.name = 'waterway-water';
 
-    const shell = buildWaterShell(level, way, fields, rig, materialDetail);
+    const shell = buildWaterShell(baked, fields, rig, materialDetail);
     for (const m of shell.meshes) layers.reflect(m);
     group.add(shell.root);
 
@@ -348,7 +349,8 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer, services }) =
         console.warn('waterway: water textures failed to load', e);
         textures = placeholderWaterTextures();
       }
-      build(textures);
+      // 殻（壁・床・天井・石棺・たいまつ）の形状はベイク済み（#329）
+      build(textures, await loadBakedScene('level_waterway'));
     },
     update: (dt) => {
       if (hatch) hatch.visible = !state.hatchBroken;
