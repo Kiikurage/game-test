@@ -220,8 +220,8 @@ it('大上段は左右ロールを F36–F46 で入力して回避できる', ()
 `bossEngaged` で出て、`bossDefeated` / `bossReset` / プレイヤーの死亡（`death` の `start`）で消える。上記イベントだけを購読する（ボスの内部状態は読まない）。
 
 ```
-src/game/hud/bossBarModel.ts    状態（琥珀色の残像 60F 遅延・目盛り・フェーズ移行の 20F 発光・30F フェード）。DOM 非依存
-src/game/hud/bossBar.system.ts  イベント購読と毎ステップの更新。bossBarSystem
+src/presentation/hud/bossBarModel.ts 状態（琥珀色の残像 60F 遅延・目盛り・フェーズ移行の 20F 発光・30F フェード）。DOM 非依存
+src/presentation/hud/hudPresentation.ts  イベント購読と毎ステップ（stepEnd）の更新。hudPresentation(game).bossBar
 src/ui/hud/bossBar.ts / .css    DOM（画面下中央、下端から 48px、幅 min(50vw, 560px)、高さ 12px、名前 16px）
 src/render/hud/bossBar.view.ts  ビュープラグイン。不透明度は HUD 全体のフェード（死亡演出・休憩）との積
 ```

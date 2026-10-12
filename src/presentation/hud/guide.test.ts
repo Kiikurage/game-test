@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Action, InputDevice } from '../../core/input';
 import { interactPromptText } from '../../core/controlHints';
-import { HINTS, NOTICE } from '../data/guide';
+import { HINTS, NOTICE } from './guideData';
 import { HintModel, type HintSample } from './hintModel';
 import { NoticeModel } from './noticeModel';
 

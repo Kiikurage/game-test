@@ -1,7 +1,7 @@
 import type { Action } from '../../core/input';
-import { HINTS, type HintDef } from '../data/guide';
+import { HINTS, type HintDef } from './guideData';
 
-/** 1 ステップ分の観測（`guide.system.ts` が作る）。 */
+/** 1 ステップ分の観測（`hudPresentation.ts` が作る）。 */
 export interface HintSample {
   readonly dt: number;
   /** 移動入力の大きさ 0..1。 */

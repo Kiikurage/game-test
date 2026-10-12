@@ -1,4 +1,4 @@
-import { HUD_FADE_FRAMES } from '../../game/hud/hudModel';
+import { HUD_FADE_FRAMES } from '../../presentation/hud/hudModel';
 import { DEATH } from '../../game/data/death';
 import { registerViewPlugin } from '../viewPlugins';
 import { deathSystem } from '../../game/death/death.system';

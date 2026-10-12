@@ -26,7 +26,7 @@ export interface BossBarView {
 }
 
 /**
- * ボス HP バーの状態。`attach` でボス戦のイベントを購読し、固定ステップごとに `step()` を呼ぶ（`bossBar.system.ts`）。
+ * ボス HP バーの状態。`attach` でボス戦のイベントを購読し、固定ステップごとに `step()` を呼ぶ（`hudPresentation.ts`）。
  * 残像・発光・フェードのフレーム計算はすべてここに閉じる（DOM 非依存でテストできる）。
  *
  * - 表示: `bossEngaged` で出し、`bossDefeated` / `bossReset` / プレイヤーの死亡（`death` の `start`）で消す。

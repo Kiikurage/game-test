@@ -26,7 +26,7 @@ export function shouldStartStaminaBlink(prev: number, now: number): boolean {
 }
 
 /**
- * HUD の表示用状態。固定ステップごとに `step()` を呼ぶ（`hud.system.ts`）。描画（DOM）はこの値を読むだけ。
+ * HUD の表示用状態。固定ステップごとに `step()` を呼ぶ（`hudPresentation.ts`）。描画（DOM）はこの値を読むだけ。
  * 残像・点滅・光り・フェードのフレーム計算はすべてここに閉じる（DOM 非依存でテストできる）。
  */
 export class HudModel {
