@@ -20,6 +20,10 @@ import { profileScene, type RenderProfile } from './quality';
 import { NavDebugView } from './navDebugView';
 import { GridNavigator } from '../game/enemy/gridNavigator';
 import { createViewPlugins, type ViewPlugin } from './viewPlugins';
+import { settleWithin } from '../core/withTimeout';
+
+/** ウォームアップの GPU 完了待ちの上限（#369）。これを過ぎてもロードは進める。 */
+const WARM_UP_TIMEOUT_MS = 5000;
 
 // `*.view.ts`（登録式の描画機能。viewPlugins.ts 参照）を自動で読み込む。新機能は gameView.ts を編集しない。
 import.meta.glob('./**/*.view.ts', { eager: true });
@@ -234,7 +238,12 @@ export class GameView {
       this.enemyViews?.setWarmUp(false);
     }
     const device = (this.gameRenderer.renderer.backend as { device?: GPUDevice }).device;
-    await device?.queue.onSubmittedWorkDone();
+    if (!device) return;
+    // 初回フレームのパイプライン作成は GPU プロセスで同期的に行われ、負荷の高い Mac では数十秒かかることがある（#369）。
+    // 完了を待ちきれなくてもロードは先へ進める（残りは開始直後の数フレームで終わる）。
+    const done = await settleWithin(device.queue.onSubmittedWorkDone(), WARM_UP_TIMEOUT_MS);
+    if (!done)
+      console.warn(`warm-up GPU work did not finish within ${WARM_UP_TIMEOUT_MS} ms; continuing`);
   }
 
   /** alpha: 直前ステップ→最新ステップの補間係数。 */
