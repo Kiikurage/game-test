@@ -8,7 +8,7 @@ import {
   ClampToEdgeWrapping,
   type Texture,
 } from 'three/webgpu';
-import { float, floor, fract, mix, texture, vec2, vec3 } from 'three/tsl';
+import { float, floor, fract, max, mix, texture, vec2, vec3 } from 'three/tsl';
 import type { Node } from 'three/webgpu';
 import type { MaterialDetail } from './quality';
 import {
@@ -128,7 +128,9 @@ export function bakedFractal(p: Node<'vec3'>, octaves: number): Node<'float'> {
  * x → テクセルは R2 列（無理数の倍率）で散らすので、隣り合う整数でも離れたテクセルになる。
  */
 export function bakedHash(x: Node<'float'> | Node<'uint'> | Node<'int'>): Node<'float'> {
-  const f = float(x);
+  // three の `hash` と同じく入力を uint に切り捨てる（負は 0）。小数の種（0..1 のハッシュ値など）は
+  // 置換前と同じく同じ値になる。切り捨てないと、置換前は一様だった石の明暗・ひびがばらつく（#326）
+  const f = floor(max(float(x), 0));
   const cell = floor(fract(vec2(f.mul(0.7548776662), f.mul(0.5698402911))).mul(CELLS_SIZE));
   return texture(cellsTexture, cell.add(0.5).div(CELLS_SIZE)).level(float(0)).r;
 }

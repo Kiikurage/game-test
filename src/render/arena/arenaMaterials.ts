@@ -26,6 +26,7 @@ import {
   round,
   sign,
   smoothstep,
+  select,
   step,
   uniform,
   vec2,
@@ -52,6 +53,17 @@ const PI2 = Math.PI * 2;
 const STONE_BASE = vec3(0.215, 0.205, 0.192);
 const JOINT_COLOR = vec3(0.045, 0.041, 0.038);
 const MOSS_COLOR = vec3(0.07, 0.092, 0.04);
+
+/**
+ * three の `hash`（PCG）の整数入力での値。置換前の闘技場は 0..1 の値を `hash` に渡しており、uint への切り捨てで
+ * 下の整数の値に固定されていた。その見た目を保つための定数（`bakedHash` の表の値とは違う）。
+ */
+const LEGACY_HASH = { 0: 0.0302, 3: 0.4963, 4: 0.1581, 9: 0.3031, 10: 0.4375, 17: 0.8095 } as const;
+
+/** 置換前の `hash(cell + 9.1)`（cell < 0.9 なら hash(9)、以上なら hash(10)）。 */
+function legacyJointHash(cell: F): F {
+  return select(cell.lessThan(0.9), float(LEGACY_HASH[9]), float(LEGACY_HASH[10]));
+}
 
 /** 高さ（m 単位の浮き彫り）から、ビュー空間の法線を摂動する（`BumpMapNode` と同じ式。procedural な高さ用）。 */
 function bumpNormal(height: F, strength: number): V3 {
@@ -103,9 +115,11 @@ function shadeStone(i: StoneInput): StoneOutput {
     .add(high ? bakedNoise(p.mul(31)).mul(0.005).mul(fine) : float(0));
   const onStone: F = smoothstep(i.jointW.sub(aa.mul(0.9)), i.jointW.add(aa.mul(0.9)), edgeN);
 
-  // 石ごとの明暗と色味（寒色寄り ↔ 暖色寄り）
-  const tone: F = float(0.5).add(bakedHash(cell).mul(0.85));
-  const hue = mix(vec3(0.83, 0.92, 1.05), vec3(1.07, 0.97, 0.8), bakedHash(cell.add(17.3)));
+  // 石ごとの明暗と色味。`cell` は 0..1 の値で、置換前の three の `hash` は入力を uint に切り捨てるため
+  // `hash(cell)` = hash(0)、`hash(cell + 17.3)` = hash(17) の定数だった（石ごとにばらつかない）。
+  // 見た目を変えないよう、その値（three の PCG ハッシュの値）をそのまま使う（#326）
+  const tone: F = float(0.5 + LEGACY_HASH[0] * 0.85);
+  const hue = mix(vec3(0.83, 0.92, 1.05), vec3(1.07, 0.97, 0.8), LEGACY_HASH[17]);
   // 石の中の染み（低周波）と粒（高周波）、孔
   const stain: F = bakedNoise(p.mul(0.85).add(cell.mul(1.7)))
     .mul(0.5)
@@ -131,7 +145,8 @@ function shadeStone(i: StoneInput): StoneOutput {
     .mul(edgeWear);
 
   // ひび: 石ごとに入る/入らない。3D ノイズの零点集合が面上の曲線になる
-  const crackSeed: F = bakedHash(cell.add(3.7));
+  // 置換前は hash(cell + 3.7) = hash(3) か hash(4)（どちらも閾値未満で、ひびは出ていなかった）
+  const crackSeed: F = select(cell.lessThan(0.3), float(LEGACY_HASH[3]), float(LEGACY_HASH[4]));
   const hasCrack: F = step(float(1).sub(i.cracks.mul(0.55)), crackSeed);
   // 細かい揺らぎでひびを折れ線に（なめらかな曲線にしない）
   const q: V3 = p.mul(2.6).add(cell.mul(3.1));
@@ -265,7 +280,7 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): UberMaterial {
     edge,
     cell,
     p,
-    jointW: float(0.02).add(bakedHash(cell.add(9.1)).mul(0.012)),
+    jointW: float(0.02).add(legacyJointHash(cell).mul(0.012)),
     grime,
     occlusion: ao.mul(wallAO).mul(float(1).sub(scorch.mul(0.4))),
     cracks: float(0.5),
@@ -334,7 +349,7 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): UberMaterial
     edge,
     cell,
     p,
-    jointW: float(0.022).add(bakedHash(cell.add(9.1)).mul(0.012)),
+    jointW: float(0.022).add(legacyJointHash(cell).mul(0.012)),
     grime,
     occlusion,
     cracks: uniform(o.cracks),
