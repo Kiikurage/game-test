@@ -271,15 +271,27 @@ export class CharacterLod {
       for (const h of this.hidden) h.mesh.visible = h.visible;
       this.hidden.length = 0;
     }
+    this.proxy.visible = main === 'far' || shadow;
+    this.applyLayers();
+  }
+
+  private applyLayers(): void {
     const { proxy } = this;
-    if (main === 'far') {
-      proxy.visible = true;
+    if (this.main === 'far') {
       proxy.layers.set(0);
-      if (shadow) proxy.layers.enable(SHADOW_PROXY_LAYER);
+      if (this.shadow) proxy.layers.enable(SHADOW_PROXY_LAYER);
     } else {
-      proxy.visible = shadow;
       proxy.layers.set(SHADOW_PROXY_LAYER);
     }
+  }
+
+  /**
+   * ウォームアップ中だけ、簡略メッシュをメインパスにも出す（#396）。遠景で初めて描かれる瞬間のパイプライン生成を
+   * ロード中に済ませるため。`on = false` で元の状態（`apply` が決めたレイヤー）に戻す。
+   */
+  setWarmUp(on: boolean): void {
+    if (on) this.proxy.layers.enable(0);
+    else this.applyLayers();
   }
 }
 

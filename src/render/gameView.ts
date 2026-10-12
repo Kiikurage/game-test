@@ -263,9 +263,11 @@ export class GameView {
       );
       onProgress?.(0.9);
       // 初回描画で同期的に作られる残り（影・ポスト処理の全画面パス）
-      await loadSpan('assets/warm-up/first-frame', () => {
-        this.render(1);
-      });
+      await loadSpan('assets/warm-up/first-frame', () =>
+        this.pipeline.compileRest(() => {
+          this.render(1);
+        }),
+      );
       timer.lap();
     } finally {
       this.enemyViews?.setWarmUp(false);

@@ -234,7 +234,8 @@ export class EnemyViews {
    */
   setWarmUp(on: boolean): void {
     this.warming = on;
-    for (const { character } of this.entries) {
+    for (const { character, lod } of this.entries) {
+      lod?.setWarmUp(on);
       character.root.traverse((obj) => {
         if (!(obj as { isMesh?: boolean }).isMesh) return;
         if (on) {
