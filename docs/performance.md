@@ -115,7 +115,45 @@
   同じフレームのパスについて合計したもの。パス間の隙間・コンピュートパス・提示（present）は含まない。
   **ただし値は frame（16.7ms で 60fps を保っている）を大きく超え、同じ条件の 2 回で視点ごとの値が 2 倍近く入れ替わる**。
   1 フレームの GPU 完了までの時間として読める値かどうかは**未確認**（複数フレーム分の合算、またはタイムスタンプの解決のずれの可能性がある）。
-  刷新前後の比較には、この値をそのまま使わないこと。
+  刷新前後の比較には、この値をそのまま使わないこと（原因と置き換え後の値は下の「GPU 時間と vsync を外したフレーム時間」）。
+
+### GPU 時間と vsync を外したフレーム時間（#317。パス別計測に置き換えた後）
+
+#317 でパス別 GPU 時間（`src/render/pipeline/gpuTimer.ts`）を入れ、上表の gpu 欄が読めなかった原因が分かった。
+Apple GPU（タイル型）では連続するレンダーパスが重なって実行され、three 標準の「各パスの開始〜終了の合計」はブルームの小さなパス群を
+何重にも数える（下表の raw-sum。60Hz では GPU のクロックも下がり、さらに膨らんで揺れる）。
+新しい値は、開始順に並べて「直前のパスの終了〜自分の終了」を各パスの持ち分にした合計（busy）と、最初の開始〜最後の終了（span）。
+
+- 条件: 上と同じ（Mac・PC high・1280x720・scale=1）。描画内容は刷新前と同じ（#317 は見た目を変えない。ヒーローショットで確認）。
+- コマンド: `GPU_NOVSYNC=1 PERF_PC=1 GPU_MODE=hardware npm run perf -- high`（`GPU_NOVSYNC=1` で `--disable-gpu-vsync --disable-frame-rate-limit`）。
+- 2 回実行。busy の差は最大 0.11ms。
+
+| 視点 | gpu busy ms 1 回目 | 2 回目 | gpu span ms（2 回目） | raw-sum ms（2 回目。旧来の値） | frame ms（vsync 無し、2 回目） | 描画 CPU ms（2 回目） |
+| --- | --- | --- | --- | --- | --- | --- |
+| bonfire | 1.28 | 1.26 | 1.49 | 8.56 | 1.61 | 1.20 |
+| graveyard | 1.57 | 1.57 | 1.88 | 12.17 | 2.31 | 2.00 |
+| chapel-gate | 1.32 | 1.32 | 1.69 | 8.73 | 2.16 | 1.80 |
+| chapel-interior | 1.42 | 1.42 | 1.74 | 10.24 | 2.21 | 1.90 |
+| crypt-entrance | 1.10 | 1.11 | 1.42 | 6.66 | 1.91 | 1.50 |
+| crypt-bend | 1.19 | 1.19 | 1.69 | 7.41 | 2.24 | 1.80 |
+| courtyard-entrance | 1.58 | 1.69 | 2.16 | 13.93 | 2.52 | 2.00 |
+| courtyard-gate | 1.61 | 1.61 | 2.10 | 12.81 | 2.27 | 1.80 |
+| arena | 1.87 | 1.88 | 1.90 | 17.59 | 2.06 | 1.70 |
+
+パス別（2 回目、ms）: shadow 0.23〜0.29 / scene 0.65〜1.39 / bloom 0.15〜0.16 / output 0.07。
+vsync 無しの frame は 1.6〜2.5ms（400fps 以上）で、PC high の 120fps（8.3ms）に対して現状は余裕がある。frame ≒ 描画 CPU なので CPU 律速。
+
+### TAAU（#318。既定無効、`?taau=` でオプトイン）
+
+`?taau=0.5..1` を付けると、scene パスをその倍率の内部解像度で描き、`render/taau/taau.pass.ts`（temporal 段）で出力解像度へ再構成する（MSAA は切る）。
+既定（全品質）は無効で、high は従来どおり MSAA。理由は下の計測のとおり、内部 75% で GPU 時間は同等、描画 CPU が +0.3〜0.5ms 増え、
+CPU 律速の現状では得が無く、見た目も MSAA と区別できる改善が無かったため。GTAO・体積霧など重いパスを低解像度で回す段階で既定化を再判断する。
+下の値は `?taau=0.75` 相当（導入時の high 既定）で計測した。
+
+- 同じ条件（Mac・PC high・1280x720・`GPU_NOVSYNC=1 PERF_PC=1 GPU_MODE=hardware npm run perf -- high`）で導入前後を続けて計測。
+- パス別（ms）: scene 0.65〜1.42 → 0.47〜1.06（内部 75%）、taau 0.28〜0.30（入力 RTT + 再構成 + 履歴コピー）、他は同じ。
+- gpu busy 合計: 導入前 1.11〜1.95 / 導入後 1.24〜1.87（ほぼ同じ。scene の減少と taau の増加が相殺）。
+- 描画 CPU は +0.3〜0.5ms（パスが 2 つ増える分。計測時は他の作業と並走しており揺れがある）。
 
 ### JS の CPU 時間（`npm run profile`。墓地・戦闘中・敵 9 体・242 フレーム）
 
@@ -259,6 +297,7 @@ toggles: noParticles flatMat             有効な切り分けトグル
 | `?scale=<0.25..1>` | 動的解像度を切って内部解像度の倍率を固定 | `<URL>/?perf&scale=0.5` |
 | `?quality=low\|medium\|high` | 品質プリセットを強制 | `<URL>/?perf&quality=low` |
 | `?nomsaa` | MSAA を切る | `<URL>/?perf&nomsaa` |
+| `?taau=0.75` | TAAU を有効にする（内部解像度スケール。MSAA は切る） | `<URL>/?perf&taau=0.75` |
 | `?nobloom` | ブルームを省く | `<URL>/?perf&nobloom` |
 | `?noshadow` | シャドウマップを描かない | `<URL>/?perf&noshadow` |
 | `?nograss` | 草を置かない | `<URL>/?perf&nograss` |

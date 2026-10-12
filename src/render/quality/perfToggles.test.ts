@@ -17,7 +17,7 @@ describe('parsePerfToggles', () => {
 
   it('reads each toggle, treating =0 as off', () => {
     const t = parsePerfToggles(
-      '?perf&bench&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat',
+      '?perf&bench&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat&taau=0.6',
     );
     const { flatMatGroups, ...flags } = t;
     expect(Object.values(flags).every(Boolean)).toBe(true);
@@ -59,6 +59,18 @@ describe('applyPerfToggles', () => {
     expect(preset.particles.bonfireLight).toBe(false);
     // 他の項目は変えない
     expect(preset.shadowMapSize).toBe(QUALITY_PRESETS.high.shadowMapSize);
+  });
+});
+
+describe('TAAU toggles (#318)', () => {
+  it('is off by default and ?taau= opts in with MSAA off', () => {
+    const hints = { isMobile: false };
+    expect(QUALITY_PRESETS.high.taauScale).toBe(0);
+    const on = selectQuality('?quality=high&taau=0.75', hints).preset;
+    expect(on.taauScale).toBe(0.75);
+    expect(on.msaa).toBe(false);
+    expect(selectQuality('?quality=medium&taau=0.5', hints).preset.taauScale).toBe(0.5);
+    expect(selectQuality('?quality=high&taau=2', hints).preset).toBe(QUALITY_PRESETS.high);
   });
 });
 

@@ -1,7 +1,8 @@
 import { type Object3D, PerspectiveCamera, Quaternion, Scene, Vector3 } from 'three/webgpu';
 import type { Game } from '../game/game';
 import { createEnvironment, type Environment } from './environment';
-import { createPostProcess, type PostProcess } from './postprocess';
+import { createFramePipeline, type FramePipeline } from './pipeline/framePipeline';
+import type { GpuTimer } from './pipeline/gpuTimer';
 import type { GameRenderer, RenderStats } from './renderer';
 import { GroundTelegraphs } from './telegraph';
 import { TelegraphDemo, isTelegraphDemoEnabled } from './telegraph/demo';
@@ -54,8 +55,8 @@ export class GameView {
   private playerView: PlayerView | null = null;
   private enemyViews: EnemyViews | null = null;
   private readonly playground: PlaygroundView;
-  /** ポストエフェクト（死亡演出などが `setScreenEffect` を呼ぶ）。 */
-  readonly postProcess: PostProcess;
+  /** フレームパイプライン（`pipeline/framePasses.ts`。死亡演出などが `setScreenEffect` を呼ぶ）。 */
+  readonly pipeline: FramePipeline;
   private readonly tmpPosition = new Vector3();
   private readonly tmpNormal = new Vector3();
   private readonly tmpQuaternion = new Quaternion();
@@ -135,7 +136,13 @@ export class GameView {
       this.telegraphDemo = new TelegraphDemo(this.telegraphs, this.camera);
     }
 
-    this.postProcess = createPostProcess(gameRenderer.renderer, this.scene, this.camera, preset);
+    this.pipeline = createFramePipeline(
+      gameRenderer.renderer,
+      this.scene,
+      this.camera,
+      preset,
+      gameRenderer.gpuTimer ?? undefined,
+    );
 
     this.plugins = createViewPlugins({ game, view: this, gameRenderer, level });
 
@@ -158,6 +165,11 @@ export class GameView {
   /** 環境メッシュ（A〜C の墓石・枯れ木・石壁など）と篝火のパーティクルを置く。読み込み後に 1 度呼ぶ。 */
   attachEnvironment(assets: EnvironmentAssets): void {
     this.levelView?.attachEnvironment(assets, this.particles);
+  }
+
+  /** パス別 GPU 時間（`?perf` / `?debug` かつ timestamp-query 対応時のみ）。 */
+  get gpuTimer(): GpuTimer | null {
+    return this.gameRenderer.gpuTimer;
   }
 
   /** 直近フレームの描画統計（`renderer.info` の実測値）。 */
@@ -257,7 +269,7 @@ export class GameView {
     for (const plugin of this.plugins) plugin.update?.(dt);
     this.combatDebug?.update();
     this.navDebug?.update();
-    if (this.drawEnabled) this.postProcess.render();
+    if (this.drawEnabled) this.pipeline.render();
     this.gameRenderer.endFrame();
   }
 
