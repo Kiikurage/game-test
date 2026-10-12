@@ -5,14 +5,13 @@
 // このファイルは純粋なロジック（Game・three 非依存）なので単体でテストできる。
 //
 // 使い方（後続の機能）:
-//   const off = interactionOf(game).register({
+//   const off = game.systems.get(interactionSystem).register({
 //     id: 'lever-g1', kind: 'lever', x, z, radius: 1.2,
 //     label: () => '押す',
 //     available: () => !opened,          // 省略可。false の間は候補にならない
 //     interact: () => { ... },           // 実行。時間のかかる動作は player.beginScripted や lock() を使う
 //   });
 import { INTERACT } from '../data/bonfire';
-import type { Game } from '../game';
 
 /** 調べられる対象。座標は水平（x, z）。 */
 export interface Interactable {
@@ -143,16 +142,4 @@ export class InteractionManager {
     this.current = next;
     for (const l of [...this.listeners]) l(next);
   }
-}
-
-const managers = new WeakMap<Game, InteractionManager>();
-
-/** `game` のインタラクション（なければ作る）。各機能のシステムはこれに対象を登録する。 */
-export function interactionOf(game: Game): InteractionManager {
-  let m = managers.get(game);
-  if (!m) {
-    m = new InteractionManager();
-    managers.set(game, m);
-  }
-  return m;
 }

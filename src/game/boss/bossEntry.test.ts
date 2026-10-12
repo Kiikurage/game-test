@@ -3,11 +3,11 @@ import { MemoryStorage, SaveStore } from '../../core/persistence';
 import { ARENA_BONFIRE_ID } from '../data/bonfire';
 import { BOSS_ENTRY } from '../data/bossEntry';
 import { FOG_GATE } from '../data/fogGate';
-import { fogGateOf } from '../fogGate/fogGate.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { bossSystemOf } from './boss.system';
 import './bossEntry.system';
+import { fogGateSystem } from '../fogGate/fogGate.system';
+import { bossSystem } from './boss.system';
 
 const DT = 1 / 60;
 
@@ -43,14 +43,14 @@ describe('boss entry', () => {
       }
     };
     run(2);
-    const gate = fogGateOf(game);
+    const gate = game.systems.get(fogGateSystem);
     if (!gate) throw new Error('no fog gate');
     const events: string[] = [];
     game.events.on('bossIntro', () => events.push('intro'));
     game.events.on('bossEngaged', () => events.push('engaged'));
     game.events.on('bossReset', () => events.push('reset'));
     game.events.on('bgmChange', (e) => events.push(e.track));
-    return { game, gate, run, events, boss: bossSystemOf(game) };
+    return { game, gate, run, events, boss: game.systems.get(bossSystem) };
   }
 
   it('waits dormant at home; invulnerable for 90F after arrival, then engages (HP bar event)', async () => {

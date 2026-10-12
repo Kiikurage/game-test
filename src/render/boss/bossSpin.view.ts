@@ -18,9 +18,9 @@ import {
   uniform,
   vec3,
 } from 'three/tsl';
-import { bossSystemOf } from '../../game/boss/boss.system';
 import { SPIN_BLADE_OFFSET, SPIN_RADIUS, spinStateOf } from '../../game/boss/moves/spin.move';
 import { registerViewPlugin } from '../viewPlugins';
+import { bossSystem } from '../../game/boss/boss.system';
 
 /**
  * 回転斬り（技 6）の描画。ゲーム側の状態（`spinStateOf`）を毎フレーム読む。ボス本体の回転は `boss.view.ts` が
@@ -82,7 +82,7 @@ registerViewPlugin('boss-spin', ({ game, view }) => {
 
   return {
     update() {
-      const boss = bossSystemOf(game).boss;
+      const boss = game.systems.get(bossSystem).boss;
       const state = boss?.alive ? spinStateOf(boss) : undefined;
       if (!boss || !state) {
         mesh.visible = false;

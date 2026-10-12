@@ -1,6 +1,6 @@
 import { registerDevHooks } from '../../devHooks';
-import { bonfiresOf } from './bonfire';
-import { interactionOf } from '../interaction/interaction';
+import { interactionSystem } from '../interaction/interaction.system';
+import { bonfireSystem } from './bonfire.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -23,11 +23,11 @@ declare module '../../devHooks' {
 
 registerDevHooks('bonfire', ({ game }) => ({
   bonfire: () => {
-    const b = bonfiresOf(game);
+    const b = game.systems.get(bonfireSystem);
     return {
       ids: b.ids,
       lit: b.ids.filter((id) => b.isLit(id)),
-      prompt: interactionOf(game).prompt,
+      prompt: game.systems.get(interactionSystem).prompt,
       igniting: b.isIgniting,
       resting: game.player.resting,
       playerState: game.player.state,
@@ -37,5 +37,7 @@ registerDevHooks('bonfire', ({ game }) => ({
     };
   },
   respawnAtBonfire: (id) =>
-    id === undefined ? bonfiresOf(game).respawn() : bonfiresOf(game).respawn(id),
+    id === undefined
+      ? game.systems.get(bonfireSystem).respawn()
+      : game.systems.get(bonfireSystem).respawn(id),
 }));

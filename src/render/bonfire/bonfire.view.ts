@@ -1,11 +1,11 @@
-import { bonfiresOf } from '../../game/bonfire/bonfire';
 import { registerViewPlugin } from '../viewPlugins';
+import { bonfireSystem } from '../../game/bonfire/bonfire.system';
 
-// 篝火の炎と灯りを、点火状態（game の `bonfiresOf(game)`）に合わせる。
+// 篝火の炎と灯りを、点火状態（game の `game.systems.get(bonfireSystem)`）に合わせる。
 // 炎・火の粉・光源はパーティクル（`levelView.bonfire`。環境メッシュを置いたあとに作られる）で、
 // 消えている篝火は炎なし、点火で約 0.6 秒かけて灯る。
 registerViewPlugin('bonfire', ({ game, view }) => {
-  const bonfires = bonfiresOf(game);
+  const bonfires = game.systems.get(bonfireSystem);
   return {
     update: () => {
       const emitter = view.levelView?.bonfire;

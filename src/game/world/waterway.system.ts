@@ -10,7 +10,7 @@ import { GRATE, HATCH } from './waterway';
 //    割れた状態（描画の床板を消す）にし、コライダを外す。
 //  - 鉄格子（`grate_d`、kind: push）: 押すと `world.grateDOpen` をセーブする。ここはそのフラグを読んで
 //    開いた状態（描画の格子を消す）にする（再開後は最初から開いている）。
-// `waterwayOf(game).breakHatch()` / `openGrate()` はデバッグ・テスト用の口として残している。
+// `game.systems.get(waterwaySystem).breakHatch()` / `openGrate()` はデバッグ・テスト用の口として残している。
 
 export class WaterwayState {
   hatchBroken = false;
@@ -56,23 +56,18 @@ export class WaterwayState {
   }
 }
 
-const states = new WeakMap<Game, WaterwayState>();
-
-/** `game` の水路の仕掛けの状態。 */
-export function waterwayOf(game: Game): WaterwayState {
-  let state = states.get(game);
-  if (!state) {
-    state = new WaterwayState(game);
-    states.set(game, state);
-  }
-  return state;
-}
-
-registerGameSystem('waterway', (game) => {
-  const state = waterwayOf(game);
-  return {
-    update: () => {
-      state.update();
-    },
-  };
-});
+/** 水路の仕掛けの状態（`game.systems.get(waterwaySystem)`）。 */
+export const waterwaySystem = registerGameSystem(
+  'waterway',
+  (game) => {
+    const state = new WaterwayState(game);
+    return {
+      state,
+      update: () => {
+        state.update();
+      },
+    };
+  },
+  // インタラクトの効果（フラグ）を同じステップで反映する
+  { after: ['interactable'] },
+);
