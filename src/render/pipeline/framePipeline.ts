@@ -102,7 +102,9 @@ export function createFramePipeline(
   if (gbuffer.length > 0) {
     const outputs: Record<string, Node> = { output };
     // 半透明（炎・霧・水面など）は法線・深度を書かない（後ろの不透明面の値を残す）。α = 0 の通常ブレンドで書き込みを打ち消す
-    const opaque = float(1).sub(materialReference('transparent', 'float') as unknown as Node<'float'>);
+    const opaque = float(1).sub(
+      materialReference('transparent', 'float') as unknown as Node<'float'>,
+    );
     if (gbuffer.includes('normal')) outputs.normal = vec4(packNormalToRGB(normalView), opaque);
     if (gbuffer.includes('velocity')) outputs.velocity = velocity;
     if (gbuffer.includes('depth')) outputs.gdepth = vec4(positionView.z.negate(), 0, 0, opaque);
