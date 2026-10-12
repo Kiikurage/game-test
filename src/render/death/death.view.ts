@@ -69,7 +69,7 @@ registerViewPlugin('death', ({ game, view }) => {
       const key = `${v.grade}|${v.fade}|${v.textAlpha}|${v.textScale}`;
       if (key === last) return;
       last = key;
-      view.postProcess.setScreenEffect({
+      view.pipeline.setScreenEffect({
         desaturate: v.grade,
         dim: DEATH.dimMax * v.grade,
         vignette: v.grade,

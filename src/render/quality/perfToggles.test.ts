@@ -17,7 +17,7 @@ describe('parsePerfToggles', () => {
 
   it('reads each toggle, treating =0 as off', () => {
     const t = parsePerfToggles(
-      '?perf&bench&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat',
+      '?perf&bench&noshadow&nobloom&noao&nomsaa&nograss&noparticles&nolights&flatmat',
     );
     const { flatMatGroups, ...flags } = t;
     expect(Object.values(flags).every(Boolean)).toBe(true);

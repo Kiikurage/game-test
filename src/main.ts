@@ -180,6 +180,7 @@ export async function createGameApp(
         quality: quality.preset.level,
         targetFps: quality.targetFps,
         profile: () => view.profile(),
+        pipeline: () => ({ passes: view.pipeline.passIds, gpu: view.gpuTimer?.summary() ?? null }),
       });
       // 操作感の調整値（プレイヤー・カメラ・ロックオン）を実行中に書き換えられる
       mountTuningPanel(game.tuning, () => {

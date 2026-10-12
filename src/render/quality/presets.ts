@@ -87,6 +87,8 @@ export interface QualityPreset {
   readonly bloom: boolean;
   /** ブルームの強さ。 */
   readonly bloomStrength: number;
+  /** GTAO（画面空間の環境遮蔽。#319）を有効にするか。 */
+  readonly ao: boolean;
   /** 草の房（インスタンス）の数。0 で無効。 */
   readonly grassCount: number;
   /** 地面等の手続き的ディテール（TSL ノイズのオクターブ数）。 */
@@ -121,6 +123,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     msaa: false,
     bloom: false,
     bloomStrength: 0,
+    ao: false,
     detailOctaves: 1,
     grassCount: 0,
     particles: {
@@ -152,6 +155,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     msaa: false,
     bloom: true,
     bloomStrength: 0.35,
+    ao: false,
     detailOctaves: 2,
     grassCount: 5000,
     particles: {
@@ -180,6 +184,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     msaa: true,
     bloom: true,
     bloomStrength: 0.45,
+    ao: true,
     detailOctaves: 3,
     grassCount: 14000,
     particles: {
@@ -303,6 +308,8 @@ export interface PerfToggles {
   readonly noShadow: boolean;
   /** `?nobloom`: ブルームを省く。 */
   readonly noBloom: boolean;
+  /** `?noao`: GTAO を省く。 */
+  readonly noAo: boolean;
   /** `?nomsaa`: MSAA を切る。 */
   readonly noMsaa: boolean;
   /** `?nograss`: 草を置かない。 */
@@ -335,6 +342,7 @@ export function parsePerfToggles(search: string): PerfToggles {
     bench: on('bench'),
     noShadow: on('noshadow'),
     noBloom: on('nobloom'),
+    noAo: on('noao'),
     noMsaa: on('nomsaa'),
     noGrass: on('nograss'),
     noParticles: on('noparticles'),
@@ -346,10 +354,12 @@ export function parsePerfToggles(search: string): PerfToggles {
 
 /** トグルに応じて品質プリセットの該当項目を落とす（変更なしなら同じオブジェクトを返す）。 */
 export function applyPerfToggles(preset: QualityPreset, toggles: PerfToggles): QualityPreset {
-  if (!toggles.noBloom && !toggles.noMsaa && !toggles.noGrass && !toggles.noLights) return preset;
+  if (!toggles.noBloom && !toggles.noAo && !toggles.noMsaa && !toggles.noGrass && !toggles.noLights)
+    return preset;
   return {
     ...preset,
     ...(toggles.noBloom && { bloom: false, bloomStrength: 0 }),
+    ...(toggles.noAo && { ao: false }),
     ...(toggles.noMsaa && { msaa: false }),
     ...(toggles.noGrass && { grassCount: 0 }),
     ...(toggles.noLights && { particles: { ...preset.particles, bonfireLight: false } }),
