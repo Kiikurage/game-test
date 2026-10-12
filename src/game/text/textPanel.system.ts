@@ -53,7 +53,9 @@ registerGameSystem('textPanel', (game) => {
         model.step(dt, x, z);
         justShown = false;
       }
-      if (release && !model.conversing) {
+      // 会話を閉じた押下のステップでは解除しない（#353）。システムの更新順によっては、同じステップの
+      // interaction がこの押下で近くの石碑などを実行してしまう。次のステップ（押下が消えた後）で解除する。
+      if (release && !model.conversing && !game.inputSnapshot.buttons.interact.pressed) {
         release();
         release = null;
       }
