@@ -1,6 +1,5 @@
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 import type { Node } from 'three/webgpu';
-import { torchGlow, type Torch } from './arenaTorches';
 import { bakedNoise, getMaterialDetail } from '../bakedNoise';
 import { tagMaterial } from '../materialGroups';
 import {
@@ -22,7 +21,6 @@ import {
   mix,
   normalize,
   normalView,
-  normalWorld,
   positionView,
   positionWorld,
   round,
@@ -209,7 +207,6 @@ export interface ArenaFloorOptions {
   readonly pillars: readonly { readonly x: number; readonly z: number }[];
   /** 台座の半径。 */
   readonly pedestalRadius: number;
-  readonly torches: readonly Torch[];
 }
 
 export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNodeMaterial {
@@ -282,7 +279,6 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNode
   material.colorNode = color;
   material.roughnessNode = shade.roughness;
   material.normalNode = bumpNormal(shade.height, 1);
-  material.emissiveNode = color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 2.1));
   return tagMaterial(material, 'arena');
 }
 
@@ -298,7 +294,6 @@ export interface ArenaMasonryOptions {
   readonly cracks: number;
   /** 汚れの強さ。 */
   readonly grime: number;
-  readonly torches: readonly Torch[];
 }
 
 /** 石積みの壁・柱・台座。頂点属性 `wallS` / `wallV`（`arenaGeometry.ts`）が石の段と目地を決める。 */
@@ -343,6 +338,5 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): MeshStandard
   material.colorNode = shade.color;
   material.roughnessNode = shade.roughness;
   material.normalNode = bumpNormal(shade.height, 1);
-  material.emissiveNode = shade.color.mul(torchGlow(p, normalWorld, o.torches, 2.1));
   return tagMaterial(material, 'arena');
 }

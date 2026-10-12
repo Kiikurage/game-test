@@ -8,6 +8,7 @@ import {
 import { setMaterialDetail } from './bakedNoise';
 import { configureKtx2Loader } from './assets/ktx2';
 import { GpuTimer } from './pipeline/gpuTimer';
+import { installClusteredLighting } from './lighting/clusteredLighting';
 
 /** デバッグ表示（`?debug`）用の計測値。 */
 export interface RenderStats {
@@ -78,6 +79,8 @@ export async function createRenderer(
   // KTX2 の変換先（ASTC / BC など）をデバイスの圧縮テクスチャ機能から決める（#328）
   configureKtx2Loader(renderer);
 
+  // 篝火・たいまつ等の点光源はクラスタードライティングで評価する（#322。`lighting/`）
+  installClusteredLighting(renderer);
   renderer.shadowMap.enabled = !quality.toggles.noShadow;
   renderer.shadowMap.type = PCFShadowMap;
   // トーンマッピングはポストエフェクト（RenderPipeline）の最終段で適用される

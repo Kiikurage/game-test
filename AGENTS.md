@@ -188,6 +188,7 @@ src/
 | ゲームロジック（毎ステップの更新・命中時の処理） | `src/game/<feature>/<feature>.system.ts` | `export const xSystem = registerGameSystem(id, (game) => ({ state?, update?(dt), onImpact?(e) }), { after?, before? })`（`src/game/systems.ts`）。状態は `game.systems.get(xSystem)` で型付きに取る |
 | 描画（シーンへの追加・毎フレーム更新・アセット読み込み） | `src/render/<feature>/<feature>.view.ts` | `registerViewPlugin(id, ({ game, view, gameRenderer, level }) => ({ load?(), update?(dt) }))`（`src/render/viewPlugins.ts`） |
 | フレームのパス（GTAO・体積霧・TAAU・ポストなど） | `src/render/<feature>/<feature>.pass.ts` | `registerFramePass({ id, stage, order?, gbuffer?, enabled?, build })`（`src/render/pipeline/framePasses.ts`。パス別 GPU 時間は `?debug` / `?perf`） |
+| 局所光源（篝火・たいまつ・燭台など影を落とさない点光源） | 自分の `*.view.ts` | `localLightsOf(view.scene).add({ position, color, intensity, distance, flickerPhase? })`（`src/render/lighting/localLights.ts`。クラスタードライティングで全マテリアルを照らす。マテリアルに偽のライトを足さない。起動時に登録し、消すときは `intensity = 0`） |
 | E2E・撮影用のデバッグフック（`window.__game.dev.*`） | `<feature>.dev.ts`（任意のディレクトリ） | `registerDevHooks(name, (ctx) => ({ ... }))` ＋ `declare module` で `DevHooks` に型を足す（`src/devHooks.ts`） |
 | `?scene=xxx` で選ぶシーン（ワールドの組み立て） | `src/game/**/<name>.scene.ts` | `registerScene(id, (params) => ({ level, options, cylinders }))`（`src/game/scenes.ts`）。レベルは `src/game/world/levels/*.json`（`loadLevelData` がスキーマ検証） |
 | 調整値などのゲームデータ | `src/game/data/<name>.json` ＋ 同名の `.ts`（スキーマ `s.*` を定義） | `loadData(schema, json, '<name>.json')`（`src/game/data/loadData.ts`）。data 配下の JSON は `data.test.ts` が全件の検証を確かめる |
