@@ -1,7 +1,8 @@
 import { circleShape } from '../../combat';
+import { BOSS_MOVES_DATA } from '../../data/bossMoves';
 import { PLAYER_STATS } from '../../data';
 import { BOSS_STATS } from '../bossData';
-import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
+import { registerBossMove, type BossMoveContext } from '../bossMove';
 
 /**
  * 技 5 跳躍叩きつけ（仕様書 6.3 節）。遠距離（8m 超）で距離を詰める技。
@@ -26,42 +27,27 @@ import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bo
  */
 
 /** 跳び上がり（地上の溜め）の長さ（F）。この次のフレームから滞空。 */
-export const LEAP_CROUCH_FRAMES = 42;
+const { params: P, ...MOVE } = BOSS_MOVES_DATA.leap;
+const LEAP_STARTUP = MOVE.stages[0]?.startup ?? 0;
+
+export const LEAP_CROUCH_FRAMES = P.crouchFrames;
 /** 滞空の長さ（F）。 */
-export const LEAP_AIR_FRAMES = 30;
+export const LEAP_AIR_FRAMES = LEAP_STARTUP - LEAP_CROUCH_FRAMES;
 /** 着地点の追従を止める F（滞空 F20）。 */
-export const LEAP_LOCK_FRAME = LEAP_CROUCH_FRAMES + 20;
+export const LEAP_LOCK_FRAME = LEAP_CROUCH_FRAMES + P.lockAfterCrouchFrames;
 /** 地面予告を出し始める F（発生 F18）。 */
-export const LEAP_TELEGRAPH_FRAME = 18;
+export const LEAP_TELEGRAPH_FRAME = P.telegraphFrame;
 /** 着地の円の半径（m）。 */
-export const LEAP_RADIUS = 3.5;
+export const LEAP_RADIUS = MOVE.stages[0]?.range ?? 0;
 /** 跳べる最大の水平距離（m）。これを超える相手には届く範囲で着地する。 */
-export const LEAP_MAX_DISTANCE = 18;
+export const LEAP_MAX_DISTANCE = P.maxDistance;
 /** 滞空の最高点（m。足元から）。見た目用。 */
-export const LEAP_PEAK_HEIGHT = 5;
+export const LEAP_PEAK_HEIGHT = P.peakHeight;
 
-const COMMON = {
-  id: 'leap.1',
-  startup: LEAP_CROUCH_FRAMES + LEAP_AIR_FRAMES,
-  active: 6,
-  poiseDamage: 70,
-  guardStaminaCost: 62,
-  moveDistance: 0,
-  arcDeg: 360,
-  range: LEAP_RADIUS,
-  heavy: true,
-  telegraph: 'heavy',
-  // 向きは跳び上がり前まで追う（着地点の追従は別。`LEAP_LOCK_FRAME`）
-  trackEndFrame: LEAP_CROUCH_FRAMES,
-} as const satisfies Partial<BossStageDef>;
-
-const LEAP_P1: BossStageDef = { ...COMMON, recovery: 56, damage: 120 };
-const LEAP_P2: BossStageDef = { ...COMMON, recovery: 46, damage: 130 };
-
-/** 着地でプレイヤーを押し出して空ける、ボスの体の中心からの距離（m）。ボスの体の半径 + プレイヤーのカプセル半径 + 余裕。 */
-export const LEAP_CLEARANCE = BOSS_STATS.radius + PLAYER_STATS.hurtCapsule.radius + 0.1;
+export const LEAP_CLEARANCE =
+  BOSS_STATS.radius + PLAYER_STATS.hurtCapsule.radius + P.clearanceMargin;
 /** 押し出しにかける長さ（F）。 */
-export const LEAP_PUSH_FRAMES = 6;
+export const LEAP_PUSH_FRAMES = P.pushFrames;
 
 /**
  * 着地でボスの体にめり込んだプレイヤーの押し出し量（m）。体から `LEAP_CLEARANCE` 以上離れていれば null。
@@ -132,11 +118,7 @@ export function clampLanding(
 
 registerBossMove({
   id: 'leap',
-  name: '跳躍叩きつけ',
-  phases: [1, 2],
-  stages: [LEAP_P1],
-  phase2Stages: [LEAP_P2],
-  // 接近しない（その場から跳ぶ。距離を詰めること自体が技）
+  ...MOVE,
   hooks: {
     onStageStart(ctx) {
       const { boss, target } = ctx;
@@ -160,9 +142,9 @@ registerBossMove({
       if (f <= LEAP_LOCK_FRAME) state.landing = clampLanding(state.origin, target);
       else state.locked = true;
       // 滞空: 残りの距離を残りのフレームで等分して、着地（段 F72）に間に合わせる
-      state.airborne = f > LEAP_CROUCH_FRAMES && f <= COMMON.startup;
+      state.airborne = f > LEAP_CROUCH_FRAMES && f <= LEAP_STARTUP;
       if (state.airborne) {
-        const remaining = COMMON.startup - f + 1;
+        const remaining = LEAP_STARTUP - f + 1;
         boss.moveBy(
           (state.landing.x - boss.position.x) / remaining,
           (state.landing.z - boss.position.z) / remaining,
@@ -171,7 +153,7 @@ registerBossMove({
       } else {
         state.height = 0;
       }
-      state.landed = f > COMMON.startup;
+      state.landed = f > LEAP_STARTUP;
     },
     onEnd(ctx) {
       states.delete(ctx.boss);

@@ -2,6 +2,7 @@ import type { Vector3 } from 'three';
 import type { HitShape } from '../combat';
 import { checkEnemyAttack, trackEndFrame, type EnemyAttackDef, type FrameWindow } from '../data';
 import type { BossMoveId, BossPhase } from './bossData';
+import { BOSS_MOVES_DATA } from '../data/bossMoves';
 
 /**
  * ボスの技の定義（6.3 節）。E3-1c の敵攻撃定義（`EnemyAttackDef`）を 1 段として、複数段・追尾率・
@@ -15,14 +16,14 @@ import type { BossMoveId, BossPhase } from './bossData';
  * 向きを固定してから判定が出るまでの最低フレーム数（ロールで躱す猶予。6.3 節の大上段は発生 48 / 追尾 F30 まで = 18F、
  * フェーズ 2 は 42 / 30 = 12F）。雑魚の「発生の 60% まで」はボスの技表と合わないので、ボスはこの基準で検証する（本実装の判断）。
  */
-export const BOSS_MIN_LOCKED_FRAMES = 12;
+export const BOSS_MIN_LOCKED_FRAMES = BOSS_MOVES_DATA.rules.minLockedFrames;
 
 /**
  * 連続攻撃の 2 段目以降（`followUp`）の発生の下限（F）。雑魚の 20F（`ENEMY_ATTACK_RULES.minFollowUpStartup`）は、
  * 仕様の三連撃 P2 の 2 段目（発生 16F）と合わないので、ボスはこの値で見る（6.3 節の数値を優先する本実装の判断）。
  * 1 段目で身構えているうえ、向き固定の猶予（`BOSS_MIN_LOCKED_FRAMES`）は別に守らせる。
  */
-export const BOSS_MIN_FOLLOW_UP_STARTUP = 16;
+export const BOSS_MIN_FOLLOW_UP_STARTUP = BOSS_MOVES_DATA.rules.minFollowUpStartup;
 
 /** 技 1 段。`EnemyAttackDef` のフレームデータ・判定に、ボス用の指定を足す。 */
 export interface BossStageDef extends EnemyAttackDef {

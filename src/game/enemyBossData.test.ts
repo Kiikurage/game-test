@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import * as enemyAi from './data/enemyAi';
 import * as enemyAttack from './data/enemyAttack';
 import * as bossData from './boss/bossData';
+import * as bossMove from './boss/bossMove';
 import { BOSS_MOVES, stagesOf } from './boss/bossMove';
+import * as bossMoves67 from './boss/bossMoves67.system';
 import './boss/moves';
 
 /**
@@ -29,6 +31,7 @@ describe('敵・ボスのデータ', () => {
 
   it('ボスの AI・重み表', () => {
     expect(values(bossData)).toMatchSnapshot();
+    expect({ ...values(bossMove), ...values(bossMoves67) }).toMatchSnapshot();
   });
 
   it('ボスの技（段・接近・フェーズ）と技モジュールの定数', () => {

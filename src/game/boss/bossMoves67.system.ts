@@ -1,12 +1,13 @@
 import { slamAt } from '../camera/cameraEffects.system';
+import { BOSS_MOVES_DATA } from '../data/bossMoves';
 import { registerGameSystem } from '../systems';
 import { bossSystemOf } from './boss.system';
 import { ashWaveStateOf } from './moves/ashWave.move';
 import { spinStateOf } from './moves/spin.move';
 
 /** 灰の波で斧が地面へ入る点（ボスの前方 m）と、衝撃の円の半径（m）。 */
-export const ASH_SLAM_FORWARD = 2.6;
-export const ASH_SLAM_RADIUS = 1.6;
+export const ASH_SLAM_FORWARD = BOSS_MOVES_DATA.ashWave.params.slamForward;
+export const ASH_SLAM_RADIUS = BOSS_MOVES_DATA.ashWave.params.slamRadius;
 
 /**
  * ボスの技 6・7（回転斬り・灰の波）の演出の発火。技の状態（`spinStateOf` / `ashWaveStateOf`）の立ち上がりを見て 1 回ずつ出す。
