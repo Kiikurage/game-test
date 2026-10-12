@@ -19,7 +19,7 @@
 | 手段 | 内容 |
 | --- | --- |
 | `?debug` | HUD に draws / tris に加えてカテゴリ別（terrain / environment / grass / graybox / character / particles / telegraph / other）のメイン・シャドウ別の draws/tris を表示する |
-| `npm run perf -- [low\|medium\|high] [追加クエリ]` | 上の 4 視点を順に測って表にする（ビルド → ヘッドレス WebGPU）。`PERF_SKIP_BUILD=1` でビルドを省略 |
+| `npm run perf -- [low\|medium\|high] [追加クエリ]` | 上の 4 視点を順に測って表にする（ビルド → ヘッドレス WebGPU）。`PERF_SKIP_BUILD=1` でビルドを省略。`PERF_PC=1` で PC（1280x720・`scale=1`）にし、GPU 時間・フレーム間隔・描画 CPU・起動時間も出す（`npm run profile` も `PERF_PC=1` で PC の画面で測る） |
 | `window.__game.dev.renderInfo()` / `renderProfile()` | 直近フレームの `drawCalls` / `triangles`（実測）と、カテゴリ別の見積り（視錐台・レイヤー・`castShadow` は three のレンダラと同じ判定）。E2E 用（`src/render/perf.dev.ts`） |
 | `?lod=0` | キャラクターの LOD を使わない（詳細メッシュだけ描き、詳細メッシュが影を落とす）。変更前との負荷・見た目の比較用 |
 
@@ -77,6 +77,77 @@
 - プレイヤーの装備（約 34 ドローコール）の結合（同一ボーンに付く剛体を 1 メッシュに）。
 - 環境メッシュの距離 LOD、草の距離フェード（`grassCount` は既に品質別）。
 - 敵が増えたときの GPU インスタンシング（スキニングのインスタンス化は three では未対応）。
+
+## 刷新前の基準値（#305。Mac の実 GPU・PC high）
+
+エピック #294（アーキテクチャ刷新）の前後を比べる基準。判定基準は PC high 120fps（1 フレーム 8.3ms）。
+
+### 計測条件
+
+- 対象: `origin/main` の `daa4862`（#342 マージ後）。オーナーの Mac（macOS、Apple GPU。アダプタ `apple metal-3`、`timestamp-query` あり）、
+  Playwright の Chromium（ヘッドレス）を `GPU_MODE=hardware`（実 GPU）で起動。
+- 描画: `PERF_PC=1`（1280x720・DPR1・内部解像度 `scale=1` 固定）、`quality=high`。
+- コマンド（各 1 回。描画負荷の表は 2 回実行し、両方を載せた）:
+  - `PERF_PC=1 GPU_MODE=hardware npm run perf -- high`（描画負荷・GPU 時間・フレーム間隔・描画 CPU・起動時間）
+  - `PERF_PC=1 GPU_MODE=hardware npm run profile -- high 240`（JS の CPU 時間。墓地・戦闘中・ロックステップ）
+  - `npm run build`（配信サイズ）
+- `PERF_PC=1` は #305 で `scripts/perf.mjs` / `scripts/profile.mjs` に足した（`scripts/lib/session.mjs` の `measureTarget`）。
+  perf は `?perf` を付けて開き、視点ごとに 60 フレーム `dev.renderInfo()` を取って中央値を出す。指定しなければ従来どおり 915x412・`scale=0.25`。
+
+### 描画負荷と時間（視点別。`npm run perf`）
+
+| 視点 | draws | tris | gpu ms 1 回目 | gpu ms 2 回目 | frame ms（2 回目） | 描画 CPU ms（2 回目） |
+| --- | --- | --- | --- | --- | --- | --- |
+| bonfire | 96 | 150k | 21.4 | 29.0 | 22.9 | 1.9 |
+| graveyard | 144 | 249k | 36.3 | 20.2 | 16.7 | 2.2 |
+| chapel-gate | 146 | 244k | 20.0 | 27.4 | 16.7 | 2.1 |
+| chapel-interior | 142 | 226k | 24.0 | 29.5 | 16.7 | 2.2 |
+| crypt-entrance | 124 | 193k | 17.3 | 24.4 | 16.7 | 1.7 |
+| crypt-bend | 149 | 206k | 16.8 | 25.9 | 16.7 | 2.2 |
+| courtyard-entrance | 160 | 225k | 42.9 | 23.8 | 16.7 | 2.5 |
+| courtyard-gate | 127 | 190k | 31.3 | 25.9 | 16.7 | 2.6 |
+| arena | 124 | 176k | 51.6 | 28.9 | 16.7 | 2.7 |
+
+- **frame**: rAF 間隔（`RenderStats.frameMs`、指数移動平均）。ヘッドレスでも 60Hz に揃っており（16.7ms）、**vsync で頭打ちのため 120fps の判定には使えない**。
+- **描画 CPU**: `perfProbe.frameCpuMs`（beginFrame〜endFrame の JS。GPU 待ちは含まない）。
+- **gpu**: `?perf` 時に three の `renderer.resolveTimestampsAsync('render')` が返す値。three r186 の
+  `WebGPUTimestampQueryPool` を読むと、各レンダーパスの開始・終了のタイムスタンプの差（GPU 上での実行時間）を、
+  同じフレームのパスについて合計したもの。パス間の隙間・コンピュートパス・提示（present）は含まない。
+  **ただし値は frame（16.7ms で 60fps を保っている）を大きく超え、同じ条件の 2 回で視点ごとの値が 2 倍近く入れ替わる**。
+  1 フレームの GPU 完了までの時間として読める値かどうかは**未確認**（複数フレーム分の合算、またはタイムスタンプの解決のずれの可能性がある）。
+  刷新前後の比較には、この値をそのまま使わないこと。
+
+### JS の CPU 時間（`npm run profile`。墓地・戦闘中・敵 9 体・242 フレーム）
+
+| mode | JS ms/frame（CDP） | GC ms/frame | sim ms/frame | render ms/frame | worst frame ms |
+| --- | --- | --- | --- | --- | --- |
+| draw | 2.87 | 0.01 | 0.53 | 2.27 | 5.5 |
+| nodraw | 0.71 | 0.00 | 0.44 | 0.23 | 2.3 |
+
+- 描画のコスト（draw − nodraw）2.16ms/フレーム。シーンのオブジェクト 1261（うち `matrixAutoUpdate` 1193）、メッシュ 369。
+- 自己時間の上位（draw）: `_renderObjectDirect` 0.22 / `_projectObject` 0.19 / `updateMatrixWorld` 0.16 / `writeBuffer` 0.15 ms。
+
+### 起動時間（`npm run perf` の 2 回目。ローカルの vite preview から配信、ネットワーク遅延なし）
+
+| 区切り | navigation からの ms |
+| --- | --- |
+| DOMContentLoaded / load | 19 / 19 |
+| 開始画面（`#app[data-state=ready]`。アセット読み込み・ウォームアップのシェーダコンパイル込み） | 2242 |
+| running（`dev.start()` 後） | 2282 |
+
+### 配信サイズ（`npm run build` の `dist/`。非圧縮、JS は gzip も）
+
+| 内訳 | ファイル数 | サイズ |
+| --- | --- | --- |
+| JS 合計 | 4 | 6.03 MB |
+| ・`rapier-*.js`（WASM 埋め込み） | | 4.33 MB（gzip 1.67 MB） |
+| ・`main-*.js`（three 含む） | | 1.64 MB（gzip 497 KB） |
+| ・`meshopt_simplifier-*.js` / `index-*.js`（起動） | | 54 KB / 8.8 KB（gzip 19 / 3.8 KB） |
+| 音声（ogg） | 90 | 6.02 MB |
+| モデル（glb） | 8 | 2.31 MB |
+| 画像（png） | 3 | 1.49 MB |
+| その他（json・css・html） | 5 | 0.06 MB |
+| **合計** | 110 | **15.9 MB** |
 
 ## CPU フレーム時間のプロファイル（#262）
 
