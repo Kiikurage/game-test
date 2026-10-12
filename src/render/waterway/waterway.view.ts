@@ -9,8 +9,7 @@ import {
 } from 'three/webgpu';
 import { reflector, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { waterwayOf } from '../../game/world/waterway.system';
-import { WAKE_KIND, waterWakeOf } from '../../game/world/waterWake.system';
+import { WAKE_KIND, waterWakeSystem } from '../../game/world/waterWake.system';
 import { DUSK_MOOD, type Mood } from '../environment';
 import { REFLECT_LAYER } from '../layers';
 import { registerViewPlugin } from '../viewPlugins';
@@ -35,6 +34,7 @@ import {
   waterLayoutInput,
   waterwayLights,
 } from './waterwayLevel';
+import { waterwaySystem } from '../../game/world/waterway.system';
 
 const DEG = Math.PI / 180;
 
@@ -159,7 +159,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
     grate = mesh;
   }
 
-  const state = waterwayOf(game);
+  const state = game.systems.get(waterwaySystem);
   const way = level.data.waterways?.[0];
   if (!way) {
     return {
@@ -178,7 +178,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
   const sim = drawEnabled ? new WaterSim(gameRenderer.renderer, grid) : null;
   const layoutTexture = createLayoutTexture(grid);
   const waterRects = way.rects.filter((r) => r.water);
-  const wake = waterWakeOf(game);
+  const wake = game.systems.get(waterWakeSystem);
   const reflectionWeight = uniform(0);
 
   // 雫: 天井から水面までの落下時間（ステップ）

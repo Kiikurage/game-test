@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { bootGame } from './helpers';
 
 // 地下墓所（D）・中庭（E）・鉄門 G1 の石積み環境（#44）。D の通路・E を走って壁抜け・引っ掛かりがないことは
-// `level.spec.ts`（メインルート全体を入力だけで走破）と `levelWalk.test.ts`（コライダ）が見ている。
+// `levelWalk.test.ts` / `levelTraversal.test.ts`（メインルートを入力だけで走破）が見ている。
 // ここでは、環境が組み立てられて可動パーツが取れること・動かしてもエラーが出ないことを確認する。
 test('builds the crypt and courtyard environment with movable lid, gate leaves and lever', async ({
   page,

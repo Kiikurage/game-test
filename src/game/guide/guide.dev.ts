@@ -1,5 +1,5 @@
 import { registerDevHooks } from '../../devHooks';
-import { guideOf } from './guide.system';
+import { guideSystem } from './guide.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -17,7 +17,7 @@ declare module '../../devHooks' {
 
 registerDevHooks('guide', ({ game }) => ({
   guide: () => {
-    const { hints, notices } = guideOf(game);
+    const { hints, notices } = game.systems.get(guideSystem);
     return {
       hint: hints.current?.id ?? null,
       notice: notices.current?.text ?? null,
@@ -28,6 +28,6 @@ registerDevHooks('guide', ({ game }) => ({
     };
   },
   pushNotice: (text) => {
-    guideOf(game).notices.push(text);
+    game.systems.get(guideSystem).notices.push(text);
   },
 }));

@@ -23,10 +23,10 @@ import { BossTransitionFx } from './bossTransitionFx';
 import { BossDefeatFx } from './bossDefeatFx';
 import { toModelSpeed, BOSS_LOCOMOTION } from './bossGait';
 import type { Boss } from '../../game/boss/boss';
-import { bossSystemOf } from '../../game/boss/boss.system';
 import { BOSS_BANDS, BOSS_STATS } from '../../game/boss/bossData';
 import { isDebugEnabled } from '../../ui/debugHud';
 import { registerViewPlugin } from '../viewPlugins';
+import { bossSystem } from '../../game/boss/boss.system';
 
 /** 床から少し浮かせる（地形に埋まらないように）。 */
 const LIFT = 0.12;
@@ -77,7 +77,7 @@ function bossAnimState(
 }
 
 registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
-  const system = bossSystemOf(game);
+  const system = game.systems.get(bossSystem);
   const debug = isDebugEnabled(location.search);
   const root = new Group();
   root.visible = false;

@@ -3,7 +3,6 @@ import { createUberMaterial } from '../uberMaterial';
 import type { BufferGeometry } from 'three/webgpu';
 import { ConeGeometry, Euler, Object3D, Vector3 } from 'three/webgpu';
 import { atan, float, mix, positionGeometry, pow, sin, smoothstep, vec3 } from 'three/tsl';
-import { bossSystemOf } from '../../game/boss/boss.system';
 import {
   ASH_LENGTH,
   ASH_LINE_ANGLES_DEG,
@@ -17,6 +16,7 @@ import {
 import { createRng } from '../particles/layer';
 import type { Telegraph } from '../telegraph';
 import { registerViewPlugin } from '../viewPlugins';
+import { bossSystem } from '../../game/boss/boss.system';
 
 /**
  * 灰の波（技 7）の描画。ゲーム側の状態（`ashWaveStateOf`）を毎フレーム読むだけで、状態は持たない（演出の内部状態を除く）。
@@ -177,7 +177,7 @@ registerViewPlugin('boss-ash-wave', ({ game, view }) => {
 
   return {
     update(dt) {
-      const boss = bossSystemOf(game).boss;
+      const boss = game.systems.get(bossSystem).boss;
       const state = boss?.alive ? ashWaveStateOf(boss) : undefined;
       if (!state) {
         if (mesh.visible || lines.some((t) => t !== null)) hide();

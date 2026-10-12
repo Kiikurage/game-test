@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fogGateOf } from '../fogGate/fogGate.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
 import { ASHEN_FOUNDATION } from './ashenFoundation';
 import { createLevel, levelGameOptions } from './level';
+import { fogGateSystem } from '../fogGate/fogGate.system';
 
 const DT = 1 / 60;
 const level = createLevel(ASHEN_FOUNDATION);
@@ -19,7 +19,7 @@ describe('walking the level D to F (physics)', () => {
     game.addStaticCylinders(level.cylinders);
     game.tuning.camera.autoFollow = false;
     // 霧の門は最初は閉じている（#66）。通行可能性の検証では解除（open）にしておく
-    fogGateOf(game)?.unseal();
+    game.systems.get(fogGateSystem)?.unseal();
     for (let i = 0; i < 10; i++) game.update(DT);
   });
 
@@ -165,7 +165,7 @@ describe('walking the level D to F (physics)', () => {
     expect(along()).toBeGreaterThan(3);
 
     // 戻る向きに歩く。霧で塞いだら通れない
-    expect(fogGateOf(game)?.seal()).toBe(true);
+    expect(game.systems.get(fogGateSystem)?.seal()).toBe(true);
     for (let i = 0; i < 12; i++) {
       aim(yaw + Math.PI);
       run(15);

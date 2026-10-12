@@ -4,10 +4,10 @@ import type { GameEventMap } from '../../core/gameEvents';
 import { PLAYER_STATS } from '../data';
 import { LOOT } from '../data/world/lootTuning';
 import { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
-import { bonfiresOf } from '../bonfire/bonfire';
-import { itemsOf } from './item';
+import { itemSystem } from './item.system';
+import { interactionSystem } from '../interaction/interaction.system';
+import { bonfireSystem } from '../bonfire/bonfire.system';
 
 const DT = 1 / 60;
 
@@ -50,7 +50,11 @@ describe('item pickup (flask +1)', () => {
   it('offers "拾う" within range', async () => {
     const { game, run } = await setup();
     run(5);
-    expect(interactionOf(game).prompt).toEqual({ id: 'item-flask-c', kind: 'loot', label: '拾う' });
+    expect(game.systems.get(interactionSystem).prompt).toEqual({
+      id: 'item-flask-c',
+      kind: 'loot',
+      label: '拾う',
+    });
   });
 
   it('picking up raises the max and the count by one, saves, and notifies', async () => {
@@ -68,7 +72,7 @@ describe('item pickup (flask +1)', () => {
     expect(save.getCount('flask_up')).toBe(1);
     expect(picked).toHaveLength(1);
     expect(picked[0]).toMatchObject({ itemId: 'flask_up', message: '回復瓶を手に入れた' });
-    expect(itemsOf(game).ids).toEqual([]);
+    expect(game.systems.get(itemSystem).ids).toEqual([]);
   });
 
   it('cannot be picked up twice', async () => {
@@ -77,7 +81,7 @@ describe('item pickup (flask +1)', () => {
     press();
     run(LOOT.frames + 10);
     expect(game.player.flask.max).toBe(4);
-    expect(interactionOf(game).prompt).toBeNull();
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
     press();
     run(LOOT.frames + 10);
     expect(game.player.flask.max).toBe(PLAYER_STATS.flask.max);
@@ -93,7 +97,7 @@ describe('item pickup (flask +1)', () => {
     run(LOOT.frames);
     expect(game.player.flask.max).toBe(3);
     expect(save.getCount('flask_up')).toBe(0);
-    expect(itemsOf(game).ids).toEqual(['item-flask-c']);
+    expect(game.systems.get(itemSystem).ids).toEqual(['item-flask-c']);
   });
 
   it('is not placed again after save and load, and the max is restored', async () => {
@@ -103,8 +107,8 @@ describe('item pickup (flask +1)', () => {
     first.run(LOOT.frames + 10);
     const second = await setup(first.storage);
     second.run(5);
-    expect(itemsOf(second.game).ids).toEqual([]);
-    expect(interactionOf(second.game).prompt).toBeNull(); // 取得済みは候補にならない
+    expect(second.game.systems.get(itemSystem).ids).toEqual([]);
+    expect(second.game.systems.get(interactionSystem).prompt).toBeNull(); // 取得済みは候補にならない
     expect(second.game.player.flask.max).toBe(4);
     expect(second.game.player.flask.count).toBe(4);
   });
@@ -124,6 +128,6 @@ describe('item pickup (flask +1)', () => {
     run(130);
     press(); // 休む
     expect(game.player.flask.count).toBe(4);
-    expect(bonfiresOf(game).isLit('bonfire')).toBe(true);
+    expect(game.systems.get(bonfireSystem).isLit('bonfire')).toBe(true);
   });
 });

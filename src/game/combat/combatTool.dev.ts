@@ -1,6 +1,6 @@
 import { registerDevHooks } from '../../devHooks';
 import type { CombatDebugTool } from './combatTool';
-import { combatToolOf } from './combatTool.system';
+import { combatToolSystem } from './combatTool.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -13,6 +13,6 @@ declare module '../../devHooks' {
 }
 
 registerDevHooks('combatTool', ({ game }) => {
-  const tool = combatToolOf(game);
+  const tool = game.systems.get(combatToolSystem);
   return { combatTool: () => tool };
 });

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { sectorShape } from '../combat';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { bossSystemOf, BOSS_ID } from './boss.system';
+import { BOSS_ID, bossSystem } from './boss.system';
 import { BOSS_MOVE_IDS } from './bossData';
 import { BossMoveRegistry } from './bossMove';
 
@@ -56,7 +56,7 @@ describe('boss battle rules in the game (Rapier)', () => {
     ] as const) {
       game.events.on(name, (payload) => log.push({ name, payload }));
     }
-    const system = bossSystemOf(game);
+    const system = game.systems.get(bossSystem);
     const boss = system.spawn({ x: 0, z: 0, yaw: 0, moves: quietMoves(), engage: true });
     const heart = game.combat.allTargets.get(BOSS_ID);
     if (!heart) throw new Error('no boss target');

@@ -1,7 +1,7 @@
 import { registerDevHooks } from '../../devHooks';
-import { interactionOf } from '../interaction/interaction';
-import { shortcutOf } from './shortcut.system';
 import type { ShortcutState } from './shortcut';
+import { shortcutSystem } from './shortcut.system';
+import { interactionSystem } from '../interaction/interaction.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -18,9 +18,9 @@ declare module '../../devHooks' {
 
 registerDevHooks('shortcut', ({ game }) => ({
   shortcut: () => {
-    const sc = shortcutOf(game);
+    const sc = game.systems.get(shortcutSystem);
     if (!sc) return null;
-    const prompt = interactionOf(game).prompt;
+    const prompt = game.systems.get(interactionSystem).prompt;
     return {
       state: sc.state,
       blocked: sc.blocked,
