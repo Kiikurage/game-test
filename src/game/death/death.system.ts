@@ -113,12 +113,17 @@ export class DeathController {
 }
 
 /** 死亡処理（`game.systems.get(deathSystem)`。描画・HUD・デバッグが状態を読む）。 */
-export const deathSystem = registerGameSystem('death', (game) => {
-  const death = new DeathController(game);
-  return {
-    state: death,
-    update: () => {
-      death.update();
-    },
-  };
-});
+export const deathSystem = registerGameSystem(
+  'death',
+  (game) => {
+    const death = new DeathController(game);
+    return {
+      state: death,
+      update: () => {
+        death.update();
+      },
+    };
+  },
+  // 篝火の更新の後に再開（リスポーン）を呼ぶ
+  { after: ['bonfire'] },
+);

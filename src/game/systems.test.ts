@@ -8,12 +8,10 @@ import { createHeadlessGame } from './testing/headlessGame';
 
 const entry = (
   id: string,
-  index: number,
   order: { after?: string[]; before?: string[] } = {},
   create: GameSystemEntry['create'] = () => ({}),
 ): GameSystemEntry => ({
   id,
-  index,
   after: order.after ?? [],
   before: order.before ?? [],
   create,
@@ -22,42 +20,34 @@ const entry = (
 const ids = (list: readonly { id: string }[]): string[] => list.map((e) => e.id);
 
 describe('sortGameSystems', () => {
-  it('keeps registration order when nothing is declared', () => {
-    expect(ids(sortGameSystems([entry('a', 0), entry('b', 1), entry('c', 2)]))).toEqual([
-      'a',
-      'b',
-      'c',
-    ]);
+  it('orders undeclared systems by id, not by registration order', () => {
+    expect(ids(sortGameSystems([entry('c'), entry('a'), entry('b')]))).toEqual(['a', 'b', 'c']);
   });
 
   it('runs a system after the ones it declares in `after`', () => {
-    const sorted = sortGameSystems([entry('a', 0, { after: ['c'] }), entry('b', 1), entry('c', 2)]);
+    const sorted = sortGameSystems([entry('a', { after: ['c'] }), entry('b'), entry('c')]);
     expect(ids(sorted)).toEqual(['b', 'c', 'a']);
   });
 
   it('runs a system before the ones it declares in `before`', () => {
-    const sorted = sortGameSystems([
-      entry('a', 0),
-      entry('b', 1),
-      entry('c', 2, { before: ['a'] }),
-    ]);
-    expect(ids(sorted)).toEqual(['c', 'a', 'b']);
+    const sorted = sortGameSystems([entry('a'), entry('b'), entry('c', { before: ['b'] })]);
+    expect(ids(sorted)).toEqual(['a', 'c', 'b']);
   });
 
   it('follows chains of declarations regardless of registration order', () => {
     const sorted = sortGameSystems([
-      entry('hud', 0, { after: ['bonfire'] }),
-      entry('bonfire', 1, { after: ['boss'] }),
-      entry('boss', 2),
+      entry('hud', { after: ['bonfire'] }),
+      entry('bonfire', { after: ['boss'] }),
+      entry('boss'),
     ]);
     expect(ids(sorted)).toEqual(['boss', 'bonfire', 'hud']);
   });
 
   it('rejects cycles and unknown ids', () => {
     expect(() =>
-      sortGameSystems([entry('a', 0, { after: ['b'] }), entry('b', 1, { after: ['a'] })]),
+      sortGameSystems([entry('a', { after: ['b'] }), entry('b', { after: ['a'] })]),
     ).toThrow(/cycle/);
-    expect(() => sortGameSystems([entry('a', 0, { after: ['missing'] })])).toThrow(/unknown/);
+    expect(() => sortGameSystems([entry('a', { after: ['missing'] })])).toThrow(/unknown/);
   });
 });
 
@@ -73,8 +63,8 @@ describe('GameSystems', () => {
         return { state: id, update: () => calls.push(`update:${id}`) };
       };
     const systems = new GameSystems(game, [
-      entry('a', 0, { after: ['b'] }, make('a')),
-      entry('b', 1, {}, make('b')),
+      entry('a', { after: ['b'] }, make('a')),
+      entry('b', {}, make('b')),
     ]);
     expect(systems.get<string>({ id: 'a' })).toBe('a');
     systems.init();
@@ -86,9 +76,9 @@ describe('GameSystems', () => {
   it('lets a factory get another system, and rejects self-dependency during creation', () => {
     let systems: GameSystems | null = null;
     systems = new GameSystems(game, [
-      entry('x', 0, {}, () => ({ state: systems?.get<number>({ id: 'y' }) })),
-      entry('y', 1, {}, () => ({ state: 2 })),
-      entry('loop', 2, {}, () => ({ state: systems?.get({ id: 'loop' }) })),
+      entry('x', {}, () => ({ state: systems?.get<number>({ id: 'y' }) })),
+      entry('y', {}, () => ({ state: 2 })),
+      entry('loop', {}, () => ({ state: systems?.get({ id: 'loop' }) })),
     ]);
     expect(systems.get<number>({ id: 'x' })).toBe(2);
     expect(() => systems.get({ id: 'loop' })).toThrow(/itself/);
@@ -97,39 +87,71 @@ describe('GameSystems', () => {
 });
 
 describe('registered game systems (headless game)', () => {
-  it('runs in the declared order, which matches the previous file-name order', async () => {
+  it('runs in the order derived from the declarations', async () => {
     const { game } = await createHeadlessGame({ enemies: [] });
-    // 宣言（after / before）を足す前の登録順（ファイル名順）。挙動を変えないため、宣言はこの順と矛盾させていない
-    expect(game.systems.ids).toEqual([
-      'bonfire',
+    const order = game.systems.ids;
+    // 宣言した前後関係（データの受け渡しがある組）。いずれも宣言を足す前の実行順（import の順で決まっていた）と同じ
+    const declared: [string, string][] = [
+      ['boss', 'boss-defeat'],
+      ['boss', 'boss-entry'],
+      ['boss', 'boss-impact'],
+      ['boss', 'boss-moves-67'],
+      ['boss', 'boss-telegraph'],
+      ['boss', 'boss-transition'],
+      ['boss', 'bossBar'],
+      ['boss', 'bossDebug'],
+      ['cameraEffects', 'boss-defeat'],
+      ['cameraEffects', 'boss-impact'],
+      ['cameraEffects', 'boss-moves-67'],
+      ['cameraEffects', 'boss-transition'],
+      ['cameraEffects', 'plunge'],
+      ['hud', 'bonfire'],
+      ['bonfire', 'death'],
+      ['death', 'cameraEffects'],
+      ['death', 'guide'],
+      ['death', 'bossBar'],
+      ['boss-defeat', 'bossBar'],
+      ['fogGate', 'boss-defeat'],
+      ['fogGate', 'boss-entry'],
+      ['textPanel', 'interactable'],
+      ['interactable', 'interaction'],
+      ['interactable', 'shortcut'],
+      ['interactable', 'waterway'],
+    ];
+    for (const [first, then] of declared) {
+      expect(order.indexOf(first), `${first} before ${then}`).toBeLessThan(order.indexOf(then));
+    }
+    // 全体の順（宣言で決まらない同士は id の辞書順）。変わったら、意図した変更かを確かめて更新する
+    expect(order).toEqual([
+      'ambush',
       'boss',
-      'bossDebug',
-      'boss-defeat',
-      'boss-entry',
-      'boss-impact',
-      'boss-moves-67',
       'boss-telegraph',
-      'boss-transition',
-      'cameraEffects',
+      'bossDebug',
       'combatTool',
-      'death',
       'debugStats',
       'detection',
-      'enemy-telegraph',
       'enemy-kill-feedback',
+      'enemy-telegraph',
       'fieldBgm',
       'fogGate',
-      'guide',
-      'bossBar',
+      'boss-entry',
+      'heavy-charge-cue',
       'hud',
+      'bonfire',
+      'death',
+      'cameraEffects',
+      'boss-defeat',
+      'boss-impact',
+      'boss-moves-67',
+      'boss-transition',
+      'bossBar',
+      'guide',
+      'item',
+      'plunge',
+      'textPanel',
       'interactable',
       'interaction',
-      'item',
-      'ambush',
-      'heavy-charge-cue',
-      'plunge',
       'shortcut',
-      'textPanel',
       'waterWake',
       'waterway',
     ]);

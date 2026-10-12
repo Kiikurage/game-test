@@ -61,6 +61,6 @@ registerGameSystem(
       },
     };
   },
-  // このステップのボスの技の進行を見る
-  { after: ['boss'] },
+  // このステップのボスの技の進行を見て、カメラ演出を足す
+  { after: ['boss', 'cameraEffects'] },
 );

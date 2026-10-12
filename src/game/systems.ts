@@ -13,7 +13,7 @@
 //         onImpact: (e) => { ... },       // 命中のたび（反応・ヒットストップなどの標準処理と `impact` 発行の後）
 //       };
 //     },
-//     { before: ['hud'] },                // 実行順の宣言（任意。ほかのシステムの id）
+//     { after: ['hud'] },                 // 実行順の宣言（任意。ほかのシステムの id）
 //   );
 //
 //   game.systems.get(bonfireSystem)       // → BonfireController（型付き）
@@ -21,7 +21,7 @@
 // - システムは `Game` のインスタンスごとに作る（ファクトリが `Game` を受け取る）。ファクトリの中で
 //   `game.systems.get(other)` を呼んでよい（まだ作っていなければその場で作る。循環はエラー）。
 // - `update` / `onImpact` を呼ぶ順（と一括生成の順）は `after` / `before` の宣言から決める（トポロジカル順）。
-//   宣言で決まらない同士は登録順（ファイル名順）。順序が意味を持つ組は必ず宣言する。
+//   宣言で決まらない同士は id の辞書順（登録順・import の順には依らない）。順序が意味を持つ組は必ず宣言する。
 // - このファイルから `Game` の実体を import しない（循環参照を避けるため type import のみ）。
 import type { GameEventMap } from '../core/gameEvents';
 import type { HitEvent } from './combat';
@@ -58,7 +58,6 @@ export interface GameSystemHandle<T> {
 /** 登録の中身（テストが直接 `GameSystems` に渡せるよう公開）。 */
 export interface GameSystemEntry {
   readonly id: string;
-  readonly index: number;
   readonly after: readonly string[];
   readonly before: readonly string[];
   readonly create: (game: Game) => GameSystem & { readonly state?: unknown };
@@ -87,7 +86,6 @@ export function registerGameSystem(
   if (entries.some((e) => e.id === id)) throw new Error(`game system "${id}" already registered`);
   entries.push({
     id,
-    index: entries.length,
     after: order.after ?? [],
     before: order.before ?? [],
     create,
@@ -96,13 +94,12 @@ export function registerGameSystem(
 }
 
 /**
- * 宣言（after / before）を満たす順に並べる（トポロジカル順）。宣言で決まらない同士は `index`（登録順）が小さい方が先。
+ * 宣言（after / before）を満たす順に並べる（トポロジカル順）。宣言で決まらない同士は id の辞書順（文字コード順）。
  * 未知の id・循環はエラー。
  */
 export function sortGameSystems<
   E extends {
     readonly id: string;
-    readonly index: number;
     readonly after: readonly string[];
     readonly before: readonly string[];
   },
@@ -122,7 +119,7 @@ export function sortGameSystems<
   }
   const done = new Set<string>();
   const out: E[] = [];
-  const pending = [...list].sort((a, b) => a.index - b.index);
+  const pending = [...list].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   while (pending.length > 0) {
     const i = pending.findIndex((e) => [...(preds.get(e.id) ?? [])].every((p) => done.has(p)));
     if (i < 0) {

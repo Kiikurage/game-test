@@ -53,6 +53,6 @@ export const textPanelSystem = registerGameSystem(
       },
     };
   },
-  // 会話中の決定ボタンは、同じステップの状況アクション（interaction）が見た後に読む
-  { after: ['interaction'] },
+  // 会話の行送り・終了（決定ボタン）は、同じステップのインタラクト（会話の終了を見て効果を進める）と状況アクションより先に処理する
+  { before: ['interactable', 'interaction'] },
 );

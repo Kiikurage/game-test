@@ -20,6 +20,6 @@ export const bonfireSystem = registerGameSystem(
       },
     };
   },
-  // HUD の表示可否は、同じステップの HUD の更新（フェード）より前に決める
-  { before: ['hud'] },
+  // HUD の表示可否は HUD の更新（フェード）の後に決める（次のステップのフェードに効く）
+  { after: ['hud'] },
 );

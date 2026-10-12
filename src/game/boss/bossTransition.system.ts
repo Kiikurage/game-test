@@ -113,6 +113,6 @@ export const bossTransitionSystem = registerGameSystem(
       },
     };
   },
-  // このステップのボスの状態（フェーズ）を見る
-  { after: ['boss'] },
+  // このステップのボスの状態（フェーズ）を見て、カメラ演出を足す
+  { after: ['boss', 'cameraEffects'] },
 );

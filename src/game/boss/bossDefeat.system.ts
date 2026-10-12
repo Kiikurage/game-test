@@ -155,6 +155,6 @@ export const bossDefeatSystem = registerGameSystem(
       },
     };
   },
-  // このステップのボスの撃破を見る
-  { after: ['boss'] },
+  // このステップのボスの撃破を見て、カメラ演出・霧の門・篝火を動かす
+  { after: ['boss', 'cameraEffects', 'fogGate', 'bonfire'] },
 );

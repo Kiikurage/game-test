@@ -57,12 +57,17 @@ export class WaterwayState {
 }
 
 /** 水路の仕掛けの状態（`game.systems.get(waterwaySystem)`）。 */
-export const waterwaySystem = registerGameSystem('waterway', (game) => {
-  const state = new WaterwayState(game);
-  return {
-    state,
-    update: () => {
-      state.update();
-    },
-  };
-});
+export const waterwaySystem = registerGameSystem(
+  'waterway',
+  (game) => {
+    const state = new WaterwayState(game);
+    return {
+      state,
+      update: () => {
+        state.update();
+      },
+    };
+  },
+  // インタラクトの効果（フラグ）を同じステップで反映する
+  { after: ['interactable'] },
+);

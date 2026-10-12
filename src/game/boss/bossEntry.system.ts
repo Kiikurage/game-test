@@ -31,8 +31,8 @@ registerGameSystem(
       },
     };
   },
-  // ボスの配置・入場の購読はボスの更新の後
-  { after: ['boss'] },
+  // ボス・霧の門の更新の後に組み立てる
+  { after: ['boss', 'fogGate'] },
 );
 
 function setup(game: Game): void {
