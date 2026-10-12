@@ -10,6 +10,7 @@ import { PlayerKitAssets, type CapeRig } from './player/playerKit';
 import { applyPlainLook, type WeaponTelegraph } from './undead/undeadMaterial';
 import { AMBUSH } from '../game/data';
 import { heavyChargeGlow } from './player/heavyChargeGlow';
+import { renderClock } from './renderClock';
 
 const Y_AXIS = new Vector3(0, 1, 0);
 
@@ -119,8 +120,8 @@ export class PlayerView {
 
   /** 毎フレーム呼ぶ。alpha: 直前ステップ→最新ステップの補間係数。 */
   update(alpha: number): void {
-    this.timer.update();
-    const dt = Math.min(this.timer.getDelta(), 0.1);
+    this.timer.update(renderClock.nowMs);
+    const dt = Math.min(Math.max(this.timer.getDelta(), 0), 0.1); // 時計を止めた直後の最初の差は負になりうる
     const player = this.game.player;
     player.transform.sample(alpha, this.position, this.orientation);
     // カメラが壁際で本体に近づきすぎたら、背中で画面が埋まらないよう非表示にする（ヒステリシス付き）

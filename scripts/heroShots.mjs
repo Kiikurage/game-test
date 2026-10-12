@@ -72,39 +72,33 @@ const viewportName = opts.mobile ? 'mobile' : 'pc';
 // 既定の品質: PC は high、モバイルは基準機（Xperia 1 V）相当の medium
 const quality = opts.quality ?? (opts.mobile ? 'medium' : 'high');
 
-/** 視点を `query`（敵の有無など URL で決まる条件）ごとにまとめ、ページを 1 回読み込んで順に撮る。 */
+/**
+ * 視点ごとにページを開き直して撮る。描画側の積算状態（炎の位相・粒子の生存・乱数の位置・局所光源の時計）は
+ * ページを開き直すと必ず初期値に戻るので、撮影順・`--only` の選び方に依存せず、同じ視点は同じ画像になる。
+ */
 async function shootAll() {
-  const groups = new Map();
+  const results = [];
   for (const shot of shots) {
     const enemies = shot.enemies ?? defaults.enemies ?? true;
-    const params = new URLSearchParams({ quality, scale: '1' });
+    // shot: 描画側の時計をロード直後から止める（再現性。src/render/renderClock.ts）
+    const params = new URLSearchParams({ quality, scale: '1', shot: '1' });
     if (!enemies) params.set('enemies', '0');
     for (const [k, v] of Object.entries(shot.query ?? {})) params.set(k, String(v));
-    const query = `?${params.toString()}`;
-    if (!groups.has(query)) groups.set(query, []);
-    groups.get(query).push(shot);
-  }
-  const results = [];
-  for (const [query, group] of groups) {
     const { context, page } = await newPage(session, {
       context: VIEWPORTS[viewportName],
       // 起動前のセーブ・設定（篝火の点火済みなど）
       localStorage: defaults.localStorage,
     });
-    await page.goto(session.url(query));
-    // ローディング（アセット読み込み・初回シェーダコンパイル = GameView.warmUp）の完了を待って開始
-    await startGame(page);
+    await page.goto(session.url(`?${params.toString()}`));
+    // ローディング（アセット読み込み・初回シェーダコンパイル = GameView.warmUp）の完了を待って、一時停止のまま開始
+    await startGame(page, { paused: true });
     if (!(defaults.hud ?? false)) await hideHud(page);
-    for (const shot of group) {
-      const t0 = performance.now();
-      await stageShot(page, resolveShot(shot, defaults));
-      const file = join(opts.outDir, `${shot.name}.png`);
-      await page.screenshot({ path: file, timeout: 300_000 });
-      console.log(
-        `${file}  (${shot.area ?? ''}, ${((performance.now() - t0) / 1000).toFixed(0)}s)`,
-      );
-      results.push({ name: shot.name, area: shot.area ?? '', title: shot.title ?? '' });
-    }
+    const t0 = performance.now();
+    await stageShot(page, resolveShot(shot, defaults));
+    const file = join(opts.outDir, `${shot.name}.png`);
+    await page.screenshot({ path: file, timeout: 300_000 });
+    console.log(`${file}  (${shot.area ?? ''}, ${((performance.now() - t0) / 1000).toFixed(0)}s)`);
+    results.push({ name: shot.name, area: shot.area ?? '', title: shot.title ?? '' });
     await context.close();
   }
   // 撮った順ではなく JSON の並び順で一覧にする

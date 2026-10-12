@@ -224,6 +224,7 @@ export async function createGameApp(
     );
     loop.paused = true;
     let devStartHandler: (() => Promise<void>) | undefined;
+    let holdPaused = false;
 
     window.__game = {
       backend: 'webgpu',
@@ -272,9 +273,11 @@ export async function createGameApp(
         input,
         playerView: () => playerView,
         loop,
-        start: () => {
+        start: (options) => {
           if (!devStartHandler) throw new Error('the start screen is not ready yet');
           input.enableDevMode();
+          // 一時停止のまま開始する（開始から撮影の停止までの間に、実時間で何ステップか進んでしまうのを防ぐ）
+          if (options?.paused) holdPaused = true;
           return devStartHandler();
         },
       }),
@@ -288,7 +291,9 @@ export async function createGameApp(
         loop.start();
       },
       setPaused: (p) => {
-        loop.paused = p;
+        // `dev.start({ paused: true })` の開始に伴う最初の再開だけ無視する
+        if (!p && holdPaused) holdPaused = false;
+        else loop.paused = p;
         audio?.setPaused(p);
       },
       resumeAudio: () => {

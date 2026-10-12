@@ -23,6 +23,7 @@ import { profileScene, type RenderProfile } from './quality';
 import { NavDebugView } from './navDebugView';
 import { GridNavigator } from '../game/enemy/gridNavigator';
 import { createViewPlugins, type NamedViewPlugin } from './viewPlugins';
+import { renderClock } from './renderClock';
 import { settleWithin } from '../core/withTimeout';
 
 /** ウォームアップの GPU 完了待ちの上限（#369）。これを過ぎてもロードは進める。 */
@@ -281,7 +282,8 @@ export class GameView {
 
   /** alpha: 直前ステップ→最新ステップの補間係数。 */
   render(alpha: number): void {
-    this.gameRenderer.beginFrame(performance.now());
+    renderClock.beginFrame();
+    this.gameRenderer.beginFrame(renderClock.nowMs);
     this.updateFrame(alpha);
     if (this.drawEnabled) this.pipeline.render();
     this.gameRenderer.endFrame();
@@ -296,7 +298,7 @@ export class GameView {
     this.enemyViews?.update(alpha, this.camera, focus);
     this.playground.update(this.camera);
     this.environment.followShadowFocus(focus);
-    const now = performance.now();
+    const now = renderClock.nowMs;
     const dt = this.lastRenderMs > 0 ? (now - this.lastRenderMs) / 1000 : 0;
     this.lastRenderMs = now;
     this.particleDemo?.update(dt);

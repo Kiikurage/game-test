@@ -12,6 +12,7 @@ import { installStableBufferNames } from './stableBufferNames';
 import { setUniformBufferLimit } from './instancing';
 import { GpuTimer } from './pipeline/gpuTimer';
 import { installClusteredLighting } from './lighting/clusteredLighting';
+import { installNodeFrameClock } from './nodeFrameClock';
 
 /** デバッグ表示（`?debug`）用の計測値。 */
 export interface RenderStats {
@@ -74,6 +75,7 @@ export async function createRenderer(
       quality.toggles.perf || new URLSearchParams(window.location.search).has('debug'),
   });
   await loadSpan('renderer/init', () => renderer.init());
+  installNodeFrameClock(renderer);
 
   if ((renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend !== true) {
     void renderer.dispose();
