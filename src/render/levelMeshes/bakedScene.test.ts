@@ -32,6 +32,13 @@ const triangles = (m: Mesh): number =>
   (m.geometry.index?.count ?? m.geometry.getAttribute('position').count) / 3;
 
 describe.each(['crypt', 'arena', 'waterway'])('level_%s.glb', (input) => {
+  it('returns the baked root with its name and userData', async () => {
+    const root = await loadGlb(`level_${input}`);
+    const src = bakeScene(input);
+    expect(root.name).toBe(src.name);
+    expect(root.userData).toEqual(src.userData);
+  });
+
   it('restores the same meshes, attributes, triangles and placement', async () => {
     const baked = meshesOf(await loadGlb(`level_${input}`));
     const source = meshesOf(bakeScene(input));

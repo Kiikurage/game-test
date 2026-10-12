@@ -1,5 +1,6 @@
 import {
   type BufferAttribute,
+  Float32BufferAttribute,
   type BufferGeometry,
   type Mesh,
   type Object3D,
@@ -125,6 +126,15 @@ export function restoreBakedScene(scene: Object3D): Object3D {
     if ((o as { isMesh?: boolean }).isMesh !== true) return;
     const g = mesh.geometry;
     if (bakedNoNormal === true) g.deleteAttribute('normal');
+    // 量子化された 3 成分（snorm16x3 など）は WebGPU の頂点形式に無いので float に戻す
+    for (const name of Object.keys(g.attributes)) {
+      const a = g.getAttribute(name) as BufferAttribute;
+      if (a.array instanceof Float32Array || a.itemSize % 2 === 0) continue;
+      const f = new Float32Array(a.count * a.itemSize);
+      for (let i = 0; i < a.count; i++)
+        for (let k = 0; k < a.itemSize; k++) f[i * a.itemSize + k] = a.getComponent(i, k);
+      g.setAttribute(name, new Float32BufferAttribute(f, a.itemSize));
+    }
     // glb のカスタム属性名は大文字（_WALLS → GLTFLoader で _walls）。元の綴りは extras.bakedAttributes
     const original = new Map<string, string>();
     if (typeof bakedAttributes === 'string')
@@ -138,7 +148,11 @@ export function restoreBakedScene(scene: Object3D): Object3D {
     // 描画用には使わない（ライトマップ用・Blender が補った UV）。fx の `uv` は TEXCOORD_0 として残る
     g.deleteAttribute('uv1');
   });
-  return scene;
+  // glTF のシーンの下にベイクした木の根（例: `crypt`）が 1 つある。根を返す
+  const [root] = scene.children;
+  if (scene.children.length !== 1 || !root) throw new Error('baked scene: expected one root node');
+  root.removeFromParent();
+  return root;
 }
 
 /** `public/assets/blender/<name>.glb` を読み、ベイク前の形の木にして返す。 */
