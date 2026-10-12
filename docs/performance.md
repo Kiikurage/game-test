@@ -184,6 +184,11 @@ rm -rf $d/com.apple.metal && mv $d/com.apple.metal.bak $d/com.apple.metal
 
 温まった状態は、キャッシュがある状態で 2 回続けて測った 2 回目。冷えた計測で作られたキャッシュは、退避したキャッシュを戻すときに捨てる。
 
+**事前コンパイルの並列化（#390）**: three の `compileAsync` はオブジェクトごとにパイプライン作成を待つため直列だった。`compileScene` は
+`_pipelines.getForRender` に渡る promise 配列を自前の配列にすり替え、全オブジェクトの投入後にまとめて待つ（three を更新したら見直す）。
+冷えた状態の ready 18.3 / 18.6 秒 → 6.8 / 6.8 秒、`assets/warm-up/compile` 14.0 / 14.3 秒 → 2.4 / 2.5 秒。温まった状態の ready 3.5 / 3.0 秒 → 2.9 / 2.8 秒。
+パイプライン作成数は前後とも 73（視点ごとの内訳も同一）で、本描画での作り直しは増えていない。
+
 ### 配信サイズ（`npm run build` の `dist/`。非圧縮、JS は gzip も）
 
 | 内訳 | ファイル数 | サイズ |
