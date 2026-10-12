@@ -14,6 +14,7 @@ import { Character } from './character';
 import { getKtx2Loader } from './ktx2';
 import { buildThrustClip, THRUST_CLIP_NAME, THRUST_SOURCE_CLIP } from '../anim/thrustClip';
 import { CLIP_NAMES, type ClipName } from './clips';
+import { assetUrl } from '../../core/assetUrl';
 
 /** public/assets/characters/ に置かれているキャラクター名（`npm run assets:build` で生成）。 */
 export type CharacterName = 'knight';
@@ -39,22 +40,21 @@ export class CharacterAssets {
   ) {}
 
   /**
-   * アセットを読み込む。baseUrl は public/assets/ の URL（既定は Vite の BASE_URL 配下）。
+   * アセットを読み込む（URL は内容ハッシュ名。`assetUrl`）。
    * 読み込む名前を絞りたい場合は characters を指定する。
    */
-  static async load(
-    characters: readonly CharacterName[] = ['knight'],
-    baseUrl = `${import.meta.env.BASE_URL}assets/`,
-  ): Promise<CharacterAssets> {
+  static async load(characters: readonly CharacterName[] = ['knight']): Promise<CharacterAssets> {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     // キャラクターのテクスチャは KTX2（KHR_texture_basisu、#328）
     loader.setKTX2Loader(getKtx2Loader());
 
     const [charGltfs, animGltf, propsGltf] = await Promise.all([
-      Promise.all(characters.map((name) => loader.loadAsync(`${baseUrl}characters/${name}.glb`))),
-      loader.loadAsync(`${baseUrl}animations.glb`),
-      loader.loadAsync(`${baseUrl}props.glb`),
+      Promise.all(
+        characters.map((name) => loader.loadAsync(assetUrl(`assets/characters/${name}.glb`))),
+      ),
+      loader.loadAsync(assetUrl('assets/animations.glb')),
+      loader.loadAsync(assetUrl('assets/props.glb')),
     ]);
 
     const characterMap = new Map<CharacterName, Group>();

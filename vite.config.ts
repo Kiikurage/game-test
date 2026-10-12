@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import { assetHashMap, publicOutputs, type PublicOutput } from './scripts/assets/hashedAssets.mjs';
 
 const BASE = '/game-test/';
 
@@ -43,6 +44,36 @@ function basisTranscoder(): Plugin {
   };
 }
 
+/**
+ * `public/assets/` を内容ハッシュ名（`<名前>.<hash>.<拡張子>`）で dist に書き出す（tech-direction §4.4、#331）。
+ * 元の名前は出さない（キャッシュの効かない名前で読まれていれば 404 で気付ける）。対応表は `__ASSET_HASHES__` として
+ * 埋め込み、`src/core/assetUrl.ts` が引く。dev では public/ をそのまま配る（対応表なし）。
+ */
+function hashedPublicAssets(): Plugin {
+  const publicDir = fileURLToPath(new URL('./public/', import.meta.url));
+  let outputs: PublicOutput[] = [];
+  return {
+    name: 'hashed-public-assets',
+    apply: 'build',
+    config() {
+      outputs = publicOutputs(publicDir);
+      return {
+        define: { __ASSET_HASHES__: JSON.stringify(assetHashMap(outputs)) },
+        build: { copyPublicDir: false },
+      };
+    },
+    generateBundle() {
+      for (const { source, output } of outputs) {
+        this.emitFile({
+          type: 'asset',
+          fileName: output,
+          source: readFileSync(join(publicDir, source)),
+        });
+      }
+    },
+  };
+}
+
 // GitHub Pages では https://<user>.github.io/game-test/ で配信される。
 export default defineConfig({
   base: BASE,
@@ -50,6 +81,6 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 6000,
   },
-  plugins: [basisTranscoder()],
+  plugins: [basisTranscoder(), hashedPublicAssets()],
   server: { host: '127.0.0.1' },
 });

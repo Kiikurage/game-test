@@ -16,7 +16,9 @@ test('loads the title-group SFX from the manifest and accepts play requests with
 
   // title グループ（UI・環境音・BGM）のプリロードで、マニフェストのそれらの素材がすべてデコードされる
   const titleCount = await page.evaluate(async () => {
-    const res = await fetch(new URL('assets/audio/manifest.json', document.baseURI));
+    const url = window.__game?.dev.assetUrl('assets/audio/manifest.json');
+    if (!url) throw new Error('dev hooks unavailable');
+    const res = await fetch(url);
     const manifest = (await res.json()) as { sounds: { kind: string }[] };
     return manifest.sounds.filter((s) => ['bgm', 'ui', 'ambient'].includes(s.kind)).length;
   });

@@ -11,6 +11,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { Character } from '../assets/character';
 import { CapeSpring, type CapeMotion } from './capeSpring';
+import { assetUrl } from '../../core/assetUrl';
 
 /**
  * プレイヤー（旅の騎士）の装備（自作、`public/assets/player.glb`。生成は scripts/assets/player.mjs）。
@@ -123,11 +124,11 @@ export class PlayerKitAssets {
     >,
   ) {}
 
-  /** player.glb を読み込む。baseUrl は public/assets/ の URL（既定は Vite の BASE_URL 配下）。 */
-  static async load(baseUrl = `${import.meta.env.BASE_URL}assets/`): Promise<PlayerKitAssets> {
+  /** player.glb を読み込む。URL は内容ハッシュ名（`assetUrl`）。 */
+  static async load(): Promise<PlayerKitAssets> {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
-    const gltf = await loader.loadAsync(`${baseUrl}player.glb`);
+    const gltf = await loader.loadAsync(assetUrl('assets/player.glb'));
     const items = new Map<PlayerItemId, { object: Object3D; extras: ItemExtras }>();
     for (const id of [...PLAYER_ARMOR_IDS, ...PLAYER_CAPE_IDS]) {
       const object = gltf.scene.getObjectByName(id);

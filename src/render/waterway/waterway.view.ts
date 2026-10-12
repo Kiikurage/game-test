@@ -328,7 +328,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
     load: async () => {
       let textures: WaterTextures;
       try {
-        textures = await loadWaterTextures(import.meta.env.BASE_URL);
+        textures = await loadWaterTextures();
       } catch (e) {
         console.warn('waterway: water textures failed to load', e);
         textures = placeholderWaterTextures();
