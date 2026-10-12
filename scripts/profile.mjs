@@ -7,13 +7,21 @@
 import { readFileSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import { SourceMapConsumer } from 'source-map-js';
-import { newPage, openSession, setViewpoint, startGame, waitFrames } from './lib/session.mjs';
+import {
+  measureTarget,
+  newPage,
+  openSession,
+  setViewpoint,
+  startGame,
+  waitFrames,
+} from './lib/session.mjs';
 
 const quality = process.argv[2] ?? 'medium';
 const frames = Number(process.argv[3] ?? 240);
 const TOP = Number(process.env.PROFILE_TOP ?? 15);
 /** PROFILE_ALLOC=1: ヒープのサンプリングで関数別の割り当て量（KB/フレーム）も出す（GC の原因探し）。 */
 const ALLOC = Boolean(process.env.PROFILE_ALLOC);
+const target = measureTarget();
 const outDir = resolve('node_modules/.profile-dist');
 
 /** バンドルの位置 → 元のソース（src/... の関数）へ。 */
@@ -89,9 +97,9 @@ function aggregateAlloc(profile) {
 
 async function measure(extra) {
   const { context, page } = await newPage(session, {
-    context: { viewport: { width: 915, height: 412 } },
+    context: target.context,
   });
-  await page.goto(session.url(`?quality=${quality}&scale=0.25${extra}`));
+  await page.goto(session.url(`?quality=${quality}&${target.query}${extra}`));
   await startGame(page, 600_000);
   // 墓地の視点（perfViewpoints の graveyard）。墓地の亡者 2 体と礼拝堂の門の 1 体を戦闘の音で呼ぶ
   await setViewpoint(page, { x: 14, z: 6, yaw: Math.PI / 2 });
@@ -144,7 +152,9 @@ try {
     const f = r.stats.frames;
     return `| ${label} | ${f} | ${(r.jsUs / 1000 / f).toFixed(2)} | ${(r.gcUs / 1000 / f).toFixed(2)} | ${(r.stats.simMs / f).toFixed(2)} | ${(r.stats.renderMs / f).toFixed(2)} | ${r.stats.maxFrameMs.toFixed(1)} |`;
   };
-  console.log(`\n# CPU profile (${quality}, graveyard, combat, lockstep 1 step/frame)\n`);
+  console.log(
+    `\n# CPU profile (${quality}, ${target.name}, graveyard, combat, lockstep 1 step/frame)\n`,
+  );
   if (draw.enemies) console.log(`enemy states: ${JSON.stringify(draw.enemies)}\n`);
   console.log(`scene: ${JSON.stringify(draw.scene)}\n`);
   console.log(
