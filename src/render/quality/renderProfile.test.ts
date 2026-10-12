@@ -9,7 +9,7 @@ import {
   Scene,
 } from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
-import { SHADOW_PROXY_LAYER } from './layers';
+import { SHADOW_PROXY_LAYER } from '../layers';
 import { formatProfile, profileScene, totalProfile } from './renderProfile';
 
 const material = new MeshBasicMaterial();

@@ -74,8 +74,8 @@ const GRASS_FAR = 22;
 registerViewPlugin('cliff', ({ view, gameRenderer, level }) => {
   const root = new Group();
   root.name = 'cliff';
-  // 割れ目の暗線は low では 25m 以内だけ（遠くでチラつかせない）
-  rockCrackFar.value = gameRenderer.quality.preset.level === 'low' ? 25 : 45;
+  // 割れ目の暗線を描く距離（遠くでチラつかせない）
+  rockCrackFar.value = gameRenderer.quality.preset.rockCrackFar;
   const buckets: { mesh: InstancedMesh; far: number }[] = [];
   // `?cliff=0`: 岩塊・枯れ草を出さない（変更前との負荷・見た目の比較用）
   const enabled = new URLSearchParams(globalThis.location.search).get('cliff') !== '0';

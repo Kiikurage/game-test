@@ -10,7 +10,7 @@
 | `low` / `medium`（モバイル） | 150 以下 | 250k 以下 |
 | `high`（PC） | 200 以下 | 350k 以下 |
 
-- 値は `src/render/renderBudget.ts`（`RENDER_BUDGET`）。E2E `e2e/perf.spec.ts` が下記の 4 視点で `low` と `medium` を検査する（超えたら CI が落ちる）。
+- 値は `src/render/quality/presets.ts`（各プリセットの `budget`）。E2E `e2e/perf.spec.ts` が下記の 4 視点で `low` と `medium` を検査する（超えたら CI が落ちる）。
 - 計測視点は `scripts/perfViewpoints.mjs`: 篝火（0, 3.5）/ 墓地（14, 6）/ 礼拝堂の門（34, 17）/ 礼拝堂内部（50, 22）。敵は通常どおり配置したまま（巡回で多少ゆらぐので、上限には余裕を持たせる）。
 - 視点や敵を足してドローコールが予算に迫ったら、予算を上げずに下の削減策（LOD 距離・結合・影の対象）で下げる。
 
@@ -149,6 +149,39 @@
 | その他（json・css・html） | 5 | 0.06 MB |
 | **合計** | 110 | **15.9 MB** |
 
+## CPU 時間の回帰ゲート（#306。CI の `perf` ジョブ）
+
+CI の `perf` ジョブが `npm run profile -- high 240`（ubuntu-latest・SwiftShader）を回し、JS ms/frame（CDP）が
+`PROFILE_MAX_DRAW_MS` / `PROFILE_MAX_NODRAW_MS` を超えたら終了コード 1 で落ちる。
+
+### CI ランナーでのばらつき（同じコミットを 5 ジョブ並列で 1 回ずつ。PR #357）
+
+| | 1 | 2 | 3 | 4 | 5 | 最小〜最大 |
+| --- | --- | --- | --- | --- | --- | --- |
+| draw JS ms/frame | 7.52 | 11.24 | 10.19 | 11.33 | 8.19 | 7.5〜11.3 |
+| nodraw JS ms/frame | 0.68 | 1.11 | 0.96 | 1.15 | 1.09 | 0.68〜1.15 |
+
+- ランナーの速さが 2 群に分かれ（ジョブ時間 2m13s と 3m30s 前後）、同じコードで 1.5〜1.7 倍ぶれる。
+- **draw は SwiftShader の描画が JS 時間に混ざる**（render ms/frame が CI で 8〜12、Mac の SwiftShader で 2.8、実 GPU で 2.3）。
+  §5 の CPU ≤ 4ms とは直接比べられず、描画パスが大きく増えたような粗い回帰だけを見る。
+- **nodraw（入力 + `game.update` + 描画以外の JS）は実 GPU の値（0.71）と同じ桁**で、シミュレーションの回帰はこちらで見る。
+
+### 閾値と根拠
+
+| | 閾値 | 観測の最大 | 余裕 |
+| --- | --- | --- | --- |
+| `PROFILE_MAX_NODRAW_MS` | 2 | 1.15 | 1.7 倍 |
+| `PROFILE_MAX_DRAW_MS` | 18 | 11.33 | 1.6 倍 |
+
+- 観測した上下の比（1.5〜1.7 倍）を最大値の上にもう一度見込み、遅いランナーでも誤検知しない値にした。
+  その分、検出できるのは「シミュレーションの JS が 2 倍近くになる」程度の回帰で、小さな悪化は検出しない。
+  小さな差は従来どおりローカルの `npm run profile`（実 GPU は `PERF_PC=1 GPU_MODE=hardware`）で前後を比べる。
+- ゲートが落ちることは `PROFILE_BURN_MS=4`（計測中の各 rAF コールバックに 4ms の busy-wait）で CI 上で確認した。
+- GPU 時間は SwiftShader では意味が無いのでゲートにしない。Mac の実 GPU で `PERF_PC=1 GPU_MODE=hardware npm run perf -- high` を
+  前後で取って比べる（上の「刷新前の基準値」の手順）。
+- ヘッドレス Node（`createHeadlessGame`）でのシミュレーション計測は採らなかった。nodraw がすでにシミュレーション部分の JS を測っており、
+  ばらつきの主因はランナーの CPU の速さで Node でも同じく受けるため。
+
 ## CPU フレーム時間のプロファイル（#262）
 
 `npm run profile -- [low|medium|high] [frames]`（既定 `medium 240`）。ヘッドレス Chromium の CDP `Profiler` で、
@@ -241,11 +274,11 @@ toggles: noParticles flatMat             有効な切り分けトグル
 3. `?perf&scale=0.25&nomsaa&nobloom&noshadow&nograss&noparticles&nolights&flatmat`（全部入り）で、固定負荷の下限を確認。そこから 1 つずつ戻して、戻した瞬間に fps が落ちるものが原因。
 4. `cpu` が大きいなら JS 側（`pipelines` が増え続けていないかも見る）。
 
-トグルは `src/render/perfToggles.ts`（preset を落とすもの）と `src/render/perf.view.ts`（`?perf` HUD・`?noparticles`・`?flatmat`）、`src/render/renderer.ts`（`?noshadow`・GPU 時間）にある。
+トグルは `src/render/quality/presets.ts`（`parsePerfToggles` / `applyPerfToggles`。preset を落とすもの）と `src/render/perf.view.ts`（`?perf` HUD・`?noparticles`・`?flatmat`）、`src/render/renderer.ts`（`?noshadow`・GPU 時間）にある。
 
 ### 3. 動的解像度（`DynamicResolution`）の挙動
 
-目標 fps（モバイル 30 / PC 60）を割ると内部解像度の倍率を下げる（モバイルは 0.8 から開始、下限 0.4。余裕があるときだけ 0.1 ずつ上げる）。#231 で次を直した（`src/render/dynamicResolution.test.ts`）。
+目標 fps（モバイル 30 / PC 60）を割ると内部解像度の倍率を下げる（モバイルは 0.8 から開始、下限 0.4。余裕があるときだけ 0.1 ずつ上げる）。#231 で次を直した（`src/render/quality/dynamicResolution.test.ts`）。
 
 - **1fps 級の低速で何も下がらない**: 1 フレーム 1000ms 超を外れ値として捨てていたため、極端に遅い端末では全フレームが捨てられ、解像度が一切下がらなかった。単発の外れ値（タブ復帰・ロード）だけ捨て、連続するなら本当の低速として評価する。窓が埋まるのを待たず、蓄積 1 秒（最低 2 フレーム）で評価する。
 - **起動直後・変更直後のカクつき**: 起動直後 6 フレームと、解像度変更直後 2 フレームは評価に入れない。1 フレームを目標の 6 倍までに丸め、単発のスパイク（シェーダコンパイル）で下げすぎない。

@@ -1,6 +1,6 @@
 import { registerDevHooks } from '../devHooks';
 import { perfProbe, type PerfProbe } from './perfProbe';
-import type { RenderProfile } from './renderProfile';
+import type { RenderProfile } from './quality';
 
 declare module '../devHooks' {
   interface DevHooks {

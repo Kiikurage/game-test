@@ -1,22 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
+import { bootGame, stepUntil, tapKey } from './helpers';
 
-test.describe.configure({ timeout: 240_000 });
-
-async function boot(page: Page): Promise<void> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(60);
-  await expect.poll(() => page.evaluate(() => window.__game?.sim.player.grounded)).toBe(true);
-  expect(errors).toEqual([]);
-}
+const boot = (page: Page) => bootGame(page, { enemies: false });
 
 const entry = (page: Page) =>
   page.evaluate(() => {
@@ -44,10 +29,19 @@ test('enters the fog gate: the boss is invulnerable during its intro, then engag
   await page.evaluate(() => {
     window.__game?.dev.teleport(102.4, 66.4, (45 * Math.PI) / 180);
   });
-  await expect.poll(async () => (await gate(page)).prompt).toBe('霧へ入る');
+  await stepUntil(
+    page,
+    async () => (await gate(page)).prompt,
+    (v) => v === '霧へ入る',
+  );
   await tapKey(page, 'KeyE');
   // 闘技場へ着くと入場演出（無敵）が始まり、HP バーはまだ出ない
-  await expect.poll(async () => (await entry(page)).intros, { timeout: 120_000 }).toBe(1);
+  await stepUntil(
+    page,
+    async () => (await entry(page)).intros,
+    (v) => v === 1,
+    { chunk: 1 },
+  );
   const intro = await entry(page);
   expect(intro.invulnerable).toBe(true);
   expect(intro.engaged).toBe(false);
@@ -55,7 +49,11 @@ test('enters the fog gate: the boss is invulnerable during its intro, then engag
   expect((await gate(page)).state).toBe('sealed');
 
   // 約 90F 後に戦闘開始（bossEngaged = HP バー）。無敵が解ける
-  await expect.poll(async () => (await entry(page)).engages, { timeout: 120_000 }).toBe(1);
+  await stepUntil(
+    page,
+    async () => (await entry(page)).engages,
+    (v) => v === 1,
+  );
   const fight = await entry(page);
   expect(fight.engaged).toBe(true);
   expect(fight.invulnerable).toBe(false);
@@ -66,13 +64,25 @@ test('enters the fog gate: the boss is invulnerable during its intro, then engag
     window.__game?.dev.bossDamage(1000);
     window.__game?.dev.damage(10_000);
   });
-  await expect.poll(async () => (await entry(page)).engaged, { timeout: 120_000 }).toBe(false);
-  await expect.poll(async () => (await gate(page)).state, { timeout: 180_000 }).toBe('closed');
-  await expect
-    .poll(async () => (await page.evaluate(() => window.__game?.dev.death()))?.active, {
-      timeout: 180_000,
-    })
-    .toBe(false);
+  await stepUntil(
+    page,
+    async () => (await entry(page)).engaged,
+    (v) => !v,
+  );
+  await stepUntil(
+    page,
+    async () => (await gate(page)).state,
+    (v) => v === 'closed',
+    {
+      maxSteps: 1200,
+    },
+  );
+  await stepUntil(
+    page,
+    async () => (await page.evaluate(() => window.__game?.dev.death()))?.active,
+    (v) => v === false,
+    { maxSteps: 1200 },
+  );
   const reset = await entry(page);
   expect(reset).toMatchObject({ state: 'dormant', engaged: false, phase: 1 });
   expect(reset.hp).toBe(reset.maxHp);

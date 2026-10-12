@@ -25,21 +25,6 @@ import {
 
 type F = Node<'float'>;
 
-/**
- * 霧の見た目のコスト上限（モバイルのオーバードロー対策）。シーンに足すメッシュはこの数まで。
- * すべて透明の 1 枚物で、パーティクルは使わない（個数 0）。品質 low は壁 1 枚・柱 1 層・地表の霧なし。
- */
-export const FOG_BUDGET = {
-  /** 門の霧の壁（門の中に重ねる枚数）。 */
-  wallLayers: { low: 1, medium: 2, high: 2 },
-  /** 霧の柱の層数（外側の薄いハロを足す）。 */
-  pillarLayers: { low: 1, medium: 2, high: 2 },
-  /** 地表の霧の円盤。 */
-  groundMist: { low: 0, medium: 1, high: 1 },
-  /** 個別の粒（パーティクル）は使わない。 */
-  particles: 0,
-} as const;
-
 /** 霧の色（青白い）。柱と壁が共有する。 */
 const DEEP = vec3(0.34, 0.5, 0.86);
 const MID = vec3(0.62, 0.76, 1.0);

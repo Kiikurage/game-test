@@ -12,6 +12,7 @@ import {
 } from 'three/webgpu';
 import type { WaterGrid } from './waterLayout';
 import { getKtx2Loader } from '../assets/ktx2';
+import { assetUrl } from '../../core/assetUrl';
 
 /**
  * 水のテクスチャ（#270）。`scripts/assets/build-water-textures.mjs` がオフラインで決定的に生成したタイル可能なテクスチャ（KTX2 / UASTC、ミップマップ同梱。#328）。
@@ -53,10 +54,10 @@ export function placeholderWaterTextures(): WaterTextures {
 }
 
 /** KTX2 を読み込む（失敗はそのまま投げる。呼び出し側が代用に切り替える）。 */
-export async function loadWaterTextures(base: string): Promise<WaterTextures> {
+export async function loadWaterTextures(): Promise<WaterTextures> {
   const loader = getKtx2Loader();
   const load = async (name: string): Promise<Texture> => {
-    const tex = await loader.loadAsync(`${base}assets/water/${name}`);
+    const tex = await loader.loadAsync(assetUrl(`assets/water/${name}`));
     tex.colorSpace = NoColorSpace;
     tex.wrapS = RepeatWrapping;
     tex.wrapT = RepeatWrapping;

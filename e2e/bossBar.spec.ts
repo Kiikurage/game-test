@@ -1,21 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { bootGame } from './helpers';
 
-test.describe.configure({ timeout: 120_000 });
-
-async function boot(page: Page): Promise<string[]> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=test&boss&quality=low&scale=0.25&nodraw');
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
-  return errors;
-}
+const boot = (page: Page) => bootGame(page, { scene: 'test', params: { boss: '' } });
 
 const scaleX = (page: Page, id: string) =>
   page.getByTestId(id).evaluate((e) => {
@@ -84,13 +70,11 @@ test('boss HP bar flashes at the phase boundary and hides on defeat', async ({ p
     window.__game?.dev.bossDamage(1200);
   });
   // 移行は「いまの技が終わったところ」で始まる（技の最中は待つ）。`transition` になるまで 1 ステップずつ進める
-  for (let i = 0; i < 900; i++) {
-    const state = await page.evaluate(() => {
-      window.__game?.dev.advance(1);
-      return window.__game?.dev.bossDebug()?.state ?? null;
-    });
-    if (state === 'transition') break;
-  }
+  await page.evaluate(() => {
+    const g = window.__game;
+    if (!g) throw new Error('no game');
+    for (let i = 0; i < 900 && g.dev.bossDebug()?.state !== 'transition'; i++) g.dev.advance(1);
+  });
   await advance(page, 3);
   // シミュレーションは停止中なので、発光は描画フレームで DOM に反映されるまで保たれる
   await expect.poll(flash).toBeGreaterThan(0.5);

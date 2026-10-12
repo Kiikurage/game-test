@@ -13,6 +13,7 @@ import {
 } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { assetUrl } from '../../core/assetUrl';
 
 /**
  * 環境メッシュ（自作、`public/assets/environment.glb`。生成は scripts/assets/environment.mjs）。
@@ -106,11 +107,11 @@ function bakeMesh(mesh: Mesh): BakedPart {
 export class EnvironmentAssets {
   private constructor(private readonly items: ReadonlyMap<EnvironmentId, readonly BakedPart[]>) {}
 
-  /** environment.glb を読み込む。baseUrl は public/assets/ の URL（既定は Vite の BASE_URL 配下）。 */
-  static async load(baseUrl = `${import.meta.env.BASE_URL}assets/`): Promise<EnvironmentAssets> {
+  /** environment.glb を読み込む。URL は内容ハッシュ名（`assetUrl`）。 */
+  static async load(): Promise<EnvironmentAssets> {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
-    const gltf = await loader.loadAsync(`${baseUrl}environment.glb`);
+    const gltf = await loader.loadAsync(assetUrl('assets/environment.glb'));
     return EnvironmentAssets.fromScene(gltf.scene);
   }
 

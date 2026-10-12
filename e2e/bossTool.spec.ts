@@ -1,20 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { startGame } from './helpers';
+import { bootGame } from './helpers';
 
-/** ボス技の回避検証ツール（`?debug&scene=boss`）。ロジックの検証なので最小品質・低解像度・描画なしで開く。 */
-const QUERY = 'quality=low&scale=0.25&nodraw';
+/** ボス技の回避検証ツール（`?debug&scene=boss`）。ロジックの検証なので最小品質・低解像度・描画なしで開く（bootGame の既定）。 */
 
 test('?debug&scene=boss lists the registered moves and fires one from the UI', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto(`./?scene=boss&debug&${QUERY}`);
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  const errors = await bootGame(page, { scene: 'boss', params: { debug: '' } });
 
   const panel = page.locator('.boss-tool');
   await expect(panel).toBeVisible();
@@ -51,11 +41,7 @@ test('?debug&scene=boss lists the registered moves and fires one from the UI', a
 });
 
 test('without ?debug the verification UI is not shown', async ({ page }) => {
-  await page.goto(`./?scene=boss&${QUERY}`);
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  await bootGame(page, { scene: 'boss' });
   await expect(page.locator('.boss-tool')).toHaveCount(0);
   await expect(page.locator('.boss-debug')).toHaveCount(0);
   // ボスは出ているが、UI は無い（AI オフで待機）
@@ -64,11 +50,8 @@ test('without ?debug the verification UI is not shown', async ({ page }) => {
 });
 
 test('?scene=test&boss still works as the AI showcase', async ({ page }) => {
-  await page.goto(`./?scene=test&boss&${QUERY}`);
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  await bootGame(page, { scene: 'test', params: { boss: '' } });
   const boss = await page.evaluate(() => window.__game?.dev.bossDebug() ?? null);
-  expect(boss?.state).toBe('beat');
+  // bootGame が着地まで進めるので、最初のビートの直後に技を選んでいることがある（AI が動いていれば dormant ではない）
+  expect(['beat', 'attack']).toContain(boss?.state);
 });

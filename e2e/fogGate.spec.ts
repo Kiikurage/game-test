@@ -1,7 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { holdKey, startGame, tapKey, waitSteps } from './helpers';
-
-test.describe.configure({ timeout: 180_000 });
+import { bootGame, holdKey, stepUntil, tapKey, waitSteps } from './helpers';
 
 /** 霧の門 (104, 68)。通り抜ける向きは北東（yaw 45°）。 */
 const GATE = { x: 104, z: 68 };
@@ -11,20 +9,7 @@ const DEG = Math.PI / 180;
 const along = (p: { x: number; z: number }): number =>
   (p.x - GATE.x) * Math.sin(45 * DEG) + (p.z - GATE.z) * Math.cos(45 * DEG);
 
-async function boot(page: Page): Promise<void> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(30);
-  await expect.poll(() => page.evaluate(() => window.__game?.sim.player.grounded)).toBe(true);
-  expect(errors).toEqual([]);
-}
+const boot = (page: Page) => bootGame(page, { enemies: false });
 
 const fogGate = (page: Page) =>
   page.evaluate(() => {
@@ -49,19 +34,38 @@ test('walks into the fog gate from the courtyard and reaches the arena; the gate
   await boot(page);
   // 中庭側の門の前。閉じた霧の門は通れず、状況アクション「霧へ入る」が出る
   await teleport(page, 102.4, 66.4, 45);
-  await expect.poll(async () => (await fogGate(page)).prompt).toBe('霧へ入る');
+  await stepUntil(
+    page,
+    async () => (await fogGate(page)).prompt,
+    (v) => v === '霧へ入る',
+  );
   expect((await fogGate(page)).state).toBe('closed');
   await holdKey(page, 'KeyW', 60);
   expect(along((await fogGate(page)).player)).toBeLessThan(0);
 
   // 入力（E）で入場演出: 操作不能のあと、闘技場の入場位置へ
   await teleport(page, 102.4, 66.4, 45);
-  await expect.poll(async () => (await fogGate(page)).prompt).toBe('霧へ入る');
+  await stepUntil(
+    page,
+    async () => (await fogGate(page)).prompt,
+    (v) => v === '霧へ入る',
+  );
   await tapKey(page, 'KeyE');
-  await expect.poll(async () => (await fogGate(page)).state).toBe('entering');
+  await stepUntil(
+    page,
+    async () => (await fogGate(page)).state,
+    (v) => v === 'entering',
+    {
+      chunk: 1,
+    },
+  );
   // 演出中はボタンを押しても動作に入らない
   await tapKey(page, 'Space');
-  await expect.poll(async () => (await fogGate(page)).entered, { timeout: 120_000 }).toBe(1);
+  await stepUntil(
+    page,
+    async () => (await fogGate(page)).entered,
+    (v) => v === 1,
+  );
   const entered = await fogGate(page);
   expect(entered.state).toBe('sealed');
   expect(entered.blocked).toBe(true);
