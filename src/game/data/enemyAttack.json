@@ -1,0 +1,73 @@
+{
+  "rules": {
+    "minStartup": 24,
+    "minHeavyStartup": 34,
+    "minFollowUpStartup": 20,
+    "minActive": 4,
+    "minDodgeWindow": 26,
+    "trackDegPerSecond": 120,
+    "trackRatio": 0.6
+  },
+  "undeadSoldierAttacks": {
+    "a1": {
+      "id": "a1",
+      "startup": 24,
+      "active": 5,
+      "recovery": 28,
+      "damage": 45,
+      "poiseDamage": 25,
+      "guardStaminaCost": 22,
+      "moveDistance": 0,
+      "arcDeg": 100,
+      "range": 1.8
+    },
+    "a1b": {
+      "id": "a1b",
+      "startup": 20,
+      "active": 5,
+      "recovery": 28,
+      "damage": 45,
+      "poiseDamage": 25,
+      "guardStaminaCost": 22,
+      "moveDistance": 0,
+      "arcDeg": 100,
+      "range": 1.8,
+      "followUp": true
+    },
+    "a2": {
+      "id": "a2",
+      "startup": 34,
+      "active": 6,
+      "recovery": 36,
+      "damage": 70,
+      "poiseDamage": 50,
+      "guardStaminaCost": 35,
+      "moveDistance": 0,
+      "arcDeg": 60,
+      "range": 2.0,
+      "heavy": true
+    },
+    "a3": {
+      "id": "a3",
+      "startup": 28,
+      "active": 8,
+      "recovery": 34,
+      "damage": 55,
+      "poiseDamage": 30,
+      "guardStaminaCost": 28,
+      "moveDistance": 2.5,
+      "arcDeg": 30,
+      "range": 1.8
+    }
+  },
+  "undeadAttackRules": {
+    "closeRange": 2.2,
+    "midRange": [2.5, 5.0],
+    "closeWeights": { "a1": 60, "a2": 40 },
+    "midWeights": { "a3": 70 },
+    "a1ChainChance": 0.4,
+    "rollPunishFrames": 20,
+    "rollPunishA1Chance": 0.7,
+    "maxConsecutive": 2
+  }
+}

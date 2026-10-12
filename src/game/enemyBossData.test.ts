@@ -12,11 +12,11 @@ import './boss/moves';
 
 const moveModules = import.meta.glob('./boss/moves/*.move.ts', { eager: true });
 
-/** 関数を除いた export（数値・表）。 */
+/** 定数（`UPPER_CASE`）の export。スキーマや関数は除く。 */
 function values(mod: object): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(mod)
-      .filter(([, v]) => typeof v !== 'function')
+      .filter(([k, v]) => /^[A-Z][A-Z0-9_]*$/.test(k) && typeof v !== 'function')
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 }
