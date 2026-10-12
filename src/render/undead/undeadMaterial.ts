@@ -626,8 +626,16 @@ function createCharacterMaterial(
   );
   material.name = `Character_${role}_${src.name}`;
   material.alphaTest = 0.5;
+  // 影の参照位置だけ法線方向へずらす（#395）。影は簡略メッシュが落とすので、詳細メッシュの自己影が面の向きの変わり目で
+  // 1 画素ごとに明暗の粒（市松）になる。太陽の normalBias を全体で上げると地形の影まで動くので、キャラクターだけに掛ける
+  material.receivedShadowPositionNode = positionWorld.add(
+    normalize(normalWorld).mul(CHARACTER_SHADOW_NORMAL_BIAS),
+  );
   return material;
 }
+
+/** キャラクターが影を受けるときの法線方向のずらし量（m）。 */
+const CHARACTER_SHADOW_NORMAL_BIAS = 0.16;
 
 function eyeMaskNode(uvNode: Node<'vec2'>, radius = EYE_RADIUS) {
   let mask: Node<'float'> = float(0);
