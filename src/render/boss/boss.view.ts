@@ -76,7 +76,7 @@ function bossAnimState(
   };
 }
 
-registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
+registerViewPlugin('boss', ({ game, view, gameRenderer, services }) => {
   const system = game.systems.get(bossSystem);
   const debug = isDebugEnabled(location.search);
   const root = new Group();
@@ -176,7 +176,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
       };
       model.root.visible = false;
       view.scene.add(model.root);
-      model.bindParticles(view.particles);
+      model.bindParticles(services.fx);
       animator = new BossAnimator(model, assets);
       transitionFx = new BossTransitionFx(game, view, model);
       defeatFx = new BossDefeatFx(game, view, model);

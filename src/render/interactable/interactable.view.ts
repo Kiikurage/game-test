@@ -11,7 +11,7 @@ const ASH_INTERVAL = 0.45;
 // （性能危機中のため、実ライト・半透明・ポストエフェクトは追加しない）。
 //  - 壊せる壁の崩壊（`wallCollapse`）: 60F の間、壁の面から破片と粉塵を断続的に出す。
 //  - 祈り（`ambientDuck`）: 継続時間の間、プレイヤーの周りに灰を舞い上げる（風と灰の粒が増える）。
-registerViewPlugin('interactableFx', ({ game, view }) => {
+registerViewPlugin('interactableFx', ({ game, services }) => {
   const position = new Vector3();
   const normal = new Vector3();
   let collapse: { x: number; y: number; z: number; left: number; next: number } | null = null;
@@ -38,7 +38,7 @@ registerViewPlugin('interactableFx', ({ game, view }) => {
             collapse.z + Math.cos(k * 2.3),
           );
           normal.set(Math.sin(k), 0.5, Math.cos(k * 1.3)).normalize();
-          view.particles.hit(position, normal, 1.6);
+          services.fx.hit(position, normal, 1.6);
         }
         if (collapse.left <= 0) collapse = null;
       }
@@ -49,7 +49,7 @@ registerViewPlugin('interactableFx', ({ game, view }) => {
           ash.next = ASH_INTERVAL;
           const { feet } = game.player;
           position.set(feet.x, feet.y, feet.z);
-          view.particles.deathAsh(position, 1.4, 2.4, 0.7 * ash.intensity);
+          services.fx.deathAsh(position, 1.4, 2.4, 0.7 * ash.intensity);
         }
         if (ash.left <= 0) ash = null;
       }
