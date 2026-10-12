@@ -12,6 +12,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { PlantedSwordPlacement } from '../../core/plantedSwords';
 import type { Character } from './character';
+import { assetUrl } from '../../core/assetUrl';
 
 /**
  * 探索・脇道要素の簡易メッシュ（自作、`public/assets/exploration.glb`。生成は scripts/assets/exploration.mjs）。
@@ -66,11 +67,11 @@ export class ExplorationAssets {
     >,
   ) {}
 
-  /** exploration.glb を読み込む。baseUrl は public/assets/ の URL（既定は Vite の BASE_URL 配下）。 */
-  static async load(baseUrl = `${import.meta.env.BASE_URL}assets/`): Promise<ExplorationAssets> {
+  /** exploration.glb を読み込む。URL は内容ハッシュ名（`assetUrl`）。 */
+  static async load(): Promise<ExplorationAssets> {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
-    const gltf = await loader.loadAsync(`${baseUrl}exploration.glb`);
+    const gltf = await loader.loadAsync(assetUrl('assets/exploration.glb'));
     const items = new Map<
       ExplorationId,
       { readonly object: Object3D; readonly extras: ExplorationExtras }

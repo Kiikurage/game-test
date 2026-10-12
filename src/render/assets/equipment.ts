@@ -2,6 +2,7 @@ import type { Mesh, Object3D } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { Character } from './character';
+import { assetUrl } from '../../core/assetUrl';
 
 /**
  * 亡者・ボス用の簡易装備メッシュ（自作、`public/assets/equipment.glb`。生成は scripts/assets/equipment.mjs）。
@@ -73,11 +74,11 @@ export class EquipmentAssets {
     private readonly items: ReadonlyMap<EquipmentId, { object: Object3D; socket: EquipmentSocket }>,
   ) {}
 
-  /** equipment.glb を読み込む。baseUrl は public/assets/ の URL（既定は Vite の BASE_URL 配下）。 */
-  static async load(baseUrl = `${import.meta.env.BASE_URL}assets/`): Promise<EquipmentAssets> {
+  /** equipment.glb を読み込む。URL は内容ハッシュ名（`assetUrl`）。 */
+  static async load(): Promise<EquipmentAssets> {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
-    const gltf = await loader.loadAsync(`${baseUrl}equipment.glb`);
+    const gltf = await loader.loadAsync(assetUrl('assets/equipment.glb'));
     const items = new Map<EquipmentId, { object: Object3D; socket: EquipmentSocket }>();
     for (const id of EQUIPMENT_IDS) {
       const object = gltf.scene.getObjectByName(id);

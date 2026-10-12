@@ -1,3 +1,4 @@
+import { assetUrl } from '../core/assetUrl';
 import type { GameEventBus } from '../core/gameEvents';
 import type { AudioEngine } from './audioEngine';
 import { listenerPoseFromMatrix, type WorldMatrixSource } from './listener';
@@ -39,14 +40,18 @@ export function createSfxSystem(
   const library = new SoundLibrary({
     decode: (data) => ctx.decodeAudioData(data),
     baseUrl: audioBase,
+    // 内容ハッシュ名（#331）。`public/` からの相対パスで引く
+    resolveUrl: (url) => assetUrl(url.slice(opts.baseUrl.length), opts.baseUrl),
     opusSupported: detectOggOpusSupport(),
   });
   const player = new SfxPlayer(ctx, engine, library, { maxVoices: maxVoicesFor(opts.isMobile) });
   const bgm = new BgmController(ctx, engine, library);
   const unbindSfx = bindSfxEvents(events, player);
-  const ready = library.loadManifest(`${audioBase}manifest.json`).catch((e: unknown) => {
-    console.warn('audio: manifest unavailable, running silent', e);
-  });
+  const ready = library
+    .loadManifest(assetUrl('assets/audio/manifest.json', opts.baseUrl))
+    .catch((e: unknown) => {
+      console.warn('audio: manifest unavailable, running silent', e);
+    });
   const unbindBgm = bindBgmEvents(
     events,
     bgm,
