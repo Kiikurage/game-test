@@ -1,0 +1,2342 @@
+{
+  "id": "ashen-foundation",
+  "name": "灰の礎",
+  "bounds": {
+    "minX": -11,
+    "maxX": 141,
+    "minZ": -11,
+    "maxZ": 105
+  },
+  "terrain": {
+    "slopeX": 0.06,
+    "slopeZ": 0.03,
+    "hillAmplitude": 0.9,
+    "hillWavelength": 30,
+    "bumpAmplitude": 0.12,
+    "bumpWavelength": 3.5,
+    "routeBlend": 7,
+    "cliffHeight": 4,
+    "cliffWidth": 3,
+    "cellSize": 1,
+    "meshMargin": 8
+  },
+  "perimeter": {
+    "rise": 7,
+    "width": 3,
+    "routeMargin": 1.5,
+    "areaMargin": 2.5,
+    "openPaths": [
+      {
+        "id": "side_roof",
+        "points": [
+          [33, 14],
+          [33, 23.5],
+          [29, 23.5],
+          [29, 21]
+        ],
+        "halfWidth": 3
+      },
+      {
+        "id": "side_ledge",
+        "points": [
+          [35, 19],
+          [33, 22],
+          [33, 25],
+          [35.5, 27.5],
+          [38, 29.8],
+          [39.6, 32]
+        ],
+        "halfWidth": 2.5
+      },
+      {
+        "id": "side_wall",
+        "points": [
+          [80.5, 41],
+          [85, 41.5],
+          [86, 44],
+          [86, 66],
+          [100, 67],
+          [101, 65]
+        ],
+        "halfWidth": 2.5
+      }
+    ]
+  },
+  "areas": [
+    {
+      "id": "A",
+      "name": "篝火「灰の炉」",
+      "shape": {
+        "type": "circle",
+        "cx": 0,
+        "cz": 0,
+        "r": 8
+      },
+      "surface": "stone",
+      "floor": {
+        "height": 0,
+        "margin": 0,
+        "blend": 8
+      }
+    },
+    {
+      "id": "B",
+      "name": "墓地の小径",
+      "shape": {
+        "type": "rect",
+        "minX": 10,
+        "maxX": 35,
+        "minZ": 0,
+        "maxZ": 15
+      },
+      "surface": "grass"
+    },
+    {
+      "id": "C",
+      "name": "崩れた礼拝堂",
+      "shape": {
+        "type": "rect",
+        "minX": 40,
+        "maxX": 60,
+        "minZ": 12,
+        "maxZ": 32
+      },
+      "surface": "stone",
+      "floor": {
+        "height": 3.4,
+        "margin": 2,
+        "blend": 9
+      }
+    },
+    {
+      "id": "D",
+      "name": "地下墓所",
+      "shape": {
+        "type": "rect",
+        "minX": 60,
+        "maxX": 78,
+        "minZ": 36,
+        "maxZ": 52
+      },
+      "surface": "underground",
+      "perimeterMargin": 0
+    },
+    {
+      "id": "E",
+      "name": "中庭",
+      "shape": {
+        "type": "rect",
+        "minX": 84,
+        "maxX": 104,
+        "minZ": 48,
+        "maxZ": 68
+      },
+      "surface": "stone",
+      "floor": {
+        "height": 7.4,
+        "margin": 1,
+        "blend": 6
+      }
+    },
+    {
+      "id": "F",
+      "name": "闘技場",
+      "shape": {
+        "type": "circle",
+        "cx": 122,
+        "cz": 86,
+        "r": 16
+      },
+      "surface": "stone",
+      "floor": {
+        "height": 9.9,
+        "margin": 1,
+        "blend": 6
+      }
+    }
+  ],
+  "route": [
+    {
+      "x": 0,
+      "z": 0,
+      "height": 0,
+      "halfWidth": 5
+    },
+    {
+      "x": 10,
+      "z": 0,
+      "height": 0,
+      "halfWidth": 4.5
+    },
+    {
+      "x": 22,
+      "z": 6,
+      "height": 1.15,
+      "halfWidth": 4
+    },
+    {
+      "x": 32,
+      "z": 12,
+      "height": 2.3,
+      "halfWidth": 5.5
+    },
+    {
+      "x": 40,
+      "z": 17,
+      "height": 3.4,
+      "halfWidth": 4.5
+    },
+    {
+      "x": 52,
+      "z": 17,
+      "height": 3.4,
+      "halfWidth": 3
+    },
+    {
+      "x": 57.7,
+      "z": 17,
+      "height": 3.4,
+      "halfWidth": 3
+    },
+    {
+      "x": 58,
+      "z": 21,
+      "height": 3.4,
+      "halfWidth": 3
+    },
+    {
+      "x": 58.5,
+      "z": 27,
+      "height": 3.4,
+      "halfWidth": 3
+    },
+    {
+      "x": 61,
+      "z": 28,
+      "height": 3.4,
+      "halfWidth": 3.5
+    },
+    {
+      "x": 62,
+      "z": 36,
+      "height": 4.2,
+      "halfWidth": 2.5
+    },
+    {
+      "x": 62,
+      "z": 48.5,
+      "height": 5,
+      "halfWidth": 2
+    },
+    {
+      "x": 78,
+      "z": 48.5,
+      "height": 6.2,
+      "halfWidth": 2
+    },
+    {
+      "x": 84,
+      "z": 51,
+      "height": 7.4,
+      "halfWidth": 3
+    },
+    {
+      "x": 91.5,
+      "z": 52.5,
+      "height": 7.4,
+      "halfWidth": 3
+    },
+    {
+      "x": 98.5,
+      "z": 56,
+      "height": 7.4,
+      "halfWidth": 3
+    },
+    {
+      "x": 102,
+      "z": 62,
+      "height": 7.4,
+      "halfWidth": 2.5
+    },
+    {
+      "x": 104,
+      "z": 68,
+      "height": 7.4,
+      "halfWidth": 2.5
+    },
+    {
+      "x": 111,
+      "z": 75,
+      "height": 9.9,
+      "halfWidth": 3
+    },
+    {
+      "x": 118,
+      "z": 82,
+      "height": 9.9,
+      "halfWidth": 3
+    }
+  ],
+  "extraRoutes": [
+    [
+      {
+        "x": 84,
+        "z": 51,
+        "height": 7.4,
+        "halfWidth": 3
+      },
+      {
+        "x": 80.5,
+        "z": 47,
+        "height": 6.5,
+        "halfWidth": 2.2
+      },
+      {
+        "x": 80.2,
+        "z": 37,
+        "height": 5.6,
+        "halfWidth": 2.2
+      },
+      {
+        "x": 78,
+        "z": 32,
+        "height": 5.5,
+        "halfWidth": 2.6
+      },
+      {
+        "x": 68,
+        "z": 8,
+        "height": 4.2,
+        "halfWidth": 2.6
+      },
+      {
+        "x": 34,
+        "z": -4.5,
+        "height": 1.7,
+        "halfWidth": 2.6
+      },
+      {
+        "x": 8,
+        "z": -5,
+        "height": 0,
+        "halfWidth": 2.6
+      }
+    ]
+  ],
+  "sidePaths": [
+    {
+      "id": "side_roof",
+      "points": [],
+      "halfWidth": 0,
+      "rects": [
+        {
+          "minX": 27,
+          "maxX": 31,
+          "minZ": 14,
+          "maxZ": 18
+        },
+        {
+          "minX": 28.4,
+          "maxX": 29.6,
+          "minZ": 18,
+          "maxZ": 21.6
+        }
+      ],
+      "spots": [
+        {
+          "id": "letter",
+          "x": 29,
+          "z": 16
+        },
+        {
+          "id": "drop-edge",
+          "x": 29,
+          "z": 13.8
+        }
+      ]
+    },
+    {
+      "id": "side_ledge",
+      "points": [
+        [35, 19],
+        [33, 22],
+        [33, 25],
+        [35.5, 27.5],
+        [38, 29.8],
+        [39.6, 32]
+      ],
+      "halfWidth": 0.85,
+      "rects": [
+        {
+          "minX": 40,
+          "maxX": 54,
+          "minZ": 31.5,
+          "maxZ": 33
+        }
+      ],
+      "spots": [
+        {
+          "id": "ring",
+          "x": 38,
+          "z": 29.8
+        },
+        {
+          "id": "bell",
+          "x": 50,
+          "z": 32
+        },
+        {
+          "id": "charm",
+          "x": 52,
+          "z": 32.5
+        },
+        {
+          "id": "drop-w",
+          "x": 47,
+          "z": 30.8
+        },
+        {
+          "id": "drop-m",
+          "x": 50,
+          "z": 30.8
+        },
+        {
+          "id": "drop-e",
+          "x": 53,
+          "z": 30.8
+        }
+      ]
+    }
+  ],
+  "guards": [
+    {
+      "id": "ledge-guard-0-l",
+      "x": 33.15408220075652,
+      "y": 2.9209418331371864,
+      "z": 20.416794970566215,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 2.2027756377319947,
+      "yawDeg": -33.690067525979785
+    },
+    {
+      "id": "ledge-guard-0-r",
+      "x": 34.624037720753385,
+      "y": 2.9209418331371864,
+      "z": 20.916025147168924,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 1.8027756377319948,
+      "yawDeg": -33.690067525979785
+    },
+    {
+      "id": "ledge-guard-1-l",
+      "x": 32.25,
+      "y": 3.437596668165663,
+      "z": 23.5,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 2.3,
+      "yawDeg": 0
+    },
+    {
+      "id": "ledge-guard-1-r",
+      "x": 33.75,
+      "y": 3.437596668165663,
+      "z": 23.5,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 1.5,
+      "yawDeg": 0
+    },
+    {
+      "id": "ledge-guard-2-l",
+      "x": 33.71966991411009,
+      "y": 4.0464802304680845,
+      "z": 26.78033008588991,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 2.5677669529663687,
+      "yawDeg": 45
+    },
+    {
+      "id": "ledge-guard-2-r",
+      "x": 34.78033008588991,
+      "y": 4.0464802304680845,
+      "z": 25.71966991411009,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 1.7677669529663689,
+      "yawDeg": 45
+    },
+    {
+      "id": "ledge-guard-3-l",
+      "x": 35.94783519717961,
+      "y": 4.631515633210974,
+      "z": 28.93112564649302,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 2.098528775146303,
+      "yawDeg": 47.385944030388806
+    },
+    {
+      "id": "ledge-guard-3-r",
+      "x": 37.55216480282039,
+      "y": 4.631515633210974,
+      "z": 28.36887435350698,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 2.098528775146303,
+      "yawDeg": 47.385944030388806
+    },
+    {
+      "id": "ledge-guard-4-l",
+      "x": 38.428716615842625,
+      "y": 5.1,
+      "z": 31.66462320697756,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 1.7601470508735444,
+      "yawDeg": 36.027373385103644
+    },
+    {
+      "id": "ledge-guard-4-r",
+      "x": 39.17128338415737,
+      "y": 5.1,
+      "z": 30.135376793022438,
+      "hx": 0.1,
+      "hy": 2.1,
+      "hz": 1.7601470508735444,
+      "yawDeg": 36.027373385103644
+    },
+    {
+      "id": "wall-top-guard-n",
+      "x": 46.6,
+      "y": 6.299999999999999,
+      "z": 33.1,
+      "hx": 7.600000000000001,
+      "hy": 0.8999999999999999,
+      "hz": 0.1,
+      "yawDeg": 0
+    },
+    {
+      "id": "wall-top-guard-s0",
+      "x": 43.125,
+      "y": 6.299999999999999,
+      "z": 31.4,
+      "hx": 3.125,
+      "hy": 0.8999999999999999,
+      "hz": 0.1,
+      "yawDeg": 0
+    },
+    {
+      "id": "wall-top-guard-s1",
+      "x": 48.5,
+      "y": 6.299999999999999,
+      "z": 31.4,
+      "hx": 0.75,
+      "hy": 0.8999999999999999,
+      "hz": 0.1,
+      "yawDeg": 0
+    },
+    {
+      "id": "wall-top-guard-s2",
+      "x": 51.5,
+      "y": 6.299999999999999,
+      "z": 31.4,
+      "hx": 0.75,
+      "hy": 0.8999999999999999,
+      "hz": 0.1,
+      "yawDeg": 0
+    },
+    {
+      "id": "wall-top-guard-s3",
+      "x": 53.975,
+      "y": 6.299999999999999,
+      "z": 31.4,
+      "hx": 0.22500000000000142,
+      "hy": 0.8999999999999999,
+      "hz": 0.1,
+      "yawDeg": 0
+    },
+    {
+      "id": "wall-top-guard-e",
+      "x": 54.1,
+      "y": 6.299999999999999,
+      "z": 32.25,
+      "hx": 0.1,
+      "hy": 0.8999999999999999,
+      "hz": 0.95,
+      "yawDeg": 0
+    }
+  ],
+  "waterway": {
+    "floorY": 1,
+    "exitY": 5.9
+  },
+  "gates": [
+    {
+      "id": "G1",
+      "kind": "iron",
+      "x": 78,
+      "z": 32,
+      "yawDeg": 22.619864948040426,
+      "width": 5.2,
+      "height": 3.6,
+      "blocking": true,
+      "leverId": "lever-g1"
+    },
+    {
+      "id": "fog-gate",
+      "kind": "fog",
+      "x": 104,
+      "z": 68,
+      "yawDeg": 45,
+      "width": 4.4,
+      "height": 6,
+      "blocking": false
+    }
+  ],
+  "bonfire": {
+    "x": 0,
+    "z": 0
+  },
+  "playerSpawn": {
+    "x": 0,
+    "z": -2.4,
+    "yaw": 1
+  },
+  "props": [
+    {
+      "kind": "block",
+      "id": "bonfire-base",
+      "style": "bonfire",
+      "x": 0,
+      "z": 0,
+      "hx": 0.7,
+      "hz": 0.7,
+      "height": 0.5
+    },
+    {
+      "kind": "block",
+      "id": "stele-a-stone",
+      "style": "stone",
+      "x": -4.6,
+      "z": 3.4,
+      "hx": 0.55,
+      "hz": 0.18,
+      "height": 1.7,
+      "yawDeg": 127
+    },
+    {
+      "kind": "cylinder",
+      "id": "tree-a1",
+      "style": "tree",
+      "x": -6.4,
+      "z": -3.2,
+      "radius": 0.26,
+      "height": 4.4
+    },
+    {
+      "kind": "cylinder",
+      "id": "tree-a2",
+      "style": "tree",
+      "x": 4.2,
+      "z": 6.6,
+      "radius": 0.26,
+      "height": 3.8
+    },
+    {
+      "kind": "block",
+      "id": "grave-b1",
+      "style": "grave",
+      "x": 9.7,
+      "z": 6.6,
+      "hx": 0.32,
+      "hz": 0.12,
+      "height": 1,
+      "yawDeg": 20
+    },
+    {
+      "kind": "block",
+      "id": "grave-b2",
+      "style": "grave",
+      "x": 14.5,
+      "z": 9,
+      "hx": 0.32,
+      "hz": 0.12,
+      "height": 1.2,
+      "yawDeg": -15
+    },
+    {
+      "kind": "block",
+      "id": "grave-b3",
+      "style": "grave",
+      "x": 21.4,
+      "z": 13.9,
+      "hx": 0.32,
+      "hz": 0.12,
+      "height": 1,
+      "yawDeg": 35
+    },
+    {
+      "kind": "block",
+      "id": "grave-b4",
+      "style": "grave",
+      "x": 14.9,
+      "z": -3.7,
+      "hx": 0.32,
+      "hz": 0.12,
+      "height": 0.8,
+      "yawDeg": 10
+    },
+    {
+      "kind": "block",
+      "id": "grave-b5",
+      "style": "grave",
+      "x": 22.1,
+      "z": -0.2,
+      "hx": 0.32,
+      "hz": 0.12,
+      "height": 1,
+      "yawDeg": -30
+    },
+    {
+      "kind": "block",
+      "id": "grave-b6",
+      "style": "grave",
+      "x": 28.3,
+      "z": 2.2,
+      "hx": 0.32,
+      "hz": 0.12,
+      "height": 1.1,
+      "yawDeg": 5
+    },
+    {
+      "kind": "block",
+      "id": "grave-b7",
+      "style": "grave",
+      "x": 31.3,
+      "z": 3.5,
+      "hx": 0.32,
+      "hz": 0.12,
+      "height": 1,
+      "yawDeg": 50
+    },
+    {
+      "kind": "cylinder",
+      "id": "tree-b1",
+      "style": "tree",
+      "x": 16.5,
+      "z": 11.2,
+      "radius": 0.26,
+      "height": 4.4
+    },
+    {
+      "kind": "cylinder",
+      "id": "tree-b2",
+      "style": "tree",
+      "x": 12.8,
+      "z": -5.4,
+      "radius": 0.26,
+      "height": 3.9
+    },
+    {
+      "kind": "cylinder",
+      "id": "tree-b3",
+      "style": "tree",
+      "x": 38,
+      "z": 7,
+      "radius": 0.26,
+      "height": 4.4
+    },
+    {
+      "kind": "block",
+      "id": "fence-b0",
+      "style": "fence",
+      "x": 23,
+      "z": 23,
+      "hx": 1,
+      "hz": 0.08,
+      "height": 1.1
+    },
+    {
+      "kind": "block",
+      "id": "fence-b1",
+      "style": "fence",
+      "x": 25,
+      "z": 23,
+      "hx": 1,
+      "hz": 0.08,
+      "height": 1.1
+    },
+    {
+      "kind": "block",
+      "id": "fence-b2",
+      "style": "fence",
+      "x": 27,
+      "z": 23,
+      "hx": 1,
+      "hz": 0.08,
+      "height": 1.1
+    },
+    {
+      "kind": "block",
+      "id": "fence-b3",
+      "style": "fence",
+      "x": 29,
+      "z": 23,
+      "hx": 1,
+      "hz": 0.08,
+      "height": 1.1
+    },
+    {
+      "kind": "block",
+      "id": "fence-b4",
+      "style": "fence",
+      "x": 31,
+      "z": 23,
+      "hx": 1,
+      "hz": 0.08,
+      "height": 1.1
+    },
+    {
+      "kind": "block",
+      "id": "fence-b5",
+      "style": "fence",
+      "x": 35,
+      "z": 23,
+      "hx": 1,
+      "hz": 0.08,
+      "height": 1.1
+    },
+    {
+      "kind": "block",
+      "id": "fence-b6",
+      "style": "fence",
+      "x": 37,
+      "z": 23,
+      "hx": 1,
+      "hz": 0.08,
+      "height": 1.1
+    },
+    {
+      "kind": "block",
+      "id": "mausoleum",
+      "style": "mausoleum",
+      "x": 29,
+      "z": 16,
+      "hx": 2,
+      "hz": 2,
+      "height": 2.2,
+      "baseY": 2.76,
+      "navSolid": true
+    },
+    {
+      "kind": "stairs",
+      "id": "mausoleum-steps",
+      "x": 29,
+      "z": 21.6,
+      "yawDeg": 180,
+      "steps": 8,
+      "stepRise": 0.275,
+      "stepRun": 0.45,
+      "width": 1.2,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "chapel-w1",
+      "style": "wall",
+      "x": 40,
+      "z": 13.25,
+      "hx": 0.35,
+      "hz": 1.25,
+      "height": 3.6,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-w2",
+      "style": "wall",
+      "x": 40,
+      "z": 22.75,
+      "hx": 0.35,
+      "hz": 3.25,
+      "height": 3.6,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-w3",
+      "style": "wall",
+      "x": 40,
+      "z": 29,
+      "hx": 0.35,
+      "hz": 3,
+      "height": 2,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-s1",
+      "style": "wall",
+      "x": 43.75,
+      "z": 12,
+      "hx": 3.75,
+      "hz": 0.35,
+      "height": 3.6,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-s2",
+      "style": "wall",
+      "x": 55,
+      "z": 12,
+      "hx": 2,
+      "hz": 0.35,
+      "height": 3.6,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-s3",
+      "style": "rubble",
+      "x": 58.5,
+      "z": 12,
+      "hx": 1.5,
+      "hz": 0.35,
+      "height": 1.6,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-e1",
+      "style": "wall",
+      "x": 60,
+      "z": 18,
+      "hx": 0.35,
+      "hz": 6,
+      "height": 3.6,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-e2",
+      "style": "wall",
+      "x": 60,
+      "z": 31,
+      "hx": 0.35,
+      "hz": 1,
+      "height": 3.6,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "chapel-n",
+      "style": "wall",
+      "x": 50,
+      "z": 32,
+      "hx": 10,
+      "hz": 0.35,
+      "height": 2.8,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "rubble-1",
+      "style": "rubble",
+      "x": 46.6,
+      "z": 10.9,
+      "hx": 0.9,
+      "hz": 0.5,
+      "height": 0.9,
+      "yawDeg": 20
+    },
+    {
+      "kind": "block",
+      "id": "rubble-2",
+      "style": "rubble",
+      "x": 54.6,
+      "z": 10.6,
+      "hx": 0.7,
+      "hz": 0.6,
+      "height": 1.2,
+      "yawDeg": -35
+    },
+    {
+      "kind": "block",
+      "id": "rubble-3",
+      "style": "rubble",
+      "x": 61.6,
+      "z": 23.2,
+      "hx": 0.8,
+      "hz": 0.5,
+      "height": 0.8,
+      "yawDeg": 70
+    },
+    {
+      "kind": "block",
+      "id": "altar",
+      "style": "altar",
+      "x": 50,
+      "z": 26,
+      "hx": 2,
+      "hz": 0.6,
+      "height": 1.1,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "pew-w-20",
+      "style": "pew",
+      "x": 45,
+      "z": 20,
+      "hx": 1.7,
+      "hz": 0.3,
+      "height": 0.85,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "pew-e-20",
+      "style": "pew",
+      "x": 55,
+      "z": 20,
+      "hx": 1.7,
+      "hz": 0.3,
+      "height": 0.85,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "pew-w-22.5",
+      "style": "pew",
+      "x": 45,
+      "z": 22.5,
+      "hx": 1.7,
+      "hz": 0.3,
+      "height": 0.85,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "pew-e-22.5",
+      "style": "pew",
+      "x": 55,
+      "z": 22.5,
+      "hx": 1.7,
+      "hz": 0.3,
+      "height": 0.85,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "pew-w-25",
+      "style": "pew",
+      "x": 45,
+      "z": 25,
+      "hx": 1.7,
+      "hz": 0.3,
+      "height": 0.85,
+      "baseY": 3.4
+    },
+    {
+      "kind": "block",
+      "id": "pew-e-25",
+      "style": "pew",
+      "x": 55,
+      "z": 25,
+      "hx": 1.7,
+      "hz": 0.3,
+      "height": 0.85,
+      "baseY": 3.4
+    },
+    {
+      "kind": "cylinder",
+      "id": "column-1",
+      "style": "column",
+      "x": 46,
+      "z": 29.5,
+      "radius": 0.5,
+      "height": 3.2
+    },
+    {
+      "kind": "cylinder",
+      "id": "column-2",
+      "style": "column",
+      "x": 54,
+      "z": 29.5,
+      "radius": 0.5,
+      "height": 2.1
+    },
+    {
+      "kind": "block",
+      "id": "chapel-tower",
+      "style": "tower",
+      "x": 44,
+      "z": 36,
+      "hx": 3,
+      "hz": 3,
+      "height": 18
+    },
+    {
+      "kind": "block",
+      "id": "ledge-0-0",
+      "style": "stairs",
+      "x": 34.857142857142854,
+      "z": 19.214285714285715,
+      "hx": 0.6,
+      "hz": 0.27753937681885643,
+      "height": 0.48870597616245526,
+      "baseY": 3,
+      "yawDeg": -33.690067525979785,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-0-1",
+      "style": "stairs",
+      "x": 34.57142857142857,
+      "z": 19.642857142857142,
+      "hx": 0.6,
+      "hz": 0.27753937681885643,
+      "height": 0.5774119523249106,
+      "baseY": 3,
+      "yawDeg": -33.690067525979785,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-0-2",
+      "style": "stairs",
+      "x": 34.285714285714285,
+      "z": 20.071428571428573,
+      "hx": 0.6,
+      "hz": 0.27753937681885643,
+      "height": 0.6661179284873655,
+      "baseY": 3,
+      "yawDeg": -33.690067525979785,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-0-3",
+      "style": "stairs",
+      "x": 34,
+      "z": 20.5,
+      "hx": 0.6,
+      "hz": 0.27753937681885643,
+      "height": 0.7548239046498209,
+      "baseY": 3,
+      "yawDeg": -33.690067525979785,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-0-4",
+      "style": "stairs",
+      "x": 33.714285714285715,
+      "z": 20.92857142857143,
+      "hx": 0.6,
+      "hz": 0.27753937681885643,
+      "height": 0.8435298808122762,
+      "baseY": 3,
+      "yawDeg": -33.690067525979785,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-0-5",
+      "style": "stairs",
+      "x": 33.42857142857143,
+      "z": 21.357142857142858,
+      "hx": 0.6,
+      "hz": 0.27753937681885643,
+      "height": 0.9322358569747315,
+      "baseY": 3,
+      "yawDeg": -33.690067525979785,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-0-6",
+      "style": "stairs",
+      "x": 33.142857142857146,
+      "z": 21.785714285714285,
+      "hx": 0.6,
+      "hz": 0.27753937681885643,
+      "height": 1.0209418331371864,
+      "baseY": 3,
+      "yawDeg": -33.690067525979785,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-joint-0",
+      "style": "stairs",
+      "x": 33,
+      "z": 22,
+      "hx": 0.6,
+      "hz": 0.6,
+      "height": 1.0209418331371864,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-1-0",
+      "style": "stairs",
+      "x": 33,
+      "z": 22.25,
+      "hx": 0.6,
+      "hz": 0.27,
+      "height": 1.107050972308599,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-1-1",
+      "style": "stairs",
+      "x": 33,
+      "z": 22.75,
+      "hx": 0.6,
+      "hz": 0.27,
+      "height": 1.1931601114800117,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-1-2",
+      "style": "stairs",
+      "x": 33,
+      "z": 23.25,
+      "hx": 0.6,
+      "hz": 0.27,
+      "height": 1.2792692506514243,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-1-3",
+      "style": "stairs",
+      "x": 33,
+      "z": 23.75,
+      "hx": 0.6,
+      "hz": 0.27,
+      "height": 1.3653783898228369,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-1-4",
+      "style": "stairs",
+      "x": 33,
+      "z": 24.25,
+      "hx": 0.6,
+      "hz": 0.27,
+      "height": 1.4514875289942504,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-1-5",
+      "style": "stairs",
+      "x": 33,
+      "z": 24.75,
+      "hx": 0.6,
+      "hz": 0.27,
+      "height": 1.537596668165663,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-joint-1",
+      "style": "stairs",
+      "x": 33,
+      "z": 25,
+      "hx": 0.6,
+      "hz": 0.6,
+      "height": 1.537596668165663,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-2-0",
+      "style": "stairs",
+      "x": 33.17857142857143,
+      "z": 25.178571428571427,
+      "hx": 0.6,
+      "hz": 0.2725381361380527,
+      "height": 1.6245800342088659,
+      "baseY": 3,
+      "yawDeg": 45,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-2-1",
+      "style": "stairs",
+      "x": 33.535714285714285,
+      "z": 25.535714285714285,
+      "hx": 0.6,
+      "hz": 0.2725381361380527,
+      "height": 1.7115634002520688,
+      "baseY": 3,
+      "yawDeg": 45,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-2-2",
+      "style": "stairs",
+      "x": 33.892857142857146,
+      "z": 25.892857142857142,
+      "hx": 0.6,
+      "hz": 0.2725381361380527,
+      "height": 1.7985467662952717,
+      "baseY": 3,
+      "yawDeg": 45,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-2-3",
+      "style": "stairs",
+      "x": 34.25,
+      "z": 26.25,
+      "hx": 0.6,
+      "hz": 0.2725381361380527,
+      "height": 1.8855301323384754,
+      "baseY": 3,
+      "yawDeg": 45,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-2-4",
+      "style": "stairs",
+      "x": 34.607142857142854,
+      "z": 26.607142857142858,
+      "hx": 0.6,
+      "hz": 0.2725381361380527,
+      "height": 1.9725134983816783,
+      "baseY": 3,
+      "yawDeg": 45,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-2-5",
+      "style": "stairs",
+      "x": 34.964285714285715,
+      "z": 26.964285714285715,
+      "hx": 0.6,
+      "hz": 0.2725381361380527,
+      "height": 2.0594968644248812,
+      "baseY": 3,
+      "yawDeg": 45,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-2-6",
+      "style": "stairs",
+      "x": 35.32142857142857,
+      "z": 27.32142857142857,
+      "hx": 0.6,
+      "hz": 0.2725381361380527,
+      "height": 2.146480230468084,
+      "baseY": 3,
+      "yawDeg": 45,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-joint-2",
+      "style": "stairs",
+      "x": 35.5,
+      "z": 27.5,
+      "hx": 0.6,
+      "hz": 0.6,
+      "height": 2.146480230468084,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-3-0",
+      "style": "stairs",
+      "x": 35.67857142857143,
+      "z": 27.664285714285715,
+      "hx": 0.6,
+      "hz": 0.2626469678780433,
+      "height": 2.230056716574211,
+      "baseY": 3,
+      "yawDeg": 47.385944030388806,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-3-1",
+      "style": "stairs",
+      "x": 36.035714285714285,
+      "z": 27.992857142857144,
+      "hx": 0.6,
+      "hz": 0.2626469678780433,
+      "height": 2.3136332026803377,
+      "baseY": 3,
+      "yawDeg": 47.385944030388806,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-3-2",
+      "style": "stairs",
+      "x": 36.392857142857146,
+      "z": 28.321428571428573,
+      "hx": 0.6,
+      "hz": 0.2626469678780433,
+      "height": 2.3972096887864645,
+      "baseY": 3,
+      "yawDeg": 47.385944030388806,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-3-3",
+      "style": "stairs",
+      "x": 36.75,
+      "z": 28.65,
+      "hx": 0.6,
+      "hz": 0.2626469678780433,
+      "height": 2.4807861748925912,
+      "baseY": 3,
+      "yawDeg": 47.385944030388806,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-3-4",
+      "style": "stairs",
+      "x": 37.107142857142854,
+      "z": 28.978571428571428,
+      "hx": 0.6,
+      "hz": 0.2626469678780433,
+      "height": 2.564362660998719,
+      "baseY": 3,
+      "yawDeg": 47.385944030388806,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-3-5",
+      "style": "stairs",
+      "x": 37.464285714285715,
+      "z": 29.307142857142857,
+      "hx": 0.6,
+      "hz": 0.2626469678780433,
+      "height": 2.6479391471048457,
+      "baseY": 3,
+      "yawDeg": 47.385944030388806,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-3-6",
+      "style": "stairs",
+      "x": 37.82142857142857,
+      "z": 29.635714285714286,
+      "hx": 0.6,
+      "hz": 0.2626469678780433,
+      "height": 2.7315156332109733,
+      "baseY": 3,
+      "yawDeg": 47.385944030388806,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-joint-3",
+      "style": "stairs",
+      "x": 38,
+      "z": 29.8,
+      "hx": 0.6,
+      "hz": 0.6,
+      "height": 2.7315156332109733,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-4-0",
+      "style": "stairs",
+      "x": 38.16,
+      "z": 30.02,
+      "hx": 0.6,
+      "hz": 0.2920294101747089,
+      "height": 2.8252125065687785,
+      "baseY": 3,
+      "yawDeg": 36.027373385103644,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-4-1",
+      "style": "stairs",
+      "x": 38.48,
+      "z": 30.46,
+      "hx": 0.6,
+      "hz": 0.2920294101747089,
+      "height": 2.9189093799265837,
+      "baseY": 3,
+      "yawDeg": 36.027373385103644,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-4-2",
+      "style": "stairs",
+      "x": 38.8,
+      "z": 30.9,
+      "hx": 0.6,
+      "hz": 0.2920294101747089,
+      "height": 3.012606253284389,
+      "baseY": 3,
+      "yawDeg": 36.027373385103644,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-4-3",
+      "style": "stairs",
+      "x": 39.12,
+      "z": 31.34,
+      "hx": 0.6,
+      "hz": 0.2920294101747089,
+      "height": 3.106303126642194,
+      "baseY": 3,
+      "yawDeg": 36.027373385103644,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-4-4",
+      "style": "stairs",
+      "x": 39.44,
+      "z": 31.78,
+      "hx": 0.6,
+      "hz": 0.2920294101747089,
+      "height": 3.1999999999999993,
+      "baseY": 3,
+      "yawDeg": 36.027373385103644,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "ledge-joint-4",
+      "style": "stairs",
+      "x": 39.800000000000004,
+      "z": 32.1,
+      "hx": 0.6,
+      "hz": 0.6,
+      "height": 3.1999999999999993,
+      "baseY": 3,
+      "yawDeg": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "wall-top",
+      "style": "stairs",
+      "x": 47,
+      "z": 32.25,
+      "hx": 7,
+      "hz": 0.75,
+      "height": 2.7999999999999994,
+      "baseY": 3.4,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "d-wall-w",
+      "style": "wall",
+      "x": 60.375,
+      "z": 44.625,
+      "hx": 0.375,
+      "hz": 9.125,
+      "height": 3.8,
+      "baseY": 5.4
+    },
+    {
+      "kind": "block",
+      "id": "d-cap-n",
+      "style": "wall",
+      "x": 62,
+      "z": 53.25,
+      "hx": 2,
+      "hz": 0.5,
+      "height": 3.8,
+      "baseY": 5.4
+    },
+    {
+      "kind": "block",
+      "id": "d-mass-n",
+      "style": "wall",
+      "x": 70.925,
+      "z": 51.75,
+      "hx": 7.674999999999997,
+      "hz": 2,
+      "height": 3.8,
+      "baseY": 5.4
+    },
+    {
+      "kind": "block",
+      "id": "d-sarcophagus",
+      "style": "sarcophagus",
+      "x": 62,
+      "z": 51.5,
+      "hx": 0.8,
+      "hz": 0.95,
+      "height": 0.75
+    },
+    {
+      "kind": "block",
+      "id": "d-mass-s",
+      "style": "wall",
+      "x": 70.925,
+      "z": 41.375,
+      "hx": 7.674999999999997,
+      "hz": 5.875,
+      "height": 3.8,
+      "baseY": 5.4,
+      "carve": "waterway"
+    },
+    {
+      "kind": "generate",
+      "generate": "waterway"
+    },
+    {
+      "kind": "block",
+      "id": "floor-hatch",
+      "style": "hatch",
+      "x": 44,
+      "z": 28,
+      "hx": 1,
+      "hz": 1,
+      "height": 0.3,
+      "baseY": 3.1,
+      "embed": 0,
+      "navSolid": true
+    },
+    {
+      "kind": "block",
+      "id": "iron-grate",
+      "style": "grate",
+      "x": 72,
+      "z": 45,
+      "hx": 1,
+      "hz": 0.15,
+      "height": 2.6,
+      "baseY": 5.9,
+      "embed": 0
+    },
+    {
+      "kind": "block",
+      "id": "e-wall-w",
+      "style": "wall",
+      "x": 84,
+      "z": 61,
+      "hx": 0.3499999999999943,
+      "hz": 7,
+      "height": 3.3,
+      "baseY": 7.4
+    },
+    {
+      "kind": "block",
+      "id": "e-wall-s1",
+      "style": "wall",
+      "x": 88,
+      "z": 48,
+      "hx": 4,
+      "hz": 0.3500000000000014,
+      "height": 3.3,
+      "baseY": 7.4
+    },
+    {
+      "kind": "block",
+      "id": "e-wall-s2",
+      "style": "wall",
+      "x": 100,
+      "z": 48,
+      "hx": 4,
+      "hz": 0.3500000000000014,
+      "height": 3.3,
+      "baseY": 7.4
+    },
+    {
+      "kind": "block",
+      "id": "e-wall-e",
+      "style": "wall",
+      "x": 104,
+      "z": 56.25,
+      "hx": 0.3499999999999943,
+      "hz": 8.25,
+      "height": 3.3,
+      "baseY": 7.4
+    },
+    {
+      "kind": "block",
+      "id": "e-wall-n",
+      "style": "wall",
+      "x": 92.4,
+      "z": 68,
+      "hx": 8.399999999999999,
+      "hz": 0.3499999999999943,
+      "height": 3.3,
+      "baseY": 7.4
+    },
+    {
+      "kind": "block",
+      "id": "e-rubble-1",
+      "style": "rubble",
+      "x": 91.6,
+      "z": 49,
+      "hx": 0.8,
+      "hz": 0.5,
+      "height": 0.9,
+      "yawDeg": 25,
+      "baseY": 7.4
+    },
+    {
+      "kind": "block",
+      "id": "e-rubble-2",
+      "style": "rubble",
+      "x": 96.5,
+      "z": 49.3,
+      "hx": 0.7,
+      "hz": 0.6,
+      "height": 1.2,
+      "yawDeg": -30,
+      "baseY": 7.4
+    },
+    {
+      "kind": "cylinder",
+      "id": "e-fountain",
+      "style": "fountain",
+      "x": 94,
+      "z": 58,
+      "radius": 2.2,
+      "height": 1.3
+    },
+    {
+      "kind": "block",
+      "id": "e-wall-frag",
+      "style": "wall",
+      "x": 90,
+      "z": 62.5,
+      "hx": 2.2,
+      "hz": 0.35,
+      "height": 1.7,
+      "baseY": 7.4
+    },
+    {
+      "kind": "cylinder",
+      "id": "e-column-1",
+      "style": "column",
+      "x": 89,
+      "z": 55.5,
+      "radius": 0.45,
+      "height": 2.4
+    },
+    {
+      "kind": "cylinder",
+      "id": "e-column-2",
+      "style": "column",
+      "x": 99,
+      "z": 63,
+      "radius": 0.45,
+      "height": 3
+    },
+    {
+      "kind": "cylinder",
+      "id": "e-column-3",
+      "style": "column",
+      "x": 88,
+      "z": 66,
+      "radius": 0.5,
+      "height": 1.6
+    },
+    {
+      "kind": "block",
+      "id": "lane-s-e",
+      "style": "wall",
+      "x": 75.9,
+      "z": 18.8,
+      "hx": 13.4,
+      "hz": 0.35,
+      "height": 4.2,
+      "yawDeg": -67.38013505195958
+    },
+    {
+      "kind": "block",
+      "id": "lane-s-w",
+      "style": "wall",
+      "x": 70.1,
+      "z": 21.200000000000003,
+      "hx": 13.400000000000002,
+      "hz": 0.35,
+      "height": 4.2,
+      "yawDeg": -67.38013505195958
+    },
+    {
+      "kind": "block",
+      "id": "lane-n-w",
+      "style": "wall",
+      "x": 76.55,
+      "z": 34.6,
+      "hx": 2.3155644370746384,
+      "hz": 0.35,
+      "height": 4.2,
+      "yawDeg": -43.99491399474574
+    },
+    {
+      "kind": "block",
+      "id": "lane-n-e0",
+      "style": "wall",
+      "x": 81.7,
+      "z": 33.4,
+      "hx": 3.020294101747087,
+      "hz": 0.35,
+      "height": 4.2,
+      "yawDeg": -72.89727103094768
+    },
+    {
+      "kind": "block",
+      "id": "lane-n-e",
+      "style": "wall",
+      "x": 82.5,
+      "z": 41.25,
+      "hx": 0.3499999999999943,
+      "hz": 5.25,
+      "height": 4.2
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-1",
+      "style": "wall",
+      "x": 113.75,
+      "z": 71.71058083755676,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 30.00000000000003
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-2",
+      "style": "wall",
+      "x": 117.72948575580841,
+      "z": 70.06222386623037,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 14.999999999999996
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-3",
+      "style": "wall",
+      "x": 122,
+      "z": 69.5,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 1.0525063947802313e-14
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-4",
+      "style": "wall",
+      "x": 126.2705142441916,
+      "z": 70.06222386623037,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -15.000000000000021
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-5",
+      "style": "wall",
+      "x": 130.25,
+      "z": 71.71058083755676,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -30.00000000000001
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-6",
+      "style": "wall",
+      "x": 133.66726188957804,
+      "z": 74.33273811042196,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -44.999999999999986
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-7",
+      "style": "wall",
+      "x": 136.28941916244324,
+      "z": 77.75,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -59.99999999999997
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-8",
+      "style": "wall",
+      "x": 137.93777613376963,
+      "z": 81.72948575580841,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -75.00000000000001
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-9",
+      "style": "wall",
+      "x": 138.5,
+      "z": 86,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -89.99999999999999
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-10",
+      "style": "wall",
+      "x": 137.93777613376963,
+      "z": 90.27051424419159,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -104.99999999999999
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-11",
+      "style": "wall",
+      "x": 136.28941916244324,
+      "z": 94.24999999999999,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -119.99999999999997
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-12",
+      "style": "wall",
+      "x": 133.66726188957804,
+      "z": 97.66726188957801,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -134.99999999999994
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-13",
+      "style": "wall",
+      "x": 130.25,
+      "z": 100.28941916244324,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -150.00000000000003
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-14",
+      "style": "wall",
+      "x": 126.27051424419159,
+      "z": 101.93777613376963,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -165.00000000000003
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-15",
+      "style": "wall",
+      "x": 122,
+      "z": 102.5,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": -180
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-16",
+      "style": "wall",
+      "x": 117.72948575580841,
+      "z": 101.93777613376963,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 165.00000000000006
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-17",
+      "style": "wall",
+      "x": 113.75000000000001,
+      "z": 100.28941916244324,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 150.00000000000006
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-18",
+      "style": "wall",
+      "x": 110.33273811042196,
+      "z": 97.66726188957803,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 134.99999999999997
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-19",
+      "style": "wall",
+      "x": 107.71058083755676,
+      "z": 94.25,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 119.99999999999999
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-20",
+      "style": "wall",
+      "x": 106.06222386623037,
+      "z": 90.27051424419159,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 105
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-21",
+      "style": "wall",
+      "x": 105.5,
+      "z": 86,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 90.00000000000001
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-22",
+      "style": "wall",
+      "x": 106.06222386623038,
+      "z": 81.72948575580838,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 74.99999999999994
+    },
+    {
+      "kind": "block",
+      "id": "f-wall-23",
+      "style": "wall",
+      "x": 107.71058083755676,
+      "z": 77.74999999999999,
+      "hx": 2.4222662101920314,
+      "hz": 0.5,
+      "height": 3.4,
+      "baseY": 9.9,
+      "yawDeg": 59.99999999999996
+    },
+    {
+      "kind": "block",
+      "id": "f-pass-l",
+      "style": "wall",
+      "x": 104.63,
+      "z": 72.15,
+      "hx": 6.183145417206683,
+      "hz": 0.35,
+      "height": 3.4,
+      "baseY": 7.4,
+      "yawDeg": -44.86227002607522
+    },
+    {
+      "kind": "block",
+      "id": "f-pass-r",
+      "style": "wall",
+      "x": 107.93,
+      "z": 68.38,
+      "hx": 5.85079273617742,
+      "hz": 0.35,
+      "height": 3.4,
+      "baseY": 7.4,
+      "yawDeg": -44.927011785324574
+    },
+    {
+      "kind": "cylinder",
+      "id": "f-pillar-1",
+      "style": "column",
+      "x": 134,
+      "z": 86,
+      "radius": 0.7,
+      "height": 4
+    },
+    {
+      "kind": "cylinder",
+      "id": "f-pillar-2",
+      "style": "column",
+      "x": 122,
+      "z": 98,
+      "radius": 0.7,
+      "height": 4
+    },
+    {
+      "kind": "cylinder",
+      "id": "f-pillar-3",
+      "style": "column",
+      "x": 110,
+      "z": 86,
+      "radius": 0.7,
+      "height": 4
+    },
+    {
+      "kind": "cylinder",
+      "id": "f-pillar-4",
+      "style": "column",
+      "x": 122,
+      "z": 74,
+      "radius": 0.7,
+      "height": 4
+    },
+    {
+      "kind": "cylinder",
+      "id": "f-pedestal",
+      "style": "pedestal",
+      "x": 122,
+      "z": 86,
+      "radius": 1.6,
+      "height": 0.9
+    }
+  ],
+  "enemies": [
+    {
+      "id": "b-undead-1",
+      "type": "undead_soldier",
+      "area": "B",
+      "x": 22,
+      "z": 6,
+      "yaw": -1.5707963267948966,
+      "behavior": "idle_back"
+    },
+    {
+      "id": "b-undead-2",
+      "type": "undead_soldier",
+      "area": "B",
+      "x": 32,
+      "z": 12,
+      "yaw": 1.5707963267948966,
+      "behavior": "patrol",
+      "patrolRadius": 6
+    },
+    {
+      "id": "c-undead-1",
+      "type": "undead_soldier",
+      "area": "C",
+      "x": 46,
+      "z": 17,
+      "yaw": 3.141592653589793,
+      "behavior": "patrol",
+      "patrolRadius": 3
+    },
+    {
+      "id": "c-undead-2",
+      "type": "undead_soldier",
+      "area": "C",
+      "x": 50,
+      "z": 29,
+      "yaw": 3.141592653589793,
+      "behavior": "wait"
+    },
+    {
+      "id": "c-shield-1",
+      "type": "undead_shield",
+      "area": "C",
+      "x": 50,
+      "z": 23.5,
+      "yaw": 3.141592653589793,
+      "behavior": "wait"
+    },
+    {
+      "id": "d-shield-1",
+      "type": "undead_shield",
+      "area": "D",
+      "x": 74,
+      "z": 49,
+      "yaw": -1.5707963267948966,
+      "behavior": "wait"
+    },
+    {
+      "id": "e-undead-1",
+      "type": "undead_soldier",
+      "area": "E",
+      "x": 91,
+      "z": 56.5,
+      "yaw": -1.5707963267948966,
+      "behavior": "wait"
+    },
+    {
+      "id": "e-undead-2",
+      "type": "undead_soldier",
+      "area": "E",
+      "x": 97,
+      "z": 61,
+      "yaw": 1.5707963267948966,
+      "behavior": "patrol",
+      "patrolRadius": 3
+    },
+    {
+      "id": "e-shield-1",
+      "type": "undead_shield",
+      "area": "E",
+      "x": 94,
+      "z": 54.5,
+      "yaw": -1.5707963267948966,
+      "behavior": "wait"
+    }
+  ],
+  "items": [],
+  "interactables": [
+    {
+      "id": "bonfire",
+      "kind": "bonfire",
+      "area": "A",
+      "x": 0,
+      "z": 0
+    },
+    {
+      "id": "G1",
+      "kind": "gate",
+      "area": null,
+      "x": 78,
+      "z": 32
+    },
+    {
+      "id": "lever-g1",
+      "kind": "lever",
+      "area": null,
+      "x": 80,
+      "z": 36
+    },
+    {
+      "id": "fog-gate",
+      "kind": "gate",
+      "area": "E",
+      "x": 104,
+      "z": 68,
+      "target": {
+        "x": 112.4540584539816,
+        "z": 76.45405845398162,
+        "yaw": 0.7853981633974491
+      }
+    },
+    {
+      "id": "bonfire-arena",
+      "kind": "bonfire",
+      "area": "F",
+      "x": 122,
+      "z": 86
+    },
+    {
+      "id": "hatch-waterway",
+      "kind": "hatch",
+      "area": "C",
+      "x": 44,
+      "z": 28
+    },
+    {
+      "id": "grate-waterway",
+      "kind": "grate",
+      "area": "D",
+      "x": 72,
+      "z": 45
+    },
+    {
+      "id": "item-flask-c",
+      "kind": "item",
+      "area": "C",
+      "x": 54,
+      "z": 26,
+      "itemId": "flask_up"
+    },
+    {
+      "kind": "generate",
+      "generate": "worldInteractables"
+    }
+  ]
+}

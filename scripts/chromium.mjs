@@ -7,6 +7,8 @@
 //     Google Chrome）の順に選ぶ。Playwright 同梱の headless は chromium-headless-shell（旧ヘッドレス。GPU を使えない）なので使わない。
 //     Chrome の新ヘッドレス（--headless。Chrome 132 以降の既定）は headful と同じ GPU プロセスを使い、macOS では Metal の
 //     アダプタが取れる。取れない環境では GPU_HEADFUL=1 でウィンドウを出して起動する（ログイン中の GUI セッションが必要）。
+//   GPU_NOVSYNC=1（hardware と併用）: vsync とフレームレート上限を外す（`--disable-gpu-vsync --disable-frame-rate-limit`）。
+//     rAF 間隔が 60Hz に頭打ちにならず、120fps の判定に使えるフレーム時間が取れる（#317。`npm run perf` で使う）。
 //   実 GPU が必要な場面では checkGpuAdapter() でアダプタを確認する（hardware モードで SwiftShader なら失敗させる）。
 //
 // ローカルでは CHROMIUM_PATH でブラウザを指定できる（swiftshader モードで未指定なら /opt/pw-browsers のブラウザか Playwright 管理のもの）。
@@ -35,7 +37,13 @@ const hardwareArgs = [
   ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []),
 ];
 
-export const chromiumArgs = gpuMode === 'hardware' ? hardwareArgs : swiftshaderArgs;
+const noVsyncArgs =
+  process.env.GPU_NOVSYNC === '1' ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : [];
+
+export const chromiumArgs = [
+  ...(gpuMode === 'hardware' ? hardwareArgs : swiftshaderArgs),
+  ...noVsyncArgs,
+];
 
 export function resolveExecutablePath() {
   if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;

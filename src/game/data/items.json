@@ -1,0 +1,48 @@
+{
+  "noticeSeconds": 3,
+  "radiusM": 1.4,
+  "items": [
+    {
+      "id": "flask_up",
+      "kind": "consumable",
+      "effect": {
+        "type": "flaskMax",
+        "amount": 1
+      }
+    },
+    {
+      "id": "talisman_ash",
+      "kind": "passive"
+    },
+    {
+      "id": "drop_clear",
+      "kind": "passive"
+    },
+    {
+      "id": "sword_gravekeeper",
+      "kind": "weapon",
+      "weaponId": "sword_gravekeeper"
+    },
+    {
+      "id": "oil_jar",
+      "kind": "consumable",
+      "maxCount": 3
+    },
+    {
+      "id": "relic_flask",
+      "kind": "relic"
+    },
+    {
+      "id": "relic_letter",
+      "kind": "relic"
+    },
+    {
+      "id": "relic_ring",
+      "kind": "relic"
+    },
+    {
+      "id": "relic_medal",
+      "kind": "relic"
+    }
+  ]
+}

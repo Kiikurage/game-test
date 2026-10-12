@@ -91,7 +91,7 @@ export class BossTransitionFx {
     const rim = frame >= 0 ? rimAtTransitionFrame(frame) : 0;
     if (rim !== this.lastRim) {
       this.lastRim = rim;
-      this.view.postProcess.setScreenEffect({ rim });
+      this.view.pipeline.setScreenEffect({ rim });
     }
   }
 
@@ -165,6 +165,6 @@ export class BossTransitionFx {
 
   dispose(): void {
     this.clearShield();
-    this.view.postProcess.setScreenEffect({ rim: 0 });
+    this.view.pipeline.setScreenEffect({ rim: 0 });
   }
 }

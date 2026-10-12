@@ -1,0 +1,37 @@
+{
+  "player": {
+    "hp": 300,
+    "stamina": 100,
+    "attackPower": 40,
+    "poise": 40,
+    "height": 1.8,
+    "hurtCapsule": { "radius": 0.35, "height": 1.8 },
+    "flask": { "initial": 3, "max": 4 }
+  },
+  "stamina": {
+    "regenDelayFrames": 45,
+    "depletedDelayFrames": 60,
+    "regenPerSecond": 40,
+    "guardRegenPerSecond": 20,
+    "dashCostPerSecond": 10
+  },
+  "movement": {
+    "walk": 1.8,
+    "run": 4.5,
+    "dash": 6.5,
+    "lockOn": { "side": 3.8, "back": 2.6, "dash": 5.5 },
+    "guard": 1.8,
+    "guardLockOn": 1.4,
+    "heal": 1.0,
+    "accelFrames": 8,
+    "stopFrames": 6,
+    "turnDegPerSecond": 720,
+    "maxSlopeDeg": 40,
+    "stepHeight": 0.35
+  },
+  "inputBufferFrames": {
+    "attack": 10,
+    "roll": 8,
+    "heal": 6
+  }
+}

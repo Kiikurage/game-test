@@ -1,15 +1,13 @@
-// 状況ボタン・操作ヒント・取得通知（DOM）を描画ループにつなぐビュープラグイン。状態は `src/game/guide/`、見た目は `src/ui/hud/guide.ts`。
+// 状況ボタン・操作ヒント・取得通知（DOM）を描画ループにつなぐビュープラグイン。状態は `src/presentation/hud/`、見た目は `src/ui/hud/guide.ts`。
 import { mountGuide, type GuideView } from '../../ui/hud/guide';
 import { registerViewPlugin } from '../viewPlugins';
 import { textPanelSystem } from '../../game/text/textPanel.system';
 import { interactionSystem } from '../../game/interaction/interaction.system';
-import { guideSystem } from '../../game/guide/guide.system';
-import { hudSystem } from '../../game/hud/hud.system';
+import { hudPresentation } from '../../presentation/hud/hudPresentation';
 
 registerViewPlugin('guide', ({ game }) => {
   const interaction = game.systems.get(interactionSystem);
-  const { hints, notices } = game.systems.get(guideSystem);
-  const hud = game.systems.get(hudSystem);
+  const { hints, notices, hud } = hudPresentation(game);
   const text = game.systems.get(textPanelSystem);
   // 会話中は状況ボタンが「次へ」（最後の行は「閉じる」）になり、決定ボタンで行送りする。会話中は他の対象を選ばない
   const advancePrompt = { id: 'advance', label: '次へ' };

@@ -1,4 +1,4 @@
-import { Group, Mesh, Vector3 } from 'three/webgpu';
+import { Color, Group, Mesh, Vector3 } from 'three/webgpu';
 import type { GameView } from '../gameView';
 import { arenaMoodWeight, arenaOf, type ArenaDef } from '../../game/world/arena';
 import type { Level } from '../../game/world/level';
@@ -26,7 +26,9 @@ import {
   createSconceGeometry,
   createSconceMaterial,
   layoutTorches,
+  torchLightPosition,
 } from './arenaTorches';
+import { localLightsOf } from '../lighting/localLights';
 
 /** 床の円盤を地面よりわずかに浮かせる（m）。 */
 const FLOOR_LIFT = 0.012;
@@ -78,6 +80,9 @@ export interface ArenaView {
 
 const views = new WeakMap<GameView, ArenaView>();
 
+/** 壁のたいまつの光（実ライト）。 */
+const ARENA_TORCH_LIGHT = { color: new Color(1, 0.52, 0.2), intensity: 18, distance: 11 };
+
 /** `view` の闘技場の描画。闘技場を描いていないときは `null`。 */
 export function arenaViewOf(view: GameView): ArenaView | null {
   return views.get(view) ?? null;
@@ -99,7 +104,6 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
       radius: def.circle.radius,
       pillars: def.pillars,
       pedestalRadius: def.pedestal.radius,
-      torches,
     }),
   );
   floor.name = 'arena:floor';
@@ -134,7 +138,6 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
         floorY,
         cracks: 0.55,
         grime: 1,
-        torches,
       }),
     );
     wall.name = 'arena:wall';
@@ -182,7 +185,6 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
       floorY,
       cracks: 0.7,
       grime: 1,
-      torches,
     }),
   );
   columns.name = 'arena:columns';
@@ -205,7 +207,6 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
       floorY,
       cracks: 0.45,
       grime: 0.8,
-      torches,
     }),
   );
   pedestal.name = 'arena:pedestal';
@@ -213,7 +214,7 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
   pedestal.receiveShadow = true;
   root.add(pedestal);
 
-  // 壁のたいまつ（燭台 + 炎。光は石のマテリアルが足す）
+  // 壁のたいまつ（燭台 + 炎。光は実ライトで、プラグインが登録する）
   const sconces = new Mesh(createSconceGeometry(torches), createSconceMaterial());
   sconces.name = 'arena:sconces';
   sconces.castShadow = true;
@@ -231,7 +232,7 @@ function createArena(level: Level, def: ArenaDef, skyAt: Environment['skyAt']) {
       meshes++;
     }
   });
-  return { root, triangles, meshes, sky };
+  return { root, triangles, meshes, sky, torches };
 }
 
 // 闘技場の見た目: 石畳の床・外周の壁・柱 4 本・中央の台座（`arenaOf(level)` と同じ寸法）と、
@@ -243,6 +244,16 @@ registerViewPlugin('arena', ({ game, view, level }) => {
 
   const built = createArena(level, def, (dir) => view.environment.skyAt(dir));
   view.scene.add(built.root);
+  const lights = localLightsOf(view.scene);
+  for (const t of built.torches) {
+    lights.add({
+      position: torchLightPosition(t),
+      color: ARENA_TORCH_LIGHT.color,
+      intensity: ARENA_TORCH_LIGHT.intensity,
+      distance: ARENA_TORCH_LIGHT.distance,
+      flickerPhase: t.phase,
+    });
+  }
 
   const listeners = new Set<(hit: PillarHit) => void>();
   let hitCount = 0;

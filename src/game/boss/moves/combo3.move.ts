@@ -1,4 +1,5 @@
-import { registerBossMove, type BossStageDef } from '../bossMove';
+import { BOSS_MOVES_DATA } from '../../data/bossMoves';
+import { registerBossMove } from '../bossMove';
 
 /**
  * 技 3 三連撃（斬り上げ → 斬り下ろし → 突き）（仕様書 6.3 節）。近距離の技。
@@ -16,65 +17,21 @@ import { registerBossMove, type BossStageDef } from '../bossMove';
  * 1 段目を「ボスの右手側（プレイヤーから見て左）へのロール」で躱すと 2 段目の 80° の外へ出られる。
  */
 
+const MOVE = BOSS_MOVES_DATA.combo3;
+
 /** 段間（各段の硬直）。 */
-export const COMBO3_GAP = 8;
+export const COMBO3_GAP = MOVE.stages[0]?.recovery ?? 0;
 /** 突き（3 段目）の突進距離（m）。持続の間に均等に進む。 */
-export const COMBO3_THRUST_DISTANCE = 2.5;
+export const COMBO3_THRUST_DISTANCE = MOVE.stages[2]?.moveDistance ?? 0;
 /** 各段の振りの向き（ボスから見て）。2 段目は 1 段目の逆方向。 */
 export const COMBO3_SWING = ['rightToLeft', 'leftToRight', 'thrust'] as const;
 
-const SLASH_1: BossStageDef = {
-  id: 'combo3.1',
-  startup: 30,
-  active: 6,
-  recovery: COMBO3_GAP,
-  damage: 80,
-  poiseDamage: 40,
-  guardStaminaCost: 40,
-  moveDistance: 0,
-  arcDeg: 90,
-  range: 5.0,
-  telegraph: 'normal',
-  trackEndFrame: 18,
-};
-
-const SLASH_2: BossStageDef = {
-  ...SLASH_1,
-  id: 'combo3.2',
-  startup: 20,
-  arcDeg: 80,
-  followUp: true,
-  trackEndFrame: 6,
-  trackRate: 0.5,
-};
-
-const THRUST: BossStageDef = {
-  ...SLASH_1,
-  id: 'combo3.3',
-  startup: 36,
-  active: 8,
-  recovery: 56,
-  damage: 100,
-  poiseDamage: 60,
-  guardStaminaCost: 55,
-  moveDistance: COMBO3_THRUST_DISTANCE,
-  arcDeg: 30,
-  telegraph: 'heavy',
-  followUp: true,
-  trackEndFrame: 12,
-  trackRate: 0.6,
-};
-
+// 近距離の技。足を止めてから振り始める（射程内なら接近しない）
 registerBossMove({
   id: 'combo3',
-  name: '三連撃',
-  phases: [1, 2],
-  stages: [SLASH_1, SLASH_2, THRUST],
-  phase2Stages: [
-    { ...SLASH_1, startup: 24, damage: 85, trackEndFrame: 12 },
-    { ...SLASH_2, startup: 16, damage: 85, trackEndFrame: 4 },
-    { ...THRUST, startup: 30, recovery: 46, damage: 105, trackEndFrame: 10 },
-  ],
-  // 近距離の技。足を止めてから振り始める（射程内なら接近しない）
-  approach: { speed: 'walk', stopRange: 3.0 },
+  name: MOVE.name,
+  phases: MOVE.phases,
+  stages: MOVE.stages,
+  ...(MOVE.phase2Stages && { phase2Stages: MOVE.phase2Stages }),
+  ...(MOVE.approach && { approach: MOVE.approach }),
 });
