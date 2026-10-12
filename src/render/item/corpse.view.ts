@@ -3,7 +3,6 @@ import { corpsePlacement } from '../../core/corpses';
 import { WORLD_INTERACTABLES } from '../../game/data/world/interactables';
 import type { Interactable } from '../../game/data/world/types';
 import { hasFlagIn } from '../../game/interactable/interactable';
-import { applyCharacterLight } from '../characterLight';
 import { CharacterAssets } from '../assets/characterAssets';
 import { EquipmentAssets } from '../assets/equipment';
 import { CorpseFactory } from '../corpses/corpseFactory';
@@ -57,7 +56,6 @@ registerViewPlugin('corpse', ({ game, view, level }) => {
           ),
         );
         group.name = `corpse:${d.id}`;
-        applyCharacterLight(group); // 影・逆光でも輪郭が読めるように、キャラクターと同じ補助光（暗部の持ち上げ・リム）
         group.traverse((o) => {
           o.castShadow = false;
         });

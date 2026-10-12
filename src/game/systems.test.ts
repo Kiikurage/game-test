@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { bonfireSystem } from './bonfire/bonfire.system';
 import { bossSystem } from './boss/boss.system';
 import type { Game } from './game';
-import { hudSystem } from './hud/hud.system';
 import { GameSystems, sortGameSystems, type GameSystemEntry } from './systems';
 import { createHeadlessGame } from './testing/headlessGame';
 
@@ -98,19 +97,15 @@ describe('registered game systems (headless game)', () => {
       ['boss', 'boss-moves-67'],
       ['boss', 'boss-telegraph'],
       ['boss', 'boss-transition'],
-      ['boss', 'bossBar'],
       ['boss', 'bossDebug'],
       ['cameraEffects', 'boss-defeat'],
       ['cameraEffects', 'boss-impact'],
       ['cameraEffects', 'boss-moves-67'],
       ['cameraEffects', 'boss-transition'],
       ['cameraEffects', 'plunge'],
-      ['hud', 'bonfire'],
+      ['heavy-charge-cue', 'bonfire'],
       ['bonfire', 'death'],
       ['death', 'cameraEffects'],
-      ['death', 'guide'],
-      ['death', 'bossBar'],
-      ['boss-defeat', 'bossBar'],
       ['fogGate', 'boss-defeat'],
       ['fogGate', 'boss-entry'],
       ['textPanel', 'interactable'],
@@ -136,7 +131,6 @@ describe('registered game systems (headless game)', () => {
       'fogGate',
       'boss-entry',
       'heavy-charge-cue',
-      'hud',
       'bonfire',
       'death',
       'cameraEffects',
@@ -144,8 +138,6 @@ describe('registered game systems (headless game)', () => {
       'boss-impact',
       'boss-moves-67',
       'boss-transition',
-      'bossBar',
-      'guide',
       'item',
       'plunge',
       'textPanel',
@@ -160,8 +152,8 @@ describe('registered game systems (headless game)', () => {
   it('returns per-game typed state from handles', async () => {
     const a = await createHeadlessGame({ enemies: [] });
     const b = await createHeadlessGame({ enemies: [] });
-    expect(a.game.systems.get(hudSystem)).toBe(a.game.systems.get(hudSystem));
-    expect(a.game.systems.get(hudSystem)).not.toBe(b.game.systems.get(hudSystem));
+    expect(a.game.systems.get(bonfireSystem)).toBe(a.game.systems.get(bonfireSystem));
+    expect(a.game.systems.get(bonfireSystem)).not.toBe(b.game.systems.get(bonfireSystem));
     expect(a.game.systems.get(bossSystem).boss).toBeDefined();
     expect(typeof a.game.systems.get(bonfireSystem).respawn).toBe('function');
   });

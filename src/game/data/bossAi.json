@@ -1,0 +1,48 @@
+{
+  "stats": {
+    "hp": 2400,
+    "height": 4.0,
+    "radius": 0.9,
+    "walkSpeed": 2.4,
+    "runSpeed": { "1": 4.2, "2": 4.8 },
+    "turnDegPerSecond": { "1": 90, "2": 120 }
+  },
+  "bands": { "closeBelow": 3.5, "farAbove": 8 },
+  "ai": {
+    "beatFrames": { "1": [30, 60], "2": [20, 40] },
+    "maxConsecutive": 2,
+    "repeatWeightFactor": 0.5,
+    "repositionFrames": 30,
+    "approachMaxFrames": 240,
+    "turnResponse": 40,
+    "historyLength": 8
+  },
+  "correction": {
+    "behindHalfDeg": 60,
+    "behindFrames": 90,
+    "behindWeightFactor": 2,
+    "healTrackRate": 1.2,
+    "rollStreak": 3,
+    "rollStreakGapFrames": 60,
+    "comboBonus": 0.2,
+    "retreatWindowFrames": 60,
+    "retreatDistance": 1.5,
+    "retreatLeapWeight": 40,
+    "comboMinStartup": 30
+  },
+  "superArmorBonus": 100000,
+  "weights": {
+    "1": {
+      "close": { "overhead": 25, "sweep": 25, "combo3": 25, "shieldBash": 25, "leap": 0 },
+      "mid": { "overhead": 40, "sweep": 20, "combo3": 0, "shieldBash": 0, "leap": 40 },
+      "far": { "overhead": 0, "sweep": 0, "combo3": 0, "shieldBash": 0, "leap": 100 }
+    },
+    "2": {
+      "close": { "overhead": 20, "sweep": 25, "combo3": 25, "leap": 0, "spin": 30, "ashWave": 0 },
+      "mid": { "overhead": 25, "sweep": 15, "combo3": 0, "leap": 20, "spin": 0, "ashWave": 40 },
+      "far": { "overhead": 0, "sweep": 0, "combo3": 0, "leap": 40, "spin": 0, "ashWave": 60 }
+    }
+  },
+  "battle": { "transitionFrames": 120 },
+  "wall": { "playerWallGap": 2.0, "stepBackDistance": 2.0, "stepBackFrames": 18 }
+}

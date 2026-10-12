@@ -1,7 +1,7 @@
 import './bossBar.css';
 import type { HudHandle } from './hud';
 
-/** ボス HP バーが読む表示用状態（`game/hud` の `BossBarModel` が満たす）。 */
+/** ボス HP バーが読む表示用状態（`presentation/hud` の `BossBarModel` が満たす）。 */
 export interface BossBarView {
   readonly name: string;
   readonly boundaries: readonly number[];

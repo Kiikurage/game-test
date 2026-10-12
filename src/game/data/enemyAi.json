@@ -1,0 +1,94 @@
+{
+  "stats": {
+    "undead_soldier": {
+      "hp": 120,
+      "poise": 50,
+      "height": 1.8,
+      "radius": 0.35,
+      "turnDegPerSecond": 240,
+      "loadout": "soldier",
+      "bodyScale": 1
+    },
+    "undead_shield": {
+      "hp": 200,
+      "poise": 80,
+      "height": 1.9,
+      "radius": 0.38,
+      "turnDegPerSecond": 150,
+      "loadout": "shieldbearer",
+      "bodyScale": 1.05
+    }
+  },
+  "vision": {
+    "range": 14,
+    "fovDeg": 140,
+    "combatFovDeg": 360,
+    "eyeHeight": 1.6,
+    "targetHeight": 1.2,
+    "distanceBands": [
+      { "upTo": 3, "rate": 240 },
+      { "upTo": 8, "rate": 120 },
+      { "upTo": 14, "rate": 40 }
+    ],
+    "angleBands": [
+      { "withinDeg": 40, "scale": 1 },
+      { "withinDeg": 70, "scale": 0.4 }
+    ],
+    "motionScale": { "still": 0.6, "walk": 0.6, "run": 1, "dash": 1.4 },
+    "darkScale": 0.7,
+    "suspiciousScale": 1.5
+  },
+  "noiseRadius": {
+    "walk": 2,
+    "run": 5,
+    "dash": 8,
+    "combat": 8,
+    "flask": 3,
+    "land": 6,
+    "wallCollapse": 12,
+    "bell": 15
+  },
+  "hearing": {
+    "gainPerSecond": 120,
+    "oneShotNoiseSeconds": 0.5,
+    "runNoiseMinSpeed": 3.6,
+    "walkNoiseMinSpeed": 0.3,
+    "landNoiseMinHeight": 2
+  },
+  "gauge": { "max": 100, "suspicious": 50, "decayPerSecond": 40 },
+  "ai": {
+    "alertFrames": 24,
+    "allyAlertRadius": 8,
+    "chaseSpeed": 3.5,
+    "returnSpeed": 3.0,
+    "patrolSpeed": 1.2,
+    "suspiciousSpeed": 1.8,
+    "acceleration": 12,
+    "lostSightFrames": 360,
+    "leashRadius": 25,
+    "returnHealPerSecond": 0.2,
+    "homeArrivalRadius": 0.3,
+    "approachRange": 5,
+    "approachExitRange": 6.5,
+    "holdRange": 3,
+    "holdFrames": [30, 90],
+    "approachSpeed": 2.5,
+    "cooldownFrames": [30, 90],
+    "cooldownFramesDesperate": [30, 60],
+    "maxAttackers": 2,
+    "orbitRadius": 4,
+    "orbitSpeed": 1.5,
+    "tokenRetryFrames": 12,
+    "suspiciousTurnDegPerSecond": 120,
+    "suspiciousMaxWalk": 6,
+    "suspiciousMaxWalkBell": 15,
+    "suspiciousLookFrames": 180,
+    "suspiciousLookSweepDeg": 40,
+    "suspiciousLookPeriodFrames": 90,
+    "patrolRadius": 6,
+    "patrolPauseFrames": 90,
+    "moveYawFullSpeedDeg": 20,
+    "moveYawStopDeg": 80
+  },
+  "locomotion": { "walk": 1.8, "run": 3.5, "dash": 6.5 }
+}

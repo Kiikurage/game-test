@@ -5,10 +5,10 @@ import { PLAYER_ACTIONS } from '../../game/data';
  *
  * 敵の予備動作（`telegraph/weaponTelegraph`: 通常 = 白寄り・弱、強 / ガード不能 = 赤橙・強）と取り違えないよう、
  * プレイヤーは暖色の金（琥珀 → 淡い金白）で、「徐々に強まる」→「フル溜めの瞬間に一度だけ閃く」→「保持中は落ち着いて脈打つ」。
- * 追加のメッシュ・パスは無く、`characterLight` の武器の発光ユニフォームを書き換えるだけ。
+ * 追加のメッシュ・パスは無く、`weaponTelegraph` の武器の発光ユニフォームを書き換えるだけ。
  */
 export interface ChargeGlow {
-  /** 発光の強さ（0..1。`CharacterLight.setWeaponTelegraph` の amount）。 */
+  /** 発光の強さ（0..1。`WeaponTelegraph.setWeaponTelegraph` の amount）。 */
   readonly amount: number;
   /** 発光色（sRGB 0xRRGGBB）。 */
   readonly color: number;

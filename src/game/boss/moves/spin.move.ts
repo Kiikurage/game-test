@@ -1,4 +1,5 @@
 import { sectorShape } from '../../combat';
+import { BOSS_MOVES_DATA } from '../../data/bossMoves';
 import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
 
 /**
@@ -24,57 +25,22 @@ import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bo
  */
 
 /** 判定の半径（射程。m）。 */
-export const SPIN_RADIUS = 4.8;
-/** 判定の高さ（足元から。m）。 */
-export const SPIN_HEIGHT = { min: -0.3, max: 2.5 } as const;
+const { params: P, ...MOVE } = BOSS_MOVES_DATA.spin;
+const [SPIN_1, SPIN_2] = MOVE.stages as [BossStageDef, BossStageDef];
+
+export const SPIN_RADIUS = SPIN_1.range;
+export const SPIN_HEIGHT = P.height;
 /** 回転間の隙（F）: 1 回転目の判定の終わりから 2 回転目の判定の始まりの前まで。 */
-export const SPIN_GAP = 12;
+export const SPIN_GAP = SPIN_2.startup;
 /** 1 回転目の発生。 */
-export const SPIN_STARTUP = 36;
+export const SPIN_STARTUP = SPIN_1.startup;
 /** 各回転の持続（F）。 */
-export const SPIN_ACTIVE = 10;
+export const SPIN_ACTIVE = SPIN_1.active;
 /** 斧の向きの、ボスの正面（モデルのヨー）からのずれ（rad。右手に斧を持って振る向き）。判定の楔・軌跡の基準。 */
-export const SPIN_BLADE_OFFSET = 1.6;
+export const SPIN_BLADE_OFFSET = P.bladeOffset;
 /** 予備動作で逆向きに捻る角（rad）。1 回転目 / 2 回転目。 */
-export const SPIN_WINDUP = [1.0, 0.5] as const;
+export const SPIN_WINDUP = P.windup;
 
-const COMMON = {
-  damage: 85,
-  poiseDamage: 55,
-  guardStaminaCost: 48,
-  moveDistance: 0,
-  arcDeg: 360,
-  range: SPIN_RADIUS,
-  telegraph: 'heavy',
-} as const satisfies Partial<BossStageDef>;
-
-const SPIN_1: BossStageDef = {
-  ...COMMON,
-  id: 'spin.1',
-  startup: SPIN_STARTUP,
-  active: SPIN_ACTIVE,
-  // 1 回転目の判定の終わり = 段の終わり。隙は 2 段目の発生（`SPIN_GAP`）
-  recovery: 0,
-  heavy: true,
-  // 追尾は発生の 12F 前まで（向き固定の猶予）
-  trackEndFrame: SPIN_STARTUP - 12,
-  trackRate: 1,
-  superArmor: { start: 1, end: SPIN_STARTUP + SPIN_ACTIVE },
-};
-
-const SPIN_2: BossStageDef = {
-  ...COMMON,
-  id: 'spin.2',
-  startup: SPIN_GAP,
-  active: SPIN_ACTIVE,
-  recovery: 60,
-  followUp: true,
-  chained: true,
-  trackEndFrame: 0,
-  superArmor: { start: 1, end: SPIN_GAP + SPIN_ACTIVE },
-};
-
-/** 回転斬りの状態（描画・演出が読む。技の実行中だけ `spinStateOf` で引ける）。 */
 export interface SpinState {
   /** 何回転目か（1 / 2）。 */
   rotation: 1 | 2;
@@ -138,11 +104,7 @@ export function spinAngle(rotation: 1 | 2, frame: number): number {
 
 registerBossMove({
   id: 'spin',
-  name: '回転斬り',
-  phases: [2],
-  stages: [SPIN_1, SPIN_2],
-  // 近・中距離。ボスに接近して離れないと当たる技なので、走って詰める
-  approach: { speed: 'run', stopRange: 3.0 },
+  ...MOVE,
   hooks: {
     onStart(ctx) {
       states.set(ctx.boss, { rotation: 1, frame: 0, angle: 0, hitting: false, swings: 0 });

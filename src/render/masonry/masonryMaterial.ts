@@ -1,7 +1,6 @@
-import { MeshStandardNodeMaterial, Vector4, type Node } from 'three/webgpu';
+import { MeshStandardNodeMaterial } from 'three/webgpu';
 import {
   attribute,
-  clamp,
   cross,
   dFdx,
   dFdy,
@@ -16,14 +15,10 @@ import {
   mix,
   mod,
   normalView,
-  normalWorld,
   positionView,
-  positionWorld,
   sign,
   smoothstep,
   step,
-  time,
-  uniformArray,
   vec3,
   vec4,
 } from 'three/tsl';
@@ -37,7 +32,7 @@ import { tagMaterial } from '../materialGroups';
  * - 目地は `fwidth` で画素の大きさに合わせて解析的にアンチエイリアスし、遠くでは平均的な暗さへ溶かす（ちらつかない）。
  * - 石ごとの明度のばらつき・面取りのハイライト・角の欠け・粒状ノイズ・縦の汚れ・地面付近の湿り（暗く、苔）。
  * - 目地と欠けは高さ場として法線を揺らす（`detail` ≥ 1。low はなし）。
- * - 壁のたいまつの光は、ライトを増やさず `torches`（位置 + 強度）を距離減衰で足す（`emissive`。影は付かない）。
+ * - 壁のたいまつの光は実ライト（`lighting/localLights.ts`、#322）が照らす（マテリアルは光を足さない）。
  *
  * ノイズは `bakedNoise`（焼いたテクスチャの参照。#236）。
  * `detail`: 0 = low（法線・細かいノイズなし）、1 = medium（ノイズ 5 回: 目地の揺れ・粒・縦の汚れ・染み・苔）、
@@ -45,11 +40,7 @@ import { tagMaterial } from '../materialGroups';
  */
 export interface MasonryMaterialOptions {
   readonly detail: 0 | 1 | 2;
-  /** たいまつ（x, y, z, 強度）。最大 8 つ。 */
-  readonly torches: readonly (readonly [number, number, number, number])[];
 }
-
-export const MAX_TORCHES = 8;
 
 const JOINT_WIDTH = 0.024;
 /** 目地の平均的な面積率（遠景で目地を溶かすときの暗さ）。 */
@@ -177,28 +168,5 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
     material.normalNode = det.abs().mul(normalView).sub(grad).normalize();
   }
 
-  // --- たいまつの光（偽のライト。法線は幾何法線）---
-  const torches = options.torches.slice(0, MAX_TORCHES);
-  if (torches.length > 0) {
-    const lights = uniformArray(
-      torches.map((t) => new Vector4(t[0], t[1], t[2], t[3])),
-      'vec4',
-    );
-    let sum: Node<'vec3'> = vec3(0, 0, 0);
-    for (let i = 0; i < torches.length; i++) {
-      const l = lights.element(i) as unknown as Node<'vec4'>;
-      const d = l.xyz.sub(positionWorld);
-      const dist2 = dot(d, d);
-      const ndl = clamp(dot(normalWorld, d.normalize()), 0, 1).mul(0.8).add(0.2);
-      const reach = smoothstep(float(1), float(0.12), dist2.div(float(8 * 8)));
-      const falloff = float(1).div(float(1).add(dist2.mul(0.55)));
-      const phase = float(i * 2.13);
-      const flicker = float(0.88)
-        .add(time.mul(11).add(phase).sin().mul(0.07))
-        .add(time.mul(5.3).add(phase.mul(1.9)).sin().mul(0.05));
-      sum = sum.add(vec3(1.0, 0.5, 0.17).mul(l.w.mul(falloff).mul(ndl).mul(reach).mul(flicker)));
-    }
-    material.emissiveNode = albedo.mul(sum);
-  }
   return tagMaterial(material, 'masonry');
 }

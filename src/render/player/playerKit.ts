@@ -16,7 +16,7 @@ import { assetUrl } from '../../core/assetUrl';
 /**
  * プレイヤー（旅の騎士）の装備（自作、`public/assets/player.glb`。生成は scripts/assets/player.mjs）。
  * 兜・胸甲・陣羽織・肩当て・籠手・脛当て・外套（3 段）。各アイテムは glb のノード名 = ID で、取り付けボーンと姿勢が extras にある。
- * マテリアルは標準のまま（補助光は characterLight 側）。
+ * マテリアルは標準のまま（武器の発光は weaponTelegraph 側）。
  */
 export const PLAYER_ARMOR_IDS = [
   'Knight_Helm',

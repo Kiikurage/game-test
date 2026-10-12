@@ -11,6 +11,7 @@
 //   壊れた印（`world.wallG1Broken`）はセーブし、再開後は最初から壊れている。
 // - floorHatch: 状況ボタンなし。`radiusM` 以内で軋み（1 回）、板の上に乗る（接触）と割れる。セーブなし。
 // - giveItem: 所持数をセーブし、`ITEM_DEFS` の効果を適用して `itemPicked` を発行する（アイテム取得 #67 と同じ経路）。
+import { isFlagSet } from '../../core/persistence';
 import { Health, vec3, type HitEvent, type HitTarget } from '../combat';
 import { ITEM, ITEM_DEFS } from '../data/items';
 import { INTERACT_VERBS, lookupText } from '../data/texts';
@@ -26,8 +27,7 @@ import { interactionSystem } from '../interaction/interaction.system';
 
 /** セーブのフラグを引く。`boss.<id>` は撃破済みのボス（セーブの `bosses`）。 */
 export function hasFlagIn(game: Game, flag: string): boolean {
-  if (game.save.hasFlag(flag)) return true;
-  return flag.startsWith('boss.') && game.save.get().bosses.includes(flag.slice('boss.'.length));
+  return isFlagSet(game.save.get(), flag);
 }
 
 /** 文面データの 1 行（なければ ID）。 */
