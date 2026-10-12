@@ -43,6 +43,15 @@ interface RenderContextsLike {
   ) => unknown;
 }
 
+/** three r186 の内部 `Pipelines`（compileScene でパイプライン作成の待ちを後ろへ回すためだけに触る）。 */
+interface PipelinesLike {
+  getForRender: (
+    this: PipelinesLike,
+    renderObject: unknown,
+    promises?: Promise<unknown>[],
+  ) => unknown;
+}
+
 /** scene パスが本描画で呼ばれる深さ（RenderPipeline.render → 全画面描画 → PassNode.updateBefore → renderer.render）。 */
 const SCENE_PASS_CALL_DEPTH = 1;
 
@@ -214,16 +223,48 @@ export function createFramePipeline(
       const originalGet = contexts.get;
       contexts.get = (target, mrtNode) =>
         originalGet.call(contexts, target, mrtNode, SCENE_PASS_CALL_DEPTH);
+      // 並列化（#390）。three r186 の compileAsync（Renderer.js 1055〜1090 行）はオブジェクトごとに
+      // `await Promise.all(pipelinePromises)` してから次へ進むため、パイプラインを 1 本ずつ直列に作る。
+      // WebGPU の createRenderPipelineAsync は並列に投げればドライバ（Metal のコンパイラサービス）が並列に処理できるので、
+      // `_pipelines.getForRender(renderObject, pipelinePromises)` に渡される promise 配列を自前の配列にすり替え、
+      // compileAsync には空配列に見せて待たせない。全オブジェクトの投入が終わってから自前の配列をまとめて待つ。
+      // （compileAsync の前半をコピーせずに済ませるための方法。three を更新したら、getForRender の呼び出しと
+      // `_isPreCompiling` の扱いが変わっていないか見直す。）
+      const pipelines = (renderer as unknown as { _pipelines: PipelinesLike })._pipelines;
+      const originalGetForRender = pipelines.getForRender;
+      const pending: Promise<unknown>[] = [];
+      let settled = 0;
+      let total = 0;
+      pipelines.getForRender = function (this: PipelinesLike, renderObject, promises) {
+        if (promises === undefined) return originalGetForRender.call(this, renderObject);
+        const own: Promise<unknown>[] = [];
+        const result = originalGetForRender.call(this, renderObject, own);
+        if (own.length > 0) {
+          pending.push(
+            Promise.all(own).then(() => {
+              settled++;
+              onProgress?.(settled, Math.max(total, settled));
+            }),
+          );
+        }
+        return result;
+      };
       let compiling: Promise<void>;
       try {
         compiling = renderer.compileAsync(scene, camera, null, (e: ProgressEvent) => {
-          onProgress?.(e.loaded, e.total);
+          total = e.total;
         });
       } finally {
         contexts.get = originalGet;
       }
       try {
-        await compiling;
+        try {
+          await compiling;
+        } finally {
+          pipelines.getForRender = originalGetForRender;
+        }
+        await Promise.all(pending);
+        onProgress?.(total, total);
       } finally {
         renderer.setRenderTarget(prevTarget);
         renderer.setMRT(prevMrt);
