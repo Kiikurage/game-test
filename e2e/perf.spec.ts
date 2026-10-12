@@ -1,8 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { startGame } from './helpers';
 import { PERF_VIEWPOINTS } from '../scripts/perfViewpoints.mjs';
-import { RENDER_BUDGET } from '../src/render/renderBudget';
-import type { QualityLevel } from '../src/render/quality';
+import { QUALITY_PRESETS, type QualityLevel } from '../src/render/quality/presets';
 
 /** 計測視点へ移動し、数フレーム描いてから直近フレームの draws / tris を読む（解像度は負荷に影響しないので低解像度で動かす）。 */
 async function measure(
@@ -37,7 +36,7 @@ for (const level of ['medium', 'low'] as const satisfies readonly QualityLevel[]
     await page.goto(`./?quality=${level}&scale=0.25`);
     await startGame(page);
 
-    const budget = RENDER_BUDGET[level];
+    const budget = QUALITY_PRESETS[level].budget;
     const results: string[] = [];
     for (const view of PERF_VIEWPOINTS) {
       const { draws, tris } = await measure(page, view);

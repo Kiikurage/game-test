@@ -1,8 +1,11 @@
 import { ACESFilmicToneMapping, PCFShadowMap, WebGPURenderer } from 'three/webgpu';
-import { DynamicResolution } from './dynamicResolution';
-import { initialScaleFor, type QualitySelection } from './quality';
+import {
+  computePixelRatio,
+  DynamicResolution,
+  initialScaleFor,
+  type QualitySelection,
+} from './quality';
 import { setMaterialDetail } from './bakedNoise';
-import { computePixelRatio } from './resolution';
 import { configureKtx2Loader } from './assets/ktx2';
 
 /** デバッグ表示（`?debug`）用の計測値。 */
@@ -50,7 +53,7 @@ export async function createRenderer(
 ): Promise<GameRenderer> {
   const { preset } = quality;
   // マテリアルのノイズ層の数（#236）。マテリアルは各 view が後で作るので、その前に決めておく
-  setMaterialDetail(preset.level);
+  setMaterialDetail(preset.materialDetail);
   const renderer = new WebGPURenderer({
     antialias: preset.msaa,
     powerPreference: 'high-performance',

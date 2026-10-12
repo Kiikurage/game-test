@@ -174,8 +174,8 @@ export function createEnvironment(scene: Scene, preset: QualityPreset): Environm
   const starAmount = uniform(0);
   sunTint.value.copy(sunColor);
 
-  // 雲のノイズのオクターブ数（背景は全画面を塗るので、モバイルでは減らす。#236）
-  const cloudOctaves = preset.level === 'high' ? 4 : preset.level === 'medium' ? 2 : 1;
+  // 雲のノイズのオクターブ数（品質プリセットで段階化。#236）
+  const cloudOctaves = preset.cloudOctaves;
   const skyAt = (dirNode: Node<'vec3'>): Node<'vec3'> =>
     Fn(() => {
       const dir = dirNode;

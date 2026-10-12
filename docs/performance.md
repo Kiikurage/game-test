@@ -10,7 +10,7 @@
 | `low` / `medium`（モバイル） | 150 以下 | 250k 以下 |
 | `high`（PC） | 200 以下 | 350k 以下 |
 
-- 値は `src/render/renderBudget.ts`（`RENDER_BUDGET`）。E2E `e2e/perf.spec.ts` が下記の 4 視点で `low` と `medium` を検査する（超えたら CI が落ちる）。
+- 値は `src/render/quality/presets.ts`（各プリセットの `budget`）。E2E `e2e/perf.spec.ts` が下記の 4 視点で `low` と `medium` を検査する（超えたら CI が落ちる）。
 - 計測視点は `scripts/perfViewpoints.mjs`: 篝火（0, 3.5）/ 墓地（14, 6）/ 礼拝堂の門（34, 17）/ 礼拝堂内部（50, 22）。敵は通常どおり配置したまま（巡回で多少ゆらぐので、上限には余裕を持たせる）。
 - 視点や敵を足してドローコールが予算に迫ったら、予算を上げずに下の削減策（LOD 距離・結合・影の対象）で下げる。
 
@@ -241,11 +241,11 @@ toggles: noParticles flatMat             有効な切り分けトグル
 3. `?perf&scale=0.25&nomsaa&nobloom&noshadow&nograss&noparticles&nolights&flatmat`（全部入り）で、固定負荷の下限を確認。そこから 1 つずつ戻して、戻した瞬間に fps が落ちるものが原因。
 4. `cpu` が大きいなら JS 側（`pipelines` が増え続けていないかも見る）。
 
-トグルは `src/render/perfToggles.ts`（preset を落とすもの）と `src/render/perf.view.ts`（`?perf` HUD・`?noparticles`・`?flatmat`）、`src/render/renderer.ts`（`?noshadow`・GPU 時間）にある。
+トグルは `src/render/quality/presets.ts`（`parsePerfToggles` / `applyPerfToggles`。preset を落とすもの）と `src/render/perf.view.ts`（`?perf` HUD・`?noparticles`・`?flatmat`）、`src/render/renderer.ts`（`?noshadow`・GPU 時間）にある。
 
 ### 3. 動的解像度（`DynamicResolution`）の挙動
 
-目標 fps（モバイル 30 / PC 60）を割ると内部解像度の倍率を下げる（モバイルは 0.8 から開始、下限 0.4。余裕があるときだけ 0.1 ずつ上げる）。#231 で次を直した（`src/render/dynamicResolution.test.ts`）。
+目標 fps（モバイル 30 / PC 60）を割ると内部解像度の倍率を下げる（モバイルは 0.8 から開始、下限 0.4。余裕があるときだけ 0.1 ずつ上げる）。#231 で次を直した（`src/render/quality/dynamicResolution.test.ts`）。
 
 - **1fps 級の低速で何も下がらない**: 1 フレーム 1000ms 超を外れ値として捨てていたため、極端に遅い端末では全フレームが捨てられ、解像度が一切下がらなかった。単発の外れ値（タブ復帰・ロード）だけ捨て、連続するなら本当の低速として評価する。窓が埋まるのを待たず、蓄積 1 秒（最低 2 フレーム）で評価する。
 - **起動直後・変更直後のカクつき**: 起動直後 6 フレームと、解像度変更直後 2 フレームは評価に入れない。1 フレームを目標の 6 倍までに丸め、単発のスパイク（シェーダコンパイル）で下げすぎない。

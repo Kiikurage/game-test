@@ -9,7 +9,6 @@ import {
   createFogPillarMaterial,
   createFogWallMaterial,
   createGroundMistMaterial,
-  FOG_BUDGET,
 } from './fogGateMaterials';
 
 /** 霧の壁の寸法（m）。門のコライダ（幅 4.4・高さ 6）より少し大きく、通路の壁の縁を隠す。 */
@@ -38,12 +37,12 @@ const smooth = (t: number): number => {
 // 霧の門の見た目（#66）: 青白く揺らぐ霧の壁（門の中）・高さ 25m の霧の柱（ランドマーク）・足元の霧。
 // 状態は game の `fogGateOf(game)`（closed / entering / sealed = 霧あり、open = 消える）を読むだけ。
 // 入場演出（entering）は霧の壁が荒れて明るくなり、画面を青白いヴェール（DOM）が覆う。門の周辺はフォグ密度を上げる（0.04 / 0.015）。
-// コスト: 透明メッシュのみ（`FOG_BUDGET`）。パーティクルは使わない。
+// コスト: 透明メッシュのみ（品質プリセットの `fogGate`）。パーティクルは使わない。
 registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
   const gate: FogGate | null = fogGateOf(game);
   const placed = level?.gates.find((g) => g.def.id === FOG_GATE.id);
   if (!gate || !placed) return {};
-  const quality = gameRenderer.quality.preset.level;
+  const quality = gameRenderer.quality.preset.fogGate;
   const { def } = placed;
 
   const uniforms = createFogUniforms();
@@ -53,7 +52,7 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
   root.rotation.y = gate.yaw;
 
   // 霧の壁（門の中。前方 = ローカル +z）
-  const walls = FOG_BUDGET.wallLayers[quality];
+  const walls = quality.wallLayers;
   for (let i = 0; i < walls; i++) {
     const mesh = new Mesh(
       new PlaneGeometry(WALL_WIDTH, WALL_HEIGHT),
@@ -63,7 +62,7 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
         width: WALL_WIDTH,
         height: WALL_HEIGHT,
         strength: i === 0 ? 1 : 0.7,
-        lite: quality === 'low',
+        lite: quality.lite,
       }),
     );
     mesh.name = `fogGate:wall${i}`;
@@ -73,7 +72,7 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
   }
 
   // 地表の霧
-  if (FOG_BUDGET.groundMist[quality] > 0) {
+  if (quality.groundMist > 0) {
     const mist = new Mesh(
       new CircleGeometry(MIST_RADIUS, 32).rotateX(-Math.PI / 2),
       createGroundMistMaterial(uniforms, MIST_RADIUS),
@@ -89,7 +88,7 @@ registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
   pillar.name = 'fogGate:pillar';
   pillar.position.set(0, 0, PILLAR_AHEAD);
   const baseY = placed.y - 1;
-  const layers = FOG_BUDGET.pillarLayers[quality];
+  const layers = quality.pillarLayers;
   for (let i = 0; i < layers; i++) {
     const grow = 1 + i * 0.7;
     const height = FOG_GATE.pillarHeightM + 1;
