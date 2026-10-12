@@ -60,6 +60,11 @@ export interface UberFlags {
   flatShading?: boolean;
   /** 系統固有のノード（色の係数・法線・不透明度・発光・頂点位置）。 */
   surface?: () => UberSurface;
+  /**
+   * `surface` の系統名（バリアントキー・パイプラインの集計用）。同じ系統はシェーダコードが一致するように、
+   * 材質ごとの差はノードの定数ではなくユニフォーム・テクスチャ（パラメータ）で持たせる（#326）。
+   */
+  surfaceId?: string;
   /** `?flatmat` の切り分け用グループ（`materialGroups`）。 */
   group?: MaterialGroup;
 }
@@ -72,6 +77,8 @@ export interface UberSurface {
   opacity?: Node<'float'>;
   /** 発光（lit のみ。HDR）。 */
   emissive?: Node<'vec3'>;
+  /** 粗さ（lit のみ）。 */
+  roughness?: Node<'float'>;
   /** 頂点位置（ローカル）。`wind` はこれに揺れを足す。 */
   position?: Node<'vec3'>;
 }
@@ -104,7 +111,7 @@ export function uberVariantKey(flags: UberFlags): string {
     flags.additive ? 'add' : flags.transparent ? 'blend' : '',
     flags.noFog ? 'nofog' : '',
     flags.flatShading ? 'flat' : '',
-    flags.surface ? 'surface' : '',
+    flags.surface ? (flags.surfaceId ? `surface:${flags.surfaceId}` : 'surface') : '',
   ]
     .filter((s) => s !== '')
     .join('+');
@@ -185,9 +192,13 @@ export function createUberMaterial(flags: UberFlags, params: UberParams = {}): U
     if (rgb) std.colorNode = vec4(rgb, 1);
     if (surface?.normal) std.normalNode = surface.normal;
     if (surface?.emissive) std.emissiveNode = surface.emissive;
+    if (surface?.roughness) std.roughnessNode = surface.roughness;
     material = std;
   }
   if (surface?.opacity) material.opacityNode = surface.opacity;
+  // 半透明の両面は、three の既定だと裏面 → 表面の 2 パスで描き、パイプラインも 2 本になる。
+  // 霧・炎・蜘蛛の巣・予告など薄い板ばかりなので 1 パスで描く（#326）
+  if (transparent && flags.doubleSided) material.forceSinglePass = true;
   const position = surface?.position ?? null;
   if (flags.wind) material.positionNode = (position ?? positionLocal).add(windOffset());
   else if (position) material.positionNode = position;

@@ -60,7 +60,13 @@ export function createEnvironmentMaterials(): Record<EnvironmentGroup, Material>
  */
 export function createGroundMaterial(): UberMaterial {
   return createUberMaterial(
-    { shading: 'lit', vertexColors: true, surface: groundSurface, group: 'terrain' },
+    {
+      shading: 'lit',
+      vertexColors: true,
+      surface: groundSurface,
+      surfaceId: 'ground',
+      group: 'terrain',
+    },
     { roughness: 1, metalness: 0 },
   );
 }
@@ -135,7 +141,7 @@ function groundSurface(): UberSurface {
 /** 枯れ草: 根元が暗く、先が明るい。風でゆっくり揺れる（インスタンスごとの位相）。 */
 export function createGrassMaterial(): UberMaterial {
   return createUberMaterial(
-    { shading: 'lit', wind: true, doubleSided: true, surface: grassSurface },
+    { shading: 'lit', wind: true, doubleSided: true, surface: grassSurface, surfaceId: 'grass' },
     { roughness: 1, metalness: 0 },
   );
 }

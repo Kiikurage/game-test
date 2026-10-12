@@ -19,10 +19,9 @@ import {
   uv,
   vec2,
   vec3,
-  vec4,
 } from 'three/tsl';
 import { bakedNoise } from '../bakedNoise';
-import { createUberMaterial } from '../uberMaterial';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
 
 type F = Node<'float'>;
 
@@ -64,13 +63,26 @@ export function createFogWallMaterial(
     lite?: boolean;
   },
 ): MeshBasicNodeMaterial {
-  const material = createUberMaterial({
+  // 層ごとの差（模様・流れ・大きさ・濃さ）はユニフォーム。全層で同じシェーダになる（#326）
+  return createUberMaterial({
     shading: 'unlit',
     transparent: true,
     doubleSided: true,
     noFog: true,
+    surface: () => fogWallSurface(u, options),
+    surfaceId: 'fogWall',
   });
-  const { seed, flow, width, height, strength } = options;
+}
+
+function fogWallSurface(
+  u: FogUniforms,
+  options: Parameters<typeof createFogWallMaterial>[1],
+): UberSurface {
+  const seed = uniform(options.seed);
+  const flow = uniform(options.flow);
+  const width = uniform(options.width);
+  const height = uniform(options.height);
+  const strength = uniform(options.strength);
   const uvn = uv();
   const speed: F = float(0.5).add(u.surge.mul(1.1)).mul(flow);
   const t: F = time.mul(speed);
@@ -108,9 +120,7 @@ export function createFogWallMaterial(
 
   const tone: F = fbm.mul(0.8).add(sway.mul(0.2));
   const rgb = mix(mix(DEEP, MID, tone), PALE, smoothstep(0.55, 1.0, tone).add(u.surge.mul(0.45)));
-  material.colorNode = vec4(rgb.mul(float(1.0).add(u.surge.mul(0.25))), 1);
-  material.opacityNode = alpha;
-  return material;
+  return { color: rgb.mul(float(1.0).add(u.surge.mul(0.25))), opacity: alpha };
 }
 
 /**
@@ -121,13 +131,25 @@ export function createFogPillarMaterial(
   u: FogUniforms,
   options: { baseY: number; height: number; seed: number; flow: number; strength: number },
 ): MeshBasicNodeMaterial {
-  const material = createUberMaterial({
+  return createUberMaterial({
     shading: 'unlit',
     transparent: true,
     doubleSided: true,
     noFog: true,
+    surface: () => fogPillarSurface(u, options),
+    surfaceId: 'fogPillar',
   });
-  const { baseY, height, seed, flow, strength } = options;
+}
+
+function fogPillarSurface(
+  u: FogUniforms,
+  options: Parameters<typeof createFogPillarMaterial>[1],
+): UberSurface {
+  const baseY = uniform(options.baseY);
+  const height = uniform(options.height);
+  const seed = uniform(options.seed);
+  const flow = uniform(options.flow);
+  const strength = uniform(options.strength);
   const h: F = positionWorld.y.sub(baseY).div(height).clamp(0, 1);
   const ang: F = uv().x;
   const speed: F = float(0.32).add(u.surge.mul(0.5)).mul(flow);
@@ -137,7 +159,7 @@ export function createFogPillarMaterial(
     .mul(0.6)
     .add(bakedNoise(q.mul(2.3).add(5.7)).mul(0.4));
   const wisp: F = bakedNoise(
-    vec3(ang.mul(3.0).add(time.mul(0.05)), h.mul(2.6).sub(time.mul(0.18).mul(flow)), seed + 4.2),
+    vec3(ang.mul(3.0).add(time.mul(0.05)), h.mul(2.6).sub(time.mul(0.18).mul(flow)), seed.add(4.2)),
   );
   const n: F = streak.mul(0.5).add(wisp.mul(0.5)).mul(0.5).add(0.5);
 
@@ -164,26 +186,30 @@ export function createFogPillarMaterial(
   // 筋の濃いところは深い青、芯（正対する面）と上端は白く発光（ブルームが乗る程度）
   const tone: F = n.mul(0.65).add(core.mul(0.35)).add(h.mul(0.15));
   const rgb = mix(mix(DEEP, MID, smoothstep(0.2, 0.7, tone)), PALE, smoothstep(0.7, 1.0, tone));
-  material.colorNode = vec4(rgb.mul(float(0.9).add(h.mul(0.3)).add(u.surge.mul(0.3))), 1);
-  material.opacityNode = alpha;
-  return material;
+  return { color: rgb.mul(float(0.9).add(h.mul(0.3)).add(u.surge.mul(0.3))), opacity: alpha };
 }
 
 /** 地表の霧（門の足元から広がる低い霧の円盤。ゆっくり渦を巻く）。 */
 export function createGroundMistMaterial(u: FogUniforms, radius: number): MeshBasicNodeMaterial {
-  const material = createUberMaterial({
+  return createUberMaterial({
     shading: 'unlit',
     transparent: true,
     doubleSided: true,
     noFog: true,
+    surface: () => groundMistSurface(u, radius),
+    surfaceId: 'groundMist',
   });
+}
+
+function groundMistSurface(u: FogUniforms, radiusValue: number): UberSurface {
+  const radius = uniform(radiusValue);
   const c = uv().sub(0.5).mul(2);
   const r: F = length(c);
   const a: F = atan(c.y, c.x);
   const swirl = vec2(r.mul(3.2).add(time.mul(0.12)), a.mul(1.6).add(time.mul(0.1)).add(r.mul(2.0)));
-  const n1: F = bakedNoise(vec3(swirl.x.mul(radius * 0.18), swirl.y, time.mul(0.07)));
+  const n1: F = bakedNoise(vec3(swirl.x.mul(radius.mul(0.18)), swirl.y, time.mul(0.07)));
   const n2: F = bakedNoise(
-    vec3(c.x.mul(radius * 0.4).add(time.mul(0.2)), c.y.mul(radius * 0.4), 5.3),
+    vec3(c.x.mul(radius.mul(0.4)).add(time.mul(0.2)), c.y.mul(radius.mul(0.4)), 5.3),
   );
   const n: F = n1.mul(0.6).add(n2.mul(0.4)).mul(0.5).add(0.5);
   const falloff: F = pow(smoothstep(1.0, 0.0, r), float(1.6));
@@ -194,7 +220,5 @@ export function createGroundMistMaterial(u: FogUniforms, radius: number): MeshBa
     .mul(u.density)
     .mul(nearFade(0.4, 2.2))
     .clamp(0, 0.55);
-  material.colorNode = vec4(mix(MID, PALE, n), 1);
-  material.opacityNode = alpha;
-  return material;
+  return { color: mix(MID, PALE, n), opacity: alpha };
 }

@@ -24,7 +24,7 @@ import {
   vec4,
   viewportSharedTexture,
 } from 'three/tsl';
-import { createUberMaterial } from '../uberMaterial';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
 import { FLOW_SPEED } from './waterLayout';
 import { LIGHT_KIND } from './waterwayLevel';
 import { lightAt, specularAt, type WaterLightRig } from './waterLighting';
@@ -69,14 +69,24 @@ const TURBID = [0.32, 0.42, 0.36] as const;
 const ETA = 1 / 1.33;
 
 export function createWaterMaterial(options: WaterMaterialOptions): MeshBasicNodeMaterial {
+  const material = createUberMaterial({
+    shading: 'unlit',
+    transparent: true,
+    depthWrite: true,
+    surface: () => waterSurface(options),
+    surfaceId: 'waterwayWater',
+  });
+  material.name = 'waterway-water';
+  return material;
+}
+
+function waterSurface(options: WaterMaterialOptions): UberSurface {
   const { fields, rig, reflection, reflectionWeight } = options;
   const { grid } = fields;
-  const material = createUberMaterial({ shading: 'unlit', transparent: true, depthWrite: true });
-  material.name = 'waterway-water';
 
   // --- 頂点: 波の高さで上下させる ---
   const simV = simAt(fields, positionLocal.xz);
-  material.positionNode = positionLocal.add(vec3(0, simV.x, 0));
+  const position = positionLocal.add(vec3(0, simV.x, 0));
 
   // --- 法線 ---
   const wp = positionWorld;
@@ -155,6 +165,5 @@ export function createWaterMaterial(options: WaterMaterialOptions): MeshBasicNod
   const foamColor = lit.mul(0.5).add(vec3(0.03, 0.034, 0.036));
   color = mix(color, foamColor, foam.mul(0.85));
 
-  material.colorNode = vec4(color, 1);
-  return material;
+  return { color, position };
 }

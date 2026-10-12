@@ -25,11 +25,9 @@ import {
   time,
   uniformArray,
   vec3,
-  vec4,
 } from 'three/tsl';
 import { bakedHash, bakedNoise } from '../bakedNoise';
-import { createUberMaterial } from '../uberMaterial';
-import { tagMaterial } from '../materialGroups';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
 
 /**
  * 石積みマテリアル（TSL。1 マテリアルで地下墓所・中庭の壁・柱・噴水・石棺・門柱をまかなう）。
@@ -48,6 +46,16 @@ export interface MasonryMaterialOptions {
   readonly detail: 0 | 1 | 2;
   /** たいまつ（x, y, z, 強度）。最大 8 つ。 */
   readonly torches: readonly (readonly [number, number, number, number])[];
+  /**
+   * 石積みの surface を受け取って加工する（水路の濡れ・コースティクスなど）。加工した系統は `surfaceId` で別の系統になる。
+   */
+  readonly wrap?: { readonly id: string; readonly fn: (surface: MasonrySurface) => UberSurface };
+}
+
+/** 石積みの surface（加工する側が色・粗さを読めるよう、必須にしたもの）。 */
+export interface MasonrySurface extends UberSurface {
+  readonly color: Node<'vec3'>;
+  readonly roughness: Node<'float'>;
 }
 
 export const MAX_TORCHES = 8;
@@ -57,9 +65,24 @@ const JOINT_WIDTH = 0.024;
 const JOINT_AVERAGE = 0.17;
 
 export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStandardNodeMaterial {
+  // 色・法線・発光は系統固有のノード（surface）。レンダーステートは汎用の lit と同じ。
+  // 地下墓所・中庭など全部の石積みで同じシェーダになるよう、材質ごとの差（たいまつ）はユニフォームで持つ（#326）
+  return createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => {
+        const base = masonrySurface(options);
+        return options.wrap ? options.wrap.fn(base) : base;
+      },
+      surfaceId: options.wrap ? `masonry+${options.wrap.id}` : 'masonry',
+      group: 'masonry',
+    },
+    { roughness: 0.92, metalness: 0 },
+  );
+}
+
+function masonrySurface(options: MasonryMaterialOptions): MasonrySurface {
   const { detail } = options;
-  // 色・法線・発光は系統固有のノード（下で差し込む）。レンダーステートは汎用の lit と同じ
-  const material = createUberMaterial({ shading: 'lit' }, { roughness: 0.92, metalness: 0 });
 
   const mu = attribute('mu', 'vec2');
   const mx = attribute('mx', 'vec3');
@@ -156,8 +179,8 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
     moss.mul(0.6),
   );
 
-  material.colorNode = vec4(albedo, 1);
-  material.roughnessNode = mix(float(0.93), float(0.5), damp.mul(0.75));
+  const roughness = mix(float(0.93), float(0.5), damp.mul(0.75));
+  let normal: Node | undefined;
 
   // --- 目地と欠けを高さ場にして法線を揺らす（Mikkelsen。高さは m）---
   if (detail > 0) {
@@ -176,31 +199,32 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
     const r2 = cross(normalView, sx);
     const det = dot(sx, r1);
     const grad = sign(det).mul(dhx.mul(r1).add(dhy.mul(r2)));
-    material.normalNode = det.abs().mul(normalView).sub(grad).normalize();
+    normal = det.abs().mul(normalView).sub(grad).normalize();
   }
 
   // --- たいまつの光（偽のライト。法線は幾何法線）---
+  // 本数がシェーダに入らないよう、常に MAX_TORCHES 枠（空きは強度 0）
   const torches = options.torches.slice(0, MAX_TORCHES);
-  if (torches.length > 0) {
-    const lights = uniformArray(
-      torches.map((t) => new Vector4(t[0], t[1], t[2], t[3])),
-      'vec4',
-    );
-    let sum: Node<'vec3'> = vec3(0, 0, 0);
-    for (let i = 0; i < torches.length; i++) {
-      const l = lights.element(i) as unknown as Node<'vec4'>;
-      const d = l.xyz.sub(positionWorld);
-      const dist2 = dot(d, d);
-      const ndl = clamp(dot(normalWorld, d.normalize()), 0, 1).mul(0.8).add(0.2);
-      const reach = smoothstep(float(1), float(0.12), dist2.div(float(8 * 8)));
-      const falloff = float(1).div(float(1).add(dist2.mul(0.55)));
-      const phase = float(i * 2.13);
-      const flicker = float(0.88)
-        .add(time.mul(11).add(phase).sin().mul(0.07))
-        .add(time.mul(5.3).add(phase.mul(1.9)).sin().mul(0.05));
-      sum = sum.add(vec3(1.0, 0.5, 0.17).mul(l.w.mul(falloff).mul(ndl).mul(reach).mul(flicker)));
-    }
-    material.emissiveNode = albedo.mul(sum);
+  const lights = uniformArray(
+    Array.from({ length: MAX_TORCHES }, (_, i) => {
+      const t = torches[i];
+      return t ? new Vector4(t[0], t[1], t[2], t[3]) : new Vector4(0, -1000, 0, 0);
+    }),
+    'vec4',
+  );
+  let sum: Node<'vec3'> = vec3(0, 0, 0);
+  for (let i = 0; i < MAX_TORCHES; i++) {
+    const l = lights.element(i) as unknown as Node<'vec4'>;
+    const d = l.xyz.sub(positionWorld);
+    const dist2 = dot(d, d);
+    const ndl = clamp(dot(normalWorld, d.normalize()), 0, 1).mul(0.8).add(0.2);
+    const reach = smoothstep(float(1), float(0.12), dist2.div(float(8 * 8)));
+    const falloff = float(1).div(float(1).add(dist2.mul(0.55)));
+    const phase = float(i * 2.13);
+    const flicker = float(0.88)
+      .add(time.mul(11).add(phase).sin().mul(0.07))
+      .add(time.mul(5.3).add(phase.mul(1.9)).sin().mul(0.05));
+    sum = sum.add(vec3(1.0, 0.5, 0.17).mul(l.w.mul(falloff).mul(ndl).mul(reach).mul(flicker)));
   }
-  return tagMaterial(material, 'masonry');
+  return { color: albedo, roughness, emissive: albedo.mul(sum), ...(normal && { normal }) };
 }

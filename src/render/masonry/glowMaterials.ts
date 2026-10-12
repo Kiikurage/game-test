@@ -16,10 +16,9 @@ import {
   time,
   vec2,
   vec3,
-  vec4,
 } from 'three/tsl';
 import { bakedNoise } from '../bakedNoise';
-import { createUberMaterial } from '../uberMaterial';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
 
 /**
  * たいまつの炎・炎の周りの光だまり（壁と床の加算の板）・蜘蛛の巣。ライトは使わない。
@@ -28,11 +27,16 @@ import { createUberMaterial } from '../uberMaterial';
  * 頂点属性 (`FxBuilder`): `uv`、`kind`（0 = 炎、1 = 光だまり）、`ph`（ゆらぎの位相）、`inten`（強さ）。
  */
 export function createFlameMaterial(): MeshBasicNodeMaterial {
-  const material = createUberMaterial({
+  return createUberMaterial({
     shading: 'unlit',
     additive: true,
     doubleSided: true,
+    surface: flameSurface,
+    surfaceId: 'torchFlame',
   });
+}
+
+function flameSurface(): UberSurface {
   const uvA = attribute('uv', 'vec2');
   const kind = attribute('kind', 'float');
   const ph = attribute('ph', 'float');
@@ -60,17 +64,21 @@ export function createFlameMaterial(): MeshBasicNodeMaterial {
     const halo = vec3(1.0, 0.46, 0.14).mul(g).mul(inten);
     return mix(flame, halo, kind).mul(flicker);
   })();
-  material.colorNode = vec4(color, 1);
-  return material;
+  return { color };
 }
 
 /** 蜘蛛の巣（扇形の板。uv = (角度 0..1, 半径 0..1)。放射状の糸と、たるんだ同心の糸、ちぎれ）。 */
 export function createWebMaterial(): MeshBasicNodeMaterial {
-  const material = createUberMaterial({
+  return createUberMaterial({
     shading: 'unlit',
     transparent: true,
     doubleSided: true,
+    surface: webSurface,
+    surfaceId: 'cobweb',
   });
+}
+
+function webSurface(): UberSurface {
   const uvA = attribute('uv', 'vec2');
   const a = uvA.x;
   const r = uvA.y;
@@ -89,9 +97,7 @@ export function createWebMaterial(): MeshBasicNodeMaterial {
       .mul(smoothstep(1.0, 0.78, r))
       .mul(0.62);
   })();
-  material.colorNode = vec4(vec3(0.34, 0.36, 0.4), 1);
-  material.opacityNode = alpha;
-  return material;
+  return { color: vec3(0.34, 0.36, 0.4), opacity: alpha };
 }
 
 /** 炎・光だまり・蜘蛛の巣の板を溜める。 */

@@ -123,6 +123,7 @@ export function createBackdropMaterial(skyAt: (dir: Node<'vec3'>) => Node<'vec3'
     transparent: true,
     noFog: true,
     surface: () => ({ color: skyAt(dir), opacity: backdropFade }),
+    surfaceId: 'arenaSky',
   });
 }
 
@@ -137,5 +138,6 @@ export function createRimMaterial(floorY: number): UberMaterial {
     transparent: true,
     noFog: true,
     surface: () => ({ color: mix(dark, glow, t.mul(t)), opacity: backdropFade }),
+    surfaceId: 'arenaHorizon',
   });
 }

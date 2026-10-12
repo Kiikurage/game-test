@@ -27,6 +27,7 @@ import {
   sign,
   smoothstep,
   step,
+  uniform,
   vec2,
   vec3,
 } from 'three/tsl';
@@ -78,7 +79,7 @@ interface StoneInput {
   /** 暗さの係数（接触 AO など。1 で影響なし）。 */
   readonly occlusion: F;
   /** ひびの量 0..1。 */
-  readonly cracks: number;
+  readonly cracks: F;
   /** 石をまたぐ大きなひびの量 0..1。 */
   readonly bigCracks: number;
 }
@@ -131,7 +132,7 @@ function shadeStone(i: StoneInput): StoneOutput {
 
   // ひび: 石ごとに入る/入らない。3D ノイズの零点集合が面上の曲線になる
   const crackSeed: F = bakedHash(cell.add(3.7));
-  const hasCrack: F = step(float(1 - i.cracks * 0.55), crackSeed);
+  const hasCrack: F = step(float(1).sub(i.cracks.mul(0.55)), crackSeed);
   // 細かい揺らぎでひびを折れ線に（なめらかな曲線にしない）
   const q: V3 = p.mul(2.6).add(cell.mul(3.1));
   // medium/low はノイズ 1 回で 3 軸を同じ向きに歪める（折れ線の形が少し単調になる）
@@ -267,7 +268,7 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): UberMaterial {
     jointW: float(0.02).add(bakedHash(cell.add(9.1)).mul(0.012)),
     grime,
     occlusion: ao.mul(wallAO).mul(float(1).sub(scorch.mul(0.4))),
-    cracks: 0.5,
+    cracks: float(0.5),
     bigCracks: 0.55,
   });
   const color = mix(shade.color, shade.color.mul(0.55), max(inlay, tick)) as V3;
@@ -278,6 +279,7 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): UberMaterial {
       emissive: color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 2.1)),
     },
     shade.roughness,
+    'arenaFloor',
     true,
   );
 }
@@ -300,15 +302,18 @@ export interface ArenaMasonryOptions {
 /** 石積みの壁・柱・台座。頂点属性 `wallS` / `wallV`（`arenaGeometry.ts`）が石の段と目地を決める。 */
 export function createArenaMasonryMaterial(o: ArenaMasonryOptions): UberMaterial {
   const p = positionWorld;
+  // 壁・柱・台座で同じシェーダになるよう、寸法・量はユニフォームで持つ（#326）
+  const courseHeight = uniform(o.courseHeight);
+  const blockWidth = uniform(o.blockWidth);
   const s: F = attribute('wallS', 'float');
   const v: F = attribute('wallV', 'float');
 
-  const rowF: F = v.div(o.courseHeight);
+  const rowF: F = v.div(courseHeight);
   const row: F = floor(rowF);
   const rowT: F = fract(rowF);
-  const dV: F = min(rowT, float(1).sub(rowT)).mul(o.courseHeight);
+  const dV: F = min(rowT, float(1).sub(rowT)).mul(courseHeight);
   // 段ごとに石の幅とずらしを変える（芋目地を避ける）
-  const width: F = float(o.blockWidth).mul(bakedHash(row.add(5.3)).mul(0.5).add(0.78));
+  const width: F = blockWidth.mul(bakedHash(row.add(5.3)).mul(0.5).add(0.78));
   const su: F = s.add(bakedHash(row.mul(1.9).add(13.1)).mul(width)).div(width);
   const col: F = floor(su);
   const suT: F = fract(su);
@@ -317,12 +322,12 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): UberMaterial
   const cell: F = bakedHash(row.mul(91.7).add(col));
 
   // 汚れ: 床に近いほど濃く、天端も雨だれで少し濃い
-  const h: F = p.y.sub(o.floorY);
+  const h: F = p.y.sub(uniform(o.floorY));
   const low: F = float(1).sub(smoothstep(0.1, 1.5, h));
   const drip: F = bakedNoise(vec3(s.mul(2.1), v.mul(0.25), 3.3))
     .mul(0.5)
     .add(0.5);
-  const grime: F = max(low.mul(0.95), drip.mul(0.38)).mul(o.grime);
+  const grime: F = max(low.mul(0.95), drip.mul(0.38)).mul(uniform(o.grime));
   const occlusion: F = mix(float(0.62), float(1), smoothstep(0.0, 0.7, h));
 
   const shade = shadeStone({
@@ -332,7 +337,7 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): UberMaterial
     jointW: float(0.022).add(bakedHash(cell.add(9.1)).mul(0.012)),
     grime,
     occlusion,
-    cracks: o.cracks,
+    cracks: uniform(o.cracks),
     bigCracks: 0,
   });
   return arenaSurfaceMaterial(
@@ -342,24 +347,25 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): UberMaterial
       emissive: shade.color.mul(torchGlow(p, normalWorld, o.torches, 2.1)),
     },
     shade.roughness,
+    'arenaMasonry',
     false,
   );
 }
 
 /**
- * 床・石積みの共通の作り方（ウーバーマテリアル + 系統の surface）。ラフネスはノードなので作成後に差す。
+ * 床・石積みの共通の作り方（ウーバーマテリアル + 系統の surface）。
  * `floorOffset`: 地形との Z ファイティングを避ける（床の円盤は地面よりわずかに浮かせてある）。
  */
 function arenaSurfaceMaterial(
   surface: UberSurface,
   roughness: F,
+  surfaceId: string,
   floorOffset: boolean,
 ): UberMaterial {
   const material = createUberMaterial(
-    { shading: 'lit', surface: () => surface, group: 'arena' },
+    { shading: 'lit', surface: () => ({ ...surface, roughness }), surfaceId, group: 'arena' },
     { roughness: 0.95, metalness: 0 },
   );
-  if ('roughnessNode' in material) material.roughnessNode = roughness;
   if (floorOffset) {
     material.polygonOffset = true;
     material.polygonOffsetFactor = -2;

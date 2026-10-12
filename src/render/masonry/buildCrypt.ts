@@ -1,5 +1,5 @@
 import { CircleGeometry, Group, Mesh, type BufferGeometry, type Material } from 'three/webgpu';
-import { color, float, mix, positionWorld, time, vec3, vec4 } from 'three/tsl';
+import { color, float, mix, positionWorld, time, vec3 } from 'three/tsl';
 import type { Level, PlacedBox, PlacedCylinder } from '../../game/world/level';
 import { createMetalMaterial } from '../levelMaterials';
 import {
@@ -739,13 +739,25 @@ function addFountain(m: MasonryBuilder, cyl: PlacedCylinder, extras: Group): voi
     cell: 0.3,
   });
   // 淀んだ水面
-  const water = createUberMaterial({ shading: 'lit' }, { roughness: 0.1, metalness: 0 });
-  const ripple = bakedNoise(vec3(positionWorld.x.mul(3), positionWorld.z.mul(3), time.mul(0.35)));
-  const tone = mix(color(0x1c3330), color(0x3b5a48), ripple.mul(0.5).add(0.5));
-  water.colorNode = vec4(tone, 1);
-  // 空を映す代わりに、弱い自己発光で水面が真っ黒にならないようにする
-  water.emissiveNode = tone.mul(0.22);
-  water.roughnessNode = float(0.12).add(ripple.mul(0.05));
+  const water = createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => {
+        const ripple = bakedNoise(
+          vec3(positionWorld.x.mul(3), positionWorld.z.mul(3), time.mul(0.35)),
+        );
+        const tone = mix(color(0x1c3330), color(0x3b5a48), ripple.mul(0.5).add(0.5));
+        return {
+          color: tone,
+          // 空を映す代わりに、弱い自己発光で水面が真っ黒にならないようにする
+          emissive: tone.mul(0.22),
+          roughness: float(0.12).add(ripple.mul(0.05)),
+        };
+      },
+      surfaceId: 'cryptWater',
+    },
+    { roughness: 0.1, metalness: 0 },
+  );
   const surface = new Mesh(new CircleGeometry(R - 0.4, 32), water);
   surface.rotation.x = -Math.PI / 2;
   surface.position.set(cyl.x, gy + 0.72 * k, cyl.z);

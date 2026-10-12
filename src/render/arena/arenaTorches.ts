@@ -149,6 +149,7 @@ export function createFlameMaterial(): UberMaterial {
     shading: 'unlit',
     noFog: true,
     surface: () => ({ color: mix(hot, cool, t.pow(0.8)), position: positionLocal.add(sway) }),
+    surfaceId: 'arenaFlame',
   });
 }
 

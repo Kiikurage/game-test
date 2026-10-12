@@ -120,7 +120,12 @@ function createRidgeMaterial(layer: RidgeLayer, sunDirNode: Node<'vec3'>): UberM
     col = col.add(sunTint.mul(pow(mu, 6).mul(layerHaze.mul(0.16))));
     return col;
   })();
-  return createUberMaterial({ shading: 'unlit', noFog: true, surface: () => ({ color }) });
+  return createUberMaterial({
+    shading: 'unlit',
+    noFog: true,
+    surface: () => ({ color }),
+    surfaceId: 'skylineLayer',
+  });
 }
 
 /** 城のシルエット（ローカル座標: +x が接線方向、+z が中心側、+y が上）。頂点色は窓の灯りだけ HDR。 */
@@ -230,6 +235,7 @@ export class Skyline {
       shading: 'unlit',
       noFog: true,
       surface: () => ({ color: castleColor.rgb }),
+      surfaceId: 'castle',
     });
     const castle = new Mesh(createCastleGeometry(), castleMaterial);
     const phi = Math.atan2(-Math.cos(LANDMARK_AZIMUTH), -Math.sin(LANDMARK_AZIMUTH));
