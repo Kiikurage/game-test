@@ -5,8 +5,8 @@
 import { ACTIONS } from '../../core/input';
 import { s, type Infer } from '../../core/schema';
 import json from './guide.json';
-import { loadData } from './loadData';
-import { NOTICE_TEXTS } from './texts';
+import { loadData } from '../../game/data/loadData';
+import { NOTICE_TEXTS } from '../../game/data/texts';
 
 const HintTextSchema = s.object({ kbm: s.string(), gamepad: s.string(), touch: s.string() });
 export type HintText = Infer<typeof HintTextSchema>;
