@@ -161,6 +161,29 @@ vsync 無しの frame は 1.6〜2.5ms（400fps 以上）で、PC high の 120fps
 | 開始画面（`#app[data-state=ready]`。アセット読み込み・ウォームアップのシェーダコンパイル込み） | 2242 |
 | running（`dev.start()` 後） | 2282 |
 
+### ロード時間の内訳（#388）
+
+`PERF_PC=1 GPU_MODE=hardware GPU_NOVSYNC=1 npm run perf -- high`（`PERF_SKIP_BUILD=1` でビルドを省ける）の startup 行のあとに、次の 2 つの表が出る。
+
+- **load span**: `performance.measure('load:<名前>')`（`src/core/loadTiming.ts`。本番にも残る）を開始時刻順に並べたもの。単位は navigation からの ms。
+  `code` `renderer` `physics` `scene` `assets` が `LOAD_STAGES` の段階、`<段階>/<内訳>` がその中の主な待ち
+  （`renderer/init` `renderer/noise` `scene/create` `scene/environment` `assets/player-view` `assets/enemy-views` `assets/plugins`（プラグイン別 `assets/plugins/<id>`。並列に走るので重なる）`assets/warm-up`（`/compile` `/first-frame` `/gpu-wait`））。
+  ready（開始画面）の時刻は `assets` の end に近い。
+- **warm-up pipelines**: `GameView.warmUp` の `compileAsync` が 1 つ進捗を返すごとに、前回からの時間とその間に作られたパイプライン（`perfProbe.pipelineLabels` と同じラベル）を記録し、長い順に上位 15 区間を出す
+  （`window.__game.dev.perfProbe().pipelineTimings`）。区間はシェーダ生成・バインディング更新・パイプライン作成の完了待ちを含む。
+  パイプラインを作らなかった区間（キャッシュ済み）は表に入らないので、区間の合計は `warm-up/compile` より短い。
+
+**冷えた状態（シェーダキャッシュなし）の測り方**: Chrome の Metal キャッシュを一時的に別名へ退避して 1 回測り、終わったら必ず戻す。
+
+```sh
+d=$(getconf DARWIN_USER_CACHE_DIR)com.google.Chrome.helper
+mv $d/com.apple.metal $d/com.apple.metal.bak
+# （計測を 1 回。失敗しても次の行は実行する）
+rm -rf $d/com.apple.metal && mv $d/com.apple.metal.bak $d/com.apple.metal
+```
+
+温まった状態は、キャッシュがある状態で 2 回続けて測った 2 回目。冷えた計測で作られたキャッシュは、退避したキャッシュを戻すときに捨てる。
+
 ### 配信サイズ（`npm run build` の `dist/`。非圧縮、JS は gzip も）
 
 | 内訳 | ファイル数 | サイズ |

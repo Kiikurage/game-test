@@ -1,5 +1,6 @@
 import { MainLoop } from './core/mainLoop';
 import type { ProgressTracker } from './core/progress';
+import { beginLoadSpan, loadSpan } from './core/loadTiming';
 import {
   createBrowserAudioEngine,
   createSfxSystem,
@@ -90,6 +91,7 @@ export async function createGameApp(
 ): Promise<GameApp> {
   try {
     preloadPhysics();
+    const endRenderer = beginLoadSpan('renderer');
     const rendererTask = progress.task('renderer');
     const physicsTask = progress.task('physics');
     const sceneTask = progress.task('scene');
@@ -97,23 +99,29 @@ export async function createGameApp(
     const quality = selectQuality(location.search, readDeviceHints());
     const gameRenderer = await createRenderer(root, quality);
     rendererTask.done();
+    endRenderer();
     const input = new InputSystem(root);
     // シーンは `?scene=` で選ぶ（既定はレベル「灰の礎」。登録は `*.scene.ts`）
+    const endSceneCreate = beginLoadSpan('scene/create');
     const { level, options: sceneOptions, cylinders } = createScene(location.search);
-    const game = await Game.create({
-      input,
-      save: new SaveStore(getLocalStorage()),
-      ...sceneOptions,
-      // `?enemies=0`: 敵を配置しない（敵に邪魔されない移動の E2E・地形の確認用）
-      ...(new URLSearchParams(location.search).get('enemies') === '0' && { enemies: [] }),
-    });
+    endSceneCreate();
+    const game = await loadSpan('physics', () =>
+      Game.create({
+        input,
+        save: new SaveStore(getLocalStorage()),
+        ...sceneOptions,
+        // `?enemies=0`: 敵を配置しない（敵に邪魔されない移動の E2E・地形の確認用）
+        ...(new URLSearchParams(location.search).get('enemies') === '0' && { enemies: [] }),
+      }),
+    );
     physicsTask.done();
+    const endScene = beginLoadSpan('scene');
     const view = new GameView(game, gameRenderer, level ?? undefined);
     game.addStaticCylinders(cylinders);
     // ?env=0: 環境メッシュを置かない（グレーボックスのまま。負荷比較用）
     if (level && new URLSearchParams(location.search).get('env') !== '0') {
       // 環境メッシュ（墓地・礼拝堂）。読み込みに失敗してもグレーボックスのまま遊べる
-      await EnvironmentAssets.load()
+      await loadSpan('scene/environment', () => EnvironmentAssets.load())
         .then((assets) => {
           view.attachEnvironment(assets);
         })
@@ -122,6 +130,8 @@ export async function createGameApp(
         });
     }
     sceneTask.done();
+    endScene();
+    const endAssets = beginLoadSpan('assets');
 
     let showcase: CharacterShowcase | undefined;
     let playerView: PlayerView | undefined;
@@ -135,13 +145,17 @@ export async function createGameApp(
       });
       if (showcase) view.shadowFocusTarget = showcase.root;
     } else {
-      playerView = await PlayerView.create(view.scene, game).catch((e: unknown) => {
+      playerView = await loadSpan('assets/player-view', () =>
+        PlayerView.create(view.scene, game),
+      ).catch((e: unknown) => {
         console.error('player view failed to load', e);
         return undefined;
       });
       if (playerView) view.attachPlayer(playerView);
       if (game.enemies.enemies.length > 0) {
-        const enemyViews = await EnemyViews.create(view.scene, game).catch((e: unknown) => {
+        const enemyViews = await loadSpan('assets/enemy-views', () =>
+          EnemyViews.create(view.scene, game),
+        ).catch((e: unknown) => {
           console.error('enemy views failed to load', e);
           return undefined;
         });
@@ -151,15 +165,18 @@ export async function createGameApp(
         }
       }
     }
-    await view.loadPlugins();
+    await loadSpan('assets/plugins', () => view.loadPlugins());
     // 初回描画のシェーダコンパイルをローディング中に済ませる（開始直後の長いカクつきを防ぐ）
     view.resize();
     // アセット段階の後半 1/2 をシェーダの事前コンパイルに充てる（#369: 進捗が止まって見えないように）
     assetsTask.set(0.5);
-    await view.warmUp((f) => {
-      assetsTask.set(0.5 + 0.5 * f);
-    });
+    await loadSpan('assets/warm-up', () =>
+      view.warmUp((f) => {
+        assetsTask.set(0.5 + 0.5 * f);
+      }),
+    );
     assetsTask.done();
+    endAssets();
 
     new ResizeObserver(() => {
       view.resize();

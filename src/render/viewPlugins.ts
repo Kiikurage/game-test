@@ -38,6 +38,12 @@ export interface ViewPlugin {
   update?(dt: number): void;
 }
 
+/** 生成した描画機能と、登録時の id（ロード時間の内訳のラベル用）。 */
+export interface NamedViewPlugin {
+  readonly id: string;
+  readonly plugin: ViewPlugin;
+}
+
 export type ViewPluginFactory = (ctx: ViewPluginContext) => ViewPlugin;
 
 const factories: { id: string; create: ViewPluginFactory }[] = [];
@@ -51,7 +57,7 @@ export function registerViewPlugin(id: string, create: ViewPluginFactory): void 
 /** 登録済みの描画機能を生成する（GameView のコンストラクタが呼ぶ）。 */
 export function createViewPlugins(
   base: Omit<ViewPluginContext, 'services'>,
-): readonly ViewPlugin[] {
+): readonly NamedViewPlugin[] {
   const ctx: ViewPluginContext = { ...base, services: createViewServices(base.view) };
-  return factories.map((f) => f.create(ctx));
+  return factories.map((f) => ({ id: f.id, plugin: f.create(ctx) }));
 }

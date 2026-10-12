@@ -1,4 +1,6 @@
 import { type Object3D, PerspectiveCamera, Quaternion, Scene, Vector3 } from 'three/webgpu';
+import { loadSpan } from '../core/loadTiming';
+import { createPipelineTimer } from './perfProbe';
 import type { Game } from '../game/game';
 import { createEnvironment, type Environment } from './environment';
 import { createFramePipeline, type FramePipeline } from './pipeline/framePipeline';
@@ -20,7 +22,7 @@ import { CombatDebugView } from './combatDebugView';
 import { profileScene, type RenderProfile } from './quality';
 import { NavDebugView } from './navDebugView';
 import { GridNavigator } from '../game/enemy/gridNavigator';
-import { createViewPlugins, type ViewPlugin } from './viewPlugins';
+import { createViewPlugins, type NamedViewPlugin } from './viewPlugins';
 import { settleWithin } from '../core/withTimeout';
 
 /** ウォームアップの GPU 完了待ちの上限（#369）。これを過ぎてもロードは進める。 */
@@ -72,7 +74,7 @@ export class GameView {
   /** ?debug のときだけ作る敵のナビゲーション（歩ける範囲・経路）の可視化。 */
   private readonly navDebug: NavDebugView | null = null;
   /** 登録式の描画機能（`viewPlugins.ts`）。 */
-  private readonly plugins: readonly ViewPlugin[];
+  private readonly plugins: readonly NamedViewPlugin[];
 
   constructor(
     private readonly game: Game,
@@ -156,9 +158,9 @@ export class GameView {
   /** 登録式の描画機能のアセットを読み込む（失敗してもゲームは続行する）。起動時に 1 度呼ぶ。 */
   async loadPlugins(): Promise<void> {
     await Promise.all(
-      this.plugins.map(async (p) => {
+      this.plugins.map(async ({ id, plugin }) => {
         try {
-          await p.load?.();
+          if (plugin.load) await loadSpan(`assets/plugins/${id}`, () => plugin.load?.());
         } catch (e) {
           console.error('view plugin failed to load', e);
         }
@@ -251,18 +253,28 @@ export class GameView {
     try {
       // 初回フレームと同じ表示状態（敵の詳細メッシュ・位置・カメラ）にしてから、写る物のパイプラインを作る
       this.updateFrame(1);
-      await this.pipeline.compileScene((loaded, total) => {
-        onProgress?.(total > 0 ? (0.9 * loaded) / total : 0.9);
-      });
+      const timer = createPipelineTimer();
+      await loadSpan('assets/warm-up/compile', () =>
+        this.pipeline.compileScene((loaded, total) => {
+          timer.lap();
+          onProgress?.(total > 0 ? (0.9 * loaded) / total : 0.9);
+        }),
+      );
       onProgress?.(0.9);
-      this.render(1);
+      // 初回描画で同期的に作られる残り（影・ポスト処理の全画面パス）
+      await loadSpan('assets/warm-up/first-frame', () => {
+        this.render(1);
+      });
+      timer.lap();
     } finally {
       this.enemyViews?.setWarmUp(false);
     }
     const device = (this.gameRenderer.renderer.backend as { device?: GPUDevice }).device;
     if (!device) return;
     // 安全網: 通常は数百 ms で終わる。待ちきれなくてもロードは先へ進める（残りは開始直後のフレームで終わる）
-    const done = await settleWithin(device.queue.onSubmittedWorkDone(), WARM_UP_TIMEOUT_MS);
+    const done = await loadSpan('assets/warm-up/gpu-wait', () =>
+      settleWithin(device.queue.onSubmittedWorkDone(), WARM_UP_TIMEOUT_MS),
+    );
     if (!done)
       console.warn(`warm-up GPU work did not finish within ${WARM_UP_TIMEOUT_MS} ms; continuing`);
   }
@@ -291,7 +303,7 @@ export class GameView {
     this.particles.update(dt, focus);
     this.telegraphDemo?.update(Math.min(dt, 0.1));
     this.telegraphs.update(dt);
-    for (const plugin of this.plugins) plugin.update?.(dt);
+    for (const { plugin } of this.plugins) plugin.update?.(dt);
     this.combatDebug?.update();
     this.navDebug?.update();
   }

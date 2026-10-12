@@ -5,6 +5,7 @@ import {
   initialScaleFor,
   type QualitySelection,
 } from './quality';
+import { loadSpan } from '../core/loadTiming';
 import { loadNoiseTextures, setMaterialDetail } from './bakedNoise';
 import { configureKtx2Loader } from './assets/ktx2';
 import { installStableBufferNames } from './stableBufferNames';
@@ -72,7 +73,7 @@ export async function createRenderer(
     trackTimestamp:
       quality.toggles.perf || new URLSearchParams(window.location.search).has('debug'),
   });
-  await renderer.init();
+  await loadSpan('renderer/init', () => renderer.init());
 
   if ((renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend !== true) {
     void renderer.dispose();
@@ -88,7 +89,7 @@ export async function createRenderer(
       .maxUniformBufferBindingSize,
   );
   // マテリアルの焼いたノイズ（#326）。失敗しても模様が消えるだけでゲームは続ける
-  await loadNoiseTextures().catch((e: unknown) => {
+  await loadSpan('renderer/noise', () => loadNoiseTextures()).catch((e: unknown) => {
     console.warn('noise textures failed to load', e);
   });
 

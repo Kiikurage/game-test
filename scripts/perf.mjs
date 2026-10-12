@@ -142,6 +142,30 @@ try {
     console.log(
       `startup (ms from navigation): DOMContentLoaded ${nav.dcl.toFixed(0)} / load ${nav.load.toFixed(0)} / ready ${readyMs.toFixed(0)} / running ${runningMs.toFixed(0)}`,
     );
+    // ロード時間の内訳（#388）。`load:<段階>` は段階、`load:<段階>/<内訳>` はその中の主な待ち（navigation からの ms）
+    const spans = await page.evaluate(() =>
+      performance
+        .getEntriesByType('measure')
+        .filter((m) => m.name.startsWith('load:'))
+        .map((m) => ({ name: m.name.slice(5), start: m.startTime, dur: m.duration })),
+    );
+    spans.sort((a, b) => a.start - b.start || a.name.split('/').length - b.name.split('/').length);
+    console.log('\n| load span | start ms | duration ms | end ms |\n| --- | --- | --- | --- |');
+    for (const m of spans) {
+      const depth = m.name.split('/').length - 1;
+      console.log(
+        `| ${'\u00a0\u00a0'.repeat(depth)}${m.name} | ${m.start.toFixed(0)} | ${m.dur.toFixed(0)} | ${(m.start + m.dur).toFixed(0)} |`,
+      );
+    }
+    // 事前コンパイル（warmUp）でのパイプライン作成時間の上位 15 区間。ラベルは下の pipelines 表と同じ
+    const timings = await page.evaluate(() => window.__game.dev.perfProbe().pipelineTimings);
+    const sum = timings.reduce((a, t) => a + t.ms, 0);
+    console.log(
+      `\nwarm-up pipelines: ${timings.reduce((a, t) => a + t.count, 0)} created in ${timings.length} intervals, ${sum.toFixed(0)} ms total (top 15 intervals)`,
+    );
+    console.log('| ms | pipelines | label |\n| --- | --- | --- |');
+    for (const t of [...timings].sort((a, b) => b.ms - a.ms).slice(0, 15))
+      console.log(`| ${t.ms.toFixed(0)} | ${t.count} | ${t.label} |`);
     const env = await page.evaluate(async () => {
       const a = await navigator.gpu?.requestAdapter();
       return {
