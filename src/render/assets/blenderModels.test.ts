@@ -3,6 +3,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { BLENDER_MODELS } from '../../../scripts/assets/blender/models.mjs';
+import { bakeLevelMeshes } from '../levelMeshes/levelMeshes.bake';
 
 const ROOT = new URL('../../../', import.meta.url).pathname;
 const read = (rel: string): Buffer => readFileSync(ROOT + rel);
@@ -19,6 +21,7 @@ interface ModelEntry {
   bytes: number;
   sha256: string;
   sourceHash: string;
+  inputHash?: string;
   lodDistances: number[];
   meshes: Record<string, { lodTriangles: number[] }>;
 }
@@ -39,14 +42,21 @@ interface Gltf {
 const manifest = JSON.parse(read('public/assets/manifest.json').toString('utf8')) as Manifest;
 const blender = manifest.blender;
 
-function sourceHash(name: string): string {
+const sha256 = (data: string | Buffer): string => createHash('sha256').update(data).digest('hex');
+
+/** scripts/assets/build-blender.mjs の sourceHash と同じ式（入力は TS の生成コードで作り直す）。 */
+function sourceHash(name: string): { source: string; input?: string } {
+  const model = BLENDER_MODELS.find((m) => m.name === name);
+  if (!model) throw new Error(`${name} is not in models.mjs`);
+  const input = model.input ? sha256(bakeLevelMeshes(model.input)) : undefined;
   const h = createHash('sha256');
-  for (const rel of [...PIPELINE_FILES, `assets-src/blender/${name}.py`]) {
+  for (const rel of [...PIPELINE_FILES, `assets-src/blender/${model.script ?? name}.py`]) {
     h.update(rel + '\0');
     h.update(read(rel));
     h.update('\0');
   }
-  return h.digest('hex');
+  if (input) h.update(`input\0${input}\0`);
+  return { source: h.digest('hex'), input };
 }
 
 function readGltf(buf: Buffer): Gltf {
@@ -66,9 +76,12 @@ describe('Blender-generated assets', () => {
       const buf = read(`public/assets/${entry.file}`);
 
       it('is up to date with its sources (run npm run assets:blender after editing them)', () => {
-        expect(sourceHash(name)).toBe(entry.sourceHash);
+        // レベル形状（input あり）は、レベルのデータや生成コードが変わると input のハッシュが変わる
+        const { source, input } = sourceHash(name);
+        expect(input).toBe(entry.inputHash);
+        expect(source).toBe(entry.sourceHash);
         expect(buf.byteLength).toBe(entry.bytes);
-        expect(createHash('sha256').update(buf).digest('hex')).toBe(entry.sha256);
+        expect(sha256(buf)).toBe(entry.sha256);
       });
 
       it('has LOD levels with decreasing triangles and lightmap UVs', () => {

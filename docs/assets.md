@@ -499,6 +499,14 @@ glb の形:
 - 全レベルが `TEXCOORD_0`（描画用。モデルスクリプトが作る。無ければ smart_project）と **`TEXCOORD_1`（ライトマップ用）** を持つ。ライトマップ UV は描画用 UV の島を複製し、`uv.pack_islands` で 0..1 に重ならないよう詰め直したもの（`lightmap_pack` は面ごとに島を割り、全辺が継ぎ目になって LOD の簡略化が効かなくなるので使わない）。LOD は頂点を間引くだけなので残った頂点の UV は LOD0 と同じ値で、**1 枚のライトマップを全レベルで共有できる**（#323）。
 - `TEXCOORD_1` は 16bit 正規化で量子化し、テクスチャが参照しなくても `prune({ keepAttributes: true })` で残す。マテリアルは片面。
 
-サンプル: `broken_column`（折れた溝彫りの石柱。LOD 17,588 / 4,396 / 1,054 tris、切替 0 / 12 / 35m、261KB）。ゲームにはまだ置いていない。
+サンプル: `assets-src/blender/broken_column.py`（折れた溝彫りの石柱。LOD 17,588 / 4,396 / 1,054 tris、切替 0 / 12 / 35m、261KB）。ゲームで使わないので #329 で配信物から外した（`models.mjs` のコメントの項目を戻せば生成できる）。
 
 新しいモデルの追加: `assets-src/blender/<name>.py` を書く → `models.mjs` に追加 → `npm run assets:blender -- <name>` → glb と `manifest.json` をコミット。実行時は `GLTFLoader`（meshopt デコーダ付き）で読み、`buildBlenderLods(gltf.scene)`。
+
+#### レベル形状のベイク（Issue #329）
+
+地下墓所・中庭・鉄門 G1（`buildCryptScene`）、闘技場の床・壁・柱・台座（`buildArenaScene`）、地下水路の殻（`buildWaterShellScene`）は、実行時に組まずに同じパイプラインで glb（`level_crypt` / `level_arena` / `level_waterway`）にする。
+
+- `models.mjs` の `input` があるモデルは、Node 側が `src/render/levelMeshes/levelMeshes.bake.ts` の `bakeLevelMeshes(input)`（vite の `runnerImport` で TS を実行）で形状の木を JSON にし、`ctx["input"]` で `assets-src/blender/level_meshes.py`（`script`）へ渡す。Blender は木（Group = 空オブジェクト、Mesh、ローカル変換、`userData`）をそのまま組み直し、ライトマップ UV を足して書き出す。LOD は 1 段。
+- `position` / `normal` 以外の頂点属性は `_<名前>` のカスタム属性（`[-1, 1]` に収まるものは 16bit、他は float）。読み込み側の `restoreBakedScene`（`src/render/levelMeshes/bakedScene.ts`）が名前（GLTFLoader が落とす `:` を含む）・属性名・`userData` を元に戻す。マテリアル・影・描画順は各 view（`assembleCrypt` など）が名前で付ける。描画用 UV の無いメッシュは、ライトマップ UV の元に作った `TEXCOORD_0` を捨てる（ノードの `extras.dropTexcoord0`。`TEXCOORD_1` だけ持つ）。
+- `manifest.json` の `inputHash` は入力 JSON の SHA-256。`blenderModels.test.ts` が CI で入力を作り直して照合するので、**レベルのデータや形状の生成コードを変えたら `npm run assets:blender -- level_crypt`（など）で作り直す**（テストが落ちて知らせる）。

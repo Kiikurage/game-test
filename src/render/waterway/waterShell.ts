@@ -2,8 +2,8 @@ import {
   Group,
   Mesh,
   type BufferGeometry,
-  type Material,
   type MeshStandardNodeMaterial,
+  type Object3D,
 } from 'three/webgpu';
 import {
   abs,
@@ -180,14 +180,18 @@ function addTorches(props: PropBuilder, flames: FxBuilder, floorY: number): void
   });
 }
 
-export function buildWaterShell(
-  level: Level,
-  way: WaterwayDef,
-  fields: WaterFields,
-  rig: WaterLightRig,
-  detail: 0 | 1 | 2,
-): WaterShell {
-  const surfaceY = fields.grid.surfaceY;
+/** 水路の床の高さ（水のある区画の最も低い床）と水面の高さ（`buildWaterGrid` と同じ）。 */
+export function waterwayHeights(way: WaterwayDef): { floorY: number; surfaceY: number } {
+  const floorY = Math.min(...way.rects.filter((r) => r.water).map((r) => r.floorY));
+  return { floorY, surfaceY: floorY + way.depth };
+}
+
+/**
+ * 地下水路の殻の形状（マテリアルなし）。ベイク時だけ呼ぶ（#329）。
+ * 実行時は glb（`level_waterway`）を読み、`buildWaterShell` がマテリアルを付ける。
+ */
+export function buildWaterShellScene(level: Level, way: WaterwayDef): Group {
+  const { floorY, surfaceY } = waterwayHeights(way);
   const groundAt = (x: number, z: number): number => {
     const r = nearestRect(way.rects, x, z);
     if (!r) return surfaceY;
@@ -235,44 +239,55 @@ export function buildWaterShell(
     });
   }
 
-  const material = createMasonryMaterial({ detail, torches: [] });
-  wrapMaterial(material, fields, rig);
-
   const props = new PropBuilder();
   const flames = new FxBuilder();
-  addTorches(props, flames, fields.grid.floorY);
+  addTorches(props, flames, floorY);
 
+  const root = new Group();
+  root.name = 'waterway-shell';
+  const add = (geometry: BufferGeometry | null, name: string): void => {
+    if (!geometry) return;
+    const mesh = new Mesh(geometry);
+    mesh.name = name;
+    root.add(mesh);
+  };
+  add(masonry.build(), 'env:waterway-masonry');
+  add(lidBuilder.build(), 'env:waterway-lid');
+  add(props.build(), 'env:waterway-torches');
+  add(flames.build(), 'env:waterway-flames');
+  return root;
+}
+
+/** ベイク済みの殻（`buildWaterShellScene` → glb、`restoreBakedScene` 済み）にマテリアルを付ける。 */
+export function buildWaterShell(
+  baked: Object3D,
+  fields: WaterFields,
+  rig: WaterLightRig,
+  detail: 0 | 1 | 2,
+): WaterShell {
+  const material = createMasonryMaterial({ detail, torches: [] });
+  wrapMaterial(material, fields, rig);
+  const metal = createMetalMaterial();
+  const flame = createFlameMaterial();
   const root = new Group();
   root.name = 'waterway-shell';
   const meshes: Mesh[] = [];
   let triangles = 0;
-  const add = (
-    geometry: BufferGeometry | null,
-    mat: Material,
-    name: string,
-    cast: boolean,
-  ): void => {
-    if (!geometry) return;
-    const mesh = new Mesh(geometry, mat);
-    mesh.name = name;
-    mesh.castShadow = cast;
+  for (const o of [...baked.children]) {
+    const mesh = o as Mesh;
+    if ((o as { isMesh?: boolean }).isMesh !== true) continue;
+    mesh.castShadow = false;
     mesh.receiveShadow = true;
+    if (mesh.name === 'env:waterway-torches') mesh.material = metal;
+    else if (mesh.name === 'env:waterway-flames') {
+      mesh.material = flame;
+      mesh.receiveShadow = false;
+      mesh.renderOrder = 2;
+    } else mesh.material = material;
     root.add(mesh);
     meshes.push(mesh);
-    triangles += (geometry.index ? geometry.index.count : 0) / 3;
-  };
-  const merged = masonry.build();
-  add(merged, material, 'env:waterway-masonry', false);
-  add(lidBuilder.build(), material, 'env:waterway-lid', false);
-  add(props.build(), createMetalMaterial(), 'env:waterway-torches', false);
-  const flameMesh = flames.build();
-  if (flameMesh) {
-    add(flameMesh, createFlameMaterial(), 'env:waterway-flames', false);
-    const last = meshes[meshes.length - 1];
-    if (last) {
-      last.receiveShadow = false;
-      last.renderOrder = 2;
-    }
+    const g = mesh.geometry;
+    triangles += (g.index ? g.index.count : 0) / 3;
   }
   return { root, triangles, meshes };
 }
