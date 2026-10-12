@@ -195,6 +195,7 @@ export class CombatDebugView {
     this.geometry.setAttribute('position', this.positionAttr);
     this.geometry.setAttribute('color', this.colorAttr);
     this.geometry.setDrawRange(0, 0);
+    // ウーバーマテリアルの例外: デバッグ表示の線（Line はメッシュのシェーダと別系統。#326）
     const material = new LineBasicNodeMaterial({
       vertexColors: true,
       depthTest: false,

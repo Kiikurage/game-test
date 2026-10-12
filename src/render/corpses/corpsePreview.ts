@@ -1,3 +1,4 @@
+import { createUberMaterial } from '../uberMaterial';
 import {
   BoxGeometry,
   CircleGeometry,
@@ -5,7 +6,6 @@ import {
   GridHelper,
   HemisphereLight,
   Mesh,
-  MeshStandardMaterial,
   type Camera,
   type Scene,
   Vector3,
@@ -38,8 +38,8 @@ export interface CorpsePreviewState {
   readonly drawMeshes: number;
 }
 
-const STONE = new MeshStandardMaterial({ color: 0x5a554e, roughness: 0.95 });
-const GROUND = new MeshStandardMaterial({ color: 0x4a4238, roughness: 1 });
+const STONE = createUberMaterial({ shading: 'lit' }, { color: 0x5a554e, roughness: 0.95 });
+const GROUND = createUberMaterial({ shading: 'lit' }, { color: 0x4a4238, roughness: 1 });
 
 function block(w: number, h: number, d: number, x: number, y: number, z: number): Mesh {
   const mesh = new Mesh(new BoxGeometry(w, h, d), STONE);

@@ -1,13 +1,10 @@
 import {
-  AdditiveBlending,
   BoxGeometry,
   CircleGeometry,
   Euler,
   Group,
   Matrix4,
   Mesh,
-  MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
   Quaternion,
   SphereGeometry,
   Vector3,
@@ -21,6 +18,7 @@ import { bossDefeatOf } from '../../game/boss/bossDefeat.system';
 import { mergeAll } from './arenaGeometry';
 import type { Bonfire } from '../particles';
 import { registerViewPlugin } from '../viewPlugins';
+import { createUberMaterial } from '../uberMaterial';
 
 /**
  * 闘技場の台座の篝火（#86 / 8.4 節）。ボス撃破の F300 に灯る（`bonfiresOf(game)` に `ARENA_BONFIRE_ID` が現れる）。
@@ -120,12 +118,6 @@ function createGlowDisc(): {
   const alpha = uniform(0);
   const geometry = new CircleGeometry(1, 64);
   geometry.rotateX(-Math.PI / 2);
-  const material = new MeshBasicNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
-    fog: false,
-  });
   const r = length(positionLocal.xz);
   // 輪: 外縁へ向かって強く、内側へ尾を引く
   const head = smoothstep(ring.sub(0.34), ring, r).mul(
@@ -134,8 +126,15 @@ function createGlowDisc(): {
   const body = float(1)
     .sub(smoothstep(0, ring, r))
     .mul(0.18);
-  material.colorNode = vec3(3.4, 1.15, 0.22).mul(head.add(body));
-  material.opacityNode = alpha.mul(float(1).sub(smoothstep(0.82, 1, r)));
+  const material = createUberMaterial({
+    shading: 'unlit',
+    additive: true,
+    noFog: true,
+    surface: () => ({
+      color: vec3(3.4, 1.15, 0.22).mul(head.add(body)),
+      opacity: alpha.mul(float(1).sub(smoothstep(0.82, 1, r))),
+    }),
+  });
   const mesh = new Mesh(geometry, material);
   mesh.visible = false;
   mesh.frustumCulled = false;
@@ -162,9 +161,14 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
 
   // 灰の山（熾火の発光 = kindle）。潰れた半球
   const kindle = uniform(0);
-  const moundMaterial = new MeshStandardNodeMaterial({ color: 0x1c1a19, roughness: 1 });
   const flicker = time.mul(7.3).sin().mul(0.2).add(time.mul(13.1).add(1.7).sin().mul(0.1)).add(0.8);
-  moundMaterial.emissiveNode = vec3(2.6, 0.55, 0.08).mul(kindle).mul(flicker);
+  const moundMaterial = createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => ({ emissive: vec3(2.6, 0.55, 0.08).mul(kindle).mul(flicker) }),
+    },
+    { color: 0x1c1a19, roughness: 1 },
+  );
   const mound = new Mesh(
     new SphereGeometry(0.62, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
     moundMaterial,
@@ -173,13 +177,13 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
   mound.receiveShadow = true;
   const stones = new Mesh(
     createStoneRing(),
-    new MeshStandardNodeMaterial({ color: 0x4a463f, roughness: 0.95 }),
+    createUberMaterial({ shading: 'lit' }, { color: 0x4a463f, roughness: 0.95 }),
   );
   stones.castShadow = true;
   stones.receiveShadow = true;
   const sword = new Mesh(
     createSword(),
-    new MeshStandardNodeMaterial({ color: 0x6b5f52, roughness: 0.62, metalness: 0.7 }),
+    createUberMaterial({ shading: 'lit' }, { color: 0x6b5f52, roughness: 0.62, metalness: 0.7 }),
   );
   sword.castShadow = true;
   root.add(mound, stones, sword);

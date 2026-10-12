@@ -290,6 +290,7 @@ function createUndeadMaterial(
   baked: boolean,
   glow: { readonly shield: boolean; readonly hasEdge: boolean },
 ): MeshStandardNodeMaterial {
+  // uber の例外: glTF の法線マップを引き継ぐ（uber はテクスチャマップを持たない）
   const material = new MeshStandardNodeMaterial();
   material.name = `Undead_${role}_${src.name}`;
   if (src.normalMap) {

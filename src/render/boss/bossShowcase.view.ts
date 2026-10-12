@@ -282,6 +282,7 @@ function reachMarker(radius: number): Object3D {
     }
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+    // uber の例外: デバッグ・確認用の線（メッシュではない）
     const material = new LineBasicNodeMaterial({ color });
     material.depthTest = false;
     material.transparent = true;
@@ -295,6 +296,7 @@ function reachMarker(radius: number): Object3D {
   // 正面（+Z）に、射程の位置の細い柱（高さ 5m）
   const post = new LineSegments(
     new BufferGeometry().setFromPoints([new Vector3(0, 0, radius), new Vector3(0, 5, radius)]),
+    // uber の例外: デバッグ・確認用の線（メッシュではない）
     new LineBasicNodeMaterial({ color: 0xffe14a }),
   );
   post.renderOrder = 20;

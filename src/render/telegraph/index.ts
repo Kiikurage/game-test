@@ -1,11 +1,5 @@
-import {
-  DoubleSide,
-  Group,
-  Mesh,
-  MeshBasicNodeMaterial,
-  type Node,
-  type UniformNode,
-} from 'three/webgpu';
+import type { MeshBasicNodeMaterial } from 'three/webgpu';
+import { Group, Mesh, type Node, type UniformNode } from 'three/webgpu';
 import {
   abs,
   attribute,
@@ -16,14 +10,14 @@ import {
   fwidth,
   length,
   mix,
-  mx_noise_float,
-  mx_worley_noise_vec2,
   sin,
   smoothstep,
   uniform,
   vec2,
   vec3,
 } from 'three/tsl';
+import { bakedCellEdge, bakedNoise2 } from '../bakedNoise';
+import { createUberMaterial } from '../uberMaterial';
 import { terrainHeight } from '../../game/world/terrain';
 import {
   GROUND_LIFT,
@@ -78,11 +72,12 @@ function createUniforms(): Uniforms {
 
 function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
   const local = attribute('aLocal', 'vec2');
-  const material = new MeshBasicNodeMaterial();
-  material.transparent = true;
-  material.depthWrite = false;
-  material.side = DoubleSide;
-  material.fog = false;
+  const material = createUberMaterial({
+    shading: 'unlit',
+    transparent: true,
+    doubleSided: true,
+    noFog: true,
+  });
   // 地形メッシュとのわずかな高さの食い違いによるちらつきを避ける
   material.polygonOffset = true;
   material.polygonOffsetFactor = -2;
@@ -93,8 +88,7 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
   const emberDim = vec3(0.62, 0.2, 0.07);
   const emberHot = vec3(1.0, 0.42, 0.12);
   const crack = (xy: Node<'vec2'>): Node<'float'> => {
-    const w = mx_worley_noise_vec2(xy);
-    return float(1).sub(smoothstep(0.0, 0.09, w.y.sub(w.x)));
+    return float(1).sub(smoothstep(0.0, 0.09, bakedCellEdge(xy)));
   };
 
   if (kind === 'circle') {
@@ -220,8 +214,8 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
     }
 
     // 細かいひび: ノイズの零交差（格子にならず不規則に枝分かれして見える）
-    const warp = mx_noise_float(vec2(m, sAlong).mul(1.3).add(sd)).mul(0.35);
-    const nz = mx_noise_float(vec2(m.add(warp), sAlong.sub(warp)).mul(2.1).add(sd.mul(0.7)));
+    const warp = bakedNoise2(vec2(m, sAlong).mul(1.3).add(sd)).mul(0.35);
+    const nz = bakedNoise2(vec2(m.add(warp), sAlong.sub(warp)).mul(2.1).add(sd.mul(0.7)));
     const hairNear = float(1)
       .sub(smoothstep(0.12, 0.55, dMain))
       .mul(reached);

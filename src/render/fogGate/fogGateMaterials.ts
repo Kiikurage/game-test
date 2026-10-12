@@ -1,4 +1,4 @@
-import { DoubleSide, MeshBasicNodeMaterial } from 'three/webgpu';
+import type { MeshBasicNodeMaterial } from 'three/webgpu';
 import type { Node, UniformNode } from 'three/webgpu';
 import {
   abs,
@@ -8,7 +8,6 @@ import {
   float,
   length,
   mix,
-  mx_noise_float,
   normalize,
   normalWorld,
   positionWorld,
@@ -22,6 +21,8 @@ import {
   vec3,
   vec4,
 } from 'three/tsl';
+import { bakedNoise } from '../bakedNoise';
+import { createUberMaterial } from '../uberMaterial';
 
 type F = Node<'float'>;
 
@@ -63,11 +64,11 @@ export function createFogWallMaterial(
     lite?: boolean;
   },
 ): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({
-    fog: false,
+  const material = createUberMaterial({
+    shading: 'unlit',
     transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
+    doubleSided: true,
+    noFog: true,
   });
   const { seed, flow, width, height, strength } = options;
   const uvn = uv();
@@ -75,14 +76,14 @@ export function createFogWallMaterial(
   const t: F = time.mul(speed);
   // 世界の大きさで模様を作る（幅・高さが違っても粒が揃う）
   const p = vec3(uvn.x.mul(width), uvn.y.mul(height).sub(t), time.mul(0.11).mul(flow).add(seed));
-  const lowN: F = mx_noise_float(p.mul(vec3(0.7, 0.42, 0.7)));
-  const midN: F = mx_noise_float(p.mul(vec3(1.7, 1.05, 1.7)).add(vec3(3.1, 0.0, 8.7)));
+  const lowN: F = bakedNoise(p.mul(vec3(0.7, 0.42, 0.7)));
+  const midN: F = bakedNoise(p.mul(vec3(1.7, 1.05, 1.7)).add(vec3(3.1, 0.0, 8.7)));
   const sum: F = options.lite
     ? lowN.mul(0.65).add(midN.mul(0.35))
     : lowN
         .mul(0.55)
         .add(midN.mul(0.3))
-        .add(mx_noise_float(p.mul(vec3(4.2, 2.6, 4.2)).add(vec3(9.4, 1.3, 2.2))).mul(0.15));
+        .add(bakedNoise(p.mul(vec3(4.2, 2.6, 4.2)).add(vec3(9.4, 1.3, 2.2))).mul(0.15));
   const fbm: F = sum.mul(0.5).add(0.5);
   // 揺らぎ: 縦の帯が横に流れる
   const sway: F = sin(uvn.y.mul(5.5).add(time.mul(1.3).mul(flow)).add(lowN.mul(3.0)))
@@ -120,11 +121,11 @@ export function createFogPillarMaterial(
   u: FogUniforms,
   options: { baseY: number; height: number; seed: number; flow: number; strength: number },
 ): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({
-    fog: false,
+  const material = createUberMaterial({
+    shading: 'unlit',
     transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
+    doubleSided: true,
+    noFog: true,
   });
   const { baseY, height, seed, flow, strength } = options;
   const h: F = positionWorld.y.sub(baseY).div(height).clamp(0, 1);
@@ -132,10 +133,10 @@ export function createFogPillarMaterial(
   const speed: F = float(0.32).add(u.surge.mul(0.5)).mul(flow);
   // 縦に長い筋（角度方向は細かく、高さ方向はゆっくり）。上へ流れる
   const q = vec3(ang.mul(9.0), h.mul(height).mul(0.075).sub(time.mul(speed)), seed);
-  const streak: F = mx_noise_float(q)
+  const streak: F = bakedNoise(q)
     .mul(0.6)
-    .add(mx_noise_float(q.mul(2.3).add(5.7)).mul(0.4));
-  const wisp: F = mx_noise_float(
+    .add(bakedNoise(q.mul(2.3).add(5.7)).mul(0.4));
+  const wisp: F = bakedNoise(
     vec3(ang.mul(3.0).add(time.mul(0.05)), h.mul(2.6).sub(time.mul(0.18).mul(flow)), seed + 4.2),
   );
   const n: F = streak.mul(0.5).add(wisp.mul(0.5)).mul(0.5).add(0.5);
@@ -170,18 +171,18 @@ export function createFogPillarMaterial(
 
 /** 地表の霧（門の足元から広がる低い霧の円盤。ゆっくり渦を巻く）。 */
 export function createGroundMistMaterial(u: FogUniforms, radius: number): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({
-    fog: false,
+  const material = createUberMaterial({
+    shading: 'unlit',
     transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
+    doubleSided: true,
+    noFog: true,
   });
   const c = uv().sub(0.5).mul(2);
   const r: F = length(c);
   const a: F = atan(c.y, c.x);
   const swirl = vec2(r.mul(3.2).add(time.mul(0.12)), a.mul(1.6).add(time.mul(0.1)).add(r.mul(2.0)));
-  const n1: F = mx_noise_float(vec3(swirl.x.mul(radius * 0.18), swirl.y, time.mul(0.07)));
-  const n2: F = mx_noise_float(
+  const n1: F = bakedNoise(vec3(swirl.x.mul(radius * 0.18), swirl.y, time.mul(0.07)));
+  const n2: F = bakedNoise(
     vec3(c.x.mul(radius * 0.4).add(time.mul(0.2)), c.y.mul(radius * 0.4), 5.3),
   );
   const n: F = n1.mul(0.6).add(n2.mul(0.4)).mul(0.5).add(0.5);

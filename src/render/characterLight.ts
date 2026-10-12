@@ -238,6 +238,7 @@ export function applyCharacterLight(root: Object3D): CharacterLight {
 
 function withCharacterLight(src: Material, controls: RimControls, isWeapon: boolean): Material {
   if ((src as { isNodeMaterial?: boolean }).isNodeMaterial) return src;
+  // uber の例外: glTF 由来のマテリアル（マップ類）のプロパティを丸ごと写す
   const material = new MeshStandardNodeMaterial();
   const target = material as unknown as Record<string, unknown>;
   const source = src as unknown as Record<string, unknown>;

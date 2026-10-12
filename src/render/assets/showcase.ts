@@ -1,7 +1,7 @@
+import { createUberMaterial } from '../uberMaterial';
 import {
   BoxGeometry,
   Mesh as ThreeMesh,
-  MeshBasicNodeMaterial,
   Timer,
   Vector3,
   type Camera,
@@ -273,7 +273,7 @@ function applyLightView(camera: Camera, azimuth: number, dist: number, count: nu
 
 /** 影の確認用: 太陽とキャラクターの間に、描画されない（影だけ落とす）遮蔽物を置く。 */
 function addShadeOccluder(scene: Scene): void {
-  const material = new MeshBasicNodeMaterial();
+  const material = createUberMaterial({ shading: 'unlit' });
   material.colorWrite = false;
   material.depthWrite = false;
   const box = new ThreeMesh(new BoxGeometry(14, 14, 14), material);

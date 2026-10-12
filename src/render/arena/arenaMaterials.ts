@@ -1,8 +1,7 @@
-import { MeshStandardNodeMaterial } from 'three/webgpu';
+import { createUberMaterial, type UberMaterial, type UberSurface } from '../uberMaterial';
 import type { Node } from 'three/webgpu';
 import { torchGlow, type Torch } from './arenaTorches';
-import { bakedNoise, getMaterialDetail } from '../bakedNoise';
-import { tagMaterial } from '../materialGroups';
+import { bakedHash, bakedNoise, getMaterialDetail } from '../bakedNoise';
 import {
   abs,
   atan,
@@ -15,7 +14,6 @@ import {
   floor,
   fract,
   fwidth,
-  hash,
   length,
   max,
   min,
@@ -105,8 +103,8 @@ function shadeStone(i: StoneInput): StoneOutput {
   const onStone: F = smoothstep(i.jointW.sub(aa.mul(0.9)), i.jointW.add(aa.mul(0.9)), edgeN);
 
   // 石ごとの明暗と色味（寒色寄り ↔ 暖色寄り）
-  const tone: F = float(0.5).add(hash(cell).mul(0.85));
-  const hue = mix(vec3(0.83, 0.92, 1.05), vec3(1.07, 0.97, 0.8), hash(cell.add(17.3)));
+  const tone: F = float(0.5).add(bakedHash(cell).mul(0.85));
+  const hue = mix(vec3(0.83, 0.92, 1.05), vec3(1.07, 0.97, 0.8), bakedHash(cell.add(17.3)));
   // 石の中の染み（低周波）と粒（高周波）、孔
   const stain: F = bakedNoise(p.mul(0.85).add(cell.mul(1.7)))
     .mul(0.5)
@@ -132,7 +130,7 @@ function shadeStone(i: StoneInput): StoneOutput {
     .mul(edgeWear);
 
   // ひび: 石ごとに入る/入らない。3D ノイズの零点集合が面上の曲線になる
-  const crackSeed: F = hash(cell.add(3.7));
+  const crackSeed: F = bakedHash(cell.add(3.7));
   const hasCrack: F = step(float(1 - i.cracks * 0.55), crackSeed);
   // 細かい揺らぎでひびを折れ線に（なめらかな曲線にしない）
   const q: V3 = p.mul(2.6).add(cell.mul(3.1));
@@ -212,13 +210,7 @@ export interface ArenaFloorOptions {
   readonly torches: readonly Torch[];
 }
 
-export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 0.95, metalness: 0 });
-  // 地形との Z ファイティングを避ける（床の円盤は地面よりわずかに浮かせてある）
-  material.polygonOffset = true;
-  material.polygonOffsetFactor = -2;
-  material.polygonOffsetUnits = -2;
-
+export function createArenaFloorMaterial(o: ArenaFloorOptions): UberMaterial {
   const p = positionWorld;
   const rel = vec2(p.x.sub(o.cx), p.z.sub(o.cz));
   const r: F = length(rel);
@@ -231,12 +223,12 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNode
   // 外側の輪ほど石の数が増え、石の長さがほぼ一定（約 1.6m）になる
   const count: F = max(round(ringMid.mul(PI2 / 1.6)), float(6));
   const turn: F = atan(rel.y, rel.x).div(PI2);
-  const u: F = turn.mul(count).add(hash(ringI.mul(3.17)));
+  const u: F = turn.mul(count).add(bakedHash(ringI.mul(3.17)));
   const cellIndex: F = floor(u);
   const uT: F = fract(u);
   const dArc: F = min(uT, float(1).sub(uT)).mul(ringMid.mul(PI2).div(count));
   const edge: F = min(dRing, dArc);
-  const cell: F = hash(ringI.mul(53.1).add(cellIndex.mod(count)));
+  const cell: F = bakedHash(ringI.mul(53.1).add(cellIndex.mod(count)));
 
   // 汚れ: 壁際・柱の根元・台座の周りに溜まる + 低周波のむら
   const wall: F = smoothstep(o.radius - 3.2, o.radius, r);
@@ -272,18 +264,22 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): MeshStandardNode
     edge,
     cell,
     p,
-    jointW: float(0.02).add(hash(cell.add(9.1)).mul(0.012)),
+    jointW: float(0.02).add(bakedHash(cell.add(9.1)).mul(0.012)),
     grime,
     occlusion: ao.mul(wallAO).mul(float(1).sub(scorch.mul(0.4))),
     cracks: 0.5,
     bigCracks: 0.55,
   });
   const color = mix(shade.color, shade.color.mul(0.55), max(inlay, tick)) as V3;
-  material.colorNode = color;
-  material.roughnessNode = shade.roughness;
-  material.normalNode = bumpNormal(shade.height, 1);
-  material.emissiveNode = color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 2.1));
-  return tagMaterial(material, 'arena');
+  return arenaSurfaceMaterial(
+    {
+      color,
+      normal: bumpNormal(shade.height, 1),
+      emissive: color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 2.1)),
+    },
+    shade.roughness,
+    true,
+  );
 }
 
 /** 石積み（壁・柱・台座）の設定。 */
@@ -302,8 +298,7 @@ export interface ArenaMasonryOptions {
 }
 
 /** 石積みの壁・柱・台座。頂点属性 `wallS` / `wallV`（`arenaGeometry.ts`）が石の段と目地を決める。 */
-export function createArenaMasonryMaterial(o: ArenaMasonryOptions): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 0.95, metalness: 0 });
+export function createArenaMasonryMaterial(o: ArenaMasonryOptions): UberMaterial {
   const p = positionWorld;
   const s: F = attribute('wallS', 'float');
   const v: F = attribute('wallV', 'float');
@@ -313,13 +308,13 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): MeshStandard
   const rowT: F = fract(rowF);
   const dV: F = min(rowT, float(1).sub(rowT)).mul(o.courseHeight);
   // 段ごとに石の幅とずらしを変える（芋目地を避ける）
-  const width: F = float(o.blockWidth).mul(hash(row.add(5.3)).mul(0.5).add(0.78));
-  const su: F = s.add(hash(row.mul(1.9).add(13.1)).mul(width)).div(width);
+  const width: F = float(o.blockWidth).mul(bakedHash(row.add(5.3)).mul(0.5).add(0.78));
+  const su: F = s.add(bakedHash(row.mul(1.9).add(13.1)).mul(width)).div(width);
   const col: F = floor(su);
   const suT: F = fract(su);
   const dU: F = min(suT, float(1).sub(suT)).mul(width);
   const edge: F = min(dV, dU);
-  const cell: F = hash(row.mul(91.7).add(col));
+  const cell: F = bakedHash(row.mul(91.7).add(col));
 
   // 汚れ: 床に近いほど濃く、天端も雨だれで少し濃い
   const h: F = p.y.sub(o.floorY);
@@ -334,15 +329,41 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): MeshStandard
     edge,
     cell,
     p,
-    jointW: float(0.022).add(hash(cell.add(9.1)).mul(0.012)),
+    jointW: float(0.022).add(bakedHash(cell.add(9.1)).mul(0.012)),
     grime,
     occlusion,
     cracks: o.cracks,
     bigCracks: 0,
   });
-  material.colorNode = shade.color;
-  material.roughnessNode = shade.roughness;
-  material.normalNode = bumpNormal(shade.height, 1);
-  material.emissiveNode = shade.color.mul(torchGlow(p, normalWorld, o.torches, 2.1));
-  return tagMaterial(material, 'arena');
+  return arenaSurfaceMaterial(
+    {
+      color: shade.color,
+      normal: bumpNormal(shade.height, 1),
+      emissive: shade.color.mul(torchGlow(p, normalWorld, o.torches, 2.1)),
+    },
+    shade.roughness,
+    false,
+  );
+}
+
+/**
+ * 床・石積みの共通の作り方（ウーバーマテリアル + 系統の surface）。ラフネスはノードなので作成後に差す。
+ * `floorOffset`: 地形との Z ファイティングを避ける（床の円盤は地面よりわずかに浮かせてある）。
+ */
+function arenaSurfaceMaterial(
+  surface: UberSurface,
+  roughness: F,
+  floorOffset: boolean,
+): UberMaterial {
+  const material = createUberMaterial(
+    { shading: 'lit', surface: () => surface, group: 'arena' },
+    { roughness: 0.95, metalness: 0 },
+  );
+  if ('roughnessNode' in material) material.roughnessNode = roughness;
+  if (floorOffset) {
+    material.polygonOffset = true;
+    material.polygonOffsetFactor = -2;
+    material.polygonOffsetUnits = -2;
+  }
+  return material;
 }

@@ -5,8 +5,7 @@ import {
   Float32BufferAttribute,
   Group,
   Mesh,
-  MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
+  type MeshStandardNodeMaterial,
   SphereGeometry,
   Uint32BufferAttribute,
   ConeGeometry,
@@ -33,6 +32,7 @@ import {
   createGroundMaterial,
 } from './levelMaterials';
 import type { Bonfire, ParticleSystem } from './particles';
+import { createUberMaterial, type UberMaterial } from './uberMaterial';
 import { MASONRY_LEVER_ID, isMasonryGate, isMasonryProp } from './masonry/cryptLayout';
 
 const DEG = Math.PI / 180;
@@ -123,11 +123,11 @@ export function createLevelTerrainGeometry(level: Level): BufferGeometry {
   return geometry;
 }
 
-function boxMesh(spec: PlacedBox, materials: Map<number, MeshStandardNodeMaterial>): Mesh {
+function boxMesh(spec: PlacedBox, materials: Map<number, UberMaterial>): Mesh {
   const color = BLOCK_COLOR[spec.style];
   let material = materials.get(color);
   if (!material) {
-    material = new MeshStandardNodeMaterial({ color, roughness: 0.92, metalness: 0 });
+    material = createUberMaterial({ shading: 'lit' }, { color, roughness: 0.92, metalness: 0 });
     materials.set(color, material);
   }
   const mesh = new Mesh(new BoxGeometry(spec.hx * 2, spec.hy * 2, spec.hz * 2), material);
@@ -138,16 +138,27 @@ function boxMesh(spec: PlacedBox, materials: Map<number, MeshStandardNodeMateria
   return mesh;
 }
 
-const BARK = new MeshStandardNodeMaterial({ color: 0x3f352c, roughness: 1, metalness: 0 });
-const COLUMN = new MeshStandardNodeMaterial({ color: 0x8a8378, roughness: 0.9, metalness: 0 });
-const WATER = new MeshStandardNodeMaterial({ color: 0x2a3a4a, roughness: 0.2, metalness: 0 });
-const IRON = new MeshStandardNodeMaterial({ color: 0x2c2b2a, roughness: 0.6, metalness: 0.5 });
+const BARK = createUberMaterial(
+  { shading: 'lit' },
+  { color: 0x3f352c, roughness: 1, metalness: 0 },
+);
+const COLUMN = createUberMaterial(
+  { shading: 'lit' },
+  { color: 0x8a8378, roughness: 0.9, metalness: 0 },
+);
+const WATER = createUberMaterial(
+  { shading: 'lit' },
+  { color: 0x2a3a4a, roughness: 0.2, metalness: 0 },
+);
+const IRON = createUberMaterial(
+  { shading: 'lit' },
+  { color: 0x2c2b2a, roughness: 0.6, metalness: 0.5 },
+);
 /** 結合したグレーボックス用（色は頂点色）。 */
-const GRAYBOX_MATERIAL = new MeshStandardNodeMaterial({
-  vertexColors: true,
-  roughness: 0.92,
-  metalness: 0,
-});
+const GRAYBOX_MATERIAL = createUberMaterial(
+  { shading: 'lit', vertexColors: true },
+  { roughness: 0.92, metalness: 0 },
+);
 
 function cylinderObject(c: PlacedCylinder): Group {
   const group = new Group();
@@ -231,7 +242,7 @@ export class LevelView {
     ground.name = 'ground';
     this.root.add(ground);
 
-    const materials = new Map<number, MeshStandardNodeMaterial>();
+    const materials = new Map<number, UberMaterial>();
     for (const box of level.boxes) {
       if (isMasonryProp(box.id)) continue; // 地下墓所・中庭は masonry/crypt.view.ts が描く
       // 闘技場の壁は `arena.view.ts` が石積みのメッシュで描く
@@ -396,14 +407,14 @@ export class LevelView {
     const y = this.level.heightAt(x, z);
     const flame = new Mesh(
       new ConeGeometry(0.4, 1.3, 10),
-      new MeshBasicNodeMaterial({ color: 0xff8a2a }),
+      createUberMaterial({ shading: 'unlit' }, { color: 0xff8a2a }),
     );
     flame.position.set(x, y + 0.5 + 0.65, z);
     this.root.add(flame);
     this.grayboxBonfire.push(flame);
     const sword = new Mesh(
       new BoxGeometry(0.08, 1.4, 0.08),
-      new MeshStandardNodeMaterial({ color: 0x6a645c, roughness: 0.8 }),
+      createUberMaterial({ shading: 'lit' }, { color: 0x6a645c, roughness: 0.8 }),
     );
     sword.position.set(x, y + 0.5 + 0.7, z);
     this.root.add(sword);
@@ -439,7 +450,10 @@ export class LevelView {
       } else {
         const fog = new Mesh(
           new BoxGeometry(def.width, def.height, 0.1),
-          new MeshBasicNodeMaterial({ color: 0xa8c8ff, transparent: true, opacity: 0.18 }),
+          createUberMaterial(
+            { shading: 'unlit', transparent: true, depthWrite: true },
+            { color: 0xa8c8ff, opacity: 0.18 },
+          ),
         );
         fog.position.y = def.height / 2;
         gate.add(fog);
@@ -467,7 +481,7 @@ export class LevelView {
     const top = tower.y + tower.hy;
     const lamp = new Mesh(
       new SphereGeometry(0.9, 12, 8),
-      new MeshBasicNodeMaterial({ color: 0xffa040 }),
+      createUberMaterial({ shading: 'unlit' }, { color: 0xffa040 }),
     );
     lamp.position.set(tower.x, top + 0.9, tower.z);
     this.root.add(lamp);
@@ -477,7 +491,7 @@ export class LevelView {
   /** アイテムの配置の目印（グレーボックス用。実体は後続チケットで差し替える）。敵は `EnemyViews` が描く。 */
   private addSpawnMarkers(): void {
     const { items } = this.level.data;
-    const itemMat = new MeshBasicNodeMaterial({ color: 0xf0c050 });
+    const itemMat = createUberMaterial({ shading: 'unlit' }, { color: 0xf0c050 });
     for (const item of items) {
       const marker = new Mesh(new SphereGeometry(0.2, 10, 8), itemMat);
       marker.position.set(item.x, this.level.heightAt(item.x, item.z) + 0.6, item.z);

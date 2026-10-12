@@ -4,7 +4,6 @@ import {
   Float32BufferAttribute,
   Group,
   Mesh,
-  MeshStandardNodeMaterial,
   Uint32BufferAttribute,
   type Object3D,
 } from 'three/webgpu';
@@ -15,6 +14,7 @@ import { WAKE_KIND, waterWakeOf } from '../../game/world/waterWake.system';
 import { DUSK_MOOD, type Mood } from '../environment';
 import { REFLECT_LAYER } from '../layers';
 import { registerViewPlugin } from '../viewPlugins';
+import { createUberMaterial } from '../uberMaterial';
 import { createWaterFx, type SplashKind, type WaterFx } from './waterFx';
 import { buildWaterGrid, buildWaterSurface, isWater } from './waterLayout';
 import { createLightRig } from './waterLighting';
@@ -112,8 +112,14 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
   view.scene.add(root);
   if (!level) return {};
 
-  const wood = new MeshStandardNodeMaterial({ color: 0x5a4430, roughness: 0.95, metalness: 0 });
-  const iron = new MeshStandardNodeMaterial({ color: 0x35302c, roughness: 0.6, metalness: 0.5 });
+  const wood = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x5a4430, roughness: 0.95, metalness: 0 },
+  );
+  const iron = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x35302c, roughness: 0.6, metalness: 0.5 },
+  );
 
   const hatchBox = level.boxes.find((b) => b.style === 'hatch');
   let hatch: Object3D | null = null;

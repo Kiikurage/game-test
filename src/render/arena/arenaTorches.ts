@@ -2,8 +2,6 @@ import {
   BoxGeometry,
   CylinderGeometry,
   Float32BufferAttribute,
-  MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
   SphereGeometry,
 } from 'three/webgpu';
 import type { Node, BufferGeometry } from 'three/webgpu';
@@ -20,8 +18,8 @@ import {
   sin,
   time,
   vec3,
-  vec4,
 } from 'three/tsl';
+import { createUberMaterial, type UberMaterial } from '../uberMaterial';
 import type { ArenaDef } from '../../game/world/arena';
 import { mergeAll } from './arenaGeometry';
 
@@ -137,8 +135,7 @@ export function createFlameGeometry(torches: readonly Torch[]): BufferGeometry {
 }
 
 /** 炎のマテリアル（HDR。根元は黄白、先端は橙。ゆらぎは頂点シェーダ）。 */
-export function createFlameMaterial(): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({ fog: false });
+export function createFlameMaterial(): UberMaterial {
   const t: F = attribute('flameT', 'float');
   const phase: F = attribute('phase', 'float');
   const sway = vec3(
@@ -146,13 +143,18 @@ export function createFlameMaterial(): MeshBasicNodeMaterial {
     sin(time.mul(14.0).add(phase.mul(2.0))).mul(0.05),
     cos(time.mul(10.3).add(phase.mul(1.3))).mul(0.03),
   ).mul(t.mul(t));
-  material.positionNode = positionLocal.add(sway);
   const hot = vec3(4.2, 2.2, 0.7);
   const cool = vec3(2.4, 0.62, 0.1);
-  material.colorNode = vec4(mix(hot, cool, t.pow(0.8)), 1);
-  return material;
+  return createUberMaterial({
+    shading: 'unlit',
+    noFog: true,
+    surface: () => ({ color: mix(hot, cool, t.pow(0.8)), position: positionLocal.add(sway) }),
+  });
 }
 
-export function createSconceMaterial(): MeshStandardNodeMaterial {
-  return new MeshStandardNodeMaterial({ color: 0x2a2826, roughness: 0.7, metalness: 0.5 });
+export function createSconceMaterial(): UberMaterial {
+  return createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x2a2826, roughness: 0.7, metalness: 0.5 },
+  );
 }

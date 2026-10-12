@@ -1,11 +1,4 @@
-import {
-  CircleGeometry,
-  Group,
-  Mesh,
-  MeshStandardNodeMaterial,
-  type BufferGeometry,
-  type Material,
-} from 'three/webgpu';
+import { CircleGeometry, Group, Mesh, type BufferGeometry, type Material } from 'three/webgpu';
 import { color, float, mix, positionWorld, time, vec3, vec4 } from 'three/tsl';
 import type { Level, PlacedBox, PlacedCylinder } from '../../game/world/level';
 import { createMetalMaterial } from '../levelMaterials';
@@ -22,6 +15,7 @@ import { FxBuilder, createFlameMaterial, createWebMaterial } from './glowMateria
 import { MasonryBuilder, hashSeed, type Vec3 } from './masonryGeometry';
 import { createMasonryMaterial } from './masonryMaterial';
 import { bakedNoise } from '../bakedNoise';
+import { createUberMaterial } from '../uberMaterial';
 import { PropBuilder } from './propBuilder';
 
 const DEG = Math.PI / 180;
@@ -745,7 +739,7 @@ function addFountain(m: MasonryBuilder, cyl: PlacedCylinder, extras: Group): voi
     cell: 0.3,
   });
   // 淀んだ水面
-  const water = new MeshStandardNodeMaterial({ roughness: 0.1, metalness: 0 });
+  const water = createUberMaterial({ shading: 'lit' }, { roughness: 0.1, metalness: 0 });
   const ripple = bakedNoise(vec3(positionWorld.x.mul(3), positionWorld.z.mul(3), time.mul(0.35)));
   const tone = mix(color(0x1c3330), color(0x3b5a48), ripple.mul(0.5).add(0.5));
   water.colorNode = vec4(tone, 1);

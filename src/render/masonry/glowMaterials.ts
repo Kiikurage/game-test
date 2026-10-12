@@ -1,11 +1,5 @@
-import {
-  AdditiveBlending,
-  BufferGeometry,
-  DoubleSide,
-  Float32BufferAttribute,
-  MeshBasicNodeMaterial,
-  Uint32BufferAttribute,
-} from 'three/webgpu';
+import type { MeshBasicNodeMaterial } from 'three/webgpu';
+import { BufferGeometry, Float32BufferAttribute, Uint32BufferAttribute } from 'three/webgpu';
 import {
   Fn,
   abs,
@@ -16,7 +10,6 @@ import {
   length,
   max,
   mix,
-  mx_noise_float,
   pow,
   sin,
   smoothstep,
@@ -25,6 +18,8 @@ import {
   vec3,
   vec4,
 } from 'three/tsl';
+import { bakedNoise } from '../bakedNoise';
+import { createUberMaterial } from '../uberMaterial';
 
 /**
  * たいまつの炎・炎の周りの光だまり（壁と床の加算の板）・蜘蛛の巣。ライトは使わない。
@@ -33,11 +28,10 @@ import {
  * 頂点属性 (`FxBuilder`): `uv`、`kind`（0 = 炎、1 = 光だまり）、`ph`（ゆらぎの位相）、`inten`（強さ）。
  */
 export function createFlameMaterial(): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    blending: AdditiveBlending,
+  const material = createUberMaterial({
+    shading: 'unlit',
+    additive: true,
+    doubleSided: true,
   });
   const uvA = attribute('uv', 'vec2');
   const kind = attribute('kind', 'float');
@@ -50,7 +44,7 @@ export function createFlameMaterial(): MeshBasicNodeMaterial {
   const color = Fn(() => {
     const x = uvA.x.sub(0.5);
     const y = uvA.y;
-    const wob = mx_noise_float(vec3(uvA.x.mul(3.2), y.mul(2.4).sub(time.mul(2.6)), ph.mul(9)));
+    const wob = bakedNoise(vec3(uvA.x.mul(3.2), y.mul(2.4).sub(time.mul(2.6)), ph.mul(9)));
     const width = sin(pow(y, 0.65).mul(3.14159))
       .mul(0.36)
       .mul(float(1).sub(y.mul(0.35)));
@@ -72,10 +66,10 @@ export function createFlameMaterial(): MeshBasicNodeMaterial {
 
 /** 蜘蛛の巣（扇形の板。uv = (角度 0..1, 半径 0..1)。放射状の糸と、たるんだ同心の糸、ちぎれ）。 */
 export function createWebMaterial(): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({
+  const material = createUberMaterial({
+    shading: 'unlit',
     transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
+    doubleSided: true,
   });
   const uvA = attribute('uv', 'vec2');
   const a = uvA.x;
@@ -89,7 +83,7 @@ export function createWebMaterial(): MeshBasicNodeMaterial {
     const rd = abs(ringCoord.fract().sub(0.5)).sub(0.5).abs();
     const ring = float(1).sub(smoothstep(0.0, fwidth(ringCoord).mul(1.4).add(0.004), rd));
     const threads = max(spoke, ring.mul(smoothstep(0.1, 0.22, r)));
-    const tear = smoothstep(-0.35, -0.1, mx_noise_float(vec3(a.mul(4), r.mul(4), float(2.7))));
+    const tear = smoothstep(-0.35, -0.1, bakedNoise(vec3(a.mul(4), r.mul(4), float(2.7))));
     return threads
       .mul(tear)
       .mul(smoothstep(1.0, 0.78, r))

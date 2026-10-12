@@ -1,4 +1,5 @@
-import { MeshStandardNodeMaterial, Vector4, type Node } from 'three/webgpu';
+import type { MeshStandardNodeMaterial } from 'three/webgpu';
+import { Vector4, type Node } from 'three/webgpu';
 import {
   attribute,
   clamp,
@@ -10,7 +11,6 @@ import {
   floor,
   fract,
   fwidth,
-  hash,
   max,
   min,
   mix,
@@ -27,7 +27,8 @@ import {
   vec3,
   vec4,
 } from 'three/tsl';
-import { bakedNoise } from '../bakedNoise';
+import { bakedHash, bakedNoise } from '../bakedNoise';
+import { createUberMaterial } from '../uberMaterial';
 import { tagMaterial } from '../materialGroups';
 
 /**
@@ -57,7 +58,8 @@ const JOINT_AVERAGE = 0.17;
 
 export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStandardNodeMaterial {
   const { detail } = options;
-  const material = new MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
+  // 色・法線・発光は系統固有のノード（下で差し込む）。レンダーステートは汎用の lit と同じ
+  const material = createUberMaterial({ shading: 'lit' }, { roughness: 0.92, metalness: 0 });
 
   const mu = attribute('mu', 'vec2');
   const mx = attribute('mx', 'vec3');
@@ -69,18 +71,18 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
   const pairH = float(0.72);
   const pair = floor(mu.y.div(pairH));
   const inPair = mu.y.sub(pair.mul(pairH));
-  const split = hash(pair.add(2.3)).mul(0.2).add(0.28);
+  const split = bakedHash(pair.add(2.3)).mul(0.2).add(0.28);
   const upper = step(split, inPair);
   const rowH = mix(split, pairH.sub(split), upper);
   const fr = inPair.sub(upper.mul(split)).div(rowH);
   const row = pair.mul(2).add(upper);
 
   // --- 石の長さ・位置（円筒面は 1 周を偶数個に割る）---
-  const planarLen = hash(row.add(11.3)).mul(0.75).add(0.62);
+  const planarLen = bakedHash(row.add(11.3)).mul(0.75).add(0.62);
   const len = mix(planarLen, rd.x, round);
   const stagger = mod(row, 2)
     .mul(0.5)
-    .add(floor(hash(row.add(5.1)).mul(8)));
+    .add(floor(bakedHash(row.add(5.1)).mul(8)));
   const q = mu.x.div(len).add(stagger);
   const col = floor(q);
   const fc = fract(q);
@@ -102,8 +104,8 @@ export function createMasonryMaterial(options: MasonryMaterialOptions): MeshStan
   const joint = mix(jointSharp, float(JOINT_AVERAGE), far);
 
   // --- 石ごとのばらつき ---
-  const tone = hash(blockSeed).mul(0.62).add(0.66);
-  const warm = hash(blockSeed.add(19.1)).sub(0.5);
+  const tone = bakedHash(blockSeed).mul(0.62).add(0.66);
+  const warm = bakedHash(blockSeed.add(19.1)).sub(0.5);
   const base = vec3(
     float(1).add(warm.mul(0.12)),
     float(1).sub(warm.mul(0.02)),

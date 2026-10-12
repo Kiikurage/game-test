@@ -1,7 +1,7 @@
+import { createUberMaterial } from './uberMaterial';
 import {
   Frustum,
   Matrix4,
-  MeshStandardNodeMaterial,
   Quaternion,
   Sphere,
   Timer,
@@ -97,11 +97,10 @@ export class EnemyViews {
       return undefined;
     });
     // 遠景用の簡略メッシュのマテリアル（頂点色。全敵で共有）
-    const lodMaterial = new MeshStandardNodeMaterial({
-      vertexColors: true,
-      roughness: 0.9,
-      metalness: 0.1,
-    });
+    const lodMaterial = createUberMaterial(
+      { shading: 'lit', vertexColors: true },
+      { roughness: 0.9, metalness: 0.1 },
+    );
     const sampler = createCanvasSampler();
     // 同型が並ばないよう、配置順に決定的な乱数でバリアントを割り振る（直前と同じものは選ばない）
     const rand = createRng(0x42);

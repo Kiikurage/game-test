@@ -1,9 +1,9 @@
+import { createUberMaterial } from '../uberMaterial';
 import {
   Color,
   Frustum,
   InstancedMesh,
   Matrix4,
-  MeshBasicNodeMaterial,
   OctahedronGeometry,
   Quaternion,
   Sphere,
@@ -60,7 +60,7 @@ export class LootMarks {
     private readonly spots: readonly LootMarkSpot[],
   ) {
     const geometry = new OctahedronGeometry(SIZE, 0).scale(1, 1.5, 1);
-    const material = new MeshBasicNodeMaterial({ color: GLOW });
+    const material = createUberMaterial({ shading: 'unlit' }, { color: GLOW });
     this.mesh = new InstancedMesh(geometry, material, spots.length);
     this.mesh.name = 'lootmarks';
     // 視錐台カリングは `update` で対象ごとに行う（見える目印が 1 つもなければ描かない）

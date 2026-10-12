@@ -1,7 +1,8 @@
+import { createUberMaterial } from '../uberMaterial';
+import type { MeshStandardNodeMaterial } from 'three/webgpu';
 import {
   Frustum,
   Matrix4,
-  MeshStandardNodeMaterial,
   Quaternion,
   Sphere,
   Vector3,
@@ -160,11 +161,10 @@ export class BossCharacter {
       equipment: e,
       lod: {
         builder,
-        material: new MeshStandardNodeMaterial({
-          vertexColors: true,
-          roughness: 0.9,
-          metalness: 0.1,
-        }),
+        material: createUberMaterial(
+          { shading: 'lit', vertexColors: true },
+          { roughness: 0.9, metalness: 0.1 },
+        ),
         sampler: createCanvasSampler(),
       },
     };

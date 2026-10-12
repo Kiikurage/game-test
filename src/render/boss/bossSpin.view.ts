@@ -1,11 +1,5 @@
-import {
-  AdditiveBlending,
-  DoubleSide,
-  Mesh,
-  MeshBasicNodeMaterial,
-  RingGeometry,
-  Vector3,
-} from 'three/webgpu';
+import { createUberMaterial } from '../uberMaterial';
+import { Mesh, RingGeometry, Vector3 } from 'three/webgpu';
 import {
   atan,
   exp,
@@ -46,12 +40,7 @@ registerViewPlugin('boss-spin', ({ game, view }) => {
   const geometry = new RingGeometry(TRAIL_INNER, SPIN_RADIUS, 64, 1);
   geometry.rotateX(-Math.PI / 2);
   // 加算合成・深度書き込みなし: 下の物を覆わず、明るさを足すだけ
-  const material = new MeshBasicNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    blending: AdditiveBlending,
-  });
+  const material = createUberMaterial({ shading: 'unlit', additive: true, doubleSided: true });
   const ang = atan(positionLocal.x, positionLocal.z);
   // 先頭からどれだけ後ろか（0: 先頭 → 1: 尾の端）
   const behind = head

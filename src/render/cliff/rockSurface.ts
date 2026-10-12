@@ -6,7 +6,6 @@ import {
   floor,
   fwidth,
   fract,
-  hash,
   max,
   min,
   mix,
@@ -20,7 +19,7 @@ import {
   vec3,
 } from 'three/tsl';
 import type { Node } from 'three/webgpu';
-import { bakedNoise, getMaterialDetail, type MaterialDetail } from '../bakedNoise';
+import { bakedHash, bakedNoise, getMaterialDetail, type MaterialDetail } from '../bakedNoise';
 
 /**
  * 岩肌の表面（TSL。ワールド座標ベース。テクスチャなし。#190）。
@@ -92,8 +91,8 @@ export function rockSurface(
     .sub(p.z.mul(0.04));
   const layer = floor(yy);
   const lf = fract(yy);
-  const layerRand = hash(layer.add(17));
-  const layerRand2 = hash(layer.add(91));
+  const layerRand = bakedHash(layer.add(17));
+  const layerRand2 = bakedHash(layer.add(91));
   // 急な面ほど層がはっきり出る（中くらいの斜面・上面では層の色味・溝を弱める）
   const vertical = smoothstep(0.85, 0.4, inputs.up);
   // 画面上の 1 ピクセルあたりの層座標の変化量。しきい値の幅をこれ以上に広げて、解析的にアンチエイリアスする
@@ -101,13 +100,13 @@ export function rockSurface(
   const fwY = fwidth(yy);
   const edgeW = min(max(fwY.mul(1.5), float(0.16)), float(0.5));
   // 層ごとの張り出し量。層の境で段差になると微分が跳ねるので、境で前の層の値から滑らかにつなぐ
-  const offset = mix(hash(layer.add(16)), layerRand, smoothstep(0.0, edgeW, lf));
+  const offset = mix(bakedHash(layer.add(16)), layerRand, smoothstep(0.0, edgeW, lf));
 
   // 層の張り出し: 層の中ほどが膨らみ、境（溝のある境だけ）がくぼむ
   const bulge = smoothstep(0.0, 0.3, lf).mul(smoothstep(1.0, 0.7, lf));
   const grooveW = max(float(0.1), fwY.mul(1.5));
-  // 溝の強さは境ごとの乱数（境 b の強さ = hash(b + 5)）。半分ほどの境は溝にならず、見える溝の間隔が揃わない
-  const grooveRand = mix(hash(layer.add(5)), hash(layer.add(6)), step(0.5, lf));
+  // 溝の強さは境ごとの乱数（境 b の強さ = bakedHash(b + 5)）。半分ほどの境は溝にならず、見える溝の間隔が揃わない
+  const grooveRand = mix(bakedHash(layer.add(5)), bakedHash(layer.add(6)), step(0.5, lf));
   const grooveOn = smoothstep(0.3, 0.85, grooveRand);
   // 色の溝は急な面だけ。凹凸（height）には法線由来の係数を入れない（三角形ごとに線形な値が微分で
   // 三角形の辺の線として浮く。地形の急斜面は 1m 格子の縦長の三角形なので縦の筋になる）
@@ -145,7 +144,7 @@ export function rockSurface(
     // ブロック・層の乱数は境で段差になるので、境に向けて中間値へ寄せて滑らかにつなぐ
     const blockRand = mix(
       float(0.5),
-      hash(
+      bakedHash(
         floor(u)
           .add(layer.mul(31))
           .add(1000 + seed),
@@ -155,13 +154,13 @@ export function rockSurface(
     if (!full) return { joint, round, blockRand, crack: float(0) };
 
     // 割れ目: 層ごとの、ほぼ垂直な直線の節理（傾きは ±15° 以内、層の境で止まる。層ごとに位置・間隔がずれる）。遠くで消える
-    const crackSpacing = hash(layer.add(33)).mul(2.0).add(1.3);
-    const crackTilt = hash(layer.add(44))
+    const crackSpacing = bakedHash(layer.add(33)).mul(2.0).add(1.3);
+    const crackTilt = bakedHash(layer.add(44))
       .sub(0.5)
       .mul(2 * 0.27 * 1.18);
     const crackAlong = h
       .add(warp.mul(0.35))
-      .add(hash(layer.add(55 + seed)).mul(13))
+      .add(bakedHash(layer.add(55 + seed)).mul(13))
       .add(lf.mul(crackTilt));
     const cu = crackAlong.div(crackSpacing);
     const cDist = min(fract(cu), float(1).sub(fract(cu))).mul(crackSpacing);
@@ -171,11 +170,11 @@ export function rockSurface(
     const crackHalf = max(float(0.025), crackPx.mul(0.75));
     const crackContrast = min(float(1), float(0.05).div(crackPx.mul(1.5)));
     // 全ての層・全ての線に割れ目があるわけではない
-    const crackHere = smoothstep(0.35, 0.55, hash(layer.add(66))).mul(
+    const crackHere = smoothstep(0.35, 0.55, bakedHash(layer.add(66))).mul(
       smoothstep(
         0.4,
         0.5,
-        hash(
+        bakedHash(
           floor(cu)
             .add(layer.mul(13))
             .add(2000 + seed),
@@ -226,7 +225,7 @@ export function rockSurface(
   // 層ごとの色味（冷たい灰 ↔ 黄土）と、ブロックごとの明暗。層の差は急な面だけ（等高線の縞にしない）
   const cool = vec3(0.88, 0.94, 1.04);
   const ochre = vec3(1.04, 1.0, 0.92);
-  const tintRand = mix(hash(layer.add(90)), layerRand2, smoothstep(0.0, edgeW, lf));
+  const tintRand = mix(bakedHash(layer.add(90)), layerRand2, smoothstep(0.0, edgeW, lf));
   const tint = mix(cool, ochre, mix(float(0.5), tintRand, vertical.mul(0.8).add(0.2)));
   const brightness = float(0.8)
     .add(blockRand.mul(0.45))

@@ -4,7 +4,6 @@ import {
   float,
   floor,
   fract,
-  hash,
   instanceIndex,
   min,
   mix,
@@ -17,7 +16,7 @@ import {
 } from 'three/tsl';
 import type { EnvironmentGroup } from './assets/environment';
 import { bumpedNormal, rockSurface } from './cliff/rockSurface';
-import { bakedNoise, getMaterialDetail } from './bakedNoise';
+import { bakedHash, bakedNoise, getMaterialDetail } from './bakedNoise';
 import { createUberMaterial, type UberMaterial, type UberSurface } from './uberMaterial';
 
 /**
@@ -75,13 +74,13 @@ function groundSurface(): UberSurface {
   const cellW = float(1.15);
   const rowH = float(0.68);
   const row = floor(p.y.div(rowH));
-  const x = p.x.add(hash(row).mul(cellW));
+  const x = p.x.add(bakedHash(row).mul(cellW));
   const fx = fract(x.div(cellW));
   const fz = fract(p.y.div(rowH));
   const edge = min(min(fx, float(1).sub(fx)).mul(cellW), min(fz, float(1).sub(fz)).mul(rowH));
   const mortar = smoothstep(0.012, 0.06, edge);
   const cell = floor(x.div(cellW)).add(row.mul(57));
-  const tone = hash(cell).mul(0.55).add(0.7);
+  const tone = bakedHash(cell).mul(0.55).add(0.7);
   // 石の縁は少し暗く（丸み）、目地は深く
   const flag = mix(float(0.55), float(1), mortar)
     .mul(tone)
@@ -147,6 +146,6 @@ function grassSurface(): UberSurface {
   const tip = smoothstep(0.0, 0.3, positionGeometry.y);
   const base = color(0x14110a);
   const lit = color(0x5c5233);
-  const tone = hash(instanceIndex.add(7)).mul(0.7).add(0.6);
+  const tone = bakedHash(instanceIndex.add(7)).mul(0.7).add(0.6);
   return { color: mix(base, lit, tip).mul(tone) };
 }

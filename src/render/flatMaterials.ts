@@ -1,5 +1,6 @@
-import { MeshStandardNodeMaterial, type Material, type Mesh, type Object3D } from 'three/webgpu';
+import { type Material, type Mesh, type Object3D } from 'three/webgpu';
 import { materialGroupOf, type MaterialGroup } from './materialGroups';
+import { createUberMaterial } from './uberMaterial';
 
 // `?flatmat`（perf.view.ts）と `?bench` の切り分け（bench/bench.view.ts）で共有する。
 
@@ -29,12 +30,14 @@ export class FlatMaterials {
       if (!flat) {
         const color = (original as { color?: { getHex(): number } }).color;
         const vertexColors = 'color' in mesh.geometry.attributes;
-        flat = new MeshStandardNodeMaterial({
-          color: vertexColors ? 0xffffff : (color?.getHex() ?? FLAT_COLOR),
-          roughness: 0.9,
-          metalness: 0,
-          vertexColors,
-        });
+        flat = createUberMaterial(
+          { shading: 'lit', vertexColors },
+          {
+            color: vertexColors ? 0xffffff : (color?.getHex() ?? FLAT_COLOR),
+            roughness: 0.9,
+            metalness: 0,
+          },
+        );
         this.cache.set(original, flat);
       }
       this.originals.set(mesh, original);

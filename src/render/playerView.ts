@@ -1,11 +1,5 @@
-import {
-  MeshBasicNodeMaterial,
-  Quaternion,
-  Timer,
-  Vector3,
-  type Mesh,
-  type Scene,
-} from 'three/webgpu';
+import { createUberMaterial } from './uberMaterial';
+import { Quaternion, Timer, Vector3, type Mesh, type Scene } from 'three/webgpu';
 import { createLodBuilder } from './assets/characterLod';
 import type { Game } from '../game/game';
 import type { GuardPresentation } from '../game/player/player';
@@ -94,7 +88,7 @@ export class PlayerView {
       console.error('character LOD unavailable', e);
       return undefined;
     });
-    lodBuilder?.create(character.root, new MeshBasicNodeMaterial());
+    lodBuilder?.create(character.root, createUberMaterial({ shading: 'unlit' }));
     scene.add(character.root);
     const animator = new PlayerAnimator(character, loaded);
     const view = new PlayerView(game, character, animator, triangles, cape, light);

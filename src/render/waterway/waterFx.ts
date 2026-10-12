@@ -1,12 +1,9 @@
 import {
-  AdditiveBlending,
   BackSide,
   BufferGeometry,
   Float32BufferAttribute,
   Group,
   Mesh,
-  MeshBasicNodeMaterial,
-  DoubleSide,
   Uint32BufferAttribute,
 } from 'three/webgpu';
 import {
@@ -33,6 +30,7 @@ import {
 import type { RectDef } from '../../game/world/level';
 import { HATCH } from '../../game/world/waterway';
 import { bakedNoise } from '../bakedNoise';
+import { createUberMaterial } from '../uberMaterial';
 import { BurstLayer, type BurstSpec } from '../particles/layer';
 import { buildWaterSurface } from './waterLayout';
 import { SHAFT_DIRECTION, lightAt, shaftVisibility, type WaterLightRig } from './waterLighting';
@@ -129,11 +127,7 @@ function mistMesh(
   geometry.setAttribute('position', new Float32BufferAttribute(surface.positions, 3));
   geometry.setIndex(new Uint32BufferAttribute(surface.indices, 1));
   geometry.computeBoundingSphere();
-  const material = new MeshBasicNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-  });
+  const material = createUberMaterial({ shading: 'unlit', transparent: true, doubleSided: true });
   const wp = positionWorld;
   const t = fields.time;
   const swell = fields.textures.swell;
@@ -193,13 +187,8 @@ function shaftMesh(rig: WaterLightRig, surfaceY: number): Mesh {
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
 
-  const material = new MeshBasicNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: BackSide,
-    blending: AdditiveBlending,
-  });
-  material.fog = false;
+  const material = createUberMaterial({ shading: 'unlit', additive: true, noFog: true });
+  material.side = BackSide;
   const color = Fn(() => {
     const c = cameraPosition;
     const ray = positionWorld.sub(c);

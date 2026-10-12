@@ -1,4 +1,4 @@
-import { MeshBasicNodeMaterial, type UniformNode } from 'three/webgpu';
+import { type MeshBasicNodeMaterial, type UniformNode } from 'three/webgpu';
 import type ReflectorNode from 'three/src/nodes/utils/ReflectorNode.js';
 import {
   cameraPosition,
@@ -24,6 +24,7 @@ import {
   vec4,
   viewportSharedTexture,
 } from 'three/tsl';
+import { createUberMaterial } from '../uberMaterial';
 import { FLOW_SPEED } from './waterLayout';
 import { LIGHT_KIND } from './waterwayLevel';
 import { lightAt, specularAt, type WaterLightRig } from './waterLighting';
@@ -70,7 +71,7 @@ const ETA = 1 / 1.33;
 export function createWaterMaterial(options: WaterMaterialOptions): MeshBasicNodeMaterial {
   const { fields, rig, reflection, reflectionWeight } = options;
   const { grid } = fields;
-  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: true });
+  const material = createUberMaterial({ shading: 'unlit', transparent: true, depthWrite: true });
   material.name = 'waterway-water';
 
   // --- 頂点: 波の高さで上下させる ---
