@@ -1,0 +1,85 @@
+{
+  "guard": {
+    "raiseFrames": 6,
+    "releaseRecoveryFrames": 8,
+    "frontArcDeg": 120,
+    "chipPercent": 10,
+    "justWindow": {
+      "start": 6,
+      "end": 15
+    },
+    "justStaminaPercent": 50,
+    "breakFrames": 54,
+    "breakDamageMultiplier": 1.5,
+    "stunFrames": 10,
+    "counterWindowFrames": 30,
+    "rollCancelFrom": 1
+  },
+  "hitStop": {
+    "playerLight": 4,
+    "playerHeavy": 8,
+    "playerHeavyCharged": 12,
+    "playerBackstab": 14,
+    "enemyHitsPlayer": 6,
+    "bossHitsPlayer": 8,
+    "guardSuccess": 4,
+    "justGuard": 8,
+    "kill": 12,
+    "enemyKill": 6,
+    "rollDodge": 0
+  },
+  "bossKillSlowmo": {
+    "timeScale": 0.3,
+    "frames": 60
+  },
+  "hitFlash": {
+    "redFrames": 4,
+    "whiteFrames": 2
+  },
+  "staggeredDamageMultiplier": 1.5,
+  "poise": {
+    "player": {
+      "max": 40,
+      "staggerLightFrames": 24,
+      "staggerHeavyFrames": 48
+    },
+    "hollowSoldier": {
+      "max": 50,
+      "staggerFrames": 54
+    },
+    "shieldbearer": {
+      "max": 80,
+      "staggerFrames": 54
+    },
+    "boss": {
+      "max": 400,
+      "staggerFrames": 120
+    },
+    "recoverFrames": 300,
+    "enemyAttackingBonus": 30,
+    "enemyFlinchFrames": 12
+  },
+  "heavyHitPoiseThreshold": 50,
+  "knockback": {
+    "player": {
+      "light": {
+        "distance": 0.5,
+        "flinchFrames": 24
+      },
+      "heavy": {
+        "distance": 1.5,
+        "downFrames": 48,
+        "wakeInvulnUntilFrame": 36
+      },
+      "guardLight": 0.6,
+      "guardHeavy": 1.2
+    },
+    "enemy": {
+      "light": 0.3,
+      "heavy": 0.8,
+      "staggerBreak": 0.8
+    },
+    "postHitInvulnFrames": 18
+  },
+  "sectorRayHeight": 1.0
+}

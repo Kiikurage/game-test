@@ -33,6 +33,19 @@ import.meta.glob('../**/*.pass.ts', { eager: true });
 
 export type { ScreenEffect } from './passes/grade.pass';
 
+/** three r186 の内部 `RenderContexts`（compileScene でキャッシュキーを本描画に揃えるためだけに触る）。 */
+interface RenderContextsLike {
+  get: (
+    this: RenderContextsLike,
+    renderTarget: unknown,
+    mrt: unknown,
+    callDepth?: number,
+  ) => unknown;
+}
+
+/** scene パスが本描画で呼ばれる深さ（RenderPipeline.render → 全画面描画 → PassNode.updateBefore → renderer.render）。 */
+const SCENE_PASS_CALL_DEPTH = 1;
+
 export interface SceneStats {
   /** 画素数 x チャンネル数のうち NaN / Inf の個数。 */
   readonly nonFinite: number;
@@ -75,6 +88,12 @@ export interface FramePipeline {
   readSceneStats(): Promise<SceneStats>;
   /** 1 フレームを描画する。 */
   render(): void;
+  /**
+   * scene パスの描画パイプラインを非同期に作る（`createRenderPipelineAsync`。メインスレッドも GPU キューも止めない）。
+   * `onProgress(loaded, total)` はパイプラインが 1 つできるたびに呼ばれる（#369）。
+   * 影のパスと後段の全画面パスは対象外（初回の `render()` で作られる）。
+   */
+  compileScene(onProgress?: (loaded: number, total: number) => void): Promise<void>;
   dispose(): void;
 }
 
@@ -175,6 +194,40 @@ export function createFramePipeline(
         else b.fn();
       }
       pipeline.render();
+    },
+    compileScene: async (onProgress) => {
+      // PassNode.compileAsync と同じく、パスのレンダーターゲット・MRT へ向けてコンパイルする（キャッシュキーを本描画と揃える）。
+      // ターゲットの samples / 型は PassNode.setup が初回描画で決めるので、同じ値を先に入れておく。
+      const rt = scenePass.renderTarget;
+      rt.samples = scenePass.options.samples ?? renderer.samples;
+      rt.texture.type = renderer.getOutputBufferType();
+      const prevTarget = renderer.getRenderTarget();
+      const prevMrt = renderer.getMRT();
+      renderer.setRenderTarget(rt);
+      renderer.setMRT(scenePass.getMRT());
+      // three r186 はレンダーコンテキストを呼び出しの深さ（callDepth）込みで引く。本描画の scene パスは RenderPipeline の
+      // 全画面描画の中から入れ子で呼ばれる（深さ 1）が、compileAsync は常に深さ 0 で引くため、作ったパイプラインが本描画で
+      // 使われず、初回フレームで全部同期的に作り直されていた（#369）。compileAsync の同期部分（コンテキストを引く所）の間だけ
+      // 深さを本描画に合わせる。
+      const contexts = (renderer as unknown as { _renderContexts: RenderContextsLike })
+        ._renderContexts;
+      const originalGet = contexts.get;
+      contexts.get = (target, mrtNode) =>
+        originalGet.call(contexts, target, mrtNode, SCENE_PASS_CALL_DEPTH);
+      let compiling: Promise<void>;
+      try {
+        compiling = renderer.compileAsync(scene, camera, null, (e: ProgressEvent) => {
+          onProgress?.(e.loaded, e.total);
+        });
+      } finally {
+        contexts.get = originalGet;
+      }
+      try {
+        await compiling;
+      } finally {
+        renderer.setRenderTarget(prevTarget);
+        renderer.setMRT(prevMrt);
+      }
     },
     dispose: () => {
       for (const d of disposers) d();

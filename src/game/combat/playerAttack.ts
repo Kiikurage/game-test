@@ -1,4 +1,5 @@
 import { AMBUSH, PLAYER_ACTIONS, PLAYER_STATS, PLUNGE, activeWindow, attackDamage } from '../data';
+import { PLAYER_HIT_SHAPES } from '../data/playerHitShapes';
 import type { LightAttackId, PlayerAttackId } from '../player/playerStates';
 import { vec3, type Capsule, type Vec3 } from './geometry';
 import { playerAttackProfile } from './debugSwing';
@@ -8,10 +9,12 @@ import { WEAPON_CAPSULE } from './weaponPose';
 
 const DEG = Math.PI / 180;
 
+/** 判定の形の数値（`data/playerHitShapes.json`）。 */
+const SHAPES = PLAYER_HIT_SHAPES;
 /** 突き（light3）の判定: 手元の高さ、判定開始時の握りの位置（体の前 m）、弧に対する左右の振れの割合。 */
-const THRUST_HEIGHT = 1.25;
-const THRUST_GRIP_START = 0.6;
-const THRUST_SWEEP_RATIO = 0.25;
+const THRUST_HEIGHT = SHAPES.thrust.height;
+const THRUST_GRIP_START = SHAPES.thrust.gripStart;
+const THRUST_SWEEP_RATIO = SHAPES.thrust.sweepRatio;
 
 /** プレイヤー側が毎ステップ渡す、いま出している攻撃の情報（`Player.attack`）。 */
 export interface PlayerAttackInfo {
@@ -72,8 +75,9 @@ export function lightAttackCapsule(
   }
   // 水平方向の振り（bearing は右が正）と仰角
   const bearing = id === 'light1' ? arc / 2 - arc * p : -arc / 2 + arc * p;
-  const elevation = (id === 'light1' ? -25 + 60 * p : 10 - 25 * p) * DEG;
-  const height = id === 'light1' ? 1.15 : 1.3;
+  const shape = id === 'light1' ? SHAPES.light1 : SHAPES.light2;
+  const elevation = (shape.elevationDeg.start + shape.elevationDeg.sweep * p) * DEG;
+  const height = shape.height;
   return slashCapsule(feet, yaw, bearing, elevation, height, out);
 }
 
@@ -91,7 +95,7 @@ function slashCapsule(
   const dx = Math.sin(dir) * ce;
   const dz = Math.cos(dir) * ce;
   const dy = Math.sin(elevation);
-  const grip = 0.35;
+  const grip = SHAPES.grip;
   const len = WEAPON_CAPSULE.length;
   out.radius = WEAPON_CAPSULE.radius;
   set(out.a, feet.x + dx * grip, feet.y + height + dy * grip, feet.z + dz * grip);
@@ -120,7 +124,7 @@ export function backstabCapsule(feet: Vec3, yaw: number, p: number, out: Capsule
 }
 
 /** 走り攻撃の弧（度）。ダッシュしながら体の右から左へ水平に薙ぐ（Sword_Dash の振り抜き）。 */
-const RUN_ATTACK_ARC_DEG = 100;
+const RUN_ATTACK_ARC_DEG = SHAPES.runAttack.arcDeg;
 
 /**
  * 走り攻撃（Sword_Dash）: 低い姿勢で踏み込み、右下から左へ水平に薙ぐ（仰角 −15° → +10°、手元の高さ 1.0m）。
@@ -128,7 +132,9 @@ const RUN_ATTACK_ARC_DEG = 100;
  */
 export function runAttackCapsule(feet: Vec3, yaw: number, p: number, out: Capsule): Capsule {
   const arc = RUN_ATTACK_ARC_DEG * DEG;
-  return slashCapsule(feet, yaw, arc / 2 - arc * p, (-15 + 25 * p) * DEG, 1.0, out);
+  const { elevationDeg, height } = SHAPES.runAttack;
+  const elevation = (elevationDeg.start + elevationDeg.sweep * p) * DEG;
+  return slashCapsule(feet, yaw, arc / 2 - arc * p, elevation, height, out);
 }
 
 /**
@@ -139,14 +145,13 @@ export function runAttackCapsule(feet: Vec3, yaw: number, p: number, out: Capsul
  */
 export function heavyAttackCapsule(feet: Vec3, yaw: number, p: number, out: Capsule): Capsule {
   const len = WEAPON_CAPSULE.length;
-  const elevation = (80 - 125 * p) * DEG;
+  const { elevationDeg, height, forward } = SHAPES.heavy;
+  const elevation = (elevationDeg.start + elevationDeg.sweep * p) * DEG;
   const ce = Math.cos(elevation);
   const se = Math.sin(elevation);
   const sx = Math.sin(yaw);
   const sz = Math.cos(yaw);
-  const height = 1.5;
-  const forward = 0.6;
-  const grip = 0.35;
+  const grip = SHAPES.grip;
   set(
     out.a,
     feet.x + sx * (forward + ce * grip),
@@ -172,13 +177,13 @@ export function guardCounterCapsule(feet: Vec3, yaw: number, p: number, out: Cap
   const sx = Math.sin(yaw);
   const sz = Math.cos(yaw);
   // 左（前方から見て −right）へ 0.15m ずらす。right = (cos yaw, −sin yaw)
-  const side = -0.15;
-  const dist = 0.55 + 0.55 * p;
+  const { side, distance, bottom, top, radius } = SHAPES.guardCounter;
+  const dist = distance.start + distance.sweep * p;
   const x = feet.x + sx * dist + sz * side;
   const z = feet.z + sz * dist - sx * side;
-  set(out.a, x, feet.y + 0.7, z);
-  set(out.b, x, feet.y + 1.5, z);
-  out.radius = 0.3;
+  set(out.a, x, feet.y + bottom, z);
+  set(out.b, x, feet.y + top, z);
+  out.radius = radius;
   return out;
 }
 

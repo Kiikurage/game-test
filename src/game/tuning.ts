@@ -1,8 +1,9 @@
 import { BOSS_KILL_SLOWMO, CAMERA, HIT_FLASH, HIT_STOP, LOCK_ON, MOVEMENT } from './data';
+import { PLAYER_CONTROL } from './data/playerControl';
 
 /**
  * プレイヤー・カメラ・ロックオンの調整値を一箇所に集約したもの。
- * 仕様書由来の値は `game/data/` から初期化し、仕様書にない「手触り」の値はここで持つ。
+ * 仕様書由来の値は `game/data/` から、プレイヤーの「手触り」の値は `data/playerControl.json` から初期化する。
  * `Game` が生成時に自分用の値を作って `game.tuning` に持つ（Game 同士・テスト間で干渉しない）。
  * 実行時に書き換え可能（`?debug` の調整パネルから変更できる。`ui/tuningPanel.ts`）。
  * ロジックは毎ステップここを読むので、書き換えは即座に反映される。
@@ -122,10 +123,7 @@ export type Tuning = {
 export function createTuning(): Tuning {
   return {
     player: {
-      walkMinInput: 0.25,
-      walkMaxInput: 0.55,
-      runMinInput: 0.72,
-      minSpeedFraction: 0.45,
+      ...PLAYER_CONTROL.tuning,
       walk: MOVEMENT.walk,
       run: MOVEMENT.run,
       dash: MOVEMENT.dash,
@@ -135,19 +133,6 @@ export function createTuning(): Tuning {
       accelFrames: MOVEMENT.accelFrames,
       stopFrames: MOVEMENT.stopFrames,
       turnDegPerSecond: MOVEMENT.turnDegPerSecond,
-      turnResponse: 22,
-      lockOnTurnDegPerSecond: 1080,
-      lockOnTurnResponse: 18,
-      rollTurnDegPerSecond: 1800,
-      attackTurnDegPerSecond: 540,
-      attackTurnResponse: 30,
-      gravity: 20,
-      coyoteFrames: 4,
-      landSpeedFactor: 0.35,
-      airAccel: 9,
-      controllerOffset: 0.02,
-      snapToGround: 0.4,
-      autostepMinWidth: 0.1,
     },
     hitStop: {
       enabled: true,
@@ -167,9 +152,9 @@ export function createTuning(): Tuning {
       whiteFlashFrames: HIT_FLASH.whiteFrames,
     },
     reaction: {
-      lightSlideFrames: 8,
-      heavySlideFrames: 14,
-      guardSlideFrames: 8,
+      lightSlideFrames: PLAYER_CONTROL.reactionSlideFrames.light,
+      heavySlideFrames: PLAYER_CONTROL.reactionSlideFrames.heavy,
+      guardSlideFrames: PLAYER_CONTROL.reactionSlideFrames.guard,
     },
     camera: {
       distance: CAMERA.distance,

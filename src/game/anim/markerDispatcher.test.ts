@@ -163,7 +163,7 @@ describe('プレイヤーのマーカー表: 仕様書のフレームデータ�
     expect(invuln[0]).toBe(PLAYER_ACTIONS.backstep.invuln.start);
     expect(invuln.at(-1)).toBe(PLAYER_ACTIONS.backstep.invuln.end);
     expect([...windows].find(([, x]) => x.cancel)?.[0]).toBe(
-      PLAYER_ACTIONS.backstep.cancels[0].start,
+      PLAYER_ACTIONS.backstep.cancels[0]?.start,
     );
   });
 

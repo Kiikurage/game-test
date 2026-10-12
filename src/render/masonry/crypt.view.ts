@@ -2,7 +2,6 @@ import { Color, type Mesh } from 'three/webgpu';
 import type { GameView } from '../gameView';
 import { registerViewPlugin } from '../viewPlugins';
 import { buildCrypt, type CryptProps } from './buildCrypt';
-import { localLightsOf } from '../lighting/localLights';
 
 /** たいまつの光（実ライト）。`torchLights` の強さの目安（1.7〜2.5）にこの光度（cd）を掛ける。 */
 const TORCH_CANDELA_PER_UNIT = 4;
@@ -25,12 +24,12 @@ export function cryptPropsOf(view: GameView): CryptProps | undefined {
 /** 球の表面からこの距離（m）より遠いメッシュは描かない（遠景の A〜C の視点でドローコール・三角形を食わない）。 */
 const CULL_DISTANCE = 42;
 
-registerViewPlugin('crypt', ({ game, view, level, gameRenderer }) => {
+registerViewPlugin('crypt', ({ game, view, level, gameRenderer, services }) => {
   if (!level) return {};
   const crypt = buildCrypt(level, gameRenderer.quality.preset.materialDetail);
   view.scene.add(crypt.root);
   propsByView.set(view, crypt);
-  const lights = localLightsOf(view.scene);
+  const { lights } = services;
   for (const [x, y, z, strength, phase] of crypt.torchLights) {
     lights.add({
       position: [x, y, z],

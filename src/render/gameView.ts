@@ -21,6 +21,10 @@ import { profileScene, type RenderProfile } from './quality';
 import { NavDebugView } from './navDebugView';
 import { GridNavigator } from '../game/enemy/gridNavigator';
 import { createViewPlugins, type ViewPlugin } from './viewPlugins';
+import { settleWithin } from '../core/withTimeout';
+
+/** ウォームアップの GPU 完了待ちの上限（#369）。これを過ぎてもロードは進める。 */
+const WARM_UP_TIMEOUT_MS = 5000;
 
 // `*.view.ts`（登録式の描画機能。viewPlugins.ts 参照）を自動で読み込む。新機能は gameView.ts を編集しない。
 import.meta.glob('./**/*.view.ts', { eager: true });
@@ -234,24 +238,45 @@ export class GameView {
 
   /**
    * 初回のパイプライン / シェーダコンパイル（SwiftShader では数十秒、実機でも数百 ms のカクつき）を
-   * ローディング中に済ませるため、ゲーム開始前に 1 フレーム描画して GPU の完了まで待つ。
-   * 全アセットを取り付けた後に呼ぶこと。`?nodraw` では何もしない。
+   * ローディング中に済ませる。全アセットを取り付けた後に呼ぶこと。`?nodraw` では何もしない。
+   *
+   * 1. シーンパスのパイプラインを非同期に作る（大半はここ。`onProgress` に 0..0.9 で報告する）。
+   *    同期の `createRenderPipeline` で初回フレームに全部作ると、GPU キューがコンパイル完了まで進まず、
+   *    シェーダキャッシュが冷えた Mac では 30 秒以上ロードが進まなく見えた（#369）。
+   * 2. 1 フレーム描画して、残り（影・ポスト処理の全画面パス）を作り、GPU の完了を待つ（上限つき）。
    */
-  async warmUp(): Promise<void> {
+  async warmUp(onProgress?: (fraction: number) => void): Promise<void> {
     if (!this.drawEnabled) return;
     this.enemyViews?.setWarmUp(true);
     try {
+      // 初回フレームと同じ表示状態（敵の詳細メッシュ・位置・カメラ）にしてから、写る物のパイプラインを作る
+      this.updateFrame(1);
+      await this.pipeline.compileScene((loaded, total) => {
+        onProgress?.(total > 0 ? (0.9 * loaded) / total : 0.9);
+      });
+      onProgress?.(0.9);
       this.render(1);
     } finally {
       this.enemyViews?.setWarmUp(false);
     }
     const device = (this.gameRenderer.renderer.backend as { device?: GPUDevice }).device;
-    await device?.queue.onSubmittedWorkDone();
+    if (!device) return;
+    // 安全網: 通常は数百 ms で終わる。待ちきれなくてもロードは先へ進める（残りは開始直後のフレームで終わる）
+    const done = await settleWithin(device.queue.onSubmittedWorkDone(), WARM_UP_TIMEOUT_MS);
+    if (!done)
+      console.warn(`warm-up GPU work did not finish within ${WARM_UP_TIMEOUT_MS} ms; continuing`);
   }
 
   /** alpha: 直前ステップ→最新ステップの補間係数。 */
   render(alpha: number): void {
     this.gameRenderer.beginFrame(performance.now());
+    this.updateFrame(alpha);
+    if (this.drawEnabled) this.pipeline.render();
+    this.gameRenderer.endFrame();
+  }
+
+  /** 描画前の毎フレームの更新（カメラ・キャラクター・パーティクル・プラグイン）。描画はしない。 */
+  private updateFrame(alpha: number): void {
     if (this.useGameCamera) this.syncCamera(alpha);
     this.skyline?.update(this.camera.position.x, this.camera.position.z);
     this.playerView?.update(alpha);
@@ -269,8 +294,6 @@ export class GameView {
     for (const plugin of this.plugins) plugin.update?.(dt);
     this.combatDebug?.update();
     this.navDebug?.update();
-    if (this.drawEnabled) this.pipeline.render();
-    this.gameRenderer.endFrame();
   }
 
   /** game のカメラ（補間済み）を three のカメラへ反映する。 */

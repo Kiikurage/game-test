@@ -43,6 +43,10 @@ class FixedGridClusteredLightsNode extends ClusteredLightsNode {
 
   constructor() {
     super(MAX_CLUSTERED_LIGHTS, VIRTUAL_TILE, CLUSTER_GRID.z, MAX_LIGHTS_PER_CLUSTER);
+    // 標準は最初の setup でコンピュートを作るため、`customCacheKey`（コンピュートのキーを含む）が初回のビルドの
+    // 前後で変わり、それまでに作ったマテリアルのパイプラインが全部作り直される。ローディング中に非同期で作った
+    // パイプライン（#369）が初回フレームで同期的に作り直されないよう、固定格子なので最初から作っておく。
+    this.updateProgram();
   }
 
   /** 標準は描画バッファの大きさで格子を作り直す。固定格子なので最初の 1 回だけ作る。 */

@@ -1,17 +1,16 @@
 import { Color } from 'three/webgpu';
 import { registerViewPlugin } from '../viewPlugins';
 import { MAX_CLUSTERED_LIGHTS } from './clusteredLighting';
-import { localLightsOf } from './localLights';
 
 /** `?lightstress=N` の光を敷く範囲（篝火原点の m。広場〜闘技場）。 */
 const STRESS_AREA = { minX: -10, maxX: 130, minZ: -10, maxZ: 95 } as const;
 
 /**
- * 局所光源のゆらぎを毎フレーム進める（光の登録は各 view が `localLightsOf(view.scene).add` で行う）。
+ * 局所光源のゆらぎを毎フレーム進める（光の登録は各 view が `services.lights.add` で行う）。
  * `?lightstress=N`: 計測用に N 個の点光源（届く距離 8m）を格子状に敷く（`npm run perf -- high '&lightstress=200'`）。
  */
-registerViewPlugin('local-lights', ({ view, level }) => {
-  const lights = localLightsOf(view.scene);
+registerViewPlugin('local-lights', ({ level, services }) => {
+  const { lights } = services;
   const stress = Number(new URLSearchParams(location.search).get('lightstress') ?? 0);
   if (stress > 0) {
     const n = Math.min(Math.floor(stress), MAX_CLUSTERED_LIGHTS - lights.count - 32);

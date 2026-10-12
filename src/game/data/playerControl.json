@@ -1,0 +1,46 @@
+{
+  "tuning": {
+    "walkMinInput": 0.25,
+    "walkMaxInput": 0.55,
+    "runMinInput": 0.72,
+    "minSpeedFraction": 0.45,
+    "turnResponse": 22,
+    "lockOnTurnDegPerSecond": 1080,
+    "lockOnTurnResponse": 18,
+    "rollTurnDegPerSecond": 1800,
+    "attackTurnDegPerSecond": 540,
+    "attackTurnResponse": 30,
+    "gravity": 20,
+    "coyoteFrames": 4,
+    "landSpeedFactor": 0.35,
+    "airAccel": 9,
+    "controllerOffset": 0.02,
+    "snapToGround": 0.4,
+    "autostepMinWidth": 0.1
+  },
+  "reactionSlideFrames": {
+    "light": 8,
+    "heavy": 14,
+    "guard": 8
+  },
+  "maxFallSpeed": 45,
+  "sprintSpeedMargin": 0.3,
+  "dashMinInput": 0.1,
+  "driftFullInput": 0.6,
+  "forcedWalkInput": 0.4,
+  "shoveFrames": 6,
+  "dodge": {
+    "turnResponse": 40,
+    "rollProfile": {
+      "ramp": 3,
+      "hold": 15,
+      "end": 28
+    },
+    "backstepProfile": {
+      "ramp": 2,
+      "hold": 8,
+      "end": 20
+    }
+  },
+  "plungeTargetBelow": 0.3
+}
