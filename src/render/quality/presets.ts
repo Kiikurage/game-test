@@ -184,9 +184,9 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     level: 'high',
     shadowMapSize: 4096,
     shadowRadius: 32,
-    // #318: MSAA の代わりに TAAU（内部 75% から再構成）。`?notaau` で MSAA に戻す
-    msaa: false,
-    taauScale: 0.75,
+    msaa: true,
+    // #318: TAAU は `?taau=` のオプトイン（既定無効の理由は docs/performance.md）
+    taauScale: 0,
     bloom: true,
     bloomStrength: 0.45,
     detailOctaves: 3,
@@ -314,9 +314,7 @@ export interface PerfToggles {
   readonly noBloom: boolean;
   /** `?nomsaa`: MSAA を切る。 */
   readonly noMsaa: boolean;
-  /** `?notaau`: TAAU を切り、代わりに MSAA を使う（TAAU 導入前の high と同じ。`?nomsaa` と併用で AA なし）。 */
-  readonly noTaau: boolean;
-  /** `?taau=0.5..1`: TAAU の内部解像度スケールを上書きする（TAAU が有効な品質だけ。null は既定）。 */
+  /** `?taau=0.5..1`: TAAU を有効にし、内部解像度スケールを指定する（MSAA は切る）。null は無効（既定）。 */
   readonly taauScale: number | null;
   /** `?nograss`: 草を置かない。 */
   readonly noGrass: boolean;
@@ -349,7 +347,6 @@ export function parsePerfToggles(search: string): PerfToggles {
     noShadow: on('noshadow'),
     noBloom: on('nobloom'),
     noMsaa: on('nomsaa'),
-    noTaau: on('notaau'),
     taauScale: parseTaauScale(params.get('taau')),
     noGrass: on('nograss'),
     noParticles: on('noparticles'),
@@ -368,24 +365,14 @@ export function parseTaauScale(value: string | null): number | null {
 
 /** トグルに応じて品質プリセットの該当項目を落とす（変更なしなら同じオブジェクトを返す）。 */
 export function applyPerfToggles(preset: QualityPreset, toggles: PerfToggles): QualityPreset {
-  const taauOn = preset.taauScale > 0;
-  const noTaau = toggles.noTaau && taauOn;
   const taauScale = toggles.taauScale;
-  const rescale = taauScale !== null && taauOn && !noTaau;
-  if (
-    !toggles.noBloom &&
-    !toggles.noMsaa &&
-    !toggles.noGrass &&
-    !toggles.noLights &&
-    !noTaau &&
-    !rescale
-  )
+  const taau = taauScale !== null;
+  if (!toggles.noBloom && !toggles.noMsaa && !toggles.noGrass && !toggles.noLights && !taau)
     return preset;
   return {
     ...preset,
     ...(toggles.noBloom && { bloom: false, bloomStrength: 0 }),
-    ...(noTaau && { taauScale: 0, msaa: true }),
-    ...(rescale && { taauScale }),
+    ...(taau && { taauScale, msaa: false }),
     ...(toggles.noMsaa && { msaa: false }),
     ...(toggles.noGrass && { grassCount: 0 }),
     ...(toggles.noLights && { particles: { ...preset.particles, bonfireLight: false } }),

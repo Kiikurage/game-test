@@ -143,10 +143,12 @@ Apple GPU（タイル型）では連続するレンダーパスが重なって�
 パス別（2 回目、ms）: shadow 0.23〜0.29 / scene 0.65〜1.39 / bloom 0.15〜0.16 / output 0.07。
 vsync 無しの frame は 1.6〜2.5ms（400fps 以上）で、PC high の 120fps（8.3ms）に対して現状は余裕がある。frame ≒ 描画 CPU なので CPU 律速。
 
-### TAAU（#318。high で MSAA の代わり）
+### TAAU（#318。既定無効、`?taau=` でオプトイン）
 
-high は scene パスを内部 75%（`preset.taauScale`）で描き、`render/taau/taau.pass.ts`（temporal 段）で出力解像度へ再構成する。
-`?notaau` で TAAU 導入前の MSAA に戻る。`?taau=0.5..1` で内部解像度スケールを上書きできる。
+`?taau=0.5..1` を付けると、scene パスをその倍率の内部解像度で描き、`render/taau/taau.pass.ts`（temporal 段）で出力解像度へ再構成する（MSAA は切る）。
+既定（全品質）は無効で、high は従来どおり MSAA。理由は下の計測のとおり、内部 75% で GPU 時間は同等、描画 CPU が +0.3〜0.5ms 増え、
+CPU 律速の現状では得が無く、見た目も MSAA と区別できる改善が無かったため。GTAO・体積霧など重いパスを低解像度で回す段階で既定化を再判断する。
+下の値は `?taau=0.75` 相当（導入時の high 既定）で計測した。
 
 - 同じ条件（Mac・PC high・1280x720・`GPU_NOVSYNC=1 PERF_PC=1 GPU_MODE=hardware npm run perf -- high`）で導入前後を続けて計測。
 - パス別（ms）: scene 0.65〜1.42 → 0.47〜1.06（内部 75%）、taau 0.28〜0.30（入力 RTT + 再構成 + 履歴コピー）、他は同じ。
@@ -295,8 +297,7 @@ toggles: noParticles flatMat             有効な切り分けトグル
 | `?scale=<0.25..1>` | 動的解像度を切って内部解像度の倍率を固定 | `<URL>/?perf&scale=0.5` |
 | `?quality=low\|medium\|high` | 品質プリセットを強制 | `<URL>/?perf&quality=low` |
 | `?nomsaa` | MSAA を切る | `<URL>/?perf&nomsaa` |
-| `?notaau` | TAAU を切り MSAA に戻す（high） | `<URL>/?perf&notaau` |
-| `?taau=0.5` | TAAU の内部解像度スケールを上書き | `<URL>/?perf&taau=0.5` |
+| `?taau=0.75` | TAAU を有効にする（内部解像度スケール。MSAA は切る） | `<URL>/?perf&taau=0.75` |
 | `?nobloom` | ブルームを省く | `<URL>/?perf&nobloom` |
 | `?noshadow` | シャドウマップを描かない | `<URL>/?perf&noshadow` |
 | `?nograss` | 草を置かない | `<URL>/?perf&nograss` |

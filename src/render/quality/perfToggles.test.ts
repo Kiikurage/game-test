@@ -17,7 +17,7 @@ describe('parsePerfToggles', () => {
 
   it('reads each toggle, treating =0 as off', () => {
     const t = parsePerfToggles(
-      '?perf&bench&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat&notaau&taau=0.6',
+      '?perf&bench&noshadow&nobloom&nomsaa&nograss&noparticles&nolights&flatmat&taau=0.6',
     );
     const { flatMatGroups, ...flags } = t;
     expect(Object.values(flags).every(Boolean)).toBe(true);
@@ -63,28 +63,20 @@ describe('applyPerfToggles', () => {
 });
 
 describe('TAAU toggles (#318)', () => {
-  it('?notaau falls back to MSAA on high, and ?nomsaa still wins', () => {
+  it('is off by default and ?taau= opts in with MSAA off', () => {
     const hints = { isMobile: false };
-    const off = selectQuality('?quality=high&notaau', hints).preset;
-    expect(off.taauScale).toBe(0);
-    expect(off.msaa).toBe(true);
-    expect(selectQuality('?quality=high&notaau&nomsaa', hints).preset.msaa).toBe(false);
-  });
-
-  it('?taau= overrides the scale only where TAAU is on', () => {
-    const hints = { isMobile: false };
-    expect(selectQuality('?quality=high&taau=0.5', hints).preset.taauScale).toBe(0.5);
-    expect(selectQuality('?quality=high&taau=2', hints).preset.taauScale).toBe(0.75);
-    expect(selectQuality('?quality=medium&taau=0.5', hints).preset).toBe(QUALITY_PRESETS.medium);
-    expect(selectQuality('?quality=medium&notaau', hints).preset).toBe(QUALITY_PRESETS.medium);
+    expect(QUALITY_PRESETS.high.taauScale).toBe(0);
+    const on = selectQuality('?quality=high&taau=0.75', hints).preset;
+    expect(on.taauScale).toBe(0.75);
+    expect(on.msaa).toBe(false);
+    expect(selectQuality('?quality=medium&taau=0.5', hints).preset.taauScale).toBe(0.5);
+    expect(selectQuality('?quality=high&taau=2', hints).preset).toBe(QUALITY_PRESETS.high);
   });
 });
 
 describe('mobile defaults (#231)', () => {
   it('keeps the PC preset untouched and makes medium lighter than before', () => {
-    // #318: high は MSAA の代わりに TAAU
-    expect(QUALITY_PRESETS.high.msaa).toBe(false);
-    expect(QUALITY_PRESETS.high.taauScale).toBe(0.75);
+    expect(QUALITY_PRESETS.high.msaa).toBe(true);
     expect(QUALITY_PRESETS.high.resolution.maxPixels).toBe(4_000_000);
     expect(QUALITY_PRESETS.high.shadowMapSize).toBe(4096);
     expect(QUALITY_PRESETS.medium.msaa).toBe(false);

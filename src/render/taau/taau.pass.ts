@@ -1,4 +1,4 @@
-// TAAU（#318。tech-direction §3.2 の「時間方向」）: scene パスを内部解像度（`preset.taauScale`）で、毎フレーム
+// TAAU（#318。tech-direction §3.2 の「時間方向」。既定無効、`?taau=0.5..1` で有効）: scene パスを内部解像度（`preset.taauScale`）で、毎フレーム
 // サブピクセルずらして（ジッタ）描き、速度バッファで前フレームの履歴を再投影して出力解像度へ再構成する。
 // アンチエイリアス（MSAA の代わり）とアップスケールを 1 パスで行う。本体は three r186 の TAAUNode。
 //
