@@ -90,7 +90,7 @@ src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit /
 - **透明壁**（`LevelData.guards` → `Level.guardBoxes`。描画しない。`levelGameOptions` が `boxes` に含める）: 岩棚の両脇（曲がりの外側は 0.8m 延長）、回廊の北側全長、南側は落下ポイント 3 か所（幅 1.5m）以外、東端。落下ダメージはない（高さ ≦ 3m）。
 - **敵のナビ格子**: 足場の箱・石段に `navSolid: true`（`BlockProp` / `StairsProp`）を付けると、`NavGrid` は低くても固体として扱い、敵は屋根・岩棚・壁上・石段に入らない。壁上から礼拝堂内へ落ちた先（落下ポイントの着地点付近）は、通常の礼拝堂内のナビ格子とつながっている。
 - **足場の範囲（装飾の除外領域）**: `LevelData.sidePaths`（`SidePathDef`: `id` / 中心線 `points` + `halfWidth`（透明壁の外面まで）/ 矩形 `rects` / `spots`）。`Level.sidePathDistance(x, z, ids?)`（または `sidePathDistance(data, x, z, ids?)`）が範囲までの距離を返す（範囲内は 0）。外周の崖の岩塊（#190）など、足場を塞いではいけない配置は、この距離が 0 より十分大きい所にだけ置くこと。外周封鎖の通行領域（`SIDE_PATHS` の `side_ledge`）も同じ `LEDGE_POINTS` から作る。
-- 検証: `levelSidePath.test.ts`（寸法・勾配・段差・範囲、ナビ格子に含まれないこと、屋根・岩棚・壁上の走破・3 か所の落下・往復・縁から落ちないこと）と `e2e/sidePath.spec.ts`（入力注入で B → 屋根 → 岩棚 → 壁上 → 3 か所の落下）。
+- 検証: `levelSidePath.test.ts`（寸法・勾配・段差・範囲、ナビ格子に含まれないこと、屋根・岩棚・壁上の走破・3 か所の落下・往復・縁から落ちないこと）と `levelTraversal.test.ts`（入力注入で B → 屋根 → 岩棚 → 壁上 → 3 か所の落下）。
 - 撮影した俯瞰: `docs/images/side-path/`（`roof-south` / `roof-top` / `ledge` / `wall-top` / `overview`）。
 
 ## 地下水路（#111: `side_waterway`）
@@ -107,7 +107,7 @@ src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit /
 - **暗所・反響ゾーン**: `LevelData.zones`（`ZoneDef`: `dark` / `echo`、矩形 + 任意の高さ範囲）。地下墓所（エリア D）と水路の全区画。`Level.zoneAt(x, z, y?)` / `visionMultiplierAt`（暗所 `DARK_VISION_MULTIPLIER` = 0.7）/ `hearingMultiplierAt`（反響 `ECHO_HEARING_MULTIPLIER` = 1.3）。たいまつから 4m 超の条件は灯りの配置（E11）後に AI（E3-6）が判定する。音は E7-5b が参照する。
 - **敵のナビ格子**: style `waterway` は `NavGrid` が無視する（地下なので C・D の床のセルを塞がない）。床板は `navSolid`、鉄格子の奥は岩盤の埋め草で固体になり、敵は水路へ入らない。
 - **水の描画（#270）**: `src/render/waterway/`（view plugin `waterway`）。style `waterway` の箱は `levelView` ではなく `waterShell.ts` が石積み + 濡れ帯・苔・コースティクス・偽のライト（たいまつ・穴の光・苔。シーンのライトは足さない）で描く。水面は GPU の高さ場の波動方程式（`waterSim.ts`。セル・解像度は品質プリセット（`src/render/quality/presets.ts` の `water`））+ 流れでスクロールするオフライン生成の法線（`scripts/assets/build-water-textures.mjs`。KTX2 / UASTC、`--check` で再生成の一致を確認）+ 平面反射（medium 以上。カメラが水路内のときだけ）+ 屈折・吸収・泡（`waterMaterial.ts`）。足・ローリング・着地は `waterWake.system.ts` の記録をシミュレーション時間で再生して外力にする。しぶき・雫・霧・光の筋は `waterFx.ts`。水路の外では描かず、`?nodraw` では波のシミュレーションを作らない。dev フック: `dev.waterwayRender()`。撮影: `npm run heroshots -- shots/ww --only 地下水路`（`waterway-*` の視点。歩く・ローリングのしぶきを含む）。
-- 検証: `levelWaterway.test.ts`（寸法・地形の頭上の余裕・ゾーン・足音・ナビ・物理で床板 → 水路 → 鉄格子 → D の走破と逆行・戻れないこと）と `e2e/waterway.spec.ts`。
+- 検証: `levelWaterway.test.ts`（寸法・地形の頭上の余裕・ゾーン・足音・ナビ・物理で床板 → 水路 → 鉄格子 → D の走破と逆行・戻れないこと）と `levelTraversal.test.ts`（入力注入で床板 → 水路 → 鉄格子 → D）、描画は `e2e/waterway.spec.ts`。
 
 ## データ駆動のインタラクト（#122: 読む / 調べる）
 
