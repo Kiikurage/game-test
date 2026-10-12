@@ -392,7 +392,7 @@ boss.setEmber(emberAtTransitionFrame(frame));                           // 移�
 | `Knight_Cape_1〜3` | `spine_03` | 深紅の外套を 3 段に分けたもの。`extras.pivot` が各段の蝶番（アイテム空間） |
 
 - **外套の揺れ（軽量なボーン揺れ）**: 段ごとの蝶番を鎖状に吊り、`CapeSpring`（`src/render/player/capeSpring.ts`、three 非依存）のバネ・ダンパーで段ごとの前後・左右の角度を毎フレーム計算して回す（頂点シェーダ・追加マテリアルは使わない）。目標角は ① 前進速度（後ろへなびく）② 旋回角速度（外側へ振られる）③ 重力（上体が前傾・左右に傾いても真下へ垂れる。外套ルートの傾きを自動計測し、上の段ほど多く打ち消す）④ ごく弱い常時のそよ風と走行中のはためき。`CapeRig.update(dt, { forwardSpeed, turnRate })` を毎フレーム呼ぶだけ。
-- **マテリアルは標準のまま**（`MeshStandardMaterial`。補助光 #144 の `applyCharacterLight` は装備を取り付けた後にかければ装備にも掛かる）。金属は金属度 0.8・粗さ 0.55（地の鋼色を鏡面にして、誘電体の白い鏡面反射で白飛びさせない）。鋼の色は `steel`（青灰、エッジだけ擦れて明るく、下向きの面にごく薄い黒ずみ）、布は `crimson`、革は 7.7 節と共通。
+- **マテリアルは標準のまま**（`MeshStandardMaterial`。武器の発光 `applyWeaponTelegraph` は装備を取り付けた後にかければ装備の武器にも掛かる）。金属は金属度 0.8・粗さ 0.55（地の鋼色を鏡面にして、誘電体の白い鏡面反射で白飛びさせない）。鋼の色は `steel`（青灰、エッジだけ擦れて明るく、下向きの面にごく薄い黒ずみ）、布は `crimson`、革は 7.7 節と共通。
 - ランタイム: `PlayerKitAssets.load()` → `equipKnight(character)`（`src/render/player/playerKit.ts`）。兜を被せるのでフード、肩当てを付けるので衣装の肩当てメッシュを隠し、衣装の布（`MI_Ranger`）の色を暗い青灰へ寄せる（`tintOutfit`。肌は触らない）。返り値の `PlayerKit` は `cape: CapeRig` と `remove()`（装備を外して衣装を戻す）を持つ。
 - 予算（実測、manifest の `player`）: 12 アイテム合計 2,748 tris（Helm 498 / Cuirass 476 / Tabard 48 / Pauldron_L 476 / Pauldron_R 476 / Vambrace_L 156 / Vambrace_R 156 / Greave_L 132 / Greave_R 132 / Cape_1 134 / Cape_2 32 / Cape_3 32）/ 約 71KB / テクスチャメモリ 0。騎士 21,252 + 剣・盾 950 + 装備 2,748 = **24,950 tris**（1 体 25,000 tris 以下の予算内）。`playerKit.test.ts` が検証している。
 - 確認用: `?player=1`（`&view=front|back|left|right|close&dist=3.2`、`&clip=Jog_Fwd_Loop|Sprint_Loop|Sword_Idle…`、`&speed=<m/s>` で外套のなびき、`&light=front|back|side|shade` で光の向き）。撮影は `SHOT_QUERY='?player=1&view=back&dist=3.2' npm run shot`。

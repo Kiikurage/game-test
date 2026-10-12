@@ -1,12 +1,9 @@
 import {
-  AdditiveBlending,
   BackSide,
   BufferGeometry,
   Float32BufferAttribute,
   Group,
   Mesh,
-  MeshBasicNodeMaterial,
-  DoubleSide,
   Uint32BufferAttribute,
 } from 'three/webgpu';
 import {
@@ -27,12 +24,13 @@ import {
   smoothstep,
   texture,
   vec2,
+  uniform,
   vec3,
-  vec4,
 } from 'three/tsl';
 import type { RectDef } from '../../game/world/level';
 import { HATCH } from '../../game/world/waterway';
 import { bakedNoise } from '../bakedNoise';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
 import { BurstLayer, type BurstSpec } from '../particles/layer';
 import { buildWaterSurface } from './waterLayout';
 import { SHAFT_DIRECTION, lightAt, shaftVisibility, type WaterLightRig } from './waterLighting';
@@ -129,31 +127,44 @@ function mistMesh(
   geometry.setAttribute('position', new Float32BufferAttribute(surface.positions, 3));
   geometry.setIndex(new Uint32BufferAttribute(surface.indices, 1));
   geometry.computeBoundingSphere();
-  const material = new MeshBasicNodeMaterial({
+  // 層ごとの差（模様のずれ・濃さ）はユニフォーム。2 層で同じシェーダになる（#326）
+  const material = createUberMaterial({
+    shading: 'unlit',
     transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
+    doubleSided: true,
+    surface: () => mistSurface(fields, rig, index),
+    surfaceId: 'waterwayMist',
   });
+  const mesh = new Mesh(geometry, material);
+  mesh.name = `waterway-mist-${index}`;
+  mesh.renderOrder = 4 + index;
+  return mesh;
+}
+
+function mistSurface(fields: WaterFields, rig: WaterLightRig, index: number): UberSurface {
+  const shift = uniform(index);
+  const strength = uniform(index === 0 ? 0.16 : 0.1);
   const wp = positionWorld;
   const t = fields.time;
   const swell = fields.textures.swell;
-  const a = texture(swell, wp.xz.div(5.3).add(vec2(t.mul(0.013), t.mul(0.004)).add(index * 0.31)));
-  const b = texture(swell, wp.xz.div(3.1).add(vec2(t.mul(-0.008), t.mul(0.011)).add(index * 0.57)));
+  const a = texture(
+    swell,
+    wp.xz.div(5.3).add(vec2(t.mul(0.013), t.mul(0.004)).add(shift.mul(0.31))),
+  );
+  const b = texture(
+    swell,
+    wp.xz.div(3.1).add(vec2(t.mul(-0.008), t.mul(0.011)).add(shift.mul(0.57))),
+  );
   const density = smoothstep(0.3, 0.75, a.x.mul(0.6).add(b.y.mul(0.6)).sub(0.1));
   const toCam = cameraPosition.sub(wp);
   const dist = length(toCam);
   const grazing = float(1).sub(abs(toCam.y).div(max(dist, 0.001)));
   const near = smoothstep(0.4, 2.2, dist);
   const lit = lightAt(rig, wp, null);
-  material.colorNode = vec4(lit.mul(0.3).add(vec3(0.03, 0.036, 0.042)), 1);
-  material.opacityNode = density
-    .mul(grazing.mul(grazing).mul(0.75).add(0.25))
-    .mul(near)
-    .mul(index === 0 ? 0.16 : 0.1);
-  const mesh = new Mesh(geometry, material);
-  mesh.name = `waterway-mist-${index}`;
-  mesh.renderOrder = 4 + index;
-  return mesh;
+  return {
+    color: lit.mul(0.3).add(vec3(0.03, 0.036, 0.042)),
+    opacity: density.mul(grazing.mul(grazing).mul(0.75).add(0.25)).mul(near).mul(strength),
+  };
 }
 
 /** 床板の穴から差す光の筋（斜めの角柱を裏面で描き、視線と角柱の交わる区間を解析的に求めて数点で積分する）。 */
@@ -193,14 +204,25 @@ function shaftMesh(rig: WaterLightRig, surfaceY: number): Mesh {
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
 
-  const material = new MeshBasicNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: BackSide,
-    blending: AdditiveBlending,
+  const material = createUberMaterial({
+    shading: 'unlit',
+    additive: true,
+    noFog: true,
+    surface: () => ({ color: shaftColor(rig, surfaceY, top, half) }),
+    surfaceId: 'waterwayShaft',
   });
-  material.fog = false;
-  const color = Fn(() => {
+  // 裏面で描く（ウーバーのフラグは表 / 両面だけ。レンダーステートなので系統のシェーダは変わらない）
+  material.side = BackSide;
+  const mesh = new Mesh(geometry, material);
+  mesh.name = 'waterway-shaft';
+  mesh.renderOrder = 6;
+  mesh.frustumCulled = true;
+  return mesh;
+}
+
+function shaftColor(rig: WaterLightRig, surfaceY: number, top: number, half: number): V3 {
+  const d = SHAFT_DIRECTION;
+  return Fn(() => {
     const c = cameraPosition;
     const ray = positionWorld.sub(c);
     // 斜めの座標（穴の面へ光の向きに沿って戻した点）は位置の 1 次式 → 区間を解析的に切り出せる
@@ -238,12 +260,6 @@ function shaftMesh(rig: WaterLightRig, surfaceY: number): Mesh {
     const thickness = span.mul(length(ray));
     return vec3(0.55, 0.68, 0.85).mul(sum.div(steps).mul(thickness).mul(0.11)).mul(rig.shaft);
   })();
-  material.colorNode = vec4(color, 1);
-  const mesh = new Mesh(geometry, material);
-  mesh.name = 'waterway-shaft';
-  mesh.renderOrder = 6;
-  mesh.frustumCulled = true;
-  return mesh;
 }
 
 export function createWaterFx(

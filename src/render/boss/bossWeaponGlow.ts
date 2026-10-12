@@ -3,7 +3,7 @@ import { BOSS_MOVES, stagesOf } from '../../game/boss/bossMove';
 import { bossTelegraphOf } from '../../game/boss/bossTelegraph.system';
 import type { BossPhase } from '../../game/boss/bossData';
 import { weaponTelegraphAmount, type WeaponTelegraphProfile } from '../telegraph/weaponTelegraph';
-import type { WeaponTelegraphStyle } from '../characterLight';
+import type { WeaponTelegraphStyle } from '../weaponTelegraph';
 
 /**
  * ボスの予兆（予備動作）中の斧の発光（#214）。種別は `bossTelegraphOf`（段の `telegraph`）で、描画側が引く。

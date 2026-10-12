@@ -2,34 +2,18 @@ import {
   BoxGeometry,
   CylinderGeometry,
   Float32BufferAttribute,
-  MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
   SphereGeometry,
 } from 'three/webgpu';
 import type { Node, BufferGeometry } from 'three/webgpu';
-import {
-  attribute,
-  cos,
-  dot,
-  float,
-  length,
-  max,
-  mix,
-  normalize,
-  positionLocal,
-  sin,
-  time,
-  vec3,
-  vec4,
-} from 'three/tsl';
+import { attribute, cos, mix, positionLocal, sin, time, vec3 } from 'three/tsl';
+import { createUberMaterial, type UberMaterial } from '../uberMaterial';
 import type { ArenaDef } from '../../game/world/arena';
 import { mergeAll } from './arenaGeometry';
 
 /**
  * 闘技場の壁のたいまつ（主光源の 1 つ。仕様書 7.2 節: 篝火・熾火・たいまつが主光源）。
  *
- * 本物のライトは増やさず（モバイルの負荷）、石のマテリアルが各たいまつからの暖色の光を解析的に足す
- * （`torchGlow`。距離の 2 乗減衰 + 面の向き + ゆらぎ。台座の篝火の本物のライトは E5 の撃破演出が出す）。
+ * 光は実ライト（`lighting/localLights.ts`。クラスタードライティング、#322）で、床・壁・キャラクターを照らす。
  */
 export interface Torch {
   readonly x: number;
@@ -62,26 +46,10 @@ export function layoutTorches(def: ArenaDef, count = 8): Torch[] {
 }
 
 type F = Node<'float'>;
-type V3 = Node<'vec3'>;
 
-/** 位置 `p`・法線 `n` での、たいまつ群からの暖色の光（リニア。アルベドに掛けて emissive に足す）。 */
-export function torchGlow(p: V3, n: V3, torches: readonly Torch[], intensity = 1.0): V3 {
-  let sum: V3 = vec3(0, 0, 0);
-  torches.forEach((t) => {
-    const to = vec3(t.x, t.y, t.z).sub(p);
-    const d: F = length(to);
-    const q: F = d.div(4.4);
-    const falloff: F = float(1).div(float(1).add(q.mul(q)).pow(2));
-    const facing: F = max(dot(n, normalize(to)), 0)
-      .mul(0.7)
-      .add(0.3);
-    const flick: F = float(0.84)
-      .add(sin(time.mul(9.3).add(t.phase)).mul(0.08))
-      .add(sin(time.mul(17.1).add(t.phase * 1.7)).mul(0.05))
-      .add(sin(time.mul(29.0).add(t.phase * 3.1)).mul(0.03));
-    sum = sum.add(falloff.mul(facing).mul(flick));
-  });
-  return vec3(1.0, 0.52, 0.2).mul(sum).mul(intensity);
+/** たいまつの光源の位置（炎の中ほど。`localLights` に実ライトとして登録する）。 */
+export function torchLightPosition(t: Torch): [number, number, number] {
+  return [t.x + t.dirX * 0.55, t.y + 0.3, t.z + t.dirZ * 0.55];
 }
 
 /** 燭台（壁から張り出す腕と皿）。 */
@@ -137,8 +105,7 @@ export function createFlameGeometry(torches: readonly Torch[]): BufferGeometry {
 }
 
 /** 炎のマテリアル（HDR。根元は黄白、先端は橙。ゆらぎは頂点シェーダ）。 */
-export function createFlameMaterial(): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({ fog: false });
+export function createFlameMaterial(): UberMaterial {
   const t: F = attribute('flameT', 'float');
   const phase: F = attribute('phase', 'float');
   const sway = vec3(
@@ -146,13 +113,19 @@ export function createFlameMaterial(): MeshBasicNodeMaterial {
     sin(time.mul(14.0).add(phase.mul(2.0))).mul(0.05),
     cos(time.mul(10.3).add(phase.mul(1.3))).mul(0.03),
   ).mul(t.mul(t));
-  material.positionNode = positionLocal.add(sway);
   const hot = vec3(4.2, 2.2, 0.7);
   const cool = vec3(2.4, 0.62, 0.1);
-  material.colorNode = vec4(mix(hot, cool, t.pow(0.8)), 1);
-  return material;
+  return createUberMaterial({
+    shading: 'unlit',
+    noFog: true,
+    surface: () => ({ color: mix(hot, cool, t.pow(0.8)), position: positionLocal.add(sway) }),
+    surfaceId: 'arenaFlame',
+  });
 }
 
-export function createSconceMaterial(): MeshStandardNodeMaterial {
-  return new MeshStandardNodeMaterial({ color: 0x2a2826, roughness: 0.7, metalness: 0.5 });
+export function createSconceMaterial(): UberMaterial {
+  return createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x2a2826, roughness: 0.7, metalness: 0.5 },
+  );
 }

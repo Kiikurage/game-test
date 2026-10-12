@@ -27,6 +27,7 @@ export class NavDebugView {
   private builtVersion = -1;
 
   constructor(private readonly navigator: GridNavigator) {
+    // ウーバーマテリアルの例外: デバッグ表示の線（Line はメッシュのシェーダと別系統。#326）
     const edgeMaterial = new LineBasicNodeMaterial({
       color: 0x2fd6c8,
       transparent: true,

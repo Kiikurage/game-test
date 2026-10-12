@@ -1,4 +1,5 @@
 import { sectorShape } from '../../combat';
+import { BOSS_MOVES_DATA } from '../../data/bossMoves';
 import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
 
 /**
@@ -13,48 +14,17 @@ import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bo
  * 頂点より手前（斧の内側）は当たらないので、前方ロールで射程の内側へ入って潜り抜けられる（6.3 節「回避の想定」）。
  */
 
+const { params: P, ...MOVE } = BOSS_MOVES_DATA.overhead;
+const [OVERHEAD_P1] = MOVE.stages;
+
 /** 扇形の頂点をボスの前へずらす距離（m）。ボスの体の半径 0.9m + 余裕。これより手前は斧の内側で当たらない。 */
-export const OVERHEAD_APEX_OFFSET = 1.5;
+export const OVERHEAD_APEX_OFFSET = P.apexOffset;
 /** ボスの原点から測った射程（m）。 */
-export const OVERHEAD_REACH = 4.2;
-
-const COMMON = {
-  id: 'overhead.1',
-  active: 8,
-  poiseDamage: 70,
-  guardStaminaCost: 60,
-  moveDistance: 0,
-  arcDeg: 60,
-  range: OVERHEAD_REACH,
-  heavy: true,
-  telegraph: 'heavy',
-  trackEndFrame: 30,
-} as const satisfies Partial<BossStageDef>;
-
-const OVERHEAD_P1: BossStageDef = {
-  ...COMMON,
-  startup: 48,
-  recovery: 52,
-  damage: 110,
-  trackDegPerSecond: 90,
-};
-
-const OVERHEAD_P2: BossStageDef = {
-  ...COMMON,
-  startup: 42,
-  recovery: 44,
-  damage: 120,
-  superArmor: { start: 1, end: 42 + COMMON.active },
-};
+export const OVERHEAD_REACH = OVERHEAD_P1?.range ?? 0;
 
 registerBossMove({
   id: 'overhead',
-  name: '大上段斬り',
-  phases: [1, 2],
-  stages: [OVERHEAD_P1],
-  phase2Stages: [OVERHEAD_P2],
-  // 近・中距離の技。接近しながら（歩き）、射程に入ったら足を止めてから予備動作に入る
-  approach: { speed: 'walk', stopRange: 3.2 },
+  ...MOVE,
   hooks: {
     shape: (ctx: BossMoveContext, stage: BossStageDef) => {
       const { position, yaw } = ctx.boss;

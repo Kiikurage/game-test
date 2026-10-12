@@ -1,11 +1,5 @@
-import {
-  AdditiveBlending,
-  DoubleSide,
-  Mesh,
-  MeshBasicNodeMaterial,
-  RingGeometry,
-  Vector3,
-} from 'three/webgpu';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
+import { Mesh, RingGeometry, Vector3, type UniformNode } from 'three/webgpu';
 import {
   atan,
   exp,
@@ -40,33 +34,19 @@ const TRAIL_HEIGHT = 1.5;
 /** 軌跡の内側の半径（m）。外縁の細い帯だけ見せる（プレイヤーに平たい膜をかけない）。 */
 const TRAIL_INNER = 3.5;
 
-registerViewPlugin('boss-spin', ({ game, view }) => {
+registerViewPlugin('boss-spin', ({ game, view, services }) => {
   const head = uniform(0);
   const amount = uniform(0);
   const geometry = new RingGeometry(TRAIL_INNER, SPIN_RADIUS, 64, 1);
   geometry.rotateX(-Math.PI / 2);
   // 加算合成・深度書き込みなし: 下の物を覆わず、明るさを足すだけ
-  const material = new MeshBasicNodeMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    blending: AdditiveBlending,
+  const material = createUberMaterial({
+    shading: 'unlit',
+    additive: true,
+    doubleSided: true,
+    surface: () => spinSurface(head, amount),
+    surfaceId: 'bossSpin',
   });
-  const ang = atan(positionLocal.x, positionLocal.z);
-  // 先頭からどれだけ後ろか（0: 先頭 → 1: 尾の端）
-  const behind = head
-    .sub(ang)
-    .mod(Math.PI * 2)
-    .div(TRAIL);
-  // 先頭の細く明るい縁（熾火色）と、すぐ消える尾
-  const edge = exp(behind.mul(-28));
-  const tail = pow(float(1).sub(behind).max(0), 4);
-  const r = length(positionLocal.xz);
-  const radial = smoothstep(TRAIL_INNER + 0.2, SPIN_RADIUS - 0.4, r).mul(
-    float(1).sub(smoothstep(SPIN_RADIUS - 0.15, SPIN_RADIUS + 0.02, r)),
-  );
-  material.colorNode = mix(vec3(1.0, 0.28, 0.05), vec3(2.2, 1.1, 0.4), edge);
-  material.opacityNode = edge.mul(0.7).add(tail.mul(0.16)).mul(radial).mul(amount);
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
   mesh.renderOrder = 6;
@@ -116,10 +96,34 @@ registerViewPlugin('boss-spin', ({ game, view }) => {
           boss.position.z + Math.cos(a) * 4,
         );
         normal.set(Math.sin(a + 1.2), 0.8, Math.cos(a + 1.2)).normalize();
-        view.particles.hit(position, normal, 0.9);
+        services.fx.hit(position, normal, 0.9);
       }
       lastFrame = state.frame;
       lastRotation = state.rotation;
     },
   };
 });
+
+/** 軌跡の模様（先頭の明るい縁と、すぐ消える尾）。 */
+function spinSurface(
+  head: UniformNode<'float', number>,
+  amount: UniformNode<'float', number>,
+): UberSurface {
+  const ang = atan(positionLocal.x, positionLocal.z);
+  // 先頭からどれだけ後ろか（0: 先頭 → 1: 尾の端）
+  const behind = head
+    .sub(ang)
+    .mod(Math.PI * 2)
+    .div(TRAIL);
+  // 先頭の細く明るい縁（熾火色）と、すぐ消える尾
+  const edge = exp(behind.mul(-28));
+  const tail = pow(float(1).sub(behind).max(0), 4);
+  const r = length(positionLocal.xz);
+  const radial = smoothstep(TRAIL_INNER + 0.2, SPIN_RADIUS - 0.4, r).mul(
+    float(1).sub(smoothstep(SPIN_RADIUS - 0.15, SPIN_RADIUS + 0.02, r)),
+  );
+  return {
+    color: mix(vec3(1.0, 0.28, 0.05), vec3(2.2, 1.1, 0.4), edge),
+    opacity: edge.mul(0.7).add(tail.mul(0.16)).mul(radial).mul(amount),
+  };
+}

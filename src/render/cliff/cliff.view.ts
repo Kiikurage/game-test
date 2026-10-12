@@ -1,20 +1,20 @@
+import { createInstancedMesh } from '../instancing';
+import type { InstancedMesh } from 'three/webgpu';
 import {
   Group,
-  InstancedMesh,
   Matrix4,
-  MeshStandardNodeMaterial,
   Quaternion,
   Vector3,
   type BufferGeometry,
   type Material,
 } from 'three/webgpu';
-import { float, mix, normalWorld, positionWorld, smoothstep, vec3, vec4 } from 'three/tsl';
+import { float, mix, normalWorld, positionWorld, smoothstep, vec3 } from 'three/tsl';
 import { registerViewPlugin } from '../viewPlugins';
 import { createGrassMaterial } from '../levelMaterials';
 import { createDryGrassGeometry, createRockPileGeometry } from './cliffGeometry';
 import { layoutCliff, type CliffItem } from './cliffLayout';
 import { rockCrackFar, rockSurface } from './rockSurface';
-import { tagMaterial } from '../materialGroups';
+import { createUberMaterial, type UberMaterial, type UberSurface } from '../uberMaterial';
 
 /**
  * 外周の崖（#176）の岩塊・枯れ草（#190）。崖の基部の瓦礫、斜面の張り出し、上端の岩と枯れ草のシルエットを
@@ -25,8 +25,14 @@ import { tagMaterial } from '../materialGroups';
  */
 
 /** 岩塊のマテリアル: 崖と同じ地層・節理の色（`rockSurface`）に、上面の砂埃と凹凸を足す。 */
-function createRockPileMaterial(): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 0.97, metalness: 0 });
+function createRockPileMaterial(): UberMaterial {
+  return createUberMaterial(
+    { shading: 'lit', surface: rockPileSurface, surfaceId: 'rockPile', group: 'cliff' },
+    { roughness: 0.97, metalness: 0 },
+  );
+}
+
+function rockPileSurface(): UberSurface {
   const rock = rockSurface(positionWorld, {
     damp: float(0.6),
     up: normalWorld.y,
@@ -35,8 +41,7 @@ function createRockPileMaterial(): MeshStandardNodeMaterial {
   const base = vec3(0.19, 0.18, 0.17);
   const dust = vec3(0.24, 0.215, 0.18);
   const top = smoothstep(0.55, 0.95, normalWorld.y);
-  material.colorNode = vec4(mix(base.mul(rock.tone), dust, top.mul(0.35)), 1);
-  return tagMaterial(material, 'cliff');
+  return { color: mix(base.mul(rock.tone), dust, top.mul(0.35)) };
 }
 
 function buildInstanced(
@@ -45,7 +50,7 @@ function buildInstanced(
   material: Material,
   name: string,
 ): InstancedMesh {
-  const mesh = new InstancedMesh(geometry, material, items.length);
+  const mesh = createInstancedMesh(geometry, material, items.length);
   const matrix = new Matrix4();
   const quaternion = new Quaternion();
   const position = new Vector3();

@@ -36,7 +36,7 @@ const ELBOW_POLE = new Vector3(0.6, -0.5, -0.5);
 
 const AXIS_X = new Vector3(1, 0, 0);
 
-registerViewPlugin('heal-flask', ({ game, view }) => {
+registerViewPlugin('heal-flask', ({ game, view, services }) => {
   const clock = new StepClock();
   let flask: FlaskMesh | null = null;
   let flaskRoot: Object3D | null = null;
@@ -98,7 +98,7 @@ registerViewPlugin('heal-flask', ({ game, view }) => {
       burst = false;
       if (fire) {
         feet.copy(root.position);
-        view.particles.healGlow(feet);
+        services.fx.healGlow(feet);
       }
       const found = findRig(root);
       if (!found) return;
@@ -174,7 +174,7 @@ registerViewPlugin('heal-flask', ({ game, view }) => {
       flask.root.quaternion.copy(parentQ).invert().multiply(quat);
 
       // 効いた瞬間（healApply = F26）、瓶の口から火花が散る
-      if (fire) view.particles.chargeGlint(tip, 0.8);
+      if (fire) services.fx.chargeGlint(tip, 0.8);
     },
   };
 });

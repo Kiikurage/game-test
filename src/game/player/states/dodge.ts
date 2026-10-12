@@ -1,5 +1,6 @@
 import type { InputSnapshot } from '../../../core/input';
-import { PLAYER_ACTIONS } from '../../data';
+import { PLAYER_ACTIONS, totalFrames } from '../../data';
+import { PLAYER_CONTROL } from '../../data/playerControl';
 import { dashProfile } from '../movement';
 import { DEG, type PlayerCore, type PlayerFrame } from '../playerCore';
 import { isDodgeState, type PlayerStateId } from '../playerStates';
@@ -7,17 +8,18 @@ import { isDodgeState, type PlayerStateId } from '../playerStates';
 const ROLL_PROFILE = dashProfile(
   PLAYER_ACTIONS.roll.moveDistance,
   PLAYER_ACTIONS.roll.startup + PLAYER_ACTIONS.roll.recovery,
-  { ramp: 3, hold: 15, end: 28 },
+  PLAYER_CONTROL.dodge.rollProfile,
 );
 const BACKSTEP_PROFILE = dashProfile(
   PLAYER_ACTIONS.backstep.moveDistance,
   PLAYER_ACTIONS.backstep.startup + PLAYER_ACTIONS.backstep.recovery,
-  { ramp: 2, hold: 8, end: 20 },
+  PLAYER_CONTROL.dodge.backstepProfile,
 );
 const ROLL_FRAMES = ROLL_PROFILE.length;
 const BACKSTEP_FRAMES = BACKSTEP_PROFILE.length;
 const ROLL_MOVE_CANCEL =
-  PLAYER_ACTIONS.roll.cancels.find((c: { to: string }) => c.to === 'move')?.start ?? 26;
+  PLAYER_ACTIONS.roll.cancels.find((c: { to: string }) => c.to === 'move')?.start ??
+  totalFrames(PLAYER_ACTIONS.roll);
 
 export function updateRoll(
   c: PlayerCore,
@@ -28,7 +30,7 @@ export function updateRoll(
   const f = c.stateFrame;
   // 向きは入力方向へ素早く合わせる（ロックオン中も、終了後に対象方向へ戻す）
   c.turnRate = c.tuning.player.rollTurnDegPerSecond * DEG;
-  c.turnResponse = 40;
+  c.turnResponse = PLAYER_CONTROL.dodge.turnResponse;
 
   const dist = ROLL_PROFILE[f - 1] ?? 0;
   c.velocity.x = Math.sin(c.dodgeDirYaw) * dist * 60;

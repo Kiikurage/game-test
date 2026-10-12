@@ -7,7 +7,6 @@ import {
   Float32BufferAttribute,
   Group,
   Mesh,
-  MeshBasicNodeMaterial,
   PlaneGeometry,
   Uint32BufferAttribute,
   type Node,
@@ -30,6 +29,7 @@ import {
 import { sunDirection } from './environment';
 import { sharedHazeFar, sharedHazeSun, sharedSunTint } from './atmosphereNodes';
 import { valueNoise } from '../game/world/terrain';
+import { createUberMaterial, type UberMaterial } from './uberMaterial';
 
 /** 遠景の山並みの 1 層。半径が大きいほど遠く、霞に溶ける。 */
 export interface RidgeLayer {
@@ -102,24 +102,30 @@ function createHazeColor(sunDirNode: Node<'vec3'>): Node<'vec3'> {
   })();
 }
 
-function createRidgeMaterial(layer: RidgeLayer, sunDirNode: Node<'vec3'>): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({ fog: false });
+function createRidgeMaterial(layer: RidgeLayer, sunDirNode: Node<'vec3'>): UberMaterial {
   const haze = createHazeColor(sunDirNode);
   const near = uniform(new Color(0x2e333c));
   const sunTint = sharedSunTint;
-  const top = layer.base + layer.amplitude;
-  material.colorNode = Fn(() => {
+  // 層ごとの値は uniform（全層で同じシェーダ・パイプラインを共有する）
+  const top = uniform(layer.base + layer.amplitude);
+  const layerHaze = uniform(layer.haze);
+  const color = Fn(() => {
     const viewDir = normalize(positionWorld.sub(cameraPosition));
     const mu = clamp(dot(viewDir, sunDirNode), 0, 1);
     // 谷間ほど霞に沈み、峰ほど手前の暗い青灰が残る
-    const valley = smoothstep(top * 0.95, -20, positionWorld.y);
-    let col = mix(near, haze, layer.haze);
+    const valley = smoothstep(top.mul(0.95), -20, positionWorld.y);
+    let col = mix(near, haze, layerHaze);
     col = mix(col, haze, valley.mul(0.75));
     // 太陽側は稜線が金色に染まる（逆光の空気感）
-    col = col.add(sunTint.mul(pow(mu, 6).mul(0.16 * layer.haze)));
+    col = col.add(sunTint.mul(pow(mu, 6).mul(layerHaze.mul(0.16))));
     return col;
   })();
-  return material;
+  return createUberMaterial({
+    shading: 'unlit',
+    noFog: true,
+    surface: () => ({ color }),
+    surfaceId: 'skylineLayer',
+  });
 }
 
 /** 城のシルエット（ローカル座標: +x が接線方向、+z が中心側、+y が上）。頂点色は窓の灯りだけ HDR。 */
@@ -216,9 +222,8 @@ export class Skyline {
       ridgeMin = Math.min(ridgeMin, ridgeHeight(front, LANDMARK_AZIMUTH + d));
     }
     const baseY = (ridgeMin * LANDMARK_RADIUS) / front.radius - 8;
-    const castleMaterial = new MeshBasicNodeMaterial({ fog: false });
     const haze = createHazeColor(sunDirNode);
-    castleMaterial.colorNode = Fn(() => {
+    const castleColor = Fn(() => {
       const base = vertexColor().mul(vec3(0.06, 0.065, 0.085));
       // 窓の灯り（HDR）は霞に埋もれさせない。壁は霞色に 55% 溶ける
       const lit = smoothstep(0.5, 0.9, base.r.mul(2));
@@ -226,6 +231,12 @@ export class Skyline {
       const foot = smoothstep(baseY + 35, baseY - 5, positionWorld.y).mul(0.85);
       return mix(mix(mix(base, haze, 0.14), haze, foot), base, lit);
     })();
+    const castleMaterial = createUberMaterial({
+      shading: 'unlit',
+      noFog: true,
+      surface: () => ({ color: castleColor.rgb }),
+      surfaceId: 'castle',
+    });
     const castle = new Mesh(createCastleGeometry(), castleMaterial);
     const phi = Math.atan2(-Math.cos(LANDMARK_AZIMUTH), -Math.sin(LANDMARK_AZIMUTH));
     castle.position.set(

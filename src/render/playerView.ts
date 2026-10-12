@@ -1,11 +1,5 @@
-import {
-  MeshBasicNodeMaterial,
-  Quaternion,
-  Timer,
-  Vector3,
-  type Mesh,
-  type Scene,
-} from 'three/webgpu';
+import { createUberMaterial } from './uberMaterial';
+import { Quaternion, Timer, Vector3, type Mesh, type Scene } from 'three/webgpu';
 import { createLodBuilder } from './assets/characterLod';
 import type { Game } from '../game/game';
 import type { GuardPresentation } from '../game/player/player';
@@ -13,7 +7,7 @@ import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
 import { PlayerKitAssets, type CapeRig } from './player/playerKit';
-import { applyCharacterLight, type CharacterLight } from './characterLight';
+import { applyWeaponTelegraph, type WeaponTelegraph } from './weaponTelegraph';
 import { AMBUSH } from '../game/data';
 import { heavyChargeGlow } from './player/heavyChargeGlow';
 
@@ -45,7 +39,7 @@ export class PlayerView {
     private readonly animator: PlayerAnimator,
     readonly triangles: number,
     private readonly cape?: CapeRig,
-    private readonly light?: CharacterLight,
+    private readonly light?: WeaponTelegraph,
   ) {}
 
   private lastYaw = NaN;
@@ -77,8 +71,8 @@ export class PlayerView {
       return undefined;
     });
     const cape = kit?.equipKnight(character).cape;
-    // 逆光でも輪郭・武器が読めるよう補助光（リムライト・暗部の持ち上げ）を足す（#144）
-    const light = applyCharacterLight(character.root);
+    // 武器の発光（溜め攻撃のフィードバック）
+    const light = applyWeaponTelegraph(character.root);
     let triangles = 0;
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {
@@ -94,7 +88,7 @@ export class PlayerView {
       console.error('character LOD unavailable', e);
       return undefined;
     });
-    lodBuilder?.create(character.root, new MeshBasicNodeMaterial());
+    lodBuilder?.create(character.root, createUberMaterial({ shading: 'unlit' }));
     scene.add(character.root);
     const animator = new PlayerAnimator(character, loaded);
     const view = new PlayerView(game, character, animator, triangles, cape, light);

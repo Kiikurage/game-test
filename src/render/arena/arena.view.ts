@@ -1,4 +1,4 @@
-import { Group, Mesh, Vector3, type Material, type Object3D } from 'three/webgpu';
+import { Color, Group, Mesh, Vector3, type Material, type Object3D } from 'three/webgpu';
 import type { GameView } from '../gameView';
 import { arenaMoodWeight, arenaOf, type ArenaDef } from '../../game/world/arena';
 import type { Level } from '../../game/world/level';
@@ -21,6 +21,7 @@ import {
   createSconceGeometry,
   createSconceMaterial,
   layoutTorches,
+  torchLightPosition,
 } from './arenaTorches';
 
 /** 闘技場の中心からこの距離（m）より遠いときは闘技場を描かない。 */
@@ -68,6 +69,9 @@ export interface ArenaView {
 
 const views = new WeakMap<GameView, ArenaView>();
 
+/** 壁のたいまつの光（実ライト）。 */
+const ARENA_TORCH_LIGHT = { color: new Color(1, 0.52, 0.2), intensity: 18, distance: 11 };
+
 /** `view` の闘技場の描画。闘技場を描いていないときは `null`。 */
 export function arenaViewOf(view: GameView): ArenaView | null {
   return views.get(view) ?? null;
@@ -97,7 +101,6 @@ function createArena(baked: Object3D, level: Level, def: ArenaDef, skyAt: Enviro
       radius: def.circle.radius,
       pillars: def.pillars,
       pedestalRadius: def.pedestal.radius,
-      torches,
     }),
     false,
   );
@@ -113,7 +116,6 @@ function createArena(baked: Object3D, level: Level, def: ArenaDef, skyAt: Enviro
         floorY,
         cracks: 0.55,
         grime: 1,
-        torches,
       }),
       true,
     );
@@ -148,7 +150,6 @@ function createArena(baked: Object3D, level: Level, def: ArenaDef, skyAt: Enviro
       floorY,
       cracks: 0.7,
       grime: 1,
-      torches,
     }),
     true,
   );
@@ -162,12 +163,11 @@ function createArena(baked: Object3D, level: Level, def: ArenaDef, skyAt: Enviro
       floorY,
       cracks: 0.45,
       grime: 0.8,
-      torches,
     }),
     true,
   );
 
-  // 壁のたいまつ（燭台 + 炎。光は石のマテリアルが足す）
+  // 壁のたいまつ（燭台 + 炎。光は実ライトで、プラグインが登録する）
   const sconces = new Mesh(createSconceGeometry(torches), createSconceMaterial());
   sconces.name = 'arena:sconces';
   sconces.castShadow = true;
@@ -185,13 +185,13 @@ function createArena(baked: Object3D, level: Level, def: ArenaDef, skyAt: Enviro
       meshes++;
     }
   });
-  return { root, triangles, meshes, sky };
+  return { root, triangles, meshes, sky, torches };
 }
 
 // 闘技場の見た目: 石畳の床・外周の壁・柱 4 本・中央の台座（`arenaOf(level)` と同じ寸法）と、
 // 近づくと黄昏 → 夕闇（ほぼ夜）へ移るライティング（`Environment.setMood`）。
 // 柱の破片の口（`PillarHit`）は `bossPillarHit` から開く。演出本体は E5-8b。
-registerViewPlugin('arena', ({ game, view, level }) => {
+registerViewPlugin('arena', ({ game, view, level, services }) => {
   const def = level ? arenaOf(level) : null;
   if (!level || !def) return {};
 
@@ -208,7 +208,7 @@ registerViewPlugin('arena', ({ game, view, level }) => {
   const open = (hit: PillarHit): void => {
     hitCount++;
     // 既定: 砂煙と火花（破片の演出が入るまでの代わり）
-    view.particles.hit(hit.position, hit.normal, 1.15);
+    services.fx.hit(hit.position, hit.normal, 1.15);
     for (const l of listeners) l(hit);
   };
   const fromEvent = (pillar: number, position: Vector3, moveId: string): void => {
@@ -260,6 +260,15 @@ registerViewPlugin('arena', ({ game, view, level }) => {
       const baked = await loadBakedScene('level_arena');
       built = createArena(baked, level, def, (dir) => view.environment.skyAt(dir));
       view.scene.add(built.root);
+      for (const t of built.torches) {
+        services.lights.add({
+          position: torchLightPosition(t),
+          color: ARENA_TORCH_LIGHT.color,
+          intensity: ARENA_TORCH_LIGHT.intensity,
+          distance: ARENA_TORCH_LIGHT.distance,
+          flickerPhase: t.phase,
+        });
+      }
       stats.triangles = built.triangles;
       stats.meshes = built.meshes;
     },

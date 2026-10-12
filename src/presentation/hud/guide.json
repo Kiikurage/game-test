@@ -1,0 +1,76 @@
+{
+  "enemyNearM": 22,
+  "openingDelaySeconds": 1,
+  "notice": {
+    "seconds": 3,
+    "gapSeconds": 0.3,
+    "maxQueue": 4
+  },
+  "hints": [
+    {
+      "id": "move",
+      "group": "opening",
+      "text": {
+        "kbm": "WASD で移動",
+        "gamepad": "左スティックで移動",
+        "touch": "左側をなぞって移動"
+      },
+      "goal": {
+        "type": "move",
+        "seconds": 0.4,
+        "threshold": 0.3
+      }
+    },
+    {
+      "id": "camera",
+      "group": "opening",
+      "text": {
+        "kbm": "マウスでカメラを回す",
+        "gamepad": "右スティックでカメラを回す",
+        "touch": "右側をなぞってカメラを回す"
+      },
+      "goal": {
+        "type": "look",
+        "radians": 0.8
+      }
+    },
+    {
+      "id": "roll",
+      "group": "opening",
+      "text": {
+        "kbm": "Space でロール",
+        "gamepad": "B でロール",
+        "touch": "「回避」でロール"
+      },
+      "goal": {
+        "type": "press",
+        "action": "dodge"
+      }
+    },
+    {
+      "id": "lockOn",
+      "group": "combat",
+      "text": {
+        "kbm": "Q でロックオン",
+        "gamepad": "右スティック押し込みでロックオン",
+        "touch": "「固定」でロックオン"
+      },
+      "goal": {
+        "type": "lockOn"
+      }
+    },
+    {
+      "id": "lightAttack",
+      "group": "combat",
+      "text": {
+        "kbm": "左クリックで攻撃",
+        "gamepad": "RB で攻撃",
+        "touch": "「弱」で攻撃"
+      },
+      "goal": {
+        "type": "press",
+        "action": "lightAttack"
+      }
+    }
+  ]
+}

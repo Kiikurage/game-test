@@ -3,8 +3,6 @@ import {
   CylinderGeometry,
   Group,
   Mesh,
-  MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
   Quaternion,
   RingGeometry,
   SphereGeometry,
@@ -12,12 +10,13 @@ import {
   type Camera,
 } from 'three/webgpu';
 import type { Game } from '../game/game';
+import { createUberMaterial, type UberMaterial } from './uberMaterial';
 import { chestPosition } from '../game/lockOn/targets';
 import { PLAYGROUND_BOXES, type BoxSpec } from '../game/world/playground';
 
 const DEG = Math.PI / 180;
 
-function boxMesh(spec: BoxSpec, material: MeshStandardNodeMaterial): Mesh {
+function boxMesh(spec: BoxSpec, material: UberMaterial): Mesh {
   const mesh = new Mesh(new BoxGeometry(spec.hx * 2, spec.hy * 2, spec.hz * 2), material);
   mesh.position.set(spec.x, spec.y, spec.z);
   // 物理（game.ts）と同じ回転順: ヨー → ローカル X 軸のピッチ
@@ -32,9 +31,18 @@ function boxMesh(spec: BoxSpec, material: MeshStandardNodeMaterial): Mesh {
 /** 木製の訓練用人形（柱 + 腕木 + 頭）。身長 `height`・台座の半径 `radius` に合わせて組む。 */
 function createDummyMesh(height: number, radius: number): Group {
   const group = new Group();
-  const wood = new MeshStandardNodeMaterial({ color: 0x7a5a38, roughness: 0.85, metalness: 0 });
-  const stone = new MeshStandardNodeMaterial({ color: 0x7d776d, roughness: 0.9, metalness: 0 });
-  const straw = new MeshStandardNodeMaterial({ color: 0xc2a45e, roughness: 1, metalness: 0 });
+  const wood = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x7a5a38, roughness: 0.85, metalness: 0 },
+  );
+  const stone = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x7d776d, roughness: 0.9, metalness: 0 },
+  );
+  const straw = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0xc2a45e, roughness: 1, metalness: 0 },
+  );
 
   const base = new Mesh(new CylinderGeometry(radius, radius * 1.1, 0.2, 20), stone);
   base.position.y = 0.1;
@@ -72,7 +80,10 @@ export class PlaygroundView {
     private readonly game: Game,
     showProps = true,
   ) {
-    const stone = new MeshStandardNodeMaterial({ color: 0x9a9082, roughness: 0.9, metalness: 0 });
+    const stone = createUberMaterial(
+      { shading: 'lit' },
+      { color: 0x9a9082, roughness: 0.9, metalness: 0 },
+    );
     if (showProps) for (const spec of PLAYGROUND_BOXES) this.root.add(boxMesh(spec, stone));
 
     for (const dummy of game.dummies) {
@@ -82,12 +93,11 @@ export class PlaygroundView {
     }
 
     // ロックオンマーカー（暫定。HUD の仕様は #？ の UI で作り込む）。常に手前に描く小さなリング。
-    const material = new MeshBasicNodeMaterial({
-      color: 0xffb04a,
-      transparent: true,
-      opacity: 0.95,
-      depthTest: false,
-    });
+    const material = createUberMaterial(
+      { shading: 'unlit', transparent: true, depthWrite: true },
+      { color: 0xffb04a, opacity: 0.95 },
+    );
+    material.depthTest = false;
     this.marker = new Mesh(new RingGeometry(0.62, 0.78, 32), material);
     this.marker.renderOrder = 999;
     this.marker.visible = false;

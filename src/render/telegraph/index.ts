@@ -1,11 +1,5 @@
-import {
-  DoubleSide,
-  Group,
-  Mesh,
-  MeshBasicNodeMaterial,
-  type Node,
-  type UniformNode,
-} from 'three/webgpu';
+import type { MeshBasicNodeMaterial } from 'three/webgpu';
+import { Group, Mesh, type Node, type UniformNode } from 'three/webgpu';
 import {
   abs,
   attribute,
@@ -16,14 +10,14 @@ import {
   fwidth,
   length,
   mix,
-  mx_noise_float,
-  mx_worley_noise_vec2,
   sin,
   smoothstep,
   uniform,
   vec2,
   vec3,
 } from 'three/tsl';
+import { bakedCellEdge, bakedNoise2 } from '../bakedNoise';
+import { createUberMaterial, type UberSurface } from '../uberMaterial';
 import { terrainHeight } from '../../game/world/terrain';
 import {
   GROUND_LIFT,
@@ -77,24 +71,31 @@ function createUniforms(): Uniforms {
 }
 
 function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
-  const local = attribute('aLocal', 'vec2');
-  const material = new MeshBasicNodeMaterial();
-  material.transparent = true;
-  material.depthWrite = false;
-  material.side = DoubleSide;
-  material.fog = false;
+  // 形（kind）ごとに系統が分かれる。同じ形の予告は uniform だけが違い、パイプラインを共有する
+  const material = createUberMaterial({
+    shading: 'unlit',
+    transparent: true,
+    doubleSided: true,
+    noFog: true,
+    surface: () => telegraphSurface(u, kind),
+    surfaceId: `telegraph-${kind}`,
+  });
   // 地形メッシュとのわずかな高さの食い違いによるちらつきを避ける
   material.polygonOffset = true;
   material.polygonOffsetFactor = -2;
   material.polygonOffsetUnits = -2;
+  return material;
+}
+
+function telegraphSurface(u: Uniforms, kind: Kind): UberSurface {
+  const local = attribute('aLocal', 'vec2');
 
   // 地面が熾火色に灼け、ひび割れから光が漏れる表現。低彩度・低不透明度・柔らかい縁で世界観になじませ、
   // 範囲は「縁の灼け」と「ひびの密度」で読ませる。点滅は呼吸のようにゆっくり（暗側でも消えない）。
   const emberDim = vec3(0.62, 0.2, 0.07);
   const emberHot = vec3(1.0, 0.42, 0.12);
   const crack = (xy: Node<'vec2'>): Node<'float'> => {
-    const w = mx_worley_noise_vec2(xy);
-    return float(1).sub(smoothstep(0.0, 0.09, w.y.sub(w.x)));
+    return float(1).sub(smoothstep(0.0, 0.09, bakedCellEdge(xy)));
   };
 
   if (kind === 'circle') {
@@ -108,8 +109,10 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
       .mul(soft);
     const glow = mix(float(0.55), float(1), u.blink);
     const a = rim.mul(0.2).add(soft.mul(0.12)).add(edgeLine).add(cracks.mul(0.5)).mul(glow);
-    material.opacityNode = clamp(a, 0, 0.8).mul(u.appear).mul(u.fade);
-    material.colorNode = mix(emberDim, emberHot, clamp(cracks.add(edgeLine), 0, 1));
+    return {
+      opacity: clamp(a, 0, 0.8).mul(u.appear).mul(u.fade),
+      color: mix(emberDim, emberHot, clamp(cracks.add(edgeLine), 0, 1)),
+    };
   } else if (kind === 'shadow') {
     // 影の円（技 5 滞空中の着地点ガイド）: 暗い柔らかい円。着地が近いほど濃く締まり、縁がうっすら灼ける
     const rr = length(local).div(mix(float(0.75), float(1), u.appear));
@@ -119,143 +122,145 @@ function createMaterial(u: Uniforms, kind: Kind): MeshBasicNodeMaterial {
       .mul(mix(float(0.15), float(0.5), u.progress));
     const glowRim = rim.mul(mix(float(0.6), float(1), u.blink));
     const a = body.mul(mix(float(0.25), float(0.65), u.progress)).add(glowRim);
-    material.opacityNode = clamp(a, 0, 0.8).mul(u.appear).mul(u.fade);
-    material.colorNode = mix(vec3(0.012, 0.007, 0.007), emberHot, clamp(glowRim.mul(2.5), 0, 1));
-  } else {
-    // 帯: 地面を走る不規則な熾火の亀裂。主亀裂は低周波ノイズで蛇行し、幅にむらがあり、先端ほど細く強く灼ける。
-    // 先端は `grow` に従って根元から伸びる。主亀裂から短い枝が分かれ、周囲にノイズの零交差による細かいひびが走る。
-    // 亀裂の周りは黒く焦げ（半透明の炭色）、芯が熾火色に光る。格子や帯の縁は描かない。
-    const hw = u.sizeA.mul(0.5);
-    const m = local.x.mul(u.sizeA);
-    const sAlong = local.y.mul(u.sizeB);
-    const sd = u.seed;
-    const bend = (t: Node<'float'>): Node<'float'> =>
-      sin(t.mul(0.9).add(sd))
-        .mul(0.16)
-        .add(sin(t.mul(2.3).add(sd.mul(1.7))).mul(0.08))
-        .add(sin(t.mul(5.1).add(sd.mul(2.9))).mul(0.03));
-    const bendSlope = (t: Node<'float'>): Node<'float'> =>
-      float(0.144)
-        .mul(sin(t.mul(0.9).add(sd).add(1.5708)))
-        .add(float(0.184).mul(sin(t.mul(2.3).add(sd.mul(1.7)).add(1.5708))))
-        .add(float(0.153).mul(sin(t.mul(5.1).add(sd.mul(2.9)).add(1.5708))));
-    const front = u.grow.mul(u.sizeB);
-    const tipDist = front.sub(sAlong);
-    const reached = smoothstep(0.0, 0.2, tipDist);
-    const slope = bendSlope(sAlong);
-    const dMain = abs(m.sub(bend(sAlong))).div(float(1).add(slope.mul(slope)).sqrt());
-    const taper = mix(float(0.3), float(1), smoothstep(0.0, 2.0, tipDist));
-    const wob = sin(sAlong.mul(2.1).add(sd)).mul(0.5).add(0.5);
-    const wob2 = sin(sAlong.mul(7.3).add(sd.mul(3.1)))
-      .mul(0.5)
-      .add(0.5);
-    // 1px あたりの長さ（m）。芯の幅を画面上で 2〜4px に保つ
-    const px = fwidth(m).max(0.002);
-    // 太さのむらは「にじみ」の幅で出す（芯は細いまま）
-    const bleedW = float(0.025).add(wob.mul(0.04)).add(wob2.mul(0.025)).mul(taper).add(px.mul(2));
-    const coreHalf = px.mul(1.3).mul(mix(float(0.75), float(1.25), wob2));
-    let core: Node<'float'> = float(1)
-      .sub(smoothstep(coreHalf.mul(0.45), coreHalf, dMain))
-      .mul(reached);
-    let bleed: Node<'float'> = exp(dMain.div(bleedW).mul(-1)).mul(reached);
-    let scorch: Node<'float'> = float(1)
-      .sub(smoothstep(0.0, bleedW.mul(8), dMain))
-      .mul(reached);
-
-    // 枝（2 節の折れ線）
-    const segDist = (
-      p: Node<'vec2'>,
-      a: Node<'vec2'>,
-      b: Node<'vec2'>,
-    ): [Node<'float'>, Node<'float'>] => {
-      const pa = p.sub(a);
-      const ba = b.sub(a);
-      const h = clamp(dot(pa, ba).div(dot(ba, ba).max(1e-4)), 0, 1);
-      return [length(pa.sub(ba.mul(h))), h];
+    return {
+      opacity: clamp(a, 0, 0.8).mul(u.appear).mul(u.fade),
+      color: mix(vec3(0.012, 0.007, 0.007), emberHot, clamp(glowRim.mul(2.5), 0, 1)),
     };
-    const p2 = vec2(m, sAlong);
-    const branches = [
-      [1.3, 1, 0.6, 0.8, -0.7],
-      [2.9, -1, 0.75, 0.6, 0.6],
-      [4.2, 1, 0.5, 0.9, 0.5],
-      [5.6, -1, 0.8, 0.7, -0.6],
-      [7.1, 1, 0.65, 0.75, 0.7],
-      [8.4, -1, 0.55, 0.85, -0.5],
-      [9.9, 1, 0.8, 0.65, 0.6],
-    ] as const;
-    for (const [s0, side, ang, len, kink] of branches) {
-      const t0 = float(s0);
-      const a = vec2(bend(t0), t0);
-      const g = clamp(front.sub(s0).sub(0.15).div(1.1), 0, 1);
-      const d1 = vec2(side * Math.sin(ang), Math.cos(ang));
-      const ang2 = ang + kink;
-      const d2 = vec2(side * Math.sin(ang2), Math.cos(ang2));
-      const b = a.add(d1.mul(len * 0.55).mul(g));
-      const c = b.add(d2.mul(len * 0.45).mul(g));
-      const [dA, hA] = segDist(p2, a, b);
-      const [dB, hB] = segDist(p2, b, c);
-      const taperB = float(1)
-        .sub(hA.mul(0.3))
-        .mul(float(1).sub(hB.mul(0.6)));
-      const hwB = px.mul(1.0).mul(taperB);
-      const d = dA.min(dB);
-      const grown = smoothstep(0.0, 0.1, g);
-      core = core.max(
-        float(1)
-          .sub(smoothstep(hwB.mul(0.4), hwB.max(0.0015), d))
-          .mul(grown)
-          .mul(0.9),
-      );
-      bleed = bleed.max(
-        exp(d.div(bleedW.mul(0.55)).mul(-1))
-          .mul(grown)
-          .mul(0.65),
-      );
-      scorch = scorch.max(
-        float(1)
-          .sub(smoothstep(0.0, bleedW.mul(4), d))
-          .mul(grown)
-          .mul(0.7),
-      );
-    }
-
-    // 細かいひび: ノイズの零交差（格子にならず不規則に枝分かれして見える）
-    const warp = mx_noise_float(vec2(m, sAlong).mul(1.3).add(sd)).mul(0.35);
-    const nz = mx_noise_float(vec2(m.add(warp), sAlong.sub(warp)).mul(2.1).add(sd.mul(0.7)));
-    const hairNear = float(1)
-      .sub(smoothstep(0.12, 0.55, dMain))
-      .mul(reached);
-    const hair = float(1)
-      .sub(smoothstep(0.0, px.mul(1.2).div(1.6).max(0.004), abs(nz)))
-      .mul(hairNear);
-    core = core.max(hair.mul(0.3));
-    bleed = bleed.max(hair.mul(0.15));
-
-    // 熾火の明滅: 場所と時間でずれる不規則な脈動（ゆっくり）
-    const f = u.frame;
-    const flick = float(0.8).add(
-      sin(f.mul(0.13).add(sAlong.mul(0.9)).add(sd))
-        .mul(sin(f.mul(0.047).sub(sAlong.mul(0.4)).add(sd.mul(2))))
-        .mul(0.2),
-    );
-    const slow = mix(float(0.7), float(1), u.blink);
-    const edgeMask = float(1).sub(smoothstep(0.78, 1.0, abs(m).div(hw)));
-    const tipHot = exp(tipDist.max(0).mul(-1.6)).mul(reached);
-
-    // 芯: 高温の黄橙（HDR）。にじみ: 深い赤橙 → 暗赤。外へ急速に減衰。周囲の地面は焦げて暗い
-    const coreCol = vec3(1.0, 0.7, 0.28)
-      .mul(float(3).add(tipHot.mul(1.5)))
-      .mul(flick);
-    const orange = vec3(0.8, 0.18, 0.02);
-    const deepRed = vec3(0.42, 0.05, 0.03);
-    const bleedCol = mix(deepRed, orange, bleed).mul(bleed.mul(1.3)).mul(flick).mul(slow);
-    const emissive = bleedCol.add(coreCol.mul(core)).mul(edgeMask);
-    const charA = scorch.mul(0.55).mul(edgeMask);
-    const alpha = clamp(charA.add(bleed.mul(0.6)).add(core), 0, 0.95);
-    material.opacityNode = alpha.mul(u.appear).mul(u.fade);
-    material.colorNode = vec3(0.012, 0.008, 0.007).mul(charA).add(emissive).div(alpha.max(0.02));
   }
-  return material;
+  // 帯: 地面を走る不規則な熾火の亀裂。主亀裂は低周波ノイズで蛇行し、幅にむらがあり、先端ほど細く強く灼ける。
+  // 先端は `grow` に従って根元から伸びる。主亀裂から短い枝が分かれ、周囲にノイズの零交差による細かいひびが走る。
+  // 亀裂の周りは黒く焦げ（半透明の炭色）、芯が熾火色に光る。格子や帯の縁は描かない。
+  const hw = u.sizeA.mul(0.5);
+  const m = local.x.mul(u.sizeA);
+  const sAlong = local.y.mul(u.sizeB);
+  const sd = u.seed;
+  const bend = (t: Node<'float'>): Node<'float'> =>
+    sin(t.mul(0.9).add(sd))
+      .mul(0.16)
+      .add(sin(t.mul(2.3).add(sd.mul(1.7))).mul(0.08))
+      .add(sin(t.mul(5.1).add(sd.mul(2.9))).mul(0.03));
+  const bendSlope = (t: Node<'float'>): Node<'float'> =>
+    float(0.144)
+      .mul(sin(t.mul(0.9).add(sd).add(1.5708)))
+      .add(float(0.184).mul(sin(t.mul(2.3).add(sd.mul(1.7)).add(1.5708))))
+      .add(float(0.153).mul(sin(t.mul(5.1).add(sd.mul(2.9)).add(1.5708))));
+  const front = u.grow.mul(u.sizeB);
+  const tipDist = front.sub(sAlong);
+  const reached = smoothstep(0.0, 0.2, tipDist);
+  const slope = bendSlope(sAlong);
+  const dMain = abs(m.sub(bend(sAlong))).div(float(1).add(slope.mul(slope)).sqrt());
+  const taper = mix(float(0.3), float(1), smoothstep(0.0, 2.0, tipDist));
+  const wob = sin(sAlong.mul(2.1).add(sd)).mul(0.5).add(0.5);
+  const wob2 = sin(sAlong.mul(7.3).add(sd.mul(3.1)))
+    .mul(0.5)
+    .add(0.5);
+  // 1px あたりの長さ（m）。芯の幅を画面上で 2〜4px に保つ
+  const px = fwidth(m).max(0.002);
+  // 太さのむらは「にじみ」の幅で出す（芯は細いまま）
+  const bleedW = float(0.025).add(wob.mul(0.04)).add(wob2.mul(0.025)).mul(taper).add(px.mul(2));
+  const coreHalf = px.mul(1.3).mul(mix(float(0.75), float(1.25), wob2));
+  let core: Node<'float'> = float(1)
+    .sub(smoothstep(coreHalf.mul(0.45), coreHalf, dMain))
+    .mul(reached);
+  let bleed: Node<'float'> = exp(dMain.div(bleedW).mul(-1)).mul(reached);
+  let scorch: Node<'float'> = float(1)
+    .sub(smoothstep(0.0, bleedW.mul(8), dMain))
+    .mul(reached);
+
+  // 枝（2 節の折れ線）
+  const segDist = (
+    p: Node<'vec2'>,
+    a: Node<'vec2'>,
+    b: Node<'vec2'>,
+  ): [Node<'float'>, Node<'float'>] => {
+    const pa = p.sub(a);
+    const ba = b.sub(a);
+    const h = clamp(dot(pa, ba).div(dot(ba, ba).max(1e-4)), 0, 1);
+    return [length(pa.sub(ba.mul(h))), h];
+  };
+  const p2 = vec2(m, sAlong);
+  const branches = [
+    [1.3, 1, 0.6, 0.8, -0.7],
+    [2.9, -1, 0.75, 0.6, 0.6],
+    [4.2, 1, 0.5, 0.9, 0.5],
+    [5.6, -1, 0.8, 0.7, -0.6],
+    [7.1, 1, 0.65, 0.75, 0.7],
+    [8.4, -1, 0.55, 0.85, -0.5],
+    [9.9, 1, 0.8, 0.65, 0.6],
+  ] as const;
+  for (const [s0, side, ang, len, kink] of branches) {
+    const t0 = float(s0);
+    const a = vec2(bend(t0), t0);
+    const g = clamp(front.sub(s0).sub(0.15).div(1.1), 0, 1);
+    const d1 = vec2(side * Math.sin(ang), Math.cos(ang));
+    const ang2 = ang + kink;
+    const d2 = vec2(side * Math.sin(ang2), Math.cos(ang2));
+    const b = a.add(d1.mul(len * 0.55).mul(g));
+    const c = b.add(d2.mul(len * 0.45).mul(g));
+    const [dA, hA] = segDist(p2, a, b);
+    const [dB, hB] = segDist(p2, b, c);
+    const taperB = float(1)
+      .sub(hA.mul(0.3))
+      .mul(float(1).sub(hB.mul(0.6)));
+    const hwB = px.mul(1.0).mul(taperB);
+    const d = dA.min(dB);
+    const grown = smoothstep(0.0, 0.1, g);
+    core = core.max(
+      float(1)
+        .sub(smoothstep(hwB.mul(0.4), hwB.max(0.0015), d))
+        .mul(grown)
+        .mul(0.9),
+    );
+    bleed = bleed.max(
+      exp(d.div(bleedW.mul(0.55)).mul(-1))
+        .mul(grown)
+        .mul(0.65),
+    );
+    scorch = scorch.max(
+      float(1)
+        .sub(smoothstep(0.0, bleedW.mul(4), d))
+        .mul(grown)
+        .mul(0.7),
+    );
+  }
+
+  // 細かいひび: ノイズの零交差（格子にならず不規則に枝分かれして見える）
+  const warp = bakedNoise2(vec2(m, sAlong).mul(1.3).add(sd)).mul(0.35);
+  const nz = bakedNoise2(vec2(m.add(warp), sAlong.sub(warp)).mul(2.1).add(sd.mul(0.7)));
+  const hairNear = float(1)
+    .sub(smoothstep(0.12, 0.55, dMain))
+    .mul(reached);
+  const hair = float(1)
+    .sub(smoothstep(0.0, px.mul(1.2).div(1.6).max(0.004), abs(nz)))
+    .mul(hairNear);
+  core = core.max(hair.mul(0.3));
+  bleed = bleed.max(hair.mul(0.15));
+
+  // 熾火の明滅: 場所と時間でずれる不規則な脈動（ゆっくり）
+  const f = u.frame;
+  const flick = float(0.8).add(
+    sin(f.mul(0.13).add(sAlong.mul(0.9)).add(sd))
+      .mul(sin(f.mul(0.047).sub(sAlong.mul(0.4)).add(sd.mul(2))))
+      .mul(0.2),
+  );
+  const slow = mix(float(0.7), float(1), u.blink);
+  const edgeMask = float(1).sub(smoothstep(0.78, 1.0, abs(m).div(hw)));
+  const tipHot = exp(tipDist.max(0).mul(-1.6)).mul(reached);
+
+  // 芯: 高温の黄橙（HDR）。にじみ: 深い赤橙 → 暗赤。外へ急速に減衰。周囲の地面は焦げて暗い
+  const coreCol = vec3(1.0, 0.7, 0.28)
+    .mul(float(3).add(tipHot.mul(1.5)))
+    .mul(flick);
+  const orange = vec3(0.8, 0.18, 0.02);
+  const deepRed = vec3(0.42, 0.05, 0.03);
+  const bleedCol = mix(deepRed, orange, bleed).mul(bleed.mul(1.3)).mul(flick).mul(slow);
+  const emissive = bleedCol.add(coreCol.mul(core)).mul(edgeMask);
+  const charA = scorch.mul(0.55).mul(edgeMask);
+  const alpha = clamp(charA.add(bleed.mul(0.6)).add(core), 0, 0.95);
+  return {
+    opacity: alpha.mul(u.appear).mul(u.fade),
+    color: vec3(0.012, 0.008, 0.007).mul(charA).add(emissive).div(alpha.max(0.02)),
+  };
 }
 
 /** 地面予告 1 つ。`GroundTelegraphs` から取得し、`show()` / `hide()` で出現・消去を制御する。 */

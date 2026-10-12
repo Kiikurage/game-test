@@ -4,11 +4,12 @@ import {
   Group,
   Mesh,
   type Object3D,
-  MeshStandardNodeMaterial,
+  Color,
   type PerspectiveCamera,
   Vector3,
 } from 'three/webgpu';
 import type { ParticleSystem } from './index';
+import { createUberMaterial } from '../uberMaterial';
 import { terrainHeight } from '../../game/world/terrain';
 
 /** `?particles` で確認用ビュー（篝火・熾火・ヒット火花・撃破の灰を繰り返し出す）を有効にする。 */
@@ -19,14 +20,12 @@ export function isParticleDemoEnabled(search: string): boolean {
 /** 篝火の足場（薪と石の輪）。見た目確認用の簡易モデル。 */
 export function createBonfireBase(): Group {
   const g = new Group();
-  const wood = new MeshStandardNodeMaterial({ color: 0x2b1d14, roughness: 0.95 });
-  const charcoal = new MeshStandardNodeMaterial({
-    color: 0x1a0f0a,
-    emissive: 0xff5a10,
-    emissiveIntensity: 1.1,
-    roughness: 1,
-  });
-  const stone = new MeshStandardNodeMaterial({ color: 0x55504a, roughness: 0.95 });
+  const wood = createUberMaterial({ shading: 'lit' }, { color: 0x2b1d14, roughness: 0.95 });
+  const charcoal = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x1a0f0a, emissive: new Color(0xff5a10).multiplyScalar(1.1), roughness: 1 },
+  );
+  const stone = createUberMaterial({ shading: 'lit' }, { color: 0x55504a, roughness: 0.95 });
   const log = new CylinderGeometry(0.05, 0.065, 0.8, 7);
   for (let i = 0; i < 5; i++) {
     const m = new Mesh(log, i === 0 ? charcoal : wood);

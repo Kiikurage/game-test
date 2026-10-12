@@ -8,7 +8,7 @@ import { registerViewPlugin } from '../viewPlugins';
  * ディゾルブの開始で体から灰が剥がれて舞い上がる（`deathAsh`）。体の閃光・眼の消灯・燃え尽き・ディゾルブは `EnemyViews`。
  * ボスは撃破演出（8.4 節、`render/boss/bossDefeatFx.ts`）に任せる。
  */
-registerViewPlugin('enemy-kill-feedback', ({ game, view }) => {
+registerViewPlugin('enemy-kill-feedback', ({ game, services }) => {
   const position = new Vector3();
   const normal = new Vector3();
   const feet = new Vector3();
@@ -22,7 +22,7 @@ registerViewPlugin('enemy-kill-feedback', ({ game, view }) => {
     if (!enemy) return;
     position.set(e.position.x, e.position.y, e.position.z);
     normal.set(e.normal.x, e.normal.y, e.normal.z);
-    view.particles.killBurst(position, normal, e.kind === 'heavy' ? 1.25 : 1);
+    services.fx.killBurst(position, normal, e.kind === 'heavy' ? 1.25 : 1);
     if (!pending.includes(enemy)) pending.push(enemy);
   });
 
@@ -37,7 +37,7 @@ registerViewPlugin('enemy-kill-feedback', ({ game, view }) => {
         }
         if (enemy.deadFrames >= KILL_FEEDBACK.dissolveStartFrames) {
           const p = enemy.position;
-          view.particles.deathAsh(
+          services.fx.deathAsh(
             feet.set(p.x, p.y, p.z),
             0.45 * enemy.stats.bodyScale,
             1.1 * enemy.height,

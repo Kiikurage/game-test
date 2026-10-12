@@ -2,12 +2,11 @@ import {
   CircleGeometry,
   Group,
   Mesh,
-  MeshStandardNodeMaterial,
   type BufferGeometry,
   type Material,
   type Object3D,
 } from 'three/webgpu';
-import { color, float, mix, positionWorld, time, vec3, vec4 } from 'three/tsl';
+import { color, float, mix, positionWorld, time, vec3 } from 'three/tsl';
 import type { Level, PlacedBox, PlacedCylinder } from '../../game/world/level';
 import { createMetalMaterial } from '../levelMaterials';
 import {
@@ -23,6 +22,7 @@ import { FxBuilder, createFlameMaterial, createWebMaterial } from './glowMateria
 import { MasonryBuilder, hashSeed, type Vec3 } from './masonryGeometry';
 import { createMasonryMaterial } from './masonryMaterial';
 import { bakedNoise } from '../bakedNoise';
+import { createUberMaterial } from '../uberMaterial';
 import { PropBuilder } from './propBuilder';
 
 const DEG = Math.PI / 180;
@@ -39,6 +39,8 @@ const COAL: Vec3 = [0.03, 0.025, 0.022];
 /** 描画で公開する可動パーツ（開閉・蓋・レバーの動作は別チケット側が回す）。 */
 export interface CryptProps {
   readonly root: Group;
+  /** たいまつの光源（x, y, z, 強さの目安 1.7〜2.5、炎のゆらぎの位相）。`crypt.view.ts` が実ライトとして登録する。 */
+  readonly torchLights: readonly (readonly [number, number, number, number, number])[];
   /**
    * 石棺の蓋。`pivot` は蓋の中心（閉じた位置）にあり、`pivot.position` / `pivot.rotation` を動かすと蓋だけが動く。
    * 閉じた状態は `closed`（position / rotation.y のコピー）。起き上がり演出は `closed.y + 0.25 〜 0.5` ずらして横へずらす想定。
@@ -88,7 +90,7 @@ interface Parts {
   readonly props: PropBuilder;
   readonly flames: FxBuilder;
   readonly webs: FxBuilder;
-  readonly torchLights: [number, number, number, number][];
+  readonly torchLights: [number, number, number, number, number][];
   readonly tint: Vec3;
 }
 
@@ -237,14 +239,25 @@ export function buildCryptScene(level: Level): Group {
 
 /** 淀んだ水面（噴水）のマテリアル。 */
 function createFountainWaterMaterial(): Material {
-  const water = new MeshStandardNodeMaterial({ roughness: 0.1, metalness: 0 });
-  const ripple = bakedNoise(vec3(positionWorld.x.mul(3), positionWorld.z.mul(3), time.mul(0.35)));
-  const tone = mix(color(0x1c3330), color(0x3b5a48), ripple.mul(0.5).add(0.5));
-  water.colorNode = vec4(tone, 1);
-  // 空を映す代わりに、弱い自己発光で水面が真っ黒にならないようにする
-  water.emissiveNode = tone.mul(0.22);
-  water.roughnessNode = float(0.12).add(ripple.mul(0.05));
-  return water;
+  return createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => {
+        const ripple = bakedNoise(
+          vec3(positionWorld.x.mul(3), positionWorld.z.mul(3), time.mul(0.35)),
+        );
+        const tone = mix(color(0x1c3330), color(0x3b5a48), ripple.mul(0.5).add(0.5));
+        return {
+          color: tone,
+          // 空を映す代わりに、弱い自己発光で水面が真っ黒にならないようにする
+          emissive: tone.mul(0.22),
+          roughness: float(0.12).add(ripple.mul(0.05)),
+        };
+      },
+      surfaceId: 'cryptWater',
+    },
+    { roughness: 0.1, metalness: 0 },
+  );
 }
 
 /**
@@ -252,18 +265,19 @@ function createFountainWaterMaterial(): Material {
  * `scene` は `restoreBakedScene` 済みの木（名前・属性名がベイク前と同じ）。
  */
 export function assembleCrypt(scene: Object3D, detail: 0 | 1 | 2): CryptProps {
-  const lights = scene.userData.torchLights as Record<Area, [number, number, number, number][]>;
-  const materials: Record<Area, Material> = {
-    D: createMasonryMaterial({ detail, torches: lights.D }),
-    E: createMasonryMaterial({ detail, torches: lights.E }),
-  };
+  const lights = scene.userData.torchLights as Record<
+    Area,
+    [number, number, number, number, number][]
+  >;
+  // たいまつの光は実ライトになったので、D と E で同じマテリアルを使う
+  const masonryMaterial = createMasonryMaterial({ detail });
+  const materials: Record<Area, Material> = { D: masonryMaterial, E: masonryMaterial };
   const metal = createMetalMaterial();
-  const laneMaterial = createMasonryMaterial({ detail, torches: [] });
   const flameMaterial = createFlameMaterial();
   const webMaterial = createWebMaterial();
   /** 名前 → [マテリアル, castShadow, receiveShadow, renderOrder]。 */
   const look = (name: string): [Material, boolean, boolean, number] => {
-    if (name === 'env:crypt:lane') return [laneMaterial, true, true, 0];
+    if (name === 'env:crypt:lane') return [masonryMaterial, true, true, 0];
     if (name === 'env:crypt:D' || name === 'env:crypt:lid') return [materials.D, true, true, 0];
     if (name === 'env:crypt:E') return [materials.E, true, true, 0];
     if (name.startsWith('env:crypt-props:')) return [metal, false, true, 0];
@@ -314,7 +328,14 @@ export function assembleCrypt(scene: Object3D, detail: 0 | 1 | 2): CryptProps {
   const root = new Group();
   root.name = 'crypt';
   for (const child of [...scene.children]) root.add(child);
-  return { root, sarcophagusLid, gateLeaves: leaves, leverHandle, stats: { triangles, meshes } };
+  return {
+    root,
+    torchLights: [...lights.D, ...lights.E],
+    sarcophagusLid,
+    gateLeaves: leaves,
+    leverHandle,
+    stats: { triangles, meshes },
+  };
 }
 
 function makeParts(ground: (x: number, z: number) => number, tint: Vec3): Parts {
@@ -538,7 +559,7 @@ function addNiche(m: MasonryBuilder, ground: (x: number, z: number) => number, f
   });
 }
 
-/** たいまつ 1 本: 鉄の取り付け具と木の柄、炎、壁と床の光だまり。ライトは足さず、石積みマテリアルへ光源として渡す。 */
+/** たいまつ 1 本: 鉄の取り付け具と木の柄、炎。光源の位置は `torchLights` に積む（実ライト）。 */
 function addTorch(
   p: Parts,
   ground: (x: number, z: number) => number,
@@ -580,31 +601,14 @@ function addTorch(
     phase,
     1,
   );
-  // 壁の光だまり
-  const S = 4.2;
-  const wc = at(0.045, 0, 0.55);
-  p.flames.quad(
-    [wc[0] - f.tx * (S / 2), wc[1] - S / 2, wc[2] - f.tz * (S / 2)],
-    [wc[0] + f.tx * (S / 2), wc[1] - S / 2, wc[2] + f.tz * (S / 2)],
-    [wc[0] - f.tx * (S / 2), wc[1] + S / 2, wc[2] - f.tz * (S / 2)],
-    1,
+  // 光は実ライト（壁から離した炎の少し上。壁に近すぎると 1/d² で白飛びする）
+  p.torchLights.push([
+    head[0] + f.nx * 0.35,
+    head[1] + 0.25,
+    head[2] + f.nz * 0.35,
+    intensity,
     phase,
-    0.5 * (intensity / 2.5),
-  );
-  // 床の光だまり
-  const fx = f.x + f.nx * 1.0;
-  const fz = f.z + f.nz * 1.0;
-  const R = 3.6;
-  const fy = ground(fx, fz) + 0.05;
-  p.flames.quad(
-    [fx - R / 2, fy, fz - R / 2],
-    [fx + R / 2, fy, fz - R / 2],
-    [fx - R / 2, fy, fz + R / 2],
-    1,
-    phase,
-    0.36 * (intensity / 2.5),
-  );
-  p.torchLights.push([head[0], head[1] + 0.2, head[2], intensity]);
+  ]);
 }
 
 /** 蜘蛛の巣: 壁面に沿う扇形（apex から「真下」と「壁に沿った水平方向」の間）。 */

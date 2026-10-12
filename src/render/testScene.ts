@@ -4,12 +4,10 @@ import {
   Float32BufferAttribute,
   Group,
   InstancedMesh,
-  DoubleSide,
   Object3D,
   IcosahedronGeometry,
   Matrix4,
   Mesh,
-  MeshStandardNodeMaterial,
   PlaneGeometry,
   Quaternion,
   SphereGeometry,
@@ -25,8 +23,6 @@ import {
   float,
   instanceIndex,
   mix,
-  mx_fractal_noise_float,
-  mx_noise_float,
   normalWorld,
   positionWorld,
   smoothstep,
@@ -36,6 +32,8 @@ import {
   vec3,
 } from 'three/tsl';
 import type { QualityPreset } from './quality';
+import { bakedFractal, bakedNoise } from './bakedNoise';
+import { createUberMaterial, type UberMaterial } from './uberMaterial';
 import { FLAT_RADIUS, terrainHeight, valueNoise } from '../game/world/terrain';
 import {
   TEST_SCENE_FALLEN_PILLARS,
@@ -73,17 +71,16 @@ export function createTerrainGeometry(): BufferGeometry {
   return geometry;
 }
 
-function createTerrainMaterial(preset: QualityPreset): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
+function createTerrainMaterial(preset: QualityPreset): UberMaterial {
   const octaves = preset.detailOctaves;
 
-  material.colorNode = Fn(() => {
+  const colorNode = Fn(() => {
     const p = positionWorld;
     // 低周波の地色むら + 高周波のディテール
-    const broad = mx_fractal_noise_float(vec3(p.x.mul(0.035), 0.0, p.z.mul(0.035)), 3, 2, 0.5)
+    const broad = bakedFractal(vec3(p.x.mul(0.035), 0.0, p.z.mul(0.035)), 3)
       .mul(0.5)
       .add(0.5);
-    const fine = mx_fractal_noise_float(vec3(p.x.mul(0.9), 0.0, p.z.mul(0.9)), octaves, 2.1, 0.5)
+    const fine = bakedFractal(vec3(p.x.mul(0.9), 0.0, p.z.mul(0.9)), octaves)
       .mul(0.5)
       .add(0.5);
 
@@ -105,56 +102,77 @@ function createTerrainMaterial(preset: QualityPreset): MeshStandardNodeMaterial 
     const steep = smoothstep(0.82, 0.62, normalWorld.y);
     col = mix(col, rock.mul(mix(0.8, 1.2, fine)), steep);
     return col;
-  })();
-  return material;
+  });
+  return createUberMaterial(
+    { shading: 'lit', surface: () => ({ color: colorNode() }) },
+    { roughness: 1, metalness: 0 },
+  );
 }
 
-function createRockMaterial(): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
-  material.colorNode = Fn(() => {
-    const p = positionWorld;
-    const n = mx_noise_float(p.mul(1.7)).mul(0.5).add(0.5);
-    const grain = mx_noise_float(p.mul(7.0)).mul(0.5).add(0.5);
-    const stone = mix(color(0x544f49), color(0x8a8378), n);
-    let col = stone.mul(mix(0.85, 1.1, grain));
-    // 上向きの面に苔
-    const moss = smoothstep(0.55, 0.85, normalWorld.y.add(n.mul(0.25)));
-    col = mix(col, color(0x56612f).mul(mix(0.8, 1.15, grain)), moss.mul(0.7));
-    return col;
-  })();
-  return material;
+function createRockMaterial(): UberMaterial {
+  return createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => ({
+        color: Fn(() => {
+          const p = positionWorld;
+          const n = bakedNoise(p.mul(1.7)).mul(0.5).add(0.5);
+          const grain = bakedNoise(p.mul(7.0)).mul(0.5).add(0.5);
+          const stone = mix(color(0x544f49), color(0x8a8378), n);
+          let col = stone.mul(mix(0.85, 1.1, grain));
+          // 上向きの面に苔
+          const moss = smoothstep(0.55, 0.85, normalWorld.y.add(n.mul(0.25)));
+          col = mix(col, color(0x56612f).mul(mix(0.8, 1.15, grain)), moss.mul(0.7));
+          return col;
+        })(),
+      }),
+    },
+    { roughness: 0.92, metalness: 0 },
+  );
 }
 
-function createStoneMaterial(): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 0.85, metalness: 0 });
-  material.colorNode = Fn(() => {
-    const p = positionWorld;
-    const streak = mx_noise_float(vec3(p.x.mul(2.5), p.y.mul(0.5), p.z.mul(2.5)))
-      .mul(0.5)
-      .add(0.5);
-    const grain = mx_noise_float(p.mul(9.0)).mul(0.5).add(0.5);
-    const warm = color(0xc2ae8c); // 風化した砂岩
-    const cool = color(0x84796c);
-    let col = mix(cool, warm, smoothstep(0.25, 0.75, streak));
-    col = col.mul(mix(0.82, 1.08, grain));
-    // 下部ほど湿って暗く、苔が付く
-    const damp = smoothstep(2.5, 0.0, p.y);
-    col = mix(col, color(0x4a5230), clamp(damp.mul(0.35), 0, 1));
-    return col;
-  })();
-  return material;
+function createStoneMaterial(): UberMaterial {
+  return createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => ({
+        color: Fn(() => {
+          const p = positionWorld;
+          const streak = bakedNoise(vec3(p.x.mul(2.5), p.y.mul(0.5), p.z.mul(2.5)))
+            .mul(0.5)
+            .add(0.5);
+          const grain = bakedNoise(p.mul(9.0)).mul(0.5).add(0.5);
+          const warm = color(0xc2ae8c); // 風化した砂岩
+          const cool = color(0x84796c);
+          let col = mix(cool, warm, smoothstep(0.25, 0.75, streak));
+          col = col.mul(mix(0.82, 1.08, grain));
+          // 下部ほど湿って暗く、苔が付く
+          const damp = smoothstep(2.5, 0.0, p.y);
+          col = mix(col, color(0x4a5230), clamp(damp.mul(0.35), 0, 1));
+          return col;
+        })(),
+      }),
+    },
+    { roughness: 0.85, metalness: 0 },
+  );
 }
 
-function createBarkMaterial(): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 0.95, metalness: 0 });
-  material.colorNode = Fn(() => {
-    const p = positionWorld;
-    const n = mx_noise_float(vec3(p.x.mul(6), p.y.mul(1.2), p.z.mul(6)))
-      .mul(0.5)
-      .add(0.5);
-    return mix(color(0x2c241d), color(0x5a4a3a), n);
-  })();
-  return material;
+function createBarkMaterial(): UberMaterial {
+  return createUberMaterial(
+    {
+      shading: 'lit',
+      surface: () => ({
+        color: Fn(() => {
+          const p = positionWorld;
+          const n = bakedNoise(vec3(p.x.mul(6), p.y.mul(1.2), p.z.mul(6)))
+            .mul(0.5)
+            .add(0.5);
+          return mix(color(0x2c241d), color(0x5a4a3a), n);
+        })(),
+      }),
+    },
+    { roughness: 0.95, metalness: 0 },
+  );
 }
 
 /** 世界のアイテム。位置・回転・スケールを適用した非インデックスジオメトリを返す。 */
@@ -172,7 +190,7 @@ function place(
 
 function mergeToMesh(
   geometries: BufferGeometry[],
-  material: MeshStandardNodeMaterial,
+  material: UberMaterial,
   castShadow = true,
 ): Mesh {
   const merged = mergeGeometries(geometries, false);
@@ -367,8 +385,10 @@ function createDeadTrees(rng: () => number): Mesh {
  */
 function createGoldenMarker(): Group {
   const group = new Group();
-  const material = new MeshStandardNodeMaterial({ color: 0xffb54a, roughness: 0.4, metalness: 0 });
-  material.emissiveNode = color(0xffa62e).mul(3.2);
+  const material = createUberMaterial(
+    { shading: 'lit', surface: () => ({ emissive: color(0xffa62e).mul(3.2) }) },
+    { color: 0xffb54a, roughness: 0.4, metalness: 0 },
+  );
   const orb = new Mesh(new SphereGeometry(0.14, 20, 14), material);
   orb.position.y = 1.2;
   const ring = new Mesh(new CylinderGeometry(0.55, 0.62, 0.06, 28, 1, true), material);
@@ -413,20 +433,28 @@ function createGrassTuftGeometry(rng: () => number): BufferGeometry {
 
 function createGrass(count: number, rng: () => number): InstancedMesh | null {
   if (count <= 0) return null;
-  const material = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0, side: DoubleSide });
-  material.colorNode = Fn(() => {
-    const t = clamp(positionLocal.y.div(0.6), 0, 1);
-    const tint = mx_noise_float(positionWorld.mul(0.25)).mul(0.5).add(0.5);
-    const base = mix(color(0x34401f), color(0x4f5a2a), tint);
-    const tip = mix(color(0x9a8a45), color(0xc4a85a), tint);
-    return mix(base, tip, t.mul(t));
-  })();
-  // 風にそよぐ（インスタンスごとに位相をずらし、先端ほど大きく揺らす）
-  material.positionNode = Fn(() => {
-    const phase = instanceIndex.toFloat().mul(0.37).add(time.mul(1.7));
-    const sway = sin(phase).mul(0.07).mul(positionLocal.y.div(0.6));
-    return positionLocal.add(vec3(sway, 0, sway.mul(0.6)));
-  })();
+  const material = createUberMaterial(
+    {
+      shading: 'lit',
+      doubleSided: true,
+      surface: () => ({
+        color: Fn(() => {
+          const t = clamp(positionLocal.y.div(0.6), 0, 1);
+          const tint = bakedNoise(positionWorld.mul(0.25)).mul(0.5).add(0.5);
+          const base = mix(color(0x34401f), color(0x4f5a2a), tint);
+          const tip = mix(color(0x9a8a45), color(0xc4a85a), tint);
+          return mix(base, tip, t.mul(t));
+        })(),
+        // 風にそよぐ（インスタンスごとに位相をずらし、先端ほど大きく揺らす）
+        position: Fn(() => {
+          const phase = instanceIndex.toFloat().mul(0.37).add(time.mul(1.7));
+          const sway = sin(phase).mul(0.07).mul(positionLocal.y.div(0.6));
+          return positionLocal.add(vec3(sway, 0, sway.mul(0.6)));
+        })(),
+      }),
+    },
+    { roughness: 1, metalness: 0 },
+  );
 
   const mesh = new InstancedMesh(createGrassTuftGeometry(rng), material, count);
   const dummy = new Object3D();

@@ -1,3 +1,4 @@
+import { createUberMaterial } from '../uberMaterial';
 import {
   BoxGeometry,
   BufferGeometry,
@@ -7,7 +8,6 @@ import {
   LineBasicNodeMaterial,
   LineSegments,
   Mesh,
-  MeshStandardNodeMaterial,
   Vector3,
 } from 'three/webgpu';
 import type { CharacterAnimState } from '../anim/characterAnimator';
@@ -76,7 +76,7 @@ function bossAnimState(
   };
 }
 
-registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
+registerViewPlugin('boss', ({ game, view, gameRenderer, services }) => {
   const system = game.systems.get(bossSystem);
   const debug = isDebugEnabled(location.search);
   const root = new Group();
@@ -85,20 +85,20 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
 
   const body = new Mesh(
     new CapsuleGeometry(BOSS_STATS.radius, BOSS_STATS.height - BOSS_STATS.radius * 2, 4, 16),
-    new MeshStandardNodeMaterial({ color: 0x5b5650, roughness: 0.9 }),
+    createUberMaterial({ shading: 'lit' }, { color: 0x5b5650, roughness: 0.9 }),
   );
   body.position.y = BOSS_STATS.height / 2;
   body.castShadow = true;
   // 正面（+z）を示す箱（盾の代わり）
   const front = new Mesh(
     new BoxGeometry(1.6, 2.2, 0.35),
-    new MeshStandardNodeMaterial({ color: 0x8a5a32, roughness: 0.8 }),
+    createUberMaterial({ shading: 'lit' }, { color: 0x8a5a32, roughness: 0.8 }),
   );
   front.position.set(0, BOSS_STATS.height * 0.55, BOSS_STATS.radius + 0.2);
   front.castShadow = true;
   const eye = new Mesh(
     new BoxGeometry(0.5, 0.12, 0.1),
-    new MeshStandardNodeMaterial({ color: 0xffb060, emissive: 0xffb060 }),
+    createUberMaterial({ shading: 'lit' }, { color: 0xffb060, emissive: 0xffb060 }),
   );
   eye.position.set(0, BOSS_STATS.height * 0.88, BOSS_STATS.radius - 0.05);
   root.add(body, front, eye);
@@ -115,6 +115,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
   const bands = new Group();
   if (debug) {
     for (const r of [BOSS_BANDS.closeBelow, BOSS_BANDS.farAbove]) {
+      // uber の例外: デバッグ・確認用の線（メッシュではない）
       const mat = new LineBasicNodeMaterial({ color: r < 5 ? 0xff5a3a : 0xf2d24a });
       mat.depthTest = false;
       mat.transparent = true;
@@ -176,7 +177,7 @@ registerViewPlugin('boss', ({ game, view, gameRenderer }) => {
       };
       model.root.visible = false;
       view.scene.add(model.root);
-      model.bindParticles(view.particles);
+      model.bindParticles(services.fx);
       animator = new BossAnimator(model, assets);
       transitionFx = new BossTransitionFx(game, view, model);
       defeatFx = new BossDefeatFx(game, view, model);

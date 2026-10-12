@@ -1,4 +1,5 @@
 import { sectorShape } from '../../combat';
+import { BOSS_MOVES_DATA } from '../../data/bossMoves';
 import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
 
 /**
@@ -13,66 +14,15 @@ import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bo
  */
 
 /** 判定の高さ（足元から。m）。 */
-export const SWEEP_HEIGHT = { min: 0.5, max: 2.5 } as const;
-/** 1 発目と 2 発目の間（1 発目の硬直）。三連撃の段間と同じ 8F。 */
-export const SWEEP_GAP = 8;
-/** 各段の振りの向き（ボスから見て。1 発目は右から左、P2 の 2 発目は逆）。クリップのミラー指定・演出用。 */
+const { params: P, ...MOVE } = BOSS_MOVES_DATA.sweep;
+
+export const SWEEP_HEIGHT = P.height;
+export const SWEEP_GAP = MOVE.phase2Stages?.[0]?.recovery ?? 0;
 export const SWEEP_SWING = { 'sweep.1': 'rightToLeft', 'sweep.2': 'leftToRight' } as const;
-
-const SWEEP_P1: BossStageDef = {
-  id: 'sweep.1',
-  startup: 40,
-  active: 10,
-  recovery: 48,
-  damage: 95,
-  poiseDamage: 60,
-  guardStaminaCost: 52,
-  moveDistance: 0,
-  arcDeg: 200,
-  range: 5.0,
-  heavy: true,
-  telegraph: 'heavy',
-  // 追尾は発生の 12F 前まで（向き固定の猶予）。旋回は基準の 0.8 倍
-  trackEndFrame: 28,
-  trackRate: 0.8,
-};
-
-const SWEEP_P2_1: BossStageDef = {
-  ...SWEEP_P1,
-  startup: 34,
-  recovery: SWEEP_GAP,
-  damage: 105,
-  trackEndFrame: 22,
-  superArmor: { start: 1, end: 34 + SWEEP_P1.active },
-};
-
-/** P2 の 2 発目。逆方向に振り返す。 */
-const SWEEP_P2_2: BossStageDef = {
-  id: 'sweep.2',
-  startup: 24,
-  active: 10,
-  recovery: 40,
-  damage: 90,
-  poiseDamage: 60,
-  guardStaminaCost: 52,
-  moveDistance: 0,
-  arcDeg: 200,
-  range: 5.0,
-  telegraph: 'heavy',
-  followUp: true,
-  // 1 発目の向きのまま振り返す（追尾はほぼしない）
-  trackEndFrame: 6,
-  trackRate: 0.5,
-  superArmor: { start: 1, end: 24 + 10 },
-};
 
 registerBossMove({
   id: 'sweep',
-  name: '薙ぎ払い',
-  phases: [1, 2],
-  stages: [SWEEP_P1],
-  phase2Stages: [SWEEP_P2_1, SWEEP_P2_2],
-  approach: { speed: 'walk', stopRange: 3.0 },
+  ...MOVE,
   hooks: {
     shape: (ctx: BossMoveContext, stage: BossStageDef) =>
       sectorShape(

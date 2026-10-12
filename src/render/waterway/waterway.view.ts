@@ -1,10 +1,10 @@
 import {
   BoxGeometry,
   BufferGeometry,
+  Color,
   Float32BufferAttribute,
   Group,
   Mesh,
-  MeshStandardNodeMaterial,
   Uint32BufferAttribute,
   type Object3D,
 } from 'three/webgpu';
@@ -12,8 +12,8 @@ import { reflector, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { WAKE_KIND, waterWakeSystem } from '../../game/world/waterWake.system';
 import { DUSK_MOOD, type Mood } from '../environment';
-import { REFLECT_LAYER } from '../layers';
 import { registerViewPlugin } from '../viewPlugins';
+import { createUberMaterial } from '../uberMaterial';
 import { createWaterFx, type SplashKind, type WaterFx } from './waterFx';
 import { buildWaterGrid, buildWaterSurface, isWater } from './waterLayout';
 import { createLightRig } from './waterLighting';
@@ -32,12 +32,17 @@ import {
   DRIP_SPOTS,
   insideWaterway,
   nearWaterwayMouth,
+  torchFlame,
   waterLayoutInput,
   waterwayLights,
+  waterwayTorches,
 } from './waterwayLevel';
 import { waterwaySystem } from '../../game/world/waterway.system';
 
 const DEG = Math.PI / 180;
+
+/** 壁のたいまつの光（実ライト。色はリニア）。 */
+const WATERWAY_TORCH_LIGHT = { color: new Color(1, 0.44, 0.16), intensity: 5, distance: 9 };
 
 /**
  * 地下水路のムード（暗く冷たい。主光源はたいまつ・床板の穴の光・苔の偽のライト）。
@@ -107,14 +112,21 @@ export function waterwayRenderInfo(game: object): WaterwayRenderInfo | undefined
 //  - 水面は波のシミュレーション（GPU）+ フローマップの法線 + 平面反射 + 屈折（`waterMaterial.ts`）
 //  - しぶき・雫・霧・光の筋（`waterFx.ts`）
 //  - 腐った床板（割れたら消える）と鉄格子（開いたら消える）。コライダは `Game.setBoxEnabled`
-registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
+registerViewPlugin('waterway', ({ game, view, level, gameRenderer, services }) => {
+  const { layers } = services;
   const root = new Group();
   root.name = 'waterway';
   view.scene.add(root);
   if (!level) return {};
 
-  const wood = new MeshStandardNodeMaterial({ color: 0x5a4430, roughness: 0.95, metalness: 0 });
-  const iron = new MeshStandardNodeMaterial({ color: 0x35302c, roughness: 0.6, metalness: 0.5 });
+  const wood = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x5a4430, roughness: 0.95, metalness: 0 },
+  );
+  const iron = createUberMaterial(
+    { shading: 'lit' },
+    { color: 0x35302c, roughness: 0.6, metalness: 0.5 },
+  );
 
   const hatchBox = level.boxes.find((b) => b.style === 'hatch');
   let hatch: Object3D | null = null;
@@ -149,7 +161,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
     mesh.rotation.y = (grateBox.yawDeg ?? 0) * DEG;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.layers.enable(REFLECT_LAYER);
+    layers.reflect(mesh);
     root.add(mesh);
     grate = mesh;
   }
@@ -170,6 +182,18 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
   const grid = buildWaterGrid(waterLayoutInput(level, way), quality.simCell);
   const holeY = hatchBox ? hatchBox.y + hatchBox.hy : grid.floorY + 2.4;
   const rig = createLightRig(waterwayLights(grid.floorY), holeY);
+  // たいまつは実ライト（#322）。殻（石の壁・床）や人物はこれで照らされる。水面・霧・しぶき（光を受けない
+  // マテリアル）は同じ位置のたいまつを `lightAt` で足す
+  const localLights = services.lights;
+  waterwayTorches(grid.floorY).forEach((t, i) => {
+    localLights.add({
+      position: torchFlame(t),
+      color: WATERWAY_TORCH_LIGHT.color,
+      intensity: WATERWAY_TORCH_LIGHT.intensity,
+      distance: WATERWAY_TORCH_LIGHT.distance,
+      flickerPhase: i * 2.13,
+    });
+  });
   const sim = drawEnabled ? new WaterSim(gameRenderer.renderer, grid) : null;
   const layoutTexture = createLayoutTexture(grid);
   const waterRects = way.rects.filter((r) => r.water);
@@ -196,7 +220,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
     group.name = 'waterway-water';
 
     const shell = buildWaterShell(baked, fields, rig, materialDetail);
-    for (const m of shell.meshes) m.layers.enable(REFLECT_LAYER);
+    for (const m of shell.meshes) layers.reflect(m);
     group.add(shell.root);
 
     if (quality.reflection > 0) {
@@ -205,11 +229,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
       node.target.position.y = grid.surfaceY;
       group.add(node.target);
       const virtual = node.reflector.getVirtualCamera(view.camera);
-      virtual.layers.set(REFLECT_LAYER);
-      // ライトもカメラのレイヤーで選ばれる。シーンのライトを反射にも効かせる（光の組が同じなのでパイプラインも共有される）
-      view.scene.traverse((o) => {
-        if ((o as { isLight?: boolean }).isLight === true) o.layers.enable(REFLECT_LAYER);
-      });
+      layers.setupReflectionCamera(virtual);
       // 水路の外（水面が床板の穴・鉄格子越しに少し見えるだけ）では反射を描かない
       const base = node.reflector as unknown as { updateBefore(frame: unknown): unknown };
       const original = base.updateBefore.bind(base);
@@ -308,11 +328,7 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
   const reflectPlayer = (): void => {
     const target = view.shadowFocusTarget;
     if (reflectPlayerDone || !target) return;
-    target.traverse((o) => {
-      if ((o as { isMesh?: boolean }).isMesh === true && o.layers.isEnabled(0)) {
-        o.layers.enable(REFLECT_LAYER);
-      }
-    });
+    layers.reflectMeshesIn(target);
     reflectPlayerDone = true;
   };
 

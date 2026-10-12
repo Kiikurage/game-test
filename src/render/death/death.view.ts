@@ -1,4 +1,4 @@
-import { HUD_FADE_FRAMES } from '../../game/hud/hudModel';
+import { HUD_FADE_FRAMES } from '../../presentation/hud/hudModel';
 import { DEATH } from '../../game/data/death';
 import { registerViewPlugin } from '../viewPlugins';
 import { deathSystem } from '../../game/death/death.system';
@@ -69,7 +69,7 @@ registerViewPlugin('death', ({ game, view }) => {
       const key = `${v.grade}|${v.fade}|${v.textAlpha}|${v.textScale}`;
       if (key === last) return;
       last = key;
-      view.postProcess.setScreenEffect({
+      view.pipeline.setScreenEffect({
         desaturate: v.grade,
         dim: DEATH.dimMax * v.grade,
         vignette: v.grade,

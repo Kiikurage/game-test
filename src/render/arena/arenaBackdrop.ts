@@ -1,20 +1,7 @@
-import {
-  BufferGeometry,
-  Float32BufferAttribute,
-  MeshBasicNodeMaterial,
-  Uint32BufferAttribute,
-} from 'three/webgpu';
+import { BufferGeometry, Float32BufferAttribute, Uint32BufferAttribute } from 'three/webgpu';
 import type { Node } from 'three/webgpu';
-import {
-  cameraPosition,
-  float,
-  mix,
-  normalize,
-  positionWorld,
-  uniform,
-  vec3,
-  vec4,
-} from 'three/tsl';
+import { cameraPosition, mix, normalize, positionWorld, uniform, vec3 } from 'three/tsl';
+import { createUberMaterial, type UberMaterial } from '../uberMaterial';
 
 /**
  * 闘技場の背景の幕と、壁の向こうの岩場のシルエット。
@@ -129,24 +116,28 @@ export function createRimGeometry(
 export const backdropFade = uniform(0);
 
 /** 幕: 視線方向の空の色（`Environment.skyAt`）。 */
-export function createBackdropMaterial(
-  skyAt: (dir: Node<'vec3'>) => Node<'vec3'>,
-): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({ fog: false, transparent: true, depthWrite: false });
+export function createBackdropMaterial(skyAt: (dir: Node<'vec3'>) => Node<'vec3'>): UberMaterial {
   const dir = normalize(positionWorld.sub(cameraPosition));
-  material.colorNode = vec4(skyAt(dir), 1);
-  material.opacityNode = backdropFade;
-  return material;
+  return createUberMaterial({
+    shading: 'unlit',
+    transparent: true,
+    noFog: true,
+    surface: () => ({ color: skyAt(dir), opacity: backdropFade }),
+    surfaceId: 'arenaSky',
+  });
 }
 
 /** 稜線: ごく暗い青のシルエット（上端にわずかに空の残光が回り込む）。 */
-export function createRimMaterial(floorY: number): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({ fog: false, transparent: true, depthWrite: false });
+export function createRimMaterial(floorY: number): UberMaterial {
   const dark = vec3(0.012, 0.012, 0.03);
   const glow = vec3(0.05, 0.03, 0.06);
   // 高いほどわずかに明るい（空気遠近）
   const t = positionWorld.y.sub(floorY).div(10).clamp(0, 1);
-  material.colorNode = vec4(mix(dark, glow, t.mul(t)), 1);
-  material.opacityNode = float(1).mul(backdropFade);
-  return material;
+  return createUberMaterial({
+    shading: 'unlit',
+    transparent: true,
+    noFog: true,
+    surface: () => ({ color: mix(dark, glow, t.mul(t)), opacity: backdropFade }),
+    surfaceId: 'arenaHorizon',
+  });
 }

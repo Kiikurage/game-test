@@ -18,7 +18,7 @@ import { bossSystem } from '../../game/boss/boss.system';
  * - 影の円は滞空に入ってから（progress 0 → 1 で着地が近いほど濃く締まる）。
  * - 着地（`bossSlam`）: 円の縁に沿って砂塵・火花を散らす。柱の破片は `bossPillarHit`（#78）の購読側が担当する。
  */
-registerViewPlugin('boss-leap', ({ game, view }) => {
+registerViewPlugin('boss-leap', ({ game, view, services }) => {
   let ring: Telegraph | null = null;
   let shadow: Telegraph | null = null;
   const position = new Vector3();
@@ -35,7 +35,7 @@ registerViewPlugin('boss-leap', ({ game, view }) => {
         e.position.z + Math.cos(a) * r,
       );
       normal.set(Math.sin(a), 0.7, Math.cos(a)).normalize();
-      view.particles.hit(position, normal, 1.3);
+      services.fx.hit(position, normal, 1.3);
     }
   });
 

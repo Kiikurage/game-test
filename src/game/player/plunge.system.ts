@@ -1,4 +1,5 @@
 import { PLUNGE } from '../data';
+import { PLAYER_CONTROL } from '../data/playerControl';
 import { cameraEffectsOf } from '../camera/cameraEffects.system';
 import { registerGameSystem } from '../systems';
 import { deathSystem } from '../death/death.system';
@@ -19,7 +20,7 @@ registerGameSystem(
   (game) => {
     const { player } = game;
     player.plungeTargetNear = (x, z, radius) => {
-      const below = player.feet.y - 0.3;
+      const below = player.feet.y - PLAYER_CONTROL.plungeTargetBelow;
       const near = (t: {
         position: { x: number; y: number; z: number };
         alive: boolean;

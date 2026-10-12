@@ -59,4 +59,7 @@ test('the debug HUD shows the draw call breakdown', async ({ page }) => {
   await startGame(page);
   await expect(page.locator('.debug-hud')).toContainText('terrain', { timeout: 30_000 });
   await expect(page.locator('.debug-hud')).toContainText('character');
+  // フレームパイプラインの構成（#317）。low はブルーム無し。GPU 時間は timestamp-query の有無で表示が変わる
+  await expect(page.locator('.debug-hud')).toContainText('passes: scene > grade > output');
+  await expect(page.locator('.debug-hud')).toContainText(/gpu (n\/a|[\d.]+ ms busy)/);
 });

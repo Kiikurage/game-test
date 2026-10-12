@@ -15,7 +15,7 @@ describe('createUberMaterial', () => {
     expect(lit).toBeInstanceOf(MeshStandardNodeMaterial);
     expect(lit.vertexColors).toBe(true);
     expect(lit.side).toBe(FrontSide);
-    expect((lit as MeshStandardNodeMaterial).roughness).toBe(0.5);
+    expect(lit.roughness).toBe(0.5);
 
     const unlit = createUberMaterial({ shading: 'unlit', doubleSided: true }, { intensity: 3 });
     expect(unlit).toBeInstanceOf(MeshBasicNodeMaterial);
