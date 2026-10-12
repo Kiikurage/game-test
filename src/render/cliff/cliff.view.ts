@@ -1,6 +1,7 @@
+import { createInstancedMesh } from '../instancing';
+import type { InstancedMesh } from 'three/webgpu';
 import {
   Group,
-  InstancedMesh,
   Matrix4,
   Quaternion,
   Vector3,
@@ -26,7 +27,7 @@ import { createUberMaterial, type UberMaterial, type UberSurface } from '../uber
 /** 岩塊のマテリアル: 崖と同じ地層・節理の色（`rockSurface`）に、上面の砂埃と凹凸を足す。 */
 function createRockPileMaterial(): UberMaterial {
   return createUberMaterial(
-    { shading: 'lit', surface: rockPileSurface, group: 'cliff' },
+    { shading: 'lit', surface: rockPileSurface, surfaceId: 'rockPile', group: 'cliff' },
     { roughness: 0.97, metalness: 0 },
   );
 }
@@ -49,7 +50,7 @@ function buildInstanced(
   material: Material,
   name: string,
 ): InstancedMesh {
-  const mesh = new InstancedMesh(geometry, material, items.length);
+  const mesh = createInstancedMesh(geometry, material, items.length);
   const matrix = new Matrix4();
   const quaternion = new Quaternion();
   const position = new Vector3();

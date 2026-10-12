@@ -1,8 +1,9 @@
+import { createInstancedMesh } from '../instancing';
 import { createUberMaterial } from '../uberMaterial';
+import type { InstancedMesh } from 'three/webgpu';
 import {
   Color,
   Frustum,
-  InstancedMesh,
   Matrix4,
   OctahedronGeometry,
   Quaternion,
@@ -61,7 +62,7 @@ export class LootMarks {
   ) {
     const geometry = new OctahedronGeometry(SIZE, 0).scale(1, 1.5, 1);
     const material = createUberMaterial({ shading: 'unlit' }, { color: GLOW });
-    this.mesh = new InstancedMesh(geometry, material, spots.length);
+    this.mesh = createInstancedMesh(geometry, material, spots.length);
     this.mesh.name = 'lootmarks';
     // 視錐台カリングは `update` で対象ごとに行う（見える目印が 1 つもなければ描かない）
     this.mesh.frustumCulled = false;

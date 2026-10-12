@@ -7,6 +7,8 @@ import {
 } from './quality';
 import { loadNoiseTextures, setMaterialDetail } from './bakedNoise';
 import { configureKtx2Loader } from './assets/ktx2';
+import { installStableBufferNames } from './stableBufferNames';
+import { setUniformBufferLimit } from './instancing';
 
 /** デバッグ表示（`?debug`）用の計測値。 */
 export interface RenderStats {
@@ -54,6 +56,8 @@ export async function createRenderer(
   const { preset } = quality;
   // マテリアルのノイズ層の数（#236）。マテリアルは各 view が後で作るので、その前に決めておく
   setMaterialDetail(preset.materialDetail);
+  // メッシュごとにシェーダが分かれないよう、バッファ名を連番にする（#326）
+  installStableBufferNames();
   const renderer = new WebGPURenderer({
     antialias: preset.msaa,
     powerPreference: 'high-performance',
@@ -68,6 +72,11 @@ export async function createRenderer(
   }
   // KTX2 の変換先（ASTC / BC など）をデバイスの圧縮テクスチャ機能から決める（#328）
   configureKtx2Loader(renderer);
+  // インスタンス行列の確保数を揃える基準（#326）
+  setUniformBufferLimit(
+    (renderer.backend as unknown as { device: GPUDevice }).device.limits
+      .maxUniformBufferBindingSize,
+  );
   // マテリアルの焼いたノイズ（#326）。失敗しても模様が消えるだけでゲームは続ける
   await loadNoiseTextures().catch((e: unknown) => {
     console.warn('noise textures failed to load', e);

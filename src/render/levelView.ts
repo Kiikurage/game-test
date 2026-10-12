@@ -1,3 +1,4 @@
+import { createInstancedMesh } from './instancing';
 import {
   BoxGeometry,
   BufferGeometry,
@@ -9,7 +10,6 @@ import {
   SphereGeometry,
   Uint32BufferAttribute,
   ConeGeometry,
-  InstancedMesh,
   type Material,
   type Object3D,
 } from 'three/webgpu';
@@ -298,7 +298,7 @@ export class LevelView {
       geometry.setAttribute('position', new Float32BufferAttribute(part.positions, 3));
       geometry.setAttribute('normal', new Float32BufferAttribute(part.normals, 3));
       geometry.setIndex(new Uint32BufferAttribute(part.indices, 1));
-      const mesh = new InstancedMesh(geometry, grassMaterial, matrices.length);
+      const mesh = createInstancedMesh(geometry, grassMaterial, matrices.length);
       matrices.forEach((m, i) => {
         mesh.setMatrixAt(i, m);
       });

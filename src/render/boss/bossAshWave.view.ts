@@ -1,6 +1,7 @@
+import { createInstancedMesh } from '../instancing';
 import { createUberMaterial } from '../uberMaterial';
 import type { BufferGeometry } from 'three/webgpu';
-import { ConeGeometry, Euler, InstancedMesh, Object3D, Vector3 } from 'three/webgpu';
+import { ConeGeometry, Euler, Object3D, Vector3 } from 'three/webgpu';
 import { atan, float, mix, positionGeometry, pow, sin, smoothstep, vec3 } from 'three/tsl';
 import { bossSystemOf } from '../../game/boss/boss.system';
 import {
@@ -140,7 +141,7 @@ registerViewPlugin('boss-ash-wave', ({ game, view }) => {
     },
     { roughness: 1, metalness: 0 },
   );
-  const mesh = new InstancedMesh(geometry, material, COUNT);
+  const mesh = createInstancedMesh(geometry, material, COUNT);
   mesh.frustumCulled = false;
   mesh.castShadow = false;
   mesh.visible = false;
