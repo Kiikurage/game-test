@@ -268,6 +268,26 @@ export async function bootGame(page: Page, options: BootOptions = {}): Promise<s
 }
 
 /**
+ * `read` の値が `ok` を満たすまで `chunk` ステップずつシミュレーションを進め、満たした値を返す（`expect.poll` のステップ基準版）。
+ * `maxSteps` ステップ進めても満たさなければ失敗する。
+ */
+export async function stepUntil<T>(
+  page: Page,
+  read: () => Promise<T>,
+  ok: (value: T) => boolean,
+  { maxSteps = 600, chunk = 5 }: { maxSteps?: number; chunk?: number } = {},
+): Promise<T> {
+  let value = await read();
+  for (let n = 0; !ok(value); n += chunk) {
+    if (n >= maxSteps)
+      throw new Error(`condition not met within ${maxSteps} steps: ${JSON.stringify(value)}`);
+    await waitSteps(page, chunk);
+    value = await read();
+  }
+  return value;
+}
+
+/**
  * 入力（前進の注入）だけで経由点を順に歩く。各経由点の `tol` m 以内で次へ向きを変える。
  * 4 ステップごとに向きを補正する。ページ内で `dev.advance` を同期実行する（実時間に依存しない）。
  * 時間切れはシミュレーション時間（`maxSeconds`）で判定する。
