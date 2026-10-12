@@ -3,6 +3,8 @@
 // （描画 1 フレーム = シミュレーション 1 ステップ。src/render/cpuProfile.dev.ts）で回しながら
 // CDP の Profiler でメインスレッドの JS を関数別に集計する。`?nodraw` でも同じ計測をし、差を描画のコストとする。
 // SwiftShader の GPU 時間は見ない（メインスレッドの JS だけ）。
+// 回帰ゲート（#306）: PROFILE_MAX_DRAW_MS / PROFILE_MAX_NODRAW_MS を与えると、JS ms/frame（CDP）がそれを超えたとき
+// 終了コード 1 で落ちる（CI の perf ジョブ）。PROFILE_BURN_MS=<ms> は計測中の各 rAF に人工の負荷を足す（ゲートが落ちることの確認用）。
 // 関数名を読めるよう、未圧縮 + ソースマップ付きで node_modules/.profile-dist にビルドする（PROFILE_SKIP_BUILD=1 で省略）。
 import { readFileSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
@@ -22,6 +24,9 @@ const TOP = Number(process.env.PROFILE_TOP ?? 15);
 /** PROFILE_ALLOC=1: ヒープのサンプリングで関数別の割り当て量（KB/フレーム）も出す（GC の原因探し）。 */
 const ALLOC = Boolean(process.env.PROFILE_ALLOC);
 const target = measureTarget();
+const MAX_DRAW_MS = Number(process.env.PROFILE_MAX_DRAW_MS ?? NaN);
+const MAX_NODRAW_MS = Number(process.env.PROFILE_MAX_NODRAW_MS ?? NaN);
+const BURN_MS = Number(process.env.PROFILE_BURN_MS ?? 0);
 const outDir = resolve('node_modules/.profile-dist');
 
 /** バンドルの位置 → 元のソース（src/... の関数）へ。 */
@@ -99,6 +104,19 @@ async function measure(extra) {
   const { context, page } = await newPage(session, {
     context: target.context,
   });
+  if (BURN_MS > 0) {
+    // 計測区間だけ（__profileBurnMs を立ててから）rAF のコールバックごとに busy-wait する
+    await page.addInitScript(() => {
+      const raf = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) =>
+        raf((t) => {
+          const ms = window.__profileBurnMs ?? 0;
+          const end = performance.now() + ms;
+          while (performance.now() < end);
+          cb(t);
+        });
+    });
+  }
   await page.goto(session.url(`?quality=${quality}&${target.query}${extra}`));
   await startGame(page, 600_000);
   // 墓地の視点（perfViewpoints の graveyard）。墓地の亡者 2 体と礼拝堂の門の 1 体を戦闘の音で呼ぶ
@@ -118,7 +136,10 @@ async function measure(extra) {
   const cdp = await context.newCDPSession(page);
   await cdp.send('Profiler.enable');
   await cdp.send('Profiler.setSamplingInterval', { interval: 100 });
-  await page.evaluate(() => window.__game.dev.cpuProfileReset());
+  await page.evaluate((burn) => {
+    window.__profileBurnMs = burn;
+    window.__game.dev.cpuProfileReset();
+  }, BURN_MS);
   if (ALLOC) {
     await cdp.send('HeapProfiler.enable');
     await cdp.send('HeapProfiler.startSampling', {
@@ -186,6 +207,21 @@ try {
       const sorted = [...r.alloc.byFn].sort((a, b) => b[1] - a[1]).slice(0, TOP);
       for (const [fn, bytes] of sorted) console.log(`| ${fn} | ${(bytes / 1024 / f).toFixed(2)} |`);
     }
+  }
+  const failures = [];
+  for (const [label, r, max] of [
+    ['draw', draw, MAX_DRAW_MS],
+    ['nodraw', nodraw, MAX_NODRAW_MS],
+  ]) {
+    if (!Number.isFinite(max)) continue;
+    const ms = r.jsUs / 1000 / r.stats.frames;
+    const verdict = ms > max ? 'FAIL' : 'ok';
+    console.log(`\ngate ${label}: ${ms.toFixed(2)} ms/frame (limit ${max}) ${verdict}`);
+    if (ms > max) failures.push(label);
+  }
+  if (failures.length > 0) {
+    console.error(`\nCPU regression gate failed: ${failures.join(', ')}`);
+    process.exitCode = 1;
   }
 } finally {
   await session.close();
