@@ -175,19 +175,11 @@ export class BossSystem {
   }
 }
 
-const systems = new WeakMap<Game, BossSystem>();
-
-/** `game` のボスシステム。 */
-export function bossSystemOf(game: Game): BossSystem {
-  const system = systems.get(game);
-  if (!system) throw new Error('boss system is not registered for this game');
-  return system;
-}
-
-registerGameSystem('boss', (game) => {
+/** ボスシステム（`game.systems.get(bossSystem)`）。 */
+export const bossSystem = registerGameSystem('boss', (game) => {
   const system = new BossSystem(game);
-  systems.set(game, system);
   return {
+    state: system,
     update: (dt) => {
       system.update(dt);
     },

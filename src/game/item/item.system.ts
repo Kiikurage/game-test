@@ -1,8 +1,8 @@
 import { registerGameSystem } from '../systems';
-import { itemsOf } from './item';
+import { ItemController } from './item';
 
 // アイテム取得（#67）。配置はレベルの `interactables`（kind: 'item'）。動作は `game/interactable`（#122）。
-registerGameSystem('item', (game) => {
-  itemsOf(game);
-  return {};
-});
+/** アイテム（`game.systems.get(itemSystem)`）。 */
+export const itemSystem = registerGameSystem('item', (game) => ({
+  state: new ItemController(game),
+}));

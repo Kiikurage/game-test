@@ -114,7 +114,9 @@ try {
       );
     }
   }
-  console.log(`\n${quality} / ${target.name}`);
+  // 全視点を回った後のレンダーパイプライン生成数（マテリアル統合の効果の目安。#325）
+  const pipelines = await page.evaluate(() => window.__game.dev.perfProbe().pipelineCreations);
+  console.log(`\n${quality} / ${target.name} / pipelines ${pipelines}`);
   if (timing) {
     console.log(
       '\n| viewpoint | draws | tris | gpu busy ms (med) | gpu span ms (med) | gpu raw-sum ms (med) | frame ms (med) | render cpu ms (med) |\n| --- | --- | --- | --- | --- | --- | --- | --- |',

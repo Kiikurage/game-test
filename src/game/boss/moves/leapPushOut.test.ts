@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Game } from '../../game';
 import { FakeInput } from '../../testing/fakeInput';
-import { bossSystemOf } from '../boss.system';
 import { BOSS_MOVES, BossMoveRegistry } from '../bossMove';
 import { LEAP_CLEARANCE, leapPushOut } from './leap.move';
+import { bossSystem } from '../boss.system';
 
 describe('leapPushOut (pure)', () => {
   const boss = { x: 0, z: 0, yaw: 0 };
@@ -44,7 +44,7 @@ describe('leap landing: the boss and the player do not overlap', () => {
     if (!def) throw new Error('leap is not registered');
     const moves = new BossMoveRegistry();
     moves.register(def);
-    const boss = bossSystemOf(game).spawn({ x: 0, z: 0, yaw: 0, moves, engage: true });
+    const boss = game.systems.get(bossSystem).spawn({ x: 0, z: 0, yaw: 0, moves, engage: true });
     const step = () => {
       game.update(DT);
       input.endStep();

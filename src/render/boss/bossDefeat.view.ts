@@ -1,7 +1,7 @@
 import { BOSS_DEFEAT, defeatFogDensity } from '../../game/boss/bossDefeat';
-import { bossDefeatOf } from '../../game/boss/bossDefeat.system';
 import { registerViewPlugin } from '../viewPlugins';
 import { advanceShownFrame } from './bossDefeatFx';
+import { bossDefeatSystem } from '../../game/boss/bossDefeat.system';
 
 /**
  * ボス撃破のフォグ（#86 / 8.4 節）: 崩壊の灰で空気が濃くなり（0.015 → 0.04）、F300 から 60F かけて 0.015 へ晴れる。
@@ -14,7 +14,12 @@ registerViewPlugin('boss-defeat-fog', ({ game, view }) => {
   let scale = 1;
   return {
     update: (dt) => {
-      shown = advanceShownFrame(shown, bossDefeatOf(game).frame, dt, game.timeScale.current);
+      shown = advanceShownFrame(
+        shown,
+        game.systems.get(bossDefeatSystem).frame,
+        dt,
+        game.timeScale.current,
+      );
       const next = defeatFogDensity(shown) / BOSS_DEFEAT.fogDensityClear;
       if (Math.abs(next - scale) < 1e-4) return;
       scale = next;
