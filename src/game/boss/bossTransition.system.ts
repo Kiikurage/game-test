@@ -2,13 +2,13 @@ import { PHASE_TRANSITION_CLIP } from '../camera/cameraClips';
 import { cameraEffectsOf } from '../camera/cameraEffects.system';
 import type { Game } from '../game';
 import { registerGameSystem } from '../systems';
-import { bossSystemOf } from './boss.system';
 import {
   BOSS_TRANSITION,
   BOSS_TRANSITION_FRAMES,
   cuesBetween,
   type BossTransitionCue,
 } from './bossTransition';
+import { bossSystem } from './boss.system';
 
 /**
  * ボスのフェーズ移行の演出の進行（#84 / 仕様書 6.5・3.3・10.2 節）。ボスの移行 F（`Boss.transitionFrame`）に同期して、
@@ -36,7 +36,7 @@ export class BossTransitionDirector {
   }
 
   update(): void {
-    const boss = bossSystemOf(this.game).boss;
+    const boss = this.game.systems.get(bossSystem).boss;
     const f = boss?.transitionFrame ?? -1;
     if (f >= 0) {
       for (const cue of cuesBetween(this.last, f)) this.fire(cue, false);
@@ -63,7 +63,7 @@ export class BossTransitionDirector {
 
   private fire(cue: BossTransitionCue, aborted: boolean): void {
     const { game } = this;
-    const boss = bossSystemOf(game).boss;
+    const boss = game.systems.get(bossSystem).boss;
     if (!boss) return;
     game.events.emit('bossTransition', {
       id: boss.id,
@@ -101,21 +101,18 @@ export class BossTransitionDirector {
   }
 }
 
-const directors = new WeakMap<Game, BossTransitionDirector>();
-
-/** `game` のフェーズ移行の演出（描画が `frame` を読む）。 */
-export function bossTransitionOf(game: Game): BossTransitionDirector {
-  const d = directors.get(game);
-  if (!d) throw new Error('boss transition system is not registered for this game');
-  return d;
-}
-
-registerGameSystem('boss-transition', (game) => {
-  const director = new BossTransitionDirector(game);
-  directors.set(game, director);
-  return {
-    update: () => {
-      director.update();
-    },
-  };
-});
+/** フェーズ移行の演出（`game.systems.get(bossTransitionSystem)`。描画が `frame` を読む）。 */
+export const bossTransitionSystem = registerGameSystem(
+  'boss-transition',
+  (game) => {
+    const director = new BossTransitionDirector(game);
+    return {
+      state: director,
+      update: () => {
+        director.update();
+      },
+    };
+  },
+  // このステップのボスの状態（フェーズ）を見る
+  { after: ['boss'] },
+);

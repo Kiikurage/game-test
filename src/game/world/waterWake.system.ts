@@ -1,5 +1,4 @@
 import { registerGameSystem } from '../systems';
-import type { Game } from '../game';
 
 // 地下水路の水面を乱すもの（#270）の記録。描画側の波のシミュレーション（`render/waterway`）が読む。
 //
@@ -104,22 +103,11 @@ export class WaterWake {
   }
 }
 
-const wakes = new WeakMap<Game, WaterWake>();
-
-/** `game` の水面の乱れの記録。 */
-export function waterWakeOf(game: Game): WaterWake {
-  let wake = wakes.get(game);
-  if (!wake) {
-    wake = new WaterWake();
-    wakes.set(game, wake);
-  }
-  return wake;
-}
-
 const AIRBORNE = new Set(['fall', 'plungeFall']);
 
-registerGameSystem('waterWake', (game) => {
-  const wake = waterWakeOf(game);
+/** 水面の乱れの記録（`game.systems.get(waterWakeSystem)`）。 */
+export const waterWakeSystem = registerGameSystem('waterWake', (game) => {
+  const wake = new WaterWake();
   const last = new Map<string, { x: number; z: number }>();
   let prevState = game.player.state;
   let fallFrames = 0;
@@ -143,6 +131,7 @@ registerGameSystem('waterWake', (game) => {
   };
 
   return {
+    state: wake,
     update: () => {
       const player = game.player;
       const f = player.feet;

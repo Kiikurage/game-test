@@ -1,8 +1,8 @@
 import { slamAt } from '../camera/cameraEffects.system';
 import { registerGameSystem } from '../systems';
-import { bossSystemOf } from './boss.system';
 import { LEAP_PUSH_FRAMES, LEAP_RADIUS, leapPushOut, leapStateOf } from './moves/leap.move';
 import { stagesOf, BOSS_MOVES } from './bossMove';
+import { bossSystem } from './boss.system';
 
 /**
  * ボスの技の「衝撃」の演出の発火（技 4・5）。
@@ -13,49 +13,54 @@ import { stagesOf, BOSS_MOVES } from './bossMove';
  *
  * 技のフレームデータは `BOSS_MOVES`（本物の技）から読む。
  */
-registerGameSystem('boss-impact', (game) => {
-  let slammed = false;
-  let bashed = false;
-  return {
-    update() {
-      const boss = bossSystemOf(game).boss;
-      if (!boss) {
-        slammed = false;
-        bashed = false;
-        return;
-      }
-      const info = boss.debugInfo;
-
-      const leap = leapStateOf(boss);
-      if (!leap) slammed = false;
-      else if (leap.landed && !slammed) {
-        slammed = true;
-        const position = { x: leap.landing.x, y: boss.position.y, z: leap.landing.z };
-        slamAt(game, position);
-        game.events.emit('bossSlam', { position, radius: LEAP_RADIUS });
-        game.events.emit('sound', { cue: 'sfx.boss.slam', source: 'boss', position });
-        // 真上に着地されたプレイヤーを体の外へ押し出す（ボスとプレイヤーが重ならない）
-        const push = leapPushOut(
-          { x: boss.position.x, z: boss.position.z, yaw: boss.yaw },
-          game.player.feet,
-        );
-        if (push) game.player.shove(push.x, push.z, LEAP_PUSH_FRAMES);
-      }
-
-      if (info.move === 'shieldBash' && info.stage === 1 && boss.state === 'attack') {
-        const def = BOSS_MOVES.get('shieldBash');
-        const stage = def ? stagesOf(def, boss.phase)[0] : undefined;
-        if (stage && !bashed && info.stageFrame > stage.startup) {
-          bashed = true;
-          game.events.emit('sound', {
-            cue: 'sfx.boss.shield-bash',
-            source: 'boss',
-            position: { x: boss.position.x, y: boss.position.y, z: boss.position.z },
-          });
+registerGameSystem(
+  'boss-impact',
+  (game) => {
+    let slammed = false;
+    let bashed = false;
+    return {
+      update() {
+        const boss = game.systems.get(bossSystem).boss;
+        if (!boss) {
+          slammed = false;
+          bashed = false;
+          return;
         }
-      } else {
-        bashed = false;
-      }
-    },
-  };
-});
+        const info = boss.debugInfo;
+
+        const leap = leapStateOf(boss);
+        if (!leap) slammed = false;
+        else if (leap.landed && !slammed) {
+          slammed = true;
+          const position = { x: leap.landing.x, y: boss.position.y, z: leap.landing.z };
+          slamAt(game, position);
+          game.events.emit('bossSlam', { position, radius: LEAP_RADIUS });
+          game.events.emit('sound', { cue: 'sfx.boss.slam', source: 'boss', position });
+          // 真上に着地されたプレイヤーを体の外へ押し出す（ボスとプレイヤーが重ならない）
+          const push = leapPushOut(
+            { x: boss.position.x, z: boss.position.z, yaw: boss.yaw },
+            game.player.feet,
+          );
+          if (push) game.player.shove(push.x, push.z, LEAP_PUSH_FRAMES);
+        }
+
+        if (info.move === 'shieldBash' && info.stage === 1 && boss.state === 'attack') {
+          const def = BOSS_MOVES.get('shieldBash');
+          const stage = def ? stagesOf(def, boss.phase)[0] : undefined;
+          if (stage && !bashed && info.stageFrame > stage.startup) {
+            bashed = true;
+            game.events.emit('sound', {
+              cue: 'sfx.boss.shield-bash',
+              source: 'boss',
+              position: { x: boss.position.x, y: boss.position.y, z: boss.position.z },
+            });
+          }
+        } else {
+          bashed = false;
+        }
+      },
+    };
+  },
+  // このステップのボスの技の進行を見る
+  { after: ['boss'] },
+);

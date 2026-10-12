@@ -1,7 +1,6 @@
 import { CircleGeometry, CylinderGeometry, Group, Mesh, PlaneGeometry } from 'three/webgpu';
 import type { Object3D } from 'three/webgpu';
 import { FOG_GATE } from '../../game/data/fogGate';
-import { fogGateOf } from '../../game/fogGate/fogGate.system';
 import type { FogGate } from '../../game/fogGate/fogGate';
 import { registerViewPlugin } from '../viewPlugins';
 import {
@@ -11,6 +10,7 @@ import {
   createGroundMistMaterial,
   FOG_BUDGET,
 } from './fogGateMaterials';
+import { fogGateSystem } from '../../game/fogGate/fogGate.system';
 
 /** 霧の壁の寸法（m）。門のコライダ（幅 4.4・高さ 6）より少し大きく、通路の壁の縁を隠す。 */
 const WALL_WIDTH = 4.8;
@@ -36,11 +36,11 @@ const smooth = (t: number): number => {
 };
 
 // 霧の門の見た目（#66）: 青白く揺らぐ霧の壁（門の中）・高さ 25m の霧の柱（ランドマーク）・足元の霧。
-// 状態は game の `fogGateOf(game)`（closed / entering / sealed = 霧あり、open = 消える）を読むだけ。
+// 状態は game の `game.systems.get(fogGateSystem)`（closed / entering / sealed = 霧あり、open = 消える）を読むだけ。
 // 入場演出（entering）は霧の壁が荒れて明るくなり、画面を青白いヴェール（DOM）が覆う。門の周辺はフォグ密度を上げる（0.04 / 0.015）。
 // コスト: 透明メッシュのみ（`FOG_BUDGET`）。パーティクルは使わない。
 registerViewPlugin('fogGate', ({ game, view, gameRenderer, level }) => {
-  const gate: FogGate | null = fogGateOf(game);
+  const gate: FogGate | null = game.systems.get(fogGateSystem);
   const placed = level?.gates.find((g) => g.def.id === FOG_GATE.id);
   if (!gate || !placed) return {};
   const quality = gameRenderer.quality.preset.level;

@@ -2,9 +2,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { MemoryStorage, SaveStore } from '../../core/persistence';
 import { SHORTCUT } from '../data/shortcut';
 import { Game } from '../game';
-import { interactionOf } from '../interaction/interaction';
 import { FakeInput } from '../testing/fakeInput';
-import { shortcutOf } from './shortcut.system';
+import { shortcutSystem } from './shortcut.system';
+import { interactionSystem } from '../interaction/interaction.system';
 
 const DT = 1 / 60;
 /** 鉄門は (0, 10)、北（+z）が中庭側。レバーは門の北東 (2, 14)。 */
@@ -63,14 +63,14 @@ describe('shortcut (iron gate G1 and lever)', () => {
         input.endStep();
       }
     };
-    const sc = shortcutOf(game);
+    const sc = game.systems.get(shortcutSystem);
     if (!sc) throw new Error('no shortcut');
     return { game, input, save, storage, sc, run };
   }
 
   it('is null for a level without an iron gate', async () => {
     const game = await Game.create({ boxes: [], dummies: [], enemies: [] });
-    expect(shortcutOf(game)).toBeNull();
+    expect(game.systems.get(shortcutSystem)).toBeNull();
   });
 
   it('starts closed and blocks the road', async () => {
@@ -86,7 +86,7 @@ describe('shortcut (iron gate G1 and lever)', () => {
     // 北側（レバーの近く）: 「押す」が出る
     const north = await setup();
     north.run(5);
-    expect(interactionOf(north.game).prompt).toEqual({
+    expect(north.game.systems.get(interactionSystem).prompt).toEqual({
       id: 'lever-g1',
       kind: 'lever',
       label: '押す',
@@ -99,15 +99,15 @@ describe('shortcut (iron gate G1 and lever)', () => {
     });
     south.run(5);
     expect(south.game.player.feet.z).toBeLessThan(GATE.z);
-    expect(interactionOf(south.game).prompt).toBeNull();
+    expect(south.game.systems.get(interactionSystem).prompt).toBeNull();
     // 同じ配置でも、北側へ回れば出る
     south.game.teleportPlayer(0, 11.4, 0);
     south.run(5);
-    expect(interactionOf(south.game).prompt?.id).toBe('lever-g1');
+    expect(south.game.systems.get(interactionSystem).prompt?.id).toBe('lever-g1');
     // 遠い（南の A 側の道）では出ない
     north.game.teleportPlayer(0, 4, 0);
     north.run(5);
-    expect(interactionOf(north.game).prompt).toBeNull();
+    expect(north.game.systems.get(interactionSystem).prompt).toBeNull();
   });
 
   it('pulls the lever, opens the gate in ~3s, saves, and disables the collider at the end', async () => {
@@ -122,7 +122,7 @@ describe('shortcut (iron gate G1 and lever)', () => {
     expect(opened).toBe(1);
     // 開通は操作の瞬間にセーブされる
     expect(save.get().shortcuts).toEqual(['G1']);
-    expect(interactionOf(game).prompt).toBeNull();
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
 
     // 開く途中は塞いだまま。進み具合は単調に増える
     let last = 0;
@@ -142,7 +142,7 @@ describe('shortcut (iron gate G1 and lever)', () => {
     // 二度目の操作はない
     expect(sc.open()).toBe(false);
     run(5);
-    expect(interactionOf(game).prompt).toBeNull();
+    expect(game.systems.get(interactionSystem).prompt).toBeNull();
     expect(opened).toBe(1);
   });
 
@@ -176,6 +176,6 @@ describe('shortcut (iron gate G1 and lever)', () => {
     expect(second.game.player.feet.z).toBeGreaterThan(GATE.z + 2);
     second.game.teleportPlayer(LEVER.x, LEVER.z - 1, 0);
     second.run(5);
-    expect(interactionOf(second.game).prompt).toBeNull();
+    expect(second.game.systems.get(interactionSystem).prompt).toBeNull();
   });
 });

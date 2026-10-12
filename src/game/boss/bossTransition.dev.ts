@@ -1,6 +1,6 @@
 import { registerDevHooks } from '../../devHooks';
-import { BOSS_ID, bossSystemOf } from './boss.system';
-import { bossTransitionOf } from './bossTransition.system';
+import { BOSS_ID, bossSystem } from './boss.system';
+import { bossTransitionSystem } from './bossTransition.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -16,11 +16,11 @@ declare module '../../devHooks' {
 
 registerDevHooks('bossTransition', ({ game }) => ({
   bossHp: (hp) => {
-    const boss = bossSystemOf(game).boss;
+    const boss = game.systems.get(bossSystem).boss;
     const heart = game.combat.allTargets.get(BOSS_ID);
     if (!boss || !heart) return;
     heart.health.current = Math.max(1, Math.min(heart.health.max, hp));
     boss.setHp(heart.health.current);
   },
-  bossTransitionFrame: () => bossTransitionOf(game).frame,
+  bossTransitionFrame: () => game.systems.get(bossTransitionSystem).frame,
 }));

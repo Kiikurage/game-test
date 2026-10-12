@@ -1,8 +1,8 @@
 import type { HitEvent } from '../combat';
-import { deathOf } from '../death/death.system';
 import type { Game } from '../game';
 import { registerGameSystem } from '../systems';
 import type { CameraClip, CameraClipOptions, CameraEffects } from './cameraEffects';
+import { deathSystem } from '../death/death.system';
 
 // カメラ演出の発火（仕様書 3.3 節）。命中（`onImpact`）を購読して、命中と同じステップで振動・FOV キックを始める。
 // ヒットストップの凍結・`impact` イベントと同じステップ（0F 遅延）。演出の進行はヒットストップでは止まらない
@@ -59,17 +59,22 @@ export function cameraReactionFor(e: HitEvent, attackerIsBoss: boolean): HitCame
   return null;
 }
 
-registerGameSystem('cameraEffects', (game) => {
-  const fx = game.camera.effects;
-  return {
-    update: () => {
-      // 死亡処理中は演出を出さない（FOV 縮小は死亡側。振動なし）。再生中のものも止める
-      if (deathOf(game).active && fx.active) fx.clear();
-    },
-    onImpact: (e) => {
-      if (deathOf(game).active) return;
-      const reaction = cameraReactionFor(e.hit, game.bossIds.has(e.attackerId));
-      if (reaction) fx[reaction]();
-    },
-  };
-});
+registerGameSystem(
+  'cameraEffects',
+  (game) => {
+    const fx = game.camera.effects;
+    return {
+      update: () => {
+        // 死亡処理中は演出を出さない（FOV 縮小は死亡側。振動なし）。再生中のものも止める
+        if (game.systems.get(deathSystem).active && fx.active) fx.clear();
+      },
+      onImpact: (e) => {
+        if (game.systems.get(deathSystem).active) return;
+        const reaction = cameraReactionFor(e.hit, game.bossIds.has(e.attackerId));
+        if (reaction) fx[reaction]();
+      },
+    };
+  },
+  // 死亡処理の開始は次のステップで見る（死亡処理より先に走る）
+  { before: ['death'] },
+);

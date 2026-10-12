@@ -1,6 +1,6 @@
 import { registerDevHooks } from '../../devHooks';
 import { lookupText } from '../data/texts';
-import { textPanelOf } from './textPanel.system';
+import { textPanelSystem } from './textPanel.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -18,7 +18,7 @@ declare module '../../devHooks' {
 
 registerDevHooks('textPanel', ({ game }) => ({
   textPanel: () => {
-    const c = textPanelOf(game).current;
+    const c = game.systems.get(textPanelSystem).current;
     return c && { mode: c.mode, text: c.text, index: c.index, total: c.total };
   },
   showText: (textId, mode) => {

@@ -1,7 +1,6 @@
 // 操作ヒント（HintModel）と取得・開通通知（NoticeModel）を更新する。表示は render/hud/guide.view.ts → ui/hud/guide.ts。
 import type { Action } from '../../core/input';
 import { GUIDE, HINTS, NOTICE } from '../data/guide';
-import type { Game } from '../game';
 import { registerGameSystem } from '../systems';
 import { HintModel } from './hintModel';
 import { NoticeModel } from './noticeModel';
@@ -11,21 +10,13 @@ export interface GuideState {
   readonly notices: NoticeModel;
 }
 
-const states = new WeakMap<Game, GuideState>();
-
-/** `game` の操作ヒント・通知の状態（描画側が読む）。 */
-export function guideOf(game: Game): GuideState {
-  const s = states.get(game);
-  if (!s) throw new Error('guide system is not registered for this game');
-  return s;
-}
-
 const WATCHED: readonly Action[] = ['dodge', 'lightAttack', 'lockOn'];
 
-registerGameSystem('guide', (game) => {
+/** 操作ヒント・通知の状態（`game.systems.get(guideSystem)`。描画側が読む）。 */
+export const guideSystem = registerGameSystem('guide', (game) => {
   const hints = new HintModel(HINTS, GUIDE.openingDelaySeconds);
   const notices = new NoticeModel();
-  states.set(game, { hints, notices });
+  const state: GuideState = { hints, notices };
 
   game.events.on('itemPicked', (e) => {
     notices.push(e.message, e.noticeSeconds);
@@ -36,6 +27,7 @@ registerGameSystem('guide', (game) => {
 
   const pressed = new Set<Action>();
   return {
+    state,
     update: (dt) => {
       const snap = game.inputSnapshot;
       pressed.clear();

@@ -6,13 +6,13 @@
 //   途中で被弾すると中断し、点火されない。
 // - 休憩: 座り込み（2s）→ 保持 → 再入力で立ち上がり（2s）。座り込みの開始時に効果を適用する
 //   （HP・スタミナ・回復瓶を全回復、通常敵を全復活、`rest` イベント、セーブ）。
-// - リスポーン（死亡処理 #64 が呼ぶ）: `bonfiresOf(game).respawn()`。篝火から 1.5m 南で、篝火の方を向いて座った状態から
+// - リスポーン（死亡処理 #64 が呼ぶ）: `game.systems.get(bonfireSystem).respawn()`。篝火から 1.5m 南で、篝火の方を向いて座った状態から
 //   立ち上がる（2s・移動不可・被弾しない）。休憩と同じ効果を適用する。
 import type { Game } from '../game';
 import { ARENA_BONFIRE_ID, ARENA_BOSS_ID, BONFIRE } from '../data/bonfire';
 import { yawOf } from '../player/movement';
-import { interactionOf } from '../interaction/interaction';
 import type { InteractableSpawn } from '../world/level';
+import { interactionSystem } from '../interaction/interaction.system';
 
 export interface RespawnPoint {
   readonly x: number;
@@ -51,7 +51,7 @@ export class BonfireController {
     const { game } = this;
     const entry: BonfireEntry = { id: spawn.id, x: spawn.x, z: spawn.z, lit };
     this.entries.set(entry.id, entry);
-    interactionOf(game).register({
+    game.systems.get(interactionSystem).register({
       id: entry.id,
       kind: 'bonfire',
       x: entry.x,
@@ -198,16 +198,4 @@ export class BonfireController {
       defeatedBosses: game.save.get().bosses,
     });
   }
-}
-
-const controllers = new WeakMap<Game, BonfireController>();
-
-/** `game` の篝火（なければ作る）。死亡処理（#64）・ボス・HUD・描画がこれを読む。 */
-export function bonfiresOf(game: Game): BonfireController {
-  let c = controllers.get(game);
-  if (!c) {
-    c = new BonfireController(game);
-    controllers.set(game, c);
-  }
-  return c;
 }

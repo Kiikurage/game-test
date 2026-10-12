@@ -14,16 +14,16 @@ import {
   type BufferGeometry,
 } from 'three/webgpu';
 import { float, length, positionLocal, smoothstep, time, uniform, vec3 } from 'three/tsl';
-import { bonfiresOf } from '../../game/bonfire/bonfire';
 import { ARENA_BONFIRE_ID } from '../../game/data/bonfire';
 import { arenaOf } from '../../game/world/arena';
-import { bossDefeatOf } from '../../game/boss/bossDefeat.system';
 import { mergeAll } from './arenaGeometry';
 import type { Bonfire } from '../particles';
 import { registerViewPlugin } from '../viewPlugins';
+import { bonfireSystem } from '../../game/bonfire/bonfire.system';
+import { bossDefeatSystem } from '../../game/boss/bossDefeat.system';
 
 /**
- * 闘技場の台座の篝火（#86 / 8.4 節）。ボス撃破の F300 に灯る（`bonfiresOf(game)` に `ARENA_BONFIRE_ID` が現れる）。
+ * 闘技場の台座の篝火（#86 / 8.4 節）。ボス撃破の F300 に灯る（`game.systems.get(bonfireSystem)` に `ARENA_BONFIRE_ID` が現れる）。
  * 見た目は広場の篝火と同じ構成: 灰の山・石の輪・突き立つ剣・炎と火の粉と光（`Bonfire` エミッタ）。
  *
  * 点火演出（撃破から現れたとき）: 灰の山の熾火が 0.9 秒かけて赤く燃え上がり、小さな火の粉が昇る →
@@ -152,7 +152,7 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
   const def = level ? arenaOf(level) : null;
   if (!def) return {};
   const slot = def.bonfireSlot;
-  const bonfires = bonfiresOf(game);
+  const bonfires = game.systems.get(bonfireSystem);
 
   const root = new Group();
   root.name = 'arena:bonfire';
@@ -230,7 +230,7 @@ registerViewPlugin('arena-bonfire', ({ game, view, level }) => {
       if (!wasRevealed) {
         wasRevealed = true;
         // 撃破の演出の最中に現れたら点火演出、そうでなければ（セーブからの再開）最初から灯っている
-        const live = bossDefeatOf(game).frame >= 0;
+        const live = game.systems.get(bossDefeatSystem).frame >= 0;
         revealedAt = live ? clock : clock - KINDLE - 10;
         if (!live) {
           kindle.value = 0.35;

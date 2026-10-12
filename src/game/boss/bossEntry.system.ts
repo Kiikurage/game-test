@@ -2,9 +2,9 @@ import { ARENA_BONFIRE_ID } from '../data/bonfire';
 import { BOSS_ENTRY } from '../data/bossEntry';
 import { FOG_GATE } from '../data/fogGate';
 import type { Game } from '../game';
-import { fogGateOf } from '../fogGate/fogGate.system';
 import { registerGameSystem } from '../systems';
-import { bossSystemOf } from './boss.system';
+import { fogGateSystem } from '../fogGate/fogGate.system';
+import { bossSystem } from './boss.system';
 
 /**
  * ボスの入場と戦闘開始・リセット（#85 / 仕様書 6.2・6.5・6.6 節）。
@@ -18,24 +18,29 @@ import { bossSystemOf } from './boss.system';
  * （`game` は `Level` を持たないため。寸法は `data/bossEntry.ts`）。ライティングは位置で決まる闘技場のムード（`arenaMoodWeight`）に従う。
  * 霧の門・闘技場の篝火のないシーン（テスト・確認シーン）では何もしない。
  */
-registerGameSystem('boss-entry', (game) => {
-  // 霧の門・ボスのシステムの登録順に依らないよう、最初の更新で組み立てる
-  let started = false;
-  return {
-    update: () => {
-      if (started) return;
-      started = true;
-      setup(game);
-    },
-  };
-});
+registerGameSystem(
+  'boss-entry',
+  (game) => {
+    // 霧の門・ボスのシステムの登録順に依らないよう、最初の更新で組み立てる
+    let started = false;
+    return {
+      update: () => {
+        if (started) return;
+        started = true;
+        setup(game);
+      },
+    };
+  },
+  // ボスの配置・入場の購読はボスの更新の後
+  { after: ['boss'] },
+);
 
 function setup(game: Game): void {
-  const gate = fogGateOf(game);
+  const gate = game.systems.get(fogGateSystem);
   const center = game.interactableSpawns.find((i) => i.id === ARENA_BONFIRE_ID);
   const gateSpawn = game.interactableSpawns.find((i) => i.id === FOG_GATE.id);
   if (!gate || !center || !gateSpawn?.target) return;
-  const system = bossSystemOf(game);
+  const system = game.systems.get(bossSystem);
 
   // 入口（入場位置）から中心へ向かう向きの先に、入口の方を向いて待つ
   const dx = center.x - gateSpawn.target.x;
