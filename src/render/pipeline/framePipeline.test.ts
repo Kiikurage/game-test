@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeHalfFloatRgba } from './postprocess';
+import { analyzeHalfFloatRgba } from './framePipeline';
 
 describe('analyzeHalfFloatRgba', () => {
   it('counts NaN / Inf and reports the finite max of RGB', () => {

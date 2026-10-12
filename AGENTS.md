@@ -120,7 +120,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest ユニットテスト（`src/**/*.test.ts`） |
 | `npm run e2e` | Playwright E2E（ビルド → preview 配信 → ヘッドレス WebGPU で起動確認） |
-| `npm run perf -- [low\|medium\|high]` | 計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
+| `npm run perf -- [low\|medium\|high]` | （`GPU_NOVSYNC=1 PERF_PC=1 GPU_MODE=hardware` でパス別 GPU 時間と vsync 無しのフレーム時間）計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
 | `npm run profile -- [low\|medium\|high] [frames]` | 墓地・戦闘中の 1 フレームあたりの JS 時間を関数別に集計（CDP Profiler。手順は [`docs/performance.md`](docs/performance.md)） |
 | `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
 | `npm run assets:check [-- --dist]` | アセット検査（tech-direction §4.1・§4.3・§4.4）: 形式（glb / KTX2 / Ogg）・三角形数・テクスチャ解像度・ファイルサイズ・`manifest.json` の整合。`--dist` で `dist/` の内容ハッシュ名と配信予算（圧縮後: 合計 40MB・開始画面まで 5MB）も見る。予算は `scripts/assets/check.mjs` の `BUDGET`。CI が実行する |
@@ -186,6 +186,7 @@ src/
 | --- | --- | --- |
 | ゲームロジック（毎ステップの更新・命中時の処理） | `src/game/<feature>/<feature>.system.ts` | `registerGameSystem(id, (game) => ({ update?(dt), onHit?(e) }))`（`src/game/systems.ts`） |
 | 描画（シーンへの追加・毎フレーム更新・アセット読み込み） | `src/render/<feature>/<feature>.view.ts` | `registerViewPlugin(id, ({ game, view, gameRenderer, level }) => ({ load?(), update?(dt) }))`（`src/render/viewPlugins.ts`） |
+| フレームのパス（GTAO・体積霧・TAAU・ポストなど） | `src/render/<feature>/<feature>.pass.ts` | `registerFramePass({ id, stage, order?, gbuffer?, enabled?, build })`（`src/render/pipeline/framePasses.ts`。パス別 GPU 時間は `?debug` / `?perf`） |
 | E2E・撮影用のデバッグフック（`window.__game.dev.*`） | `<feature>.dev.ts`（任意のディレクトリ） | `registerDevHooks(name, (ctx) => ({ ... }))` ＋ `declare module` で `DevHooks` に型を足す（`src/devHooks.ts`） |
 | `?xxx=` で起動する showcase（キャラクター確認表示） | `<feature>.dev.ts` | `registerShowcaseParams('xxx')`（`src/devHooks.ts`） |
 
