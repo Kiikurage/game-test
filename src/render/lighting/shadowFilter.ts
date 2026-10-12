@@ -19,7 +19,7 @@ const TAPS = 4;
 const WEIGHTS = [1, 3, 3, 1] as const;
 const WEIGHT_SUM = 8;
 /** `shadow.radius` に対する格子の半幅の比（格子の外側の点の中心位置 = radius * この値 テクセル）。 */
-const EXTENT_PER_RADIUS = 0.8;
+const EXTENT_PER_RADIUS = 0.6;
 
 interface ShadowFilterInputs {
   depthTexture: Parameters<typeof texture>[0];
