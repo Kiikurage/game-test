@@ -1,9 +1,4 @@
-import {
-  MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
-  DoubleSide,
-  type Material,
-} from 'three/webgpu';
+import type { Material } from 'three/webgpu';
 import {
   attribute,
   float,
@@ -14,56 +9,44 @@ import {
   min,
   mix,
   positionGeometry,
-  positionLocal,
   positionWorld,
   normalWorld,
-  sin,
-  cos,
   smoothstep,
-  time,
   vec3,
-  vec4,
   color,
 } from 'three/tsl';
 import type { EnvironmentGroup } from './assets/environment';
 import { bumpedNormal, rockSurface } from './cliff/rockSurface';
 import { bakedNoise, getMaterialDetail } from './bakedNoise';
-import { tagMaterial } from './materialGroups';
+import { createUberMaterial, type UberMaterial, type UberSurface } from './uberMaterial';
 
 /**
- * 環境・地面のマテリアル（TSL）。頂点カラーに、ワールド座標のノイズで細かな明暗のむらを足す
- * （焼いたノイズテクスチャの参照。1 ピクセルあたり 1〜2 回。#236）。
+ * 環境・地面のマテリアル（TSL）。すべて {@link createUberMaterial}（§3.4、#325）で作る。
+ * 頂点カラーに、ワールド座標のノイズで細かな明暗のむらを足す（焼いたノイズテクスチャの参照。#236）。
  */
 
 /** 石・木・土: 頂点カラー × ワールド座標の低コストなむら。 */
-export function createSoftMaterial(): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({
-    vertexColors: true,
-    roughness: 0.96,
-    metalness: 0,
-  });
-  const p = positionWorld;
-  const detail = getMaterialDetail();
-  const coarse = bakedNoise(p.mul(2.3));
-  const fine = detail >= 1 ? bakedNoise(p.mul(9.1)) : float(0);
-  const factor = float(0.86).add(coarse.mul(0.2)).add(fine.mul(0.12));
-  material.colorNode = vec4(vec3(factor), 1);
-  return tagMaterial(material, 'env');
+export function createSoftMaterial(): UberMaterial {
+  return createUberMaterial(
+    { shading: 'lit', vertexColors: true, detail: true, group: 'env' },
+    { roughness: 0.96, metalness: 0, detail: 1 },
+  );
 }
 
-/** 錆びた鉄。 */
-export function createMetalMaterial(): MeshStandardNodeMaterial {
-  return tagMaterial(
-    new MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.68, metalness: 0.45 }),
-    'env',
+/** 錆びた鉄。石・木と同じシェーダ（むらの量 0。パイプラインを共有する）。 */
+export function createMetalMaterial(): UberMaterial {
+  return createUberMaterial(
+    { shading: 'lit', vertexColors: true, detail: true, group: 'env' },
+    { roughness: 0.68, metalness: 0.45, detail: 0 },
   );
 }
 
 /** 発光（ランタン・たいまつの炎・刻印）。HDR（ブルームに乗る）。 */
-export function createGlowMaterial(intensity = 3.2): MeshBasicNodeMaterial {
-  const material = new MeshBasicNodeMaterial({ vertexColors: true, side: DoubleSide });
-  material.colorNode = vec4(vec3(float(intensity)), 1);
-  return material;
+export function createGlowMaterial(intensity = 3.2): UberMaterial {
+  return createUberMaterial(
+    { shading: 'unlit', vertexColors: true, doubleSided: true },
+    { intensity },
+  );
 }
 
 export function createEnvironmentMaterials(): Record<EnvironmentGroup, Material> {
@@ -76,8 +59,14 @@ export function createEnvironmentMaterials(): Record<EnvironmentGroup, Material>
  *  - 石畳エリア（頂点属性 `stone` 0..1）: 互い違いに並ぶ敷石、目地の暗い線、石ごとの明暗
  * を掛ける。
  */
-export function createGroundMaterial(): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+export function createGroundMaterial(): UberMaterial {
+  return createUberMaterial(
+    { shading: 'lit', vertexColors: true, surface: groundSurface, group: 'terrain' },
+    { roughness: 1, metalness: 0 },
+  );
+}
+
+function groundSurface(): UberSurface {
   const stone = attribute('stone', 'float');
   const path = attribute('path', 'float');
   const p = positionWorld.xz;
@@ -133,7 +122,7 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
     normal: normalWorld,
   });
   const rocky = mix(vec3(1), rock.tone, rockMask);
-  if (detail >= 2) material.normalNode = bumpedNormal(rock, rockMask.mul(0.6));
+  const normal = detail >= 2 ? bumpedNormal(rock, rockMask.mul(0.6)) : undefined;
 
   const factor = mix(
     dirt.mul(tread).mul(verge).mul(rocky),
@@ -141,29 +130,23 @@ export function createGroundMaterial(): MeshStandardNodeMaterial {
     // 敷石は XZ 平面への投影なので、急斜面では縦に引き伸ばされる。岩肌の所には出さない（#267）
     stone.mul(patch).mul(float(1).sub(rockMask)),
   );
-  material.colorNode = vec4(factor, 1);
-  return tagMaterial(material, 'terrain');
+  return { color: factor, normal };
 }
 
 /** 枯れ草: 根元が暗く、先が明るい。風でゆっくり揺れる（インスタンスごとの位相）。 */
-export function createGrassMaterial(): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0, side: DoubleSide });
-  // 高さは房のジオメトリ空間（根元 0）で測る。`positionLocal` は InstancedMesh ではインスタンス行列を
-  // 掛けた後（= ワールド高さ）なので、それで揺れ幅を決めると高所の房ほど h² で何 m も伸びて
-  // 空中を刃のような破片が飛ぶ（#266）
-  const h = positionGeometry.y;
-  const phase = hash(instanceIndex).mul(6.28);
-  const sway = sin(time.mul(1.4).add(phase)).mul(0.045).mul(h.mul(h).mul(3.5));
-  const sway2 = cos(time.mul(1.1).add(phase.mul(1.7)))
-    .mul(0.03)
-    .mul(h.mul(h).mul(3.5));
-  material.positionNode = positionLocal.add(vec3(sway, 0, sway2));
+export function createGrassMaterial(): UberMaterial {
+  return createUberMaterial(
+    { shading: 'lit', wind: true, doubleSided: true, surface: grassSurface },
+    { roughness: 1, metalness: 0 },
+  );
+}
+
+function grassSurface(): UberSurface {
   // 地面の房は高さ 0.28〜0.58m なので、根元から 0.3m で明るい色に届くようにする（以前はワールド高さで
   // 計算していて実質すべて明るかった。根元だけ暗くして、近景で黒い棘に見えないようにする）
-  const tip = smoothstep(0.0, 0.3, h);
+  const tip = smoothstep(0.0, 0.3, positionGeometry.y);
   const base = color(0x14110a);
   const lit = color(0x5c5233);
   const tone = hash(instanceIndex.add(7)).mul(0.7).add(0.6);
-  material.colorNode = vec4(mix(base, lit, tip).mul(tone), 1);
-  return material;
+  return { color: mix(base, lit, tip).mul(tone) };
 }
