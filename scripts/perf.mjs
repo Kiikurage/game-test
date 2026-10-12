@@ -7,6 +7,13 @@
 // PERF_SPIKE=particles|physics: 配置の spike（#383。`?spike=`）を配置ごと（PERF_PLACES、カンマ区切り）に測る。
 //   メインスレッドの JS ms/frame（CDP Profiler。Worker は含まない）・GPU 時間・フレーム時間・同期点〜描画の CPU 時間を出す。
 //   PERF_SPIKE_SHOT=<接頭辞> で配置ごとの画面も保存する。
+// PERF_REVISIT=1（PERF_PC=1 と併用）: 永続プロファイル（一時ディレクトリ）で同じページを 2 回読み込み、1 回目（first）と
+//   2 回目（revisit。HTTP キャッシュ等が効く）の `load:*` を並べた表だけ出す（#403。視点ごとの計測はしない）。
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { chromium } from '@playwright/test';
+import { launchOptions } from './chromium.mjs';
 import { PERF_VIEWPOINTS } from './perfViewpoints.mjs';
 import {
   measureTarget,
@@ -117,10 +124,89 @@ async function measureSpike(kind) {
   }
 }
 
+/** 開始画面→開始まで進め、navigation からの起動時間と `load:*` の区間を返す。 */
+async function measureLoad(page, url) {
+  await page.goto(url);
+  await waitReady(page);
+  const readyMs = await page.evaluate(() => performance.now());
+  const nav = await page.evaluate(() => {
+    const n = performance.getEntriesByType('navigation')[0];
+    return { dcl: n.domContentLoadedEventEnd, load: n.loadEventEnd };
+  });
+  await startGame(page);
+  const runningMs = await page.evaluate(() => performance.now());
+  const spans = await page.evaluate(() =>
+    performance
+      .getEntriesByType('measure')
+      .filter((m) => m.name.startsWith('load:'))
+      .map((m) => ({ name: m.name.slice(5), start: m.startTime, dur: m.duration })),
+  );
+  return { readyMs, runningMs, nav, spans };
+}
+
+async function measureRevisit(session) {
+  const dir = await mkdtemp(join(tmpdir(), 'perf-revisit-'));
+  const context = await chromium.launchPersistentContext(dir, {
+    ...launchOptions(),
+    ...target.context,
+  });
+  try {
+    const url = session.url(`?quality=${quality}&${target.query}&perf${extra}`);
+    const results = [];
+    for (const label of ['first', 'revisit']) {
+      const page = await context.newPage();
+      page.on('console', (m) => {
+        if (['error', 'warning'].includes(m.type()))
+          console.error(`console.${m.type()}: ${m.text()}`);
+      });
+      page.on('pageerror', (err) => console.error(`pageerror: ${err.message}`));
+      results.push({ label, ...(await measureLoad(page, url)) });
+      // 次の訪問は新しいページで開く（プロファイル = HTTP キャッシュ・Service Worker は残る）
+      for (const p of context.pages()) if (p !== page) await p.close();
+      await page.close();
+    }
+    console.log(`\n# revisit (${quality}, ${target.name}, persistent profile)`);
+    for (const r of results)
+      console.log(
+        `${r.label}: DOMContentLoaded ${r.nav.dcl.toFixed(0)} / load ${r.nav.load.toFixed(0)} / ready ${r.readyMs.toFixed(0)} / running ${r.runningMs.toFixed(0)} (ms from navigation)`,
+      );
+    const [first, revisit] = results;
+    const names = [...first.spans]
+      .sort((a, b) => a.start - b.start || a.name.split('/').length - b.name.split('/').length)
+      .map((m) => m.name);
+    for (const m of revisit.spans) if (!names.includes(m.name)) names.push(m.name);
+    const find = (r, n) => r.spans.find((m) => m.name === n);
+    const cell = (m) =>
+      m
+        ? `${m.start.toFixed(0)} | ${m.dur.toFixed(0)} | ${(m.start + m.dur).toFixed(0)}`
+        : 'n/a | n/a | n/a';
+    console.log(
+      '\n| load span | first start | first dur | first end | revisit start | revisit dur | revisit end |\n| --- | --- | --- | --- | --- | --- | --- |',
+    );
+    for (const n of names) {
+      const depth = n.split('/').length - 1;
+      console.log(
+        `| ${'\u00a0\u00a0'.repeat(depth)}${n} | ${cell(find(first, n))} | ${cell(find(revisit, n))} |`,
+      );
+    }
+  } finally {
+    await context.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 const session = await openSession({
   port: Number(process.env.SHOT_PORT ?? 4180),
   skipBuild: !!process.env.PERF_SKIP_BUILD,
 });
+if (process.env.PERF_REVISIT) {
+  try {
+    await measureRevisit(session);
+  } finally {
+    await session.close();
+  }
+  process.exit(0);
+}
 try {
   const { page } = await newPage(session, {
     context: target.context,
