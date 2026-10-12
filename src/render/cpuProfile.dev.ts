@@ -102,7 +102,32 @@ registerDevHooks('cpuProfile', ({ game, view, input, loop }) => {
         .sort((a, b) => b.n - a.n)
         .slice(0, 10)
         .map((c) => `${c.name}: ${c.n}`);
-      return { objects, meshes, autoUpdate, traversed, largest };
+      // 毎フレーム行列を更新する物の内訳（シーン直下の枝ごと）。静的化の取りこぼし探し用
+      const autoByRoot = view.scene.children
+        .map((c) => {
+          let n = 0;
+          c.traverse((o) => {
+            if (o.matrixAutoUpdate) n++;
+          });
+          return { name: c.name || c.type, n };
+        })
+        .filter((c) => c.n > 0)
+        .sort((a, b) => b.n - a.n)
+        .slice(0, 12)
+        .map((c) => `${c.name}: ${c.n}`);
+      const meshByRoot = view.scene.children
+        .map((c) => {
+          let n = 0;
+          c.traverse((o) => {
+            if ((o as { isMesh?: boolean }).isMesh) n++;
+          });
+          return { name: c.name || c.type, n };
+        })
+        .filter((c) => c.n > 0)
+        .sort((a, b) => b.n - a.n)
+        .slice(0, 14)
+        .map((c) => `${c.name}: ${c.n}`);
+      return { objects, meshes, autoUpdate, traversed, largest, autoByRoot, meshByRoot };
     },
   };
 });

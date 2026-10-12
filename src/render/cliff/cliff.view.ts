@@ -10,6 +10,7 @@ import {
 } from 'three/webgpu';
 import { float, mix, normalWorld, positionWorld, smoothstep, vec3, vec4 } from 'three/tsl';
 import { registerViewPlugin } from '../viewPlugins';
+import { markStatic } from '../staticWorld';
 import { createGrassMaterial } from '../levelMaterials';
 import { createDryGrassGeometry, createRockPileGeometry } from './cliffGeometry';
 import { layoutCliff, type CliffItem } from './cliffLayout';
@@ -105,6 +106,7 @@ registerViewPlugin('cliff', ({ view, gameRenderer, level }) => {
       root.add(mesh);
     }
     view.scene.add(root);
+    markStatic(root);
   }
   return {
     update: () => {

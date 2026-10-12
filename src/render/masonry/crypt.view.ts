@@ -1,6 +1,7 @@
 import { Color, type Mesh } from 'three/webgpu';
 import type { GameView } from '../gameView';
 import { registerViewPlugin } from '../viewPlugins';
+import { markStatic } from '../staticWorld';
 import { buildCrypt, type CryptProps } from './buildCrypt';
 
 /** たいまつの光（実ライト）。`torchLights` の強さの目安（1.7〜2.5）にこの光度（cd）を掛ける。 */
@@ -29,6 +30,14 @@ registerViewPlugin('crypt', ({ game, view, level, gameRenderer, services }) => {
   const crypt = buildCrypt(level, gameRenderer.quality.preset.materialDetail);
   view.scene.add(crypt.root);
   propsByView.set(view, crypt);
+  // 石積み・柱・たいまつなどは静的。蓋・扉・レバーのピボットは動くので除く
+  markStatic(crypt.root, {
+    except: [
+      ...(crypt.sarcophagusLid ? [crypt.sarcophagusLid.pivot] : []),
+      ...crypt.gateLeaves.map((l) => l.pivot),
+      ...(crypt.leverHandle ? [crypt.leverHandle.pivot] : []),
+    ],
+  });
   const { lights } = services;
   for (const [x, y, z, strength, phase] of crypt.torchLights) {
     lights.add({

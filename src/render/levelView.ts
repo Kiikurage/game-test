@@ -33,6 +33,7 @@ import {
   createGroundMaterial,
 } from './levelMaterials';
 import type { Bonfire, ParticleSystem } from './particles';
+import { markStatic } from './staticWorld';
 import { MASONRY_LEVER_ID, isMasonryGate, isMasonryProp } from './masonry/cryptLayout';
 
 const DEG = Math.PI / 180;
@@ -325,6 +326,8 @@ export class LevelView {
       triangles: batcher.stats.triangles + grassTris,
       meshes: env.children.length,
     };
+    // 地形・環境・結合したグレーボックス・門・レバー・目印は以降動かない（可視の切り替えだけ）。行列を 1 回で固定する
+    markStatic(this.root);
   }
 
   /**

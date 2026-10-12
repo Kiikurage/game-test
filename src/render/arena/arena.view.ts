@@ -4,6 +4,7 @@ import { arenaMoodWeight, arenaOf, type ArenaDef } from '../../game/world/arena'
 import type { Level } from '../../game/world/level';
 import { ARENA_MOOD, type Environment } from '../environment';
 import { registerViewPlugin } from '../viewPlugins';
+import { markStatic } from '../staticWorld';
 import {
   createColumnGeometry,
   createFloorDiscGeometry,
@@ -243,6 +244,7 @@ registerViewPlugin('arena', ({ game, view, level, services }) => {
 
   const built = createArena(level, def, (dir) => view.environment.skyAt(dir));
   view.scene.add(built.root);
+  markStatic(built.root);
   const { lights } = services;
   for (const t of built.torches) {
     lights.add({
