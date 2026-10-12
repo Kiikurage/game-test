@@ -1,4 +1,3 @@
-import { gameStats } from '../../debug/stats.system';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { findBossClipEvents } from '../../anim/bossClips';
 import { markersOfType, playbackRate } from '../../anim/eventMarkers';
@@ -8,7 +7,6 @@ import { seededRandom } from '../../enemy/enemyManager';
 import { Game } from '../../game';
 import { FakeInput } from '../../testing/fakeInput';
 import { Boss } from '../boss';
-import { bossSystemOf } from '../boss.system';
 import type { BossMoveId, BossPhase } from '../bossData';
 import { BOSS_MOVES, BossMoveRegistry, checkBossMove, stagesOf } from '../bossMove';
 import { bossTelegraphOf } from '../bossTelegraph.system';
@@ -33,6 +31,8 @@ import {
   slashLungeDistance,
 } from './shieldBash.move';
 import './index';
+import { debugStatsSystem } from '../../debug/stats.system';
+import { bossSystem } from '../boss.system';
 
 function move(id: 'shieldBash' | 'leap') {
   const m = BOSS_MOVES.get(id);
@@ -447,7 +447,7 @@ async function setup(moveId: BossMoveId, playerZ: number) {
   if (!def) throw new Error(`move ${moveId} is not registered`);
   const moves = new BossMoveRegistry();
   moves.register(def);
-  const boss = bossSystemOf(game).spawn({ x: 0, z: 0, yaw: 0, moves, engage: true });
+  const boss = game.systems.get(bossSystem).spawn({ x: 0, z: 0, yaw: 0, moves, engage: true });
   const step = () => {
     game.update(DT);
     input.endStep();
@@ -467,16 +467,18 @@ describe('技 4・5: simulation against the real player', () => {
   it('shield bash: a standing player is knocked down 3m, then the follow-up lunges in and hits', async () => {
     const { game, step } = await setup('shieldBash', 2.5);
     const hp0 = game.playerTarget.health.current;
-    const log = gameStats(game).hitLog.length;
+    const log = game.systems.get(debugStatsSystem).hitLog.length;
     let slashFrame = -1;
     for (let f = 1; f <= 140; f++) {
       step();
-      const hits = gameStats(game)
+      const hits = game.systems
+        .get(debugStatsSystem)
         .hitLog.slice(log)
         .filter((e) => e.targetId === 'player');
       if (hits.length >= 2 && slashFrame < 0) slashFrame = f;
     }
-    const hits = gameStats(game)
+    const hits = game.systems
+      .get(debugStatsSystem)
       .hitLog.slice(log)
       .filter((e) => e.targetId === 'player');
     expect(hits.map((e) => [e.attackId, e.baseDamage])).toEqual([

@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
-import { bossDebugOf } from './bossDebug.system';
 import { BOSS_MOVE_IDS } from './bossData';
 import { REPEAT_GAP_FRAMES, isBossToolScene, listBossToolMoves } from './bossDebug';
+import { bossDebugSystem } from './bossDebug.system';
 
 const DT = 1 / 60;
 
@@ -16,7 +16,7 @@ describe('boss debug tool (verification UI backend)', () => {
     const input = new FakeInput();
     const game = await Game.create({ input, boxes: [], dummies: [], enemies: [] });
     game.teleportPlayer(0, 0, Math.PI);
-    const tool = bossDebugOf(game);
+    const tool = game.systems.get(bossDebugSystem);
     const run = (frames: number) => {
       for (let i = 0; i < frames; i++) {
         game.update(DT);

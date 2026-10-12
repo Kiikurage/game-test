@@ -11,11 +11,11 @@ import {
   type HitEvent,
 } from '../combat';
 import { CAMERA_FX } from '../data/cameraEffects';
-import { deathOf } from '../death/death.system';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
 import { PHASE_TRANSITION_CLIP } from './cameraClips';
 import { cameraEffectsOf, cameraReactionFor, slamAt } from './cameraEffects.system';
+import { deathSystem } from '../death/death.system';
 
 const DT = 1 / 60;
 
@@ -263,7 +263,7 @@ describe('camera effects (Game)', () => {
     fx.hitHeavy();
     game.player.die();
     run(2);
-    expect(deathOf(game).active).toBe(true);
+    expect(game.systems.get(deathSystem).active).toBe(true);
     expect(fx.active).toBe(false);
     hitPlayer('soldier-x');
     run(1);

@@ -1,9 +1,9 @@
 import { telegraphKindOf, type TelegraphKind } from '../data';
 import { TELEGRAPH_CUE } from '../enemy/enemyTelegraph.system';
 import { registerGameSystem } from '../systems';
-import { bossSystemOf } from './boss.system';
 import type { BossPhase } from './bossData';
 import { BOSS_MOVES, stagesOf, type BossMoveRegistry } from './bossMove';
+import { bossSystem } from './boss.system';
 
 /** 実行中の段（`Boss.debugInfo` の技 ID・段）のテレグラフ種別。技が実行中でなければ null。 */
 export function bossTelegraphOf(
@@ -22,26 +22,31 @@ export function bossTelegraphOf(
  * 予備動作の SE を `sound` イベントで出す。雑魚の `enemy-telegraph` と同じ cue（`TELEGRAPH_CUE`）を使う。
  * 武器の発光（リムライト）は描画側（`render/boss/bossWeaponGlow.ts`）が `bossTelegraphOf` で引く（#214）。
  */
-registerGameSystem('boss-telegraph', (game) => {
-  let lastKey: string | null = null;
-  return {
-    update() {
-      const boss = bossSystemOf(game).boss;
-      if (!boss || boss.state !== 'attack') {
-        lastKey = null;
-        return;
-      }
-      const info = boss.debugInfo;
-      const key = `${info.move ?? ''}#${info.stage}`;
-      if (key === lastKey) return;
-      lastKey = key;
-      const kind = bossTelegraphOf(info, boss.phase);
-      if (!kind) return;
-      game.events.emit('sound', {
-        cue: TELEGRAPH_CUE[kind],
-        source: 'enemy',
-        position: { x: boss.position.x, y: boss.position.y, z: boss.position.z },
-      });
-    },
-  };
-});
+registerGameSystem(
+  'boss-telegraph',
+  (game) => {
+    let lastKey: string | null = null;
+    return {
+      update() {
+        const boss = game.systems.get(bossSystem).boss;
+        if (!boss || boss.state !== 'attack') {
+          lastKey = null;
+          return;
+        }
+        const info = boss.debugInfo;
+        const key = `${info.move ?? ''}#${info.stage}`;
+        if (key === lastKey) return;
+        lastKey = key;
+        const kind = bossTelegraphOf(info, boss.phase);
+        if (!kind) return;
+        game.events.emit('sound', {
+          cue: TELEGRAPH_CUE[kind],
+          source: 'enemy',
+          position: { x: boss.position.x, y: boss.position.y, z: boss.position.z },
+        });
+      },
+    };
+  },
+  // このステップのボスの技の進行を見る
+  { after: ['boss'] },
+);

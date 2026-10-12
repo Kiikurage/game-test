@@ -1,9 +1,9 @@
 import type { ActionWindowInfo, PlayerActionInfo } from '../../game/combat/actionDebug';
 import type { CombatDebugTool, CombatToolInfo } from '../../game/combat/combatTool';
-import { combatToolOf } from '../../game/combat/combatTool.system';
 import { isDebugEnabled } from '../../ui/debugHud';
 import { createPlaybackControls, debugButton } from '../../ui/debugPlayback';
 import { registerViewPlugin } from '../viewPlugins';
+import { combatToolSystem } from '../../game/combat/combatTool.system';
 
 /**
  * 戦闘デバッグツール（#51）の UI。`?debug&scene=combat` のときだけ DOM パネルを出す
@@ -154,7 +154,7 @@ function buildPanel(
 
 registerViewPlugin('combatTool', ({ game, view }) => {
   if (!isDebugEnabled(location.search) || !isCombatToolScene(location.search)) return {};
-  const tool = combatToolOf(game);
+  const tool = game.systems.get(combatToolSystem);
   const panel = buildPanel(
     tool,
     (v) => {

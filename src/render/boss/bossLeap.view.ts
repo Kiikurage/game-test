@@ -1,5 +1,4 @@
 import { Vector3 } from 'three/webgpu';
-import { bossSystemOf } from '../../game/boss/boss.system';
 import {
   LEAP_AIR_FRAMES,
   LEAP_CROUCH_FRAMES,
@@ -9,6 +8,7 @@ import {
 } from '../../game/boss/moves/leap.move';
 import type { Telegraph } from '../telegraph';
 import { registerViewPlugin } from '../viewPlugins';
+import { bossSystem } from '../../game/boss/boss.system';
 
 /**
  * 跳躍叩きつけ（技 5）の描画: 着地予告の円（E5-0 の `GroundTelegraphs`。赤橙の円 + 点滅）と、滞空中の影の円、
@@ -46,7 +46,7 @@ registerViewPlugin('boss-leap', ({ game, view }) => {
 
   return {
     update() {
-      const boss = bossSystemOf(game).boss;
+      const boss = game.systems.get(bossSystem).boss;
       const state = boss?.alive ? leapStateOf(boss) : undefined;
       const { x, z } = state?.landing ?? { x: 0, z: 0 };
       if (state && leapTelegraphVisible(state)) {

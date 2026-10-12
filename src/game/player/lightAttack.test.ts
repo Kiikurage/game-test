@@ -1,8 +1,8 @@
-import { gameStats } from '../debug/stats.system';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PLAYER_ACTIONS, PLAYER_STATS, attackDamage, totalFrames } from '../data';
 import { Game } from '../game';
 import { FakeInput } from '../testing/fakeInput';
+import { debugStatsSystem } from '../debug/stats.system';
 
 const DT = 1 / 60;
 
@@ -307,17 +307,17 @@ describe('light attack combo', () => {
 
     it('軽 1 は当たり窓の間に 1 回だけ命中し、ダメージは基本攻撃力 × 倍率', () => {
       faceDummy();
-      const before = gameStats(game).hitCount;
+      const before = game.systems.get(debugStatsSystem).hitCount;
       press(); // F1
       let hitFrame = 0;
       for (let f = 2; f <= 40; f++) {
         tick();
-        if (!hitFrame && gameStats(game).hitCount > before) hitFrame = f;
+        if (!hitFrame && game.systems.get(debugStatsSystem).hitCount > before) hitFrame = f;
       }
-      expect(gameStats(game).hitCount).toBe(before + 1);
+      expect(game.systems.get(debugStatsSystem).hitCount).toBe(before + 1);
       expect(hitFrame).toBeGreaterThanOrEqual(13);
       expect(hitFrame).toBeLessThanOrEqual(16);
-      const e = gameStats(game).hitLog.at(-1);
+      const e = game.systems.get(debugStatsSystem).hitLog.at(-1);
       expect(e?.targetId).toBe('dummy-a');
       expect(e?.attackId).toBe('light1');
       expect(e?.baseDamage).toBe(attackDamage(PLAYER_STATS.attackPower, 1.0));
@@ -326,15 +326,15 @@ describe('light attack combo', () => {
 
     it('3 段それぞれが 1 回ずつ命中する（40 / 42 / 52）', () => {
       faceDummy();
-      const before = gameStats(game).hitCount;
+      const before = game.systems.get(debugStatsSystem).hitCount;
       press();
       pressAt(19, 1);
       run(2);
       pressAt(17, 1);
       run(2);
       run(60);
-      expect(gameStats(game).hitCount).toBe(before + 3);
-      const log = gameStats(game).hitLog.slice(-3);
+      expect(game.systems.get(debugStatsSystem).hitCount).toBe(before + 3);
+      const log = game.systems.get(debugStatsSystem).hitLog.slice(-3);
       expect(log.map((e) => e.attackId)).toEqual(['light1', 'light2', 'light3']);
       expect(log.map((e) => e.baseDamage)).toEqual([40, 42, 52]);
       expect(log.map((e) => e.poiseDamage)).toEqual([20, 20, 35]);
@@ -343,10 +343,10 @@ describe('light attack combo', () => {
     it('背後のダミーには当たらない', () => {
       game.teleportPlayer(0, -4.5, 0); // 南向き（ダミーは背後）
       run(3);
-      const before = gameStats(game).hitCount;
+      const before = game.systems.get(debugStatsSystem).hitCount;
       press();
       run(40);
-      expect(gameStats(game).hitCount).toBe(before);
+      expect(game.systems.get(debugStatsSystem).hitCount).toBe(before);
     });
   });
 });

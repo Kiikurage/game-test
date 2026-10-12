@@ -35,7 +35,7 @@ A〜C と塔の見た目は `environment.glb`（`docs/assets.md` 7.11 節）。`
 - D 地下墓所: 通路幅 2.5m の L 字（入口 (62,36) → 北へ → 角 (62,48.5) → 東へ → 出口 (78.6,48.5)）。岩盤の塊 `d-*` で囲み、角の奥に石棺の窪み（`d-sarcophagus`）。床は C（3.4m）から E（7.4m）へ通路が緩く上る。
 - E 中庭: 外壁に西の入口（z 48..54）と南の崩れ口（x 92..96）の 2 か所。中央に崩れた噴水（円柱 `fountain`、障害物）、壁の欠片・折れた柱。北東の角に霧の門。
 - F 闘技場: 内径 32m の外周壁（`f-wall-*`）、柱 4 本（高さ 4m・半径 0.7m、r=12m に 90° ごと）、中央の台座（`pedestal`）。霧の門 (104,68) から幅 約 4.3m の通路（`f-pass-*`）で入る。
-- 門は `LevelData.gates`（`GateDef`）。`Level.gates[].box` が塞ぐコライダで、`levelGameOptions().boxes` に入る。`Game.setBoxEnabled(門の id, bool)` で開閉できる（鉄門 `G1` は有効で開始、霧の門 `fog-gate` はレベルデータ上は無効で開始。ゲーム側（`fogGateOf(game)`、#66）が閉じた状態（コライダ有効）で始め、入場演出・封鎖・解除を扱う。`interactables` の `fog-gate` は闘技場の入場位置 `target` を持つ）。鉄門・レバーの操作は別チケット。`interactables` の `G1` / `lever-g1`（80,36）/ `fog-gate` は座標のみ（`area: null` はエリア外の通路）。
+- 門は `LevelData.gates`（`GateDef`）。`Level.gates[].box` が塞ぐコライダで、`levelGameOptions().boxes` に入る。`Game.setBoxEnabled(門の id, bool)` で開閉できる（鉄門 `G1` は有効で開始、霧の門 `fog-gate` はレベルデータ上は無効で開始。ゲーム側（`game.systems.get(fogGateSystem)`、#66）が閉じた状態（コライダ有効）で始め、入場演出・封鎖・解除を扱う。`interactables` の `fog-gate` は闘技場の入場位置 `target` を持つ）。鉄門・レバーの操作は別チケット。`interactables` の `G1` / `lever-g1`（80,36）/ `fog-gate` は座標のみ（`area: null` はエリア外の通路）。
 - ショートカット: `extraRoutes[0]`。中庭の西の入口 → 北の道 → G1 (78,32) → (68,8) → (34,-4.5) → A。G1 から A まで約 90m。G1 の南北の両側に壁（`lane-*`）。
 
 ## D・E・G1 の見た目（#44）
@@ -62,13 +62,13 @@ src/game/world/arena.ts             arenaOf(level): 寸法・柱・台座・bonf
 src/render/arena/arenaGeometry.ts   柱（フルート + 礎盤・柱頭）・台座（皿つき）・外周壁（崩れた天端）・床の円盤
 src/render/arena/arenaMaterials.ts  石の TSL マテリアル（床: 同心円の敷石、壁・柱・台座: 石積み）
 src/render/arena/arenaTorches.ts    壁のたいまつ 8 本（燭台 + 炎 + 石の emissive に足す解析的な光）
-src/render/arena/arena.view.ts      描画プラグイン + ライティングの切り替え + 柱の破片の口 + arenaViewOf(game)
+src/render/arena/arena.view.ts      描画プラグイン + ライティングの切り替え + 柱の破片の口 + arenaViewOf(view)
 src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit / arenaEnter、`?arena` `?arena=boss`）
 ```
 
 - **寸法**: 内径 32m（壁の内面は当たり判定の 24 角形より内に出ない 16.12m）、柱 4 本（r = 12m、高さ 4m、軸の半径 0.7m）、台座（r 1.6m・高さ 0.9m）。コライダは `ashenFoundation.ts` のまま。`LevelView` は `isArenaProp` の静的物のグレーボックスを作らない。
 - **後続（撃破演出 #86 など）**: `arenaOf(level).bonfireSlot`（台座の上面の中央。ワールド座標）に篝火を置く。ボス戦の開始は `arenaOf(level).circle`（= `BossSpawnOptions.arena`）と `.pillars`（= `BossSpawnOptions.pillars`。添字は `bossPillarHit.pillar` と一致）をそのまま `spawn` へ渡す。
-- **柱の破片の口**: `arenaViewOf(game)?.onPillarHit((hit) => ...)`。`bossPillarHit` から `PillarHit`（柱の添字・表面の位置・飛び散る向き・技 ID）を作って呼ぶ。購読者がいなくても既定で `particles.hit`（砂煙・火花）が出る。破片の演出本体は E5-8b がここへ購読する。デバッグ: `__game.dev.arenaPillarHit(i)`。
+- **柱の破片の口**: `arenaViewOf(view)?.onPillarHit((hit) => ...)`。`bossPillarHit` から `PillarHit`（柱の添字・表面の位置・飛び散る向き・技 ID）を作って呼ぶ。購読者がいなくても既定で `particles.hit`（砂煙・火花）が出る。破片の演出本体は E5-8b がここへ購読する。デバッグ: `__game.dev.arenaPillarHit(i)`。
 - **ライティング**: `Environment.setMood(mood, t)`（`environment.ts`）が `DUSK_MOOD` から `ARENA_MOOD` へ補間する（太陽・半球光・補助光・空・フォグ・遠景の色を uniform / ライトの値の書き換えだけで変える。シェーダの再コンパイルなし）。重み `t` は `arenaMoodWeight`（霧の門の通路を進む約 20m で smootherstep）を指数でなじませる（約 0.5 秒。リスポーンの瞬間移動でも急に切り替わらない）。仕様書 7.2 節の「太陽強度 0.5」は仕様の黄昏（2.0）に対する比（1/4）で、実装の黄昏（3.4）に対しては 0.85。
 - **石の質感**: 目地・ひびの線は `fwidth` による解析的 AA、遠景では粒・孔を消す。石ごとの明暗・色味、欠けた縁、染み、苔、床に近い汚れ、壁際・柱の根元の接触 AO、石をまたぐ大きなひび（床のみ）、焦げ跡、台座を囲む彫り込みの輪。凹凸は高さ → 法線の摂動（追加テクスチャ・パスなし）。
 - **負荷**: 床 1 + 壁 1 + 柱 4 本結合 1 + 台座 1 + 燭台 1 + 炎 1 = 6 ドローコール（影パスは壁・柱・台座・燭台の 4）。`dev.arenaInfo()` に三角形数が出る。計測視点 `arena`（闘技場の入口）を `scripts/perfViewpoints.mjs` に追加し、`e2e/perf.spec.ts` の予算検査に含めた。
@@ -90,7 +90,7 @@ src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit /
 - **透明壁**（`LevelData.guards` → `Level.guardBoxes`。描画しない。`levelGameOptions` が `boxes` に含める）: 岩棚の両脇（曲がりの外側は 0.8m 延長）、回廊の北側全長、南側は落下ポイント 3 か所（幅 1.5m）以外、東端。落下ダメージはない（高さ ≦ 3m）。
 - **敵のナビ格子**: 足場の箱・石段に `navSolid: true`（`BlockProp` / `StairsProp`）を付けると、`NavGrid` は低くても固体として扱い、敵は屋根・岩棚・壁上・石段に入らない。壁上から礼拝堂内へ落ちた先（落下ポイントの着地点付近）は、通常の礼拝堂内のナビ格子とつながっている。
 - **足場の範囲（装飾の除外領域）**: `LevelData.sidePaths`（`SidePathDef`: `id` / 中心線 `points` + `halfWidth`（透明壁の外面まで）/ 矩形 `rects` / `spots`）。`Level.sidePathDistance(x, z, ids?)`（または `sidePathDistance(data, x, z, ids?)`）が範囲までの距離を返す（範囲内は 0）。外周の崖の岩塊（#190）など、足場を塞いではいけない配置は、この距離が 0 より十分大きい所にだけ置くこと。外周封鎖の通行領域（`SIDE_PATHS` の `side_ledge`）も同じ `LEDGE_POINTS` から作る。
-- 検証: `levelSidePath.test.ts`（寸法・勾配・段差・範囲、ナビ格子に含まれないこと、屋根・岩棚・壁上の走破・3 か所の落下・往復・縁から落ちないこと）と `e2e/sidePath.spec.ts`（入力注入で B → 屋根 → 岩棚 → 壁上 → 3 か所の落下）。
+- 検証: `levelSidePath.test.ts`（寸法・勾配・段差・範囲、ナビ格子に含まれないこと、屋根・岩棚・壁上の走破・3 か所の落下・往復・縁から落ちないこと）と `levelTraversal.test.ts`（入力注入で B → 屋根 → 岩棚 → 壁上 → 3 か所の落下）。
 - 撮影した俯瞰: `docs/images/side-path/`（`roof-south` / `roof-top` / `ledge` / `wall-top` / `overview`）。
 
 ## 地下水路（#111: `side_waterway`）
@@ -102,12 +102,12 @@ src/render/arena/arena.dev.ts       dev フック（arenaInfo / arenaPillarHit /
   - 水路の床は C の床（3.4m）− 落下 2.4m = 1.0m。出口の床は D の通路の床 5.9m。階段の 1 段は自動乗り越えの範囲（≦ 0.28m）で、奥行きはプレイヤーのカプセル（半径 0.35m）+ 自動乗り越えの最小幅（0.1m）以上が必要（0.4m では上れなかった）。段の前後は自動乗り越えの頭上の余裕のため天井を 2.6m にしてある（`WaterwayRect.ceiling`）。
 - **地形の下に作る方法**: 地形メッシュは 1 枚の面なので、区画ごとに床・天井・壁を `BlockProp`（style `waterway`、`embed` で板を地形に埋めず宙に置く）で作る。腐った床板の穴と、上り階段の上（地形が頭の高さまで来る所）は `LevelData.terrainHoles`（1m 格子に合わせた矩形）で地形メッシュ（描画・衝突の両方）の三角形を抜く。地下墓所の岩盤 `d-mass-s` は水路の通る所を `carveMass` でくり抜き、天井の上を埋め直す（元の id `d-mass-s` は西の端の帯として残る）。
 - **腐った床板** `floor-hatch`（style `hatch`、(44, 28) 2m × 2m）: 床と同じ高さで穴を塞ぐコライダ（`navSolid`）。`waterway.system.ts` が、プレイヤーが床板の上に立つと割る（`Game.setBoxEnabled(id, false)`）。落下 2.4m でダメージなし。割れた後は穴が開いたまま（保存は E11）。水路 → C へは 2.4m の段差で戻れない。
-- **鉄格子** `iron-grate`（style `grate`、(72, 45)）: 開通前はコライダ。E11 の状況ボタン「押す」は `waterwayOf(game).openGrate()` を呼ぶ。開通後は D 側から水路へ逆行できる。dev フック: `dev.waterway()` / `dev.breakHatch()` / `dev.openGrate()`。
+- **鉄格子** `iron-grate`（style `grate`、(72, 45)）: 開通前はコライダ。E11 の状況ボタン「押す」は `game.systems.get(waterwaySystem).openGrate()` を呼ぶ。開通後は D 側から水路へ逆行できる。dev フック: `dev.waterway()` / `dev.breakHatch()` / `dev.openGrate()`。
 - **足音**: `SurfaceKind` に `water` を追加。`Level.surfaceAt(x, z, y?)` に足元の高さ `y` を渡すと、水路の水のある区画（床 − 0.3m〜天井）の中は `water`（C の床と区別するため。`Game.footstepSurface` が y を渡す）。足音の cue はまだ水専用が無いので `crypt` を鳴らす（E7）。
 - **暗所・反響ゾーン**: `LevelData.zones`（`ZoneDef`: `dark` / `echo`、矩形 + 任意の高さ範囲）。地下墓所（エリア D）と水路の全区画。`Level.zoneAt(x, z, y?)` / `visionMultiplierAt`（暗所 `DARK_VISION_MULTIPLIER` = 0.7）/ `hearingMultiplierAt`（反響 `ECHO_HEARING_MULTIPLIER` = 1.3）。たいまつから 4m 超の条件は灯りの配置（E11）後に AI（E3-6）が判定する。音は E7-5b が参照する。
 - **敵のナビ格子**: style `waterway` は `NavGrid` が無視する（地下なので C・D の床のセルを塞がない）。床板は `navSolid`、鉄格子の奥は岩盤の埋め草で固体になり、敵は水路へ入らない。
 - **水の描画（#270）**: `src/render/waterway/`（view plugin `waterway`）。style `waterway` の箱は `levelView` ではなく `waterShell.ts` が石積み + 濡れ帯・苔・コースティクス・偽のライト（たいまつ・穴の光・苔。シーンのライトは足さない）で描く。水面は GPU の高さ場の波動方程式（`waterSim.ts`。セル・解像度は品質プリセット（`src/render/quality/presets.ts` の `water`））+ 流れでスクロールするオフライン生成の法線（`scripts/assets/build-water-textures.mjs`。KTX2 / UASTC、`--check` で再生成の一致を確認）+ 平面反射（medium 以上。カメラが水路内のときだけ）+ 屈折・吸収・泡（`waterMaterial.ts`）。足・ローリング・着地は `waterWake.system.ts` の記録をシミュレーション時間で再生して外力にする。しぶき・雫・霧・光の筋は `waterFx.ts`。水路の外では描かず、`?nodraw` では波のシミュレーションを作らない。dev フック: `dev.waterwayRender()`。撮影: `npm run heroshots -- shots/ww --only 地下水路`（`waterway-*` の視点。歩く・ローリングのしぶきを含む）。
-- 検証: `levelWaterway.test.ts`（寸法・地形の頭上の余裕・ゾーン・足音・ナビ・物理で床板 → 水路 → 鉄格子 → D の走破と逆行・戻れないこと）と `e2e/waterway.spec.ts`。
+- 検証: `levelWaterway.test.ts`（寸法・地形の頭上の余裕・ゾーン・足音・ナビ・物理で床板 → 水路 → 鉄格子 → D の走破と逆行・戻れないこと）と `levelTraversal.test.ts`（入力注入で床板 → 水路 → 鉄格子 → D）、描画は `e2e/waterway.spec.ts`。
 
 ## データ駆動のインタラクト（#122: 読む / 調べる）
 

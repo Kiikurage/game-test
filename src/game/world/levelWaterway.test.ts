@@ -12,7 +12,7 @@ import {
 } from './level';
 import { footstepSurfaceOf } from './footstepSurface';
 import { GRATE, HATCH, subtractRects } from './waterway';
-import { waterwayOf } from './waterway.system';
+import { waterwaySystem } from './waterway.system';
 
 const DT = 1 / 60;
 const level = createLevel(ASHEN_FOUNDATION);
@@ -324,7 +324,7 @@ describe('walking the waterway (physics)', () => {
   ];
 
   it('breaks the floorboard when stepped on, drops 2.4m into the water without damage, and the hole stays open', () => {
-    const state = waterwayOf(game);
+    const state = game.systems.get(waterwaySystem);
     game.teleportPlayer(42, 28, Math.PI / 2);
     run(10);
     expect(pos().y).toBeCloseTo(C_FLOOR, 1);
@@ -341,7 +341,7 @@ describe('walking the waterway (physics)', () => {
 
   it('runs from the hatch through the tunnel to the grate, which blocks until it is opened, then out to D', () => {
     game.teleportPlayer(44, 28, 0, WATER_FLOOR + 0.02);
-    waterwayOf(game).breakHatch();
+    game.systems.get(waterwaySystem).breakHatch();
     run(20);
     expect(pos().y).toBeLessThan(WATER_FLOOR + 0.3);
     walk(TUNNEL);
@@ -358,7 +358,7 @@ describe('walking the waterway (physics)', () => {
     input.setMove(0, 0);
     expect(pos().z).toBeLessThan(45);
     // 開通 → D の通路へ出る
-    expect(waterwayOf(game).openGrate()).toBe(true);
+    expect(game.systems.get(waterwaySystem).openGrate()).toBe(true);
     walk([
       [72, 46.5],
       [72, 48.5],
@@ -384,7 +384,7 @@ describe('walking the waterway (physics)', () => {
   }, 30_000);
 
   it('goes back into the waterway from D after the grate is open', () => {
-    waterwayOf(game).openGrate();
+    game.systems.get(waterwaySystem).openGrate();
     game.teleportPlayer(72, 49, Math.PI, level.heightAt(72, 49));
     run(10);
     walk([
@@ -401,7 +401,7 @@ describe('walking the waterway (physics)', () => {
 
   it('cannot return to the chapel: the 2.4m step is not climbable', () => {
     game.teleportPlayer(44, 28, 0, WATER_FLOOR + 0.02);
-    waterwayOf(game).breakHatch();
+    game.systems.get(waterwaySystem).breakHatch();
     run(20);
     for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       input.setMove(0, 1);

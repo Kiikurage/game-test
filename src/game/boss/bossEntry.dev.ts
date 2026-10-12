@@ -1,5 +1,5 @@
 import { registerDevHooks } from '../../devHooks';
-import { bossSystemOf } from './boss.system';
+import { bossSystem } from './boss.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -37,7 +37,7 @@ registerDevHooks('bossEntry', ({ game }) => {
   });
   return {
     bossEntry: () => {
-      const boss = bossSystemOf(game).boss;
+      const boss = game.systems.get(bossSystem).boss;
       return {
         exists: !!boss,
         state: boss?.state ?? 'none',

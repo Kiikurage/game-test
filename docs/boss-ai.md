@@ -109,7 +109,7 @@ registerBossMove({
 | `bossPillarHit` | 技の判定が柱に触れた（破片の演出のフック） | `{ id, pillar, position, moveId }` |
 
 - 発行元は `Boss`（`BossDeps.events` に `game.events` を渡す。`BossSystem.spawn` が渡す）。`Boss.setHp(hp)` が HP の写しと `bossHpChanged` を担う。
-- 状態のポーリングが必要な UI は `bossSystemOf(game).boss?.debugInfo`（`hp` / `phase` / `state` / `breakUsed`）を読める。
+- 状態のポーリングが必要な UI は `game.systems.get(bossSystem).boss?.debugInfo`（`hp` / `phase` / `state` / `breakUsed`）を読める。
 
 ### リセット
 
@@ -149,7 +149,7 @@ registerBossMove({
 - 赤い縁取りは `postprocess.ts` の `ScreenEffect.rim`（死亡演出の `setScreenEffect` と同じ口。追加パスなし）。強さは `rimAtTransitionFrame`（立ち上がり 6F・保持 12F・減衰 12F）。
 - プレイヤーは移行中も操作できる（移動・ロール・回復。ボスの無敵は `UprightTarget.invulnerable`）。ロックオンも維持される。
 - 途中でボスがリセットされたら（死亡・篝火）、カメラ演出・ダッキングを止めて `bossTransition` `end`（`aborted: true`）を発行し、描画は盾と熾火をフェーズ 1 の見た目へ戻す。
-- 一時停止・スローでも合うよう、描画は `bossTransitionOf(game).frame`（移行 F。演出中でなければ -1）を読んで進める（盾の飛行も F から進める）。
+- 一時停止・スローでも合うよう、描画は `game.systems.get(bossTransitionSystem).frame`（移行 F。演出中でなければ -1）を読んで進める（盾の飛行も F から進める）。
 - 確認: `?debug&scene=boss` で `bossTool().set('ai', true)` → `window.__game.dev.bossHp(1200)`（次の硬直で移行）。`bossTransitionFrame()` で F を読める。
 - 未対応: ヒットストップ 12F（ボスの移行の進行を止めてしまうので、仰け反りの姿勢の勢いで代用）、`Spell_Simple_*` クリップ（アニメーションに未収録のため手続きの姿勢のみ）、BGM / HP バーの購読（E7-4b / E6-3a）。
 
@@ -221,7 +221,7 @@ it('大上段は左右ロールを F36–F46 で入力して回避できる', ()
 
 ```
 src/game/hud/bossBarModel.ts    状態（琥珀色の残像 60F 遅延・目盛り・フェーズ移行の 20F 発光・30F フェード）。DOM 非依存
-src/game/hud/bossBar.system.ts  イベント購読と毎ステップの更新。bossBarModelOf(game)
+src/game/hud/bossBar.system.ts  イベント購読と毎ステップの更新。bossBarSystem
 src/ui/hud/bossBar.ts / .css    DOM（画面下中央、下端から 48px、幅 min(50vw, 560px)、高さ 12px、名前 16px）
 src/render/hud/bossBar.view.ts  ビュープラグイン。不透明度は HUD 全体のフェード（死亡演出・休憩）との積
 ```

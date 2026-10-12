@@ -1,6 +1,6 @@
 // デバッグ・テスト専用の集計（命中の記録・ヒットストップの回数・プレイヤーイベントの回数）。
 // ゲームの進行には使わない。Game 本体に E2E 用のカウンタを持たせないため、登録式のシステムとして外から観測する。
-// テスト・dev フックは `gameStats(game)` で読む。
+// テスト・dev フックは `game.systems.get(debugStatsSystem)` で読む。
 import type { HitEvent } from '../combat';
 import type { Game, GameDebugState } from '../game';
 import type { PlayerEvent } from '../player/player';
@@ -76,18 +76,24 @@ export interface SimDebugState extends Omit<GameDebugState, 'combat'> {
   };
 }
 
-const statsByGame = new WeakMap<Game, GameStats>();
-
-/** `game` の集計（Game の生成時に作られる）。 */
-export function gameStats(game: Game): GameStats {
-  const s = statsByGame.get(game);
-  if (!s) throw new Error('debug stats system is not registered for this game');
-  return s;
-}
+/** 集計（`game.systems.get(debugStatsSystem)`。Game の生成時に作られる）。 */
+export const debugStatsSystem = registerGameSystem('debugStats', (game) => {
+  const stats = new GameStats();
+  return {
+    state: stats,
+    update: () => {
+      stats.recordPlayerEvents(game.player.events);
+    },
+    onImpact: (e) => {
+      stats.recordHit(e.hit);
+      stats.recordHitStop(e.frames);
+    },
+  };
+});
 
 /** Game の状態と集計をまとめる（`window.__game.sim` 用）。 */
 export function simDebugState(game: Game): SimDebugState {
-  const s = gameStats(game);
+  const s = game.systems.get(debugStatsSystem);
   const base = game.debugState;
   return {
     ...base,
@@ -101,17 +107,3 @@ export function simDebugState(game: Game): SimDebugState {
     },
   };
 }
-
-registerGameSystem('debugStats', (game) => {
-  const stats = new GameStats();
-  statsByGame.set(game, stats);
-  return {
-    update: () => {
-      stats.recordPlayerEvents(game.player.events);
-    },
-    onImpact: (e) => {
-      stats.recordHit(e.hit);
-      stats.recordHitStop(e.frames);
-    },
-  };
-});

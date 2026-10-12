@@ -1,5 +1,5 @@
 import { registerDevHooks } from '../../devHooks';
-import { waterwayOf } from './waterway.system';
+import { waterwaySystem } from './waterway.system';
 
 declare module '../../devHooks' {
   interface DevHooks {
@@ -14,9 +14,9 @@ declare module '../../devHooks' {
 
 registerDevHooks('waterway', ({ game }) => ({
   waterway: () => {
-    const s = waterwayOf(game);
+    const s = game.systems.get(waterwaySystem);
     return { hatchBroken: s.hatchBroken, grateOpen: s.grateOpen };
   },
-  breakHatch: () => waterwayOf(game).breakHatch(),
-  openGrate: () => waterwayOf(game).openGrate(),
+  breakHatch: () => game.systems.get(waterwaySystem).breakHatch(),
+  openGrate: () => game.systems.get(waterwaySystem).openGrate(),
 }));
