@@ -175,6 +175,39 @@ vsync 無しの frame は 1.6〜2.5ms（400fps 以上）で、PC high の 120fps
 | その他（json・css・html） | 5 | 0.06 MB |
 | **合計** | 110 | **15.9 MB** |
 
+## CPU 時間の回帰ゲート（#306。CI の `perf` ジョブ）
+
+CI の `perf` ジョブが `npm run profile -- high 240`（ubuntu-latest・SwiftShader）を回し、JS ms/frame（CDP）が
+`PROFILE_MAX_DRAW_MS` / `PROFILE_MAX_NODRAW_MS` を超えたら終了コード 1 で落ちる。
+
+### CI ランナーでのばらつき（同じコミットを 5 ジョブ並列で 1 回ずつ。PR #357）
+
+| | 1 | 2 | 3 | 4 | 5 | 最小〜最大 |
+| --- | --- | --- | --- | --- | --- | --- |
+| draw JS ms/frame | 7.52 | 11.24 | 10.19 | 11.33 | 8.19 | 7.5〜11.3 |
+| nodraw JS ms/frame | 0.68 | 1.11 | 0.96 | 1.15 | 1.09 | 0.68〜1.15 |
+
+- ランナーの速さが 2 群に分かれ（ジョブ時間 2m13s と 3m30s 前後）、同じコードで 1.5〜1.7 倍ぶれる。
+- **draw は SwiftShader の描画が JS 時間に混ざる**（render ms/frame が CI で 8〜12、Mac の SwiftShader で 2.8、実 GPU で 2.3）。
+  §5 の CPU ≤ 4ms とは直接比べられず、描画パスが大きく増えたような粗い回帰だけを見る。
+- **nodraw（入力 + `game.update` + 描画以外の JS）は実 GPU の値（0.71）と同じ桁**で、シミュレーションの回帰はこちらで見る。
+
+### 閾値と根拠
+
+| | 閾値 | 観測の最大 | 余裕 |
+| --- | --- | --- | --- |
+| `PROFILE_MAX_NODRAW_MS` | 2 | 1.15 | 1.7 倍 |
+| `PROFILE_MAX_DRAW_MS` | 18 | 11.33 | 1.6 倍 |
+
+- 観測した上下の比（1.5〜1.7 倍）を最大値の上にもう一度見込み、遅いランナーでも誤検知しない値にした。
+  その分、検出できるのは「シミュレーションの JS が 2 倍近くになる」程度の回帰で、小さな悪化は検出しない。
+  小さな差は従来どおりローカルの `npm run profile`（実 GPU は `PERF_PC=1 GPU_MODE=hardware`）で前後を比べる。
+- ゲートが落ちることは `PROFILE_BURN_MS=4`（計測中の各 rAF コールバックに 4ms の busy-wait）で CI 上で確認した。
+- GPU 時間は SwiftShader では意味が無いのでゲートにしない。Mac の実 GPU で `PERF_PC=1 GPU_MODE=hardware npm run perf -- high` を
+  前後で取って比べる（上の「刷新前の基準値」の手順）。
+- ヘッドレス Node（`createHeadlessGame`）でのシミュレーション計測は採らなかった。nodraw がすでにシミュレーション部分の JS を測っており、
+  ばらつきの主因はランナーの CPU の速さで Node でも同じく受けるため。
+
 ## CPU フレーム時間のプロファイル（#262）
 
 `npm run profile -- [low|medium|high] [frames]`（既定 `medium 240`）。ヘッドレス Chromium の CDP `Profiler` で、

@@ -164,3 +164,44 @@ jobs:
             playwright-report
             test-results
           retention-days: 7
+
+  # CPU（JS）時間の回帰ゲート（#306）。墓地・戦闘中・ロックステップの JS ms/frame（CDP）を閾値で判定する。
+  # SwiftShader でも JS 時間はメインスレッドで測れる（GPU 時間は見ない）。閾値の根拠は docs/performance.md
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # 閾値の根拠は docs/performance.md の「CPU 時間の回帰ゲート」（CI 上のばらつきから 1.6 倍以上の余裕）
+      - name: CPU regression gate (npm run profile)
+        env:
+          PROFILE_MAX_DRAW_MS: '18'
+          PROFILE_MAX_NODRAW_MS: '2'
+        run: npm run profile -- high 240
