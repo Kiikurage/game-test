@@ -168,7 +168,11 @@ export async function createGameApp(
     await view.loadPlugins();
     // 初回描画のシェーダコンパイルをローディング中に済ませる（開始直後の長いカクつきを防ぐ）
     view.resize();
-    await view.warmUp();
+    // アセット段階の後半 1/2 をシェーダの事前コンパイルに充てる（#369: 進捗が止まって見えないように）
+    assetsTask.set(0.5);
+    await view.warmUp((f) => {
+      assetsTask.set(0.5 + 0.5 * f);
+    });
     assetsTask.done();
 
     new ResizeObserver(() => {
