@@ -39,7 +39,7 @@ import { causticsAt, layoutAt, simAt, type F, type V3, type WaterFields } from '
  * 石積みマテリアルに次を足す。
  *  - 水際の濡れ: 水面から上の帯（高さはノイズで揺れる）を暗く、つやを上げる（粗さ 0.2）。帯の上端に薄い水垢の線。
  *    濡れた所だけ、たいまつ・穴の光の GGX を足す（暗く光る濡れた石）。
- *  - 偽のライト（`waterLighting`）の拡散光。
+ *  - 床板の穴の光・苔（`waterLighting`）の拡散光。たいまつは実ライト（#322）。
  *  - コースティクス: 水中の床・壁は水面を通った光の模様で明暗が付く（波の勾配で歪む）。
  *    水面の上の壁の下部と天井には、水面で反射した光の揺らめき（弱い）。
  *  - 光る苔: 壁の水際の数か所に、青白く光る苔の塊。
@@ -112,8 +112,8 @@ function wrapMaterial(
   material.colorNode = vec4(albedo, 1);
   material.roughnessNode = mix(baseRough, float(0.2), wet.mul(float(1).sub(submerged.mul(0.4))));
 
-  // --- 偽のライト + コースティクス ---
-  const lit = lightAt(rig, wp, nw);
+  // --- 床板の穴の光・苔（シェーダ側の光）+ コースティクス。たいまつは実ライト（#322）が照らす ---
+  const lit = lightAt(rig, wp, nw, [LIGHT_KIND.shaft, LIGHT_KIND.moss]);
   const sim = simAt(fields, wp.xz);
   const distort = sim.yz.mul(0.35);
   // 面の座標（m）で引く（床は xz、壁は 面に沿った距離 × 高さ）
@@ -132,7 +132,7 @@ function wrapMaterial(
     .mul(max(wallNear, ceilNear).mul(0.55));
   // 濡れた石のハイライト
   const view: V3 = normalize(cameraPosition.sub(wp));
-  const glossy = specularAt(rig, wp, nw, view, 0.32, [LIGHT_KIND.torch, LIGHT_KIND.shaft]).mul(
+  const glossy = specularAt(rig, wp, nw, view, 0.32, [LIGHT_KIND.shaft]).mul(
     wet.mul(float(1).sub(submerged)).mul(0.05),
   );
   const mossGlow = vec3(0.05, 0.3, 0.34).mul(mossMask.mul(1.6));
@@ -235,7 +235,7 @@ export function buildWaterShell(
     });
   }
 
-  const material = createMasonryMaterial({ detail, torches: [] });
+  const material = createMasonryMaterial({ detail });
   wrapMaterial(material, fields, rig);
 
   const props = new PropBuilder();

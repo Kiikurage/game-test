@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Group, Mesh } from 'three/webgpu';
-import { RIM, isWeaponObject } from './characterLight';
+import { TELEGRAPH, isWeaponObject } from './weaponTelegraph';
 
 function meshUnder(...names: string[]): Mesh {
   const root = new Group();
@@ -32,9 +32,8 @@ describe('isWeaponObject', () => {
   });
 });
 
-describe('RIM', () => {
-  it('逆光時のほうが通常時より縁が強い', () => {
-    expect(RIM.backlitGain).toBeGreaterThan(RIM.baseGain);
-    expect(RIM.telegraphGain).toBeGreaterThan(0);
+describe('TELEGRAPH', () => {
+  it('縁の発光は面の発光より強い', () => {
+    expect(TELEGRAPH.gain).toBeGreaterThan(TELEGRAPH.fill);
   });
 });

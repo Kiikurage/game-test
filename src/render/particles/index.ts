@@ -1,4 +1,4 @@
-import { Group, PointLight, type Vector3 } from 'three/webgpu';
+import { Group, type Vector3 } from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { ParticleQuality } from '../quality';
 import { burstCount } from './budget';
@@ -26,7 +26,7 @@ import { SlotPool } from './slotPool';
 export type { DeathParams, HitParams } from './presets';
 
 /** 同時に置ける篝火 / 熾火フィールドの数（超えたら最も古いものを再利用）。 */
-const MAX_BONFIRES = 3;
+export const MAX_BONFIRES = 3;
 const MAX_EMBER_FIELDS = 2;
 
 /** 篝火エミッタ。`ParticleSystem.acquireBonfire` で取得し、`release` で返す。 */
@@ -166,11 +166,6 @@ export class ParticleSystem {
   private readonly time: TimeUniform = uniform(0);
   private clock = 0;
   private readonly ash: ContinuousLayer | null;
-  /**
-   * 篝火の光源。シーン内の PointLight は合計 1 灯に保ち（モバイルの負荷。ライト数が変わるとシェーダも作り直しになる）、
-   * プレイヤーに最も近い、灯っている篝火へ付け替える。
-   */
-  private readonly bonfireLight: PointLight | null;
   private readonly bursts: Record<keyof typeof BURST_SPECS, BurstLayer>;
   private readonly bonfirePool = new SlotPool(MAX_BONFIRES);
   private readonly bonfires: (Bonfire | null)[] = new Array<Bonfire | null>(MAX_BONFIRES).fill(
@@ -183,12 +178,6 @@ export class ParticleSystem {
 
   constructor(private readonly quality: ParticleQuality) {
     this.root.name = 'particles';
-    if (quality.bonfireLight) {
-      this.bonfireLight = new PointLight(0xff8a3c, 0, 14, 2);
-      this.root.add(this.bonfireLight);
-    } else {
-      this.bonfireLight = null;
-    }
     if (quality.ambientAsh > 0) {
       this.ash = new ContinuousLayer(ambientAshSpec(quality.ambientAsh), this.time);
       this.root.add(this.ash.mesh);
@@ -216,28 +205,18 @@ export class ParticleSystem {
     this.time.value = this.clock;
     this.ash?.center.copy(follow);
     for (const layer of Object.values(this.bursts)) layer.update(this.clock);
-    let nearest: Bonfire | null = null;
-    let best = Infinity;
-    for (const b of this.bonfires) {
-      if (!b) continue;
-      b.tick(step);
-      if (b.litAmount <= 0.001) continue;
-      const d = (b.position.x - follow.x) ** 2 + (b.position.z - follow.z) ** 2;
-      if (d < best) {
-        best = d;
-        nearest = b;
-      }
-    }
-    const light = this.bonfireLight;
-    if (light) {
-      if (nearest) {
-        light.position.set(nearest.position.x, nearest.position.y + 0.9, nearest.position.z);
-        light.intensity = nearest.lightIntensity(this.clock);
-      } else {
-        light.intensity = 0;
-      }
-    }
+    for (const b of this.bonfires) b?.tick(step);
     for (const f of this.fields) f?.tick(step);
+  }
+
+  /** 経過時間（秒）。篝火の光のゆらぎの時刻。 */
+  get elapsed(): number {
+    return this.clock;
+  }
+
+  /** 篝火のスロット（未使用は null）。光源は `lighting/bonfireLights.view.ts` がスロットごとに持つ。 */
+  get bonfireSlots(): readonly (Bonfire | null)[] {
+    return this.bonfires;
   }
 
   // --- 篝火 / 熾火（プール化されたエミッタ）---
