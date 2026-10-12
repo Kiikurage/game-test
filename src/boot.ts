@@ -188,6 +188,13 @@ async function boot(): Promise<void> {
   }
 
   installWebGPUCompat();
+  // 配置の spike（#383）。本番の Game を使わないテスト場面
+  const spike = new URLSearchParams(window.location.search).get('spike');
+  if (spike) {
+    const { runSpike } = await import('./spike/spikeMain');
+    await runSpike(root, spike);
+    return;
+  }
   root.dataset.state = 'loading';
   const loading = createLoadingScreen();
   const progress = new ProgressTracker(LOAD_STAGES, (s) => {
