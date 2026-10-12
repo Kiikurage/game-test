@@ -9,6 +9,8 @@ import { loadNoiseTextures, setMaterialDetail } from './bakedNoise';
 import { configureKtx2Loader } from './assets/ktx2';
 import { installStableBufferNames } from './stableBufferNames';
 import { setUniformBufferLimit } from './instancing';
+import { GpuTimer } from './pipeline/gpuTimer';
+import { installClusteredLighting } from './lighting/clusteredLighting';
 
 /** デバッグ表示（`?debug`）用の計測値。 */
 export interface RenderStats {
@@ -22,7 +24,10 @@ export interface RenderStats {
   pixelRatio: number;
   drawCalls: number;
   triangles: number;
-  /** GPU 時間（ms。`?perf` かつ timestamp-query 対応時のみ。それ以外は null）。 */
+  /**
+   * GPU 時間（ms。`?perf` / `?debug` かつ timestamp-query 対応時のみ。それ以外は null）。
+   * 直近 120 フレームの、1 フレームの全パスの GPU 時間の合計の中央値（パス別は `GameRenderer.gpuTimer`）。
+   */
   gpuMs: number | null;
 }
 
@@ -30,6 +35,8 @@ export interface GameRenderer {
   readonly renderer: WebGPURenderer;
   readonly quality: QualitySelection;
   readonly stats: Readonly<RenderStats>;
+  /** パス別 GPU 時間の計測（`?perf` / `?debug` かつ timestamp-query 対応時のみ）。 */
+  readonly gpuTimer: GpuTimer | null;
   /** コンテナの現在サイズへ合わせ、適用したサイズ（CSS px）を返す。 */
   resize(): { width: number; height: number };
   /** 1 フレームの描画開始時に呼ぶ。フレーム時間を計測して動的解像度を更新し、描画統計をリセットする。 */
@@ -61,8 +68,9 @@ export async function createRenderer(
   const renderer = new WebGPURenderer({
     antialias: preset.msaa,
     powerPreference: 'high-performance',
-    // `?perf` のときだけ GPU 時間を測る（非対応端末では three が自動で無効にする）
-    trackTimestamp: quality.toggles.perf,
+    // `?perf` / `?debug` のときだけ GPU 時間を測る（非対応端末では three が自動で無効にする）
+    trackTimestamp:
+      quality.toggles.perf || new URLSearchParams(window.location.search).has('debug'),
   });
   await renderer.init();
 
@@ -70,6 +78,8 @@ export async function createRenderer(
     void renderer.dispose();
     throw new Error('WebGPU backend is not active (WebGL fallback is not supported)');
   }
+  const timer = new GpuTimer(renderer);
+  const gpuTimer = timer.enabled ? timer : null;
   // KTX2 の変換先（ASTC / BC など）をデバイスの圧縮テクスチャ機能から決める（#328）
   configureKtx2Loader(renderer);
   // インスタンス行列の確保数を揃える基準（#326）
@@ -82,6 +92,8 @@ export async function createRenderer(
     console.warn('noise textures failed to load', e);
   });
 
+  // 篝火・たいまつ等の点光源はクラスタードライティングで評価する（#322。`lighting/`）
+  installClusteredLighting(renderer);
   renderer.shadowMap.enabled = !quality.toggles.noShadow;
   renderer.shadowMap.type = PCFShadowMap;
   // トーンマッピングはポストエフェクト（RenderPipeline）の最終段で適用される
@@ -151,22 +163,14 @@ export async function createRenderer(
     lastNow = nowMs;
   };
 
-  let resolvingGpu = false;
   const endFrame = (): void => {
     stats.drawCalls = renderer.info.render.drawCalls;
     stats.triangles = renderer.info.render.triangles;
-    if (quality.toggles.perf && !resolvingGpu) {
-      // 結果は非同期（描画をブロックしない）。前の解決が終わるまで次は要求しない
-      resolvingGpu = true;
-      renderer
-        .resolveTimestampsAsync('render')
-        .then((ms) => {
-          if (typeof ms === 'number' && ms > 0) stats.gpuMs = ms;
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          resolvingGpu = false;
-        });
+    if (gpuTimer) {
+      // 解決は非同期（描画をブロックしない）。値は直近フレームの中央値
+      gpuTimer.endFrame();
+      const summary = gpuTimer.summary();
+      if (summary) stats.gpuMs = summary.sumMs;
     }
   };
 
@@ -174,6 +178,7 @@ export async function createRenderer(
     renderer,
     quality,
     stats,
+    gpuTimer,
     resize,
     beginFrame,
     endFrame,

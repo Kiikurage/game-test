@@ -34,14 +34,14 @@ import {
   vertexColor,
 } from 'three/tsl';
 import {
-  RIM,
-  characterLightNode,
-  createRimControls,
+  TELEGRAPH,
+  createTelegraphControls,
   isShieldObject,
   isWeaponObject,
-  type RimControls,
+  type TelegraphControls,
   type WeaponTelegraphStyle,
-} from '../characterLight';
+  weaponTelegraphNode,
+} from '../weaponTelegraph';
 import { OUTFIT_MESHES, clampProgress, type UndeadVariant } from './variants';
 import { bakedNoise } from '../bakedNoise';
 import { tagMaterial } from '../materialGroups';
@@ -122,7 +122,7 @@ export interface UndeadLook {
 
 /** 1 つのキャラクターインスタンス内で共有するユニフォーム。 */
 interface Controls {
-  readonly rim: RimControls;
+  readonly rim: TelegraphControls;
   readonly dissolve: UniformNode<'float', number>;
   readonly ember: UniformNode<'float', number>;
   readonly kill: KillControls;
@@ -154,7 +154,7 @@ export function applyUndeadLook(
   const controls: Controls = {
     dissolve: uniform(0),
     ember: uniform(0),
-    rim: createRimControls(),
+    rim: createTelegraphControls(),
     kill: {
       flash: uniform(0),
       eyeGlow: uniform(1),
@@ -163,7 +163,7 @@ export function applyUndeadLook(
     },
   };
   // 盾の予兆の発光は武器と別のユニフォーム（盾打ちで光るのは盾だけ）
-  const shieldControls: Controls = { ...controls, rim: createRimControls() };
+  const shieldControls: Controls = { ...controls, rim: createTelegraphControls() };
   const created: Material[] = [];
   const cache = new Map<string, Material>();
 
@@ -203,7 +203,7 @@ export function applyUndeadLook(
   let telegraph = 0;
   let shieldTelegraph = 0;
   const setTelegraph = (
-    rim: RimControls,
+    rim: TelegraphControls,
     amount: number,
     color?: ColorRepresentation,
     style?: WeaponTelegraphStyle,
@@ -445,15 +445,15 @@ function createUndeadMaterial(
       .mul(controls.dissolve.greaterThan(0).select(3.2, 0)),
   );
 
-  // 逆光・影でも輪郭が読めるリムライトと暗部の持ち上げ（#144）。ディゾルブで消える所は灰色に合わせて弱まる
-  emissive = emissive.add(
-    characterLightNode(
-      albedo,
-      controls.rim,
-      isWeapon || glow.shield,
-      glow.hasEdge ? attribute('_edge', 'vec2').x : undefined,
-    ).mul(float(1).sub(charred)),
-  );
+  // 武器・盾のテレグラフの発光。ディゾルブで消える所は灰色に合わせて弱まる
+  if (isWeapon || glow.shield) {
+    emissive = emissive.add(
+      weaponTelegraphNode(
+        controls.rim,
+        glow.hasEdge ? attribute('_edge', 'vec2').x : undefined,
+      ).mul(float(1).sub(charred)),
+    );
+  }
 
   // NaN / Inf・極端な値を出さない（ブルームのぼかしで画面へ広がる。#258）。通常の値（縁の熾火は最大 3.2 × 熾火色）は変わらない
   material.colorNode = finiteColor(albedo, 8);
@@ -461,7 +461,7 @@ function createUndeadMaterial(
   // テレグラフ中は刃を少し太らせる（追加の描画なし。頂点位置のオフセットだけ）
   if (isWeapon || glow.shield) {
     material.positionNode = positionLocal.add(
-      normalLocal.mul(controls.rim.weapon.mul(RIM.telegraphInflate)),
+      normalLocal.mul(controls.rim.weapon.mul(TELEGRAPH.inflate)),
     );
   }
   // 完全に消えた画素を捨てる（ブレンド無し、半透明パスにならない）

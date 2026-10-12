@@ -1,57 +1,75 @@
-/** 取得アイテムの定義（仕様書 2.1 / 14.4 / 14.8 節）。データ（ID・名前・説明・効果）だけを持ち、ロジックは `game/item/` が読む。 */
-import type { StatMod } from './world/types';
+/**
+ * 取得アイテムの定義（仕様書 2.1 / 14.4 / 14.8 節）。データ（ID・種類・効果）は `items.json`、ロジックは `game/item/` が読む。
+ * 名前・説明文・取得通知の文面は `texts.json` の `item.<id>.name|desc|notice`。
+ */
+import { s, type Infer } from '../../core/schema';
+import json from './items.json';
+import { loadData } from './loadData';
 
-export type ItemEffect = { readonly type: 'flaskMax'; readonly amount: number };
+const ItemEffectSchema = s.object({ type: s.literal('flaskMax'), amount: s.number({ min: 1 }) });
+export type ItemEffect = Infer<typeof ItemEffectSchema>;
 
-export type ItemKind = 'passive' | 'weapon' | 'consumable' | 'relic';
+const ItemKindSchema = s.literal('passive', 'weapon', 'consumable', 'relic');
+export type ItemKind = Infer<typeof ItemKindSchema>;
 
-export interface ItemDef {
+const StatModSchema = s.object({
+  stat: s.literal(
+    'staminaRegenDelayF',
+    'staminaRegenPerSec',
+    'guardRegenPerSec',
+    'zeroStaminaDelayF',
+    'healAmount',
+  ),
+  set: s.number(),
+});
+
+const ItemEntrySchema = s.object({
   /** セーブの `items` のキー。 */
-  readonly id: string;
-  readonly kind: ItemKind;
-  /** 名前・説明文・取得通知の文面（`texts.ja.ts` のキー）。 */
+  id: s.string(),
+  kind: ItemKindSchema,
+  /** 取得時（と起動時）に適用する効果。効果のないアイテム（遺品）や、効果の実装が E11-2 のものは省略。 */
+  effect: s.optional(ItemEffectSchema),
+  /** パッシブ: 有効にする数値（E11-2 が適用する）。 */
+  mods: s.optional(s.array(StatModSchema)),
+  /** 武器: `game/data/weapons` のキー（E11-2）。 */
+  weaponId: s.optional(s.string()),
+  /** 消耗品の最大所持数。 */
+  maxCount: s.optional(s.number({ min: 1, integer: true })),
+});
+
+export const ItemsDataSchema = s.object({
+  /** 取得通知の表示時間（秒）。表示は E6-2b。 */
+  noticeSeconds: s.number({ min: 0 }),
+  /** 反応半径（m）。 */
+  radiusM: s.number({ min: 0 }),
+  items: s.refine(s.array(ItemEntrySchema), (list) => {
+    const ids = list.map((i) => i.id);
+    const dup = ids.find((id, i) => ids.indexOf(id) !== i);
+    return dup === undefined ? undefined : `duplicate item id "${dup}"`;
+  }),
+});
+
+export type ItemDef = Infer<typeof ItemEntrySchema> & {
+  /** 名前・説明文・取得通知（9.1 節。3 秒表示）の文面（`texts.json` のキー）。 */
   readonly nameId: string;
   readonly descId: string;
-  /** 取得通知の文言（9.1 節。3 秒表示）。 */
   readonly noticeId: string;
-  /** 取得時（と起動時）に適用する効果。効果のないアイテム（遺品）や、効果の実装が E11-2 のものは省略。 */
-  readonly effect?: ItemEffect;
-  /** パッシブ: 有効にする数値（E11-2 が適用する）。 */
-  readonly mods?: readonly StatMod[];
-  /** 武器: `game/data/weapons` のキー（E11-2）。 */
-  readonly weaponId?: string;
-  /** 消耗品の最大所持数。 */
-  readonly maxCount?: number;
-}
+};
 
-const def = (id: string, kind: ItemKind, extra: Partial<ItemDef> = {}): [string, ItemDef] => [
-  id,
-  {
-    id,
-    kind,
-    nameId: `item.${id}.name`,
-    descId: `item.${id}.desc`,
-    noticeId: `item.${id}.notice`,
-    ...extra,
-  },
-];
+const data = loadData(ItemsDataSchema, json, 'items.json');
 
-export const ITEM_DEFS: Readonly<Record<string, ItemDef>> = Object.fromEntries([
-  def('flask_up', 'consumable', { effect: { type: 'flaskMax', amount: 1 } }),
-  // 効果（数値・武器の切替）は E11-2。ここでは取得・所持・文面だけ
-  def('talisman_ash', 'passive'),
-  def('drop_clear', 'passive'),
-  def('sword_gravekeeper', 'weapon', { weaponId: 'sword_gravekeeper' }),
-  def('oil_jar', 'consumable', { maxCount: 3 }),
-  def('relic_flask', 'relic'),
-  def('relic_letter', 'relic'),
-  def('relic_ring', 'relic'),
-  def('relic_medal', 'relic'),
-]);
+export const ITEM_DEFS: Readonly<Record<string, ItemDef>> = Object.freeze(
+  Object.fromEntries(
+    data.items.map((item): [string, ItemDef] => [
+      item.id,
+      Object.freeze({
+        ...item,
+        nameId: `item.${item.id}.name`,
+        descId: `item.${item.id}.desc`,
+        noticeId: `item.${item.id}.notice`,
+      }),
+    ]),
+  ),
+);
 
-export const ITEM = {
-  /** 取得通知の表示時間（秒）。表示は E6-2b。 */
-  noticeSeconds: 3,
-  /** 反応半径（m）。 */
-  radiusM: 1.4,
-} as const;
+export const ITEM = { noticeSeconds: data.noticeSeconds, radiusM: data.radiusM } as const;

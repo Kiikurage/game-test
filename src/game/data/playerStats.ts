@@ -1,54 +1,68 @@
-/** プレイヤーのステータス・スタミナ・移動・入力バッファ（仕様書 2.1 / 2.2 / 2.4 節）。初期値で調整対象。 */
+/**
+ * プレイヤーのステータス・スタミナ・移動・入力バッファ（仕様書 2.1 / 2.2 / 2.4 節）。
+ * 値は `playerStats.json`（スキーマは下、読み込みは `loadData.ts`）。
+ */
+import { s, type Infer } from '../../core/schema';
+import { loadData } from './loadData';
+import json from './playerStats.json';
 
-export const PLAYER_STATS = {
-  hp: 300,
-  stamina: 100,
-  /** 武器（直剣）の基本攻撃力。ダメージ = 基本攻撃力 × モーション倍率（四捨五入）。 */
-  attackPower: 40,
-  /** 強靭度（ポイズ）。 */
-  poise: 40,
-  /** 身長（m）と被弾判定カプセル。 */
-  height: 1.8,
-  hurtCapsule: { radius: 0.35, height: 1.8 },
-  /** 回復瓶: 初期数、礼拝堂のアイテムで増える最大数。篝火で最大数まで補充。 */
-  flask: { initial: 3, max: 4 },
-} as const;
+const pos = s.number({ min: 0 });
+const frames = s.number({ min: 0, integer: true });
 
-/** スタミナ回復（2.1 節）。1F あたりの回復量は `perSecond / 60`（40 → 0.667/F）。 */
-export const STAMINA = {
-  /** 最後の消費から回復開始までの待ち（F）。 */
-  regenDelayFrames: 45,
-  /** 0 になった瞬間の回復開始までの待ち（F）。 */
-  depletedDelayFrames: 60,
-  regenPerSecond: 40,
-  /** ガード中の回復（毎秒）。 */
-  guardRegenPerSecond: 20,
-  /** ダッシュの消費（毎秒）。走り・ダッシュ中は回復しない。 */
-  dashCostPerSecond: 10,
-} as const;
+export const PlayerStatsDataSchema = s.object({
+  player: s.object({
+    hp: s.number({ min: 1 }),
+    stamina: pos,
+    /** 武器（直剣）の基本攻撃力。ダメージ = 基本攻撃力 × モーション倍率（四捨五入）。 */
+    attackPower: pos,
+    /** 強靭度（ポイズ）。 */
+    poise: pos,
+    /** 身長（m）と被弾判定カプセル。 */
+    height: pos,
+    hurtCapsule: s.object({ radius: pos, height: pos }),
+    /** 回復瓶: 初期数、礼拝堂のアイテムで増える最大数。篝火で最大数まで補充。 */
+    flask: s.refine(s.object({ initial: frames, max: frames }), (f) =>
+      f.initial > f.max ? `initial (${f.initial}) > max (${f.max})` : undefined,
+    ),
+  }),
+  /** スタミナ回復（2.1 節）。1F あたりの回復量は `perSecond / 60`（40 → 0.667/F）。 */
+  stamina: s.object({
+    /** 最後の消費から回復開始までの待ち（F）。 */
+    regenDelayFrames: frames,
+    /** 0 になった瞬間の回復開始までの待ち（F）。 */
+    depletedDelayFrames: frames,
+    regenPerSecond: pos,
+    /** ガード中の回復（毎秒）。 */
+    guardRegenPerSecond: pos,
+    /** ダッシュの消費（毎秒）。走り・ダッシュ中は回復しない。 */
+    dashCostPerSecond: pos,
+  }),
+  /** 移動速度（m/s）と加減速（2.2 節）。 */
+  movement: s.object({
+    walk: pos,
+    run: pos,
+    dash: pos,
+    lockOn: s.object({ side: pos, back: pos, dash: pos }),
+    guard: pos,
+    guardLockOn: pos,
+    heal: pos,
+    /** 静止 → 走り最高速までのF、停止までのF。 */
+    accelFrames: frames,
+    stopFrames: frames,
+    /** フリー時の旋回（度/秒）。 */
+    turnDegPerSecond: pos,
+    /** 登れる傾斜（度）と自動で乗り越える段差（m）。 */
+    maxSlopeDeg: s.number({ min: 0, max: 90 }),
+    stepHeight: pos,
+  }),
+  /** 先行入力（Buffer）の保持フレーム数（2.4 節）。ガードは保持入力なので常時。 */
+  inputBufferFrames: s.object({ attack: frames, roll: frames, heal: frames }),
+});
+export type PlayerStatsData = Infer<typeof PlayerStatsDataSchema>;
 
-/** 移動速度（m/s）と加減速（2.2 節）。 */
-export const MOVEMENT = {
-  walk: 1.8,
-  run: 4.5,
-  dash: 6.5,
-  lockOn: { side: 3.8, back: 2.6, dash: 5.5 },
-  guard: 1.8,
-  guardLockOn: 1.4,
-  heal: 1.0,
-  /** 静止 → 走り最高速までのF、停止までのF。 */
-  accelFrames: 8,
-  stopFrames: 6,
-  /** フリー時の旋回（度/秒）。 */
-  turnDegPerSecond: 720,
-  /** 登れる傾斜（度）と自動で乗り越える段差（m）。 */
-  maxSlopeDeg: 40,
-  stepHeight: 0.35,
-} as const;
+const data = loadData(PlayerStatsDataSchema, json, 'playerStats.json');
 
-/** 先行入力（Buffer）の保持フレーム数（2.4 節）。ガードは保持入力なので常時。 */
-export const INPUT_BUFFER_FRAMES = {
-  attack: 10,
-  roll: 8,
-  heal: 6,
-} as const;
+export const PLAYER_STATS = data.player;
+export const STAMINA = data.stamina;
+export const MOVEMENT = data.movement;
+export const INPUT_BUFFER_FRAMES = data.inputBufferFrames;

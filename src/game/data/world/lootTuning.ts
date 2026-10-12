@@ -1,3 +1,5 @@
+import { SAVE_FLAGS } from '../../../core/persistence';
+
 /** 「調べる」（loot）の数値（仕様書 14.5 節）。 */
 export const LOOT = {
   /** 動作の長さ（フレーム。`Crouch_*`。この間は無防備）。 */
@@ -6,19 +8,11 @@ export const LOOT = {
   effectFrame: 30,
 } as const;
 
-/** 読んだ・調べた印のフラグ名。 */
-export const readFlag = (id: string): string => `read.${id}`;
-export const lootFlag = (id: string): string => `loot.${id}`;
-/** 初回だけ出す文（`showText` の `firstOnly`）を出した印。 */
-export const shownFlag = (textId: string): string => `shown.${textId}`;
-
-/** 世界に残るフラグ名（セーブの `flags`）。 */
-export const WORLD_FLAGS = {
-  /** 鉄格子 D を開けた（開けたまま残る）。 */
-  grateDOpen: 'world.grateDOpen',
-  /** 亀裂の壁 G1 を壊した（元に戻らない）。 */
-  wallG1Broken: 'world.wallG1Broken',
-} as const;
+/** フラグ名（定義は `core/persistence/saveSchema.ts` の `SAVE_FLAGS`）。 */
+export const readFlag = SAVE_FLAGS.read;
+export const lootFlag = SAVE_FLAGS.loot;
+export const shownFlag = SAVE_FLAGS.shown;
+export const WORLD_FLAGS = SAVE_FLAGS.world;
 
 /** 祈る（`pray`）の数値（仕様書 14.5 節）。動作 120F・環境音 −6dB / 180F は配置データ（`Effect`）。 */
 export const PRAY = {

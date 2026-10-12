@@ -1,0 +1,184 @@
+// フレームパイプライン（#317）: scene パス（MRT で G バッファも書く）→ 登録されたパスを段の順に通す → トーンマップ / sRGB 出力。
+// パスの追加は `framePasses.ts` の `registerFramePass`（`*.pass.ts` は自動で読み込む）。パス別 GPU 時間は `gpuTimer.ts`。
+import {
+  RenderPipeline,
+  type Camera,
+  type Node,
+  type Scene,
+  type TextureNode,
+  type WebGPURenderer,
+} from 'three/webgpu';
+import {
+  unpackRGBToNormal,
+  packNormalToRGB,
+  mrt,
+  normalView,
+  output,
+  pass,
+  velocity,
+  vec4,
+} from 'three/tsl';
+import type { QualityPreset } from '../quality';
+import { finiteColor } from '../finiteColor';
+import {
+  orderedFramePasses,
+  type FramePassContext,
+  type FramePassDef,
+  type GBufferChannel,
+} from './framePasses';
+import type { GpuTimer, PassLabeler } from './gpuTimer';
+import type { GradeApi, ScreenEffect } from './passes/grade.pass';
+
+import.meta.glob('../**/*.pass.ts', { eager: true });
+
+export type { ScreenEffect } from './passes/grade.pass';
+
+export interface SceneStats {
+  /** 画素数 x チャンネル数のうち NaN / Inf の個数。 */
+  readonly nonFinite: number;
+  /** 有限値の最大成分（RGB）。 */
+  readonly maxRgb: number;
+}
+
+/** 半精度浮動小数の RGBA 配列から、非有限値の個数と有限値の最大 RGB 成分を数える。 */
+export function analyzeHalfFloatRgba(data: ArrayLike<number>): SceneStats {
+  let nonFinite = 0;
+  let max = 0;
+  for (let i = 0; i < data.length; i++) {
+    const h = data[i] ?? 0;
+    const exp = (h >> 10) & 0x1f;
+    if (exp === 0x1f) {
+      nonFinite++;
+      continue;
+    }
+    if (i % 4 === 3 || (h & 0x8000) !== 0) continue;
+    const mant = h & 0x3ff;
+    const v = exp === 0 ? (mant / 1024) * 2 ** -14 : (1 + mant / 1024) * 2 ** (exp - 15);
+    if (v > max) max = v;
+  }
+  return { nonFinite, maxRgb: max };
+}
+
+export interface FramePipeline {
+  /** 組み込まれたパス（描画順。scene と output を含む）。`?debug` の表示用。 */
+  readonly passIds: readonly string[];
+  /** scene パスが書いている G バッファの出力。 */
+  readonly gbuffer: readonly GBufferChannel[];
+  /** 登録パスの API（`FramePassResult.api`）を取り出す。そのパスが無効なら undefined。 */
+  pass(id: string): unknown;
+  /** 画面演出のパラメータを設定する（grade パスへの近道）。 */
+  setScreenEffect(effect: Partial<ScreenEffect>): void;
+  /**
+   * ブルームへ渡る HDR シーン色（scene パスのレンダーターゲット）を読み出し、非有限値（NaN / Inf）の個数と
+   * 有限値の最大成分を返す（#258 の回帰テスト用。GPU 同期を伴うので通常は呼ばない）。
+   */
+  readSceneStats(): Promise<SceneStats>;
+  /** 1 フレームを描画する。 */
+  render(): void;
+  dispose(): void;
+}
+
+/**
+ * 有効なパスを段の順に組み立てる。`defs` は単体テスト用（省略時は登録済みのパス）。
+ * `timer` を渡すと、各パスのレンダーターゲットをそのパス名で GPU 時間に数える。
+ */
+export function createFramePipeline(
+  renderer: WebGPURenderer,
+  scene: Scene,
+  camera: Camera,
+  preset: QualityPreset,
+  timer?: GpuTimer,
+  defs?: readonly FramePassDef[],
+): FramePipeline {
+  const passes = orderedFramePasses(preset, defs);
+  const gbuffer = [...new Set(passes.flatMap((p) => p.gbuffer ?? []))].sort();
+
+  const scenePass = pass(scene, camera);
+  if (gbuffer.length > 0) {
+    const outputs: Record<string, Node> = { output };
+    if (gbuffer.includes('normal')) outputs.normal = packNormalToRGB(normalView);
+    if (gbuffer.includes('velocity')) outputs.velocity = velocity;
+    scenePass.setMRT(mrt(outputs));
+  }
+  const depth = scenePass.getTextureNode('depth');
+
+  const ctxFor = (def: FramePassDef): FramePassContext => {
+    const requireChannel = (c: GBufferChannel): void => {
+      if (!def.gbuffer?.includes(c)) {
+        throw new Error(`frame pass "${def.id}" reads G-buffer "${c}" without declaring it`);
+      }
+    };
+    return {
+      renderer,
+      scene,
+      camera,
+      preset,
+      scenePass,
+      depth,
+      normal: () => {
+        requireChannel('normal');
+        return unpackRGBToNormal(scenePass.getTextureNode('normal').rgb);
+      },
+      velocity: (): TextureNode => {
+        requireChannel('velocity');
+        return scenePass.getTextureNode('velocity');
+      },
+    };
+  };
+
+  const rawSceneColor = scenePass.getTextureNode('output');
+  // NaN / Inf・極端な HDR 値はブルームのぼかしで画面全体へ広がる（#258）ので、後段に渡す前に有限値へ丸める
+  let color: Node<'vec4'> = vec4(finiteColor(rawSceneColor.rgb), rawSceneColor.a);
+
+  const targetLabels = new Map<unknown, string>([[scenePass.renderTarget, 'scene']]);
+  const apis = new Map<string, unknown>();
+  const beforeRender: { id: string; fn: () => void }[] = [];
+  const disposers: (() => void)[] = [];
+  for (const def of passes) {
+    const result = def.build(ctxFor(def), color);
+    color = result.color;
+    for (const t of result.targets ?? []) targetLabels.set(t, def.id);
+    if (result.api !== undefined) apis.set(def.id, result.api);
+    if (result.beforeRender) beforeRender.push({ id: def.id, fn: result.beforeRender });
+    if (result.dispose) disposers.push(result.dispose);
+  }
+
+  const pipeline = new RenderPipeline(renderer);
+  pipeline.outputNode = color;
+
+  const passIds = ['scene', ...passes.map((p) => p.id), 'output'];
+  if (timer) {
+    const labeler: PassLabeler = {
+      labelFor: (target) => targetLabels.get(target),
+    };
+    timer.labeler = labeler;
+    // 登録パス以外のラベル（gpuTimer が付ける）: compute（ラベル無しのコンピュート）、shadow（ShadowNode。scene の前に描かれる）、
+    // reflection（ReflectorNode）、output（キャンバスへの最終パス = 最後の合成 + トーンマップ + sRGB）、other（不明）
+    timer.order = ['compute', 'shadow', 'reflection', ...passIds, 'other'];
+  }
+
+  return {
+    passIds,
+    gbuffer,
+    pass: (id) => apis.get(id),
+    setScreenEffect: (effect) => {
+      (apis.get('grade') as GradeApi | undefined)?.setScreenEffect(effect);
+    },
+    readSceneStats: async () => {
+      const rt = scenePass.renderTarget;
+      const data = await renderer.readRenderTargetPixelsAsync(rt, 0, 0, rt.width, rt.height);
+      return analyzeHalfFloatRgba(data);
+    },
+    render: () => {
+      for (const b of beforeRender) {
+        if (timer) timer.withLabel(b.id, b.fn);
+        else b.fn();
+      }
+      pipeline.render();
+    },
+    dispose: () => {
+      for (const d of disposers) d();
+      pipeline.dispose();
+    },
+  };
+}

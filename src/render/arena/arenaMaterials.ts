@@ -1,6 +1,5 @@
 import { createUberMaterial, type UberMaterial, type UberSurface } from '../uberMaterial';
 import type { Node } from 'three/webgpu';
-import { torchGlow, type Torch } from './arenaTorches';
 import { bakedHash, bakedNoise, getMaterialDetail } from '../bakedNoise';
 import {
   abs,
@@ -20,7 +19,6 @@ import {
   mix,
   normalize,
   normalView,
-  normalWorld,
   positionView,
   positionWorld,
   round,
@@ -223,7 +221,6 @@ export interface ArenaFloorOptions {
   readonly pillars: readonly { readonly x: number; readonly z: number }[];
   /** 台座の半径。 */
   readonly pedestalRadius: number;
-  readonly torches: readonly Torch[];
 }
 
 export function createArenaFloorMaterial(o: ArenaFloorOptions): UberMaterial {
@@ -291,7 +288,6 @@ export function createArenaFloorMaterial(o: ArenaFloorOptions): UberMaterial {
     {
       color,
       normal: bumpNormal(shade.height, 1),
-      emissive: color.mul(torchGlow(p, vec3(0, 1, 0), o.torches, 2.1)),
     },
     shade.roughness,
     'arenaFloor',
@@ -311,7 +307,6 @@ export interface ArenaMasonryOptions {
   readonly cracks: number;
   /** 汚れの強さ。 */
   readonly grime: number;
-  readonly torches: readonly Torch[];
 }
 
 /** 石積みの壁・柱・台座。頂点属性 `wallS` / `wallV`（`arenaGeometry.ts`）が石の段と目地を決める。 */
@@ -359,7 +354,6 @@ export function createArenaMasonryMaterial(o: ArenaMasonryOptions): UberMaterial
     {
       color: shade.color,
       normal: bumpNormal(shade.height, 1),
-      emissive: shade.color.mul(torchGlow(p, normalWorld, o.torches, 2.1)),
     },
     shade.roughness,
     'arenaMasonry',

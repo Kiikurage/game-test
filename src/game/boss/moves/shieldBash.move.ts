@@ -1,6 +1,7 @@
 import { sectorShape } from '../../combat';
+import { BOSS_MOVES_DATA } from '../../data/bossMoves';
 import { registerBossMove, type BossMoveContext, type BossStageDef } from '../bossMove';
-import { OVERHEAD_APEX_OFFSET, OVERHEAD_REACH } from './overhead.move';
+import { OVERHEAD_APEX_OFFSET } from './overhead.move';
 
 /**
  * 技 4 盾打ち → 斬り下ろし（フェーズ 1 のみ。仕様書 6.3 節）。近距離の技。
@@ -24,50 +25,16 @@ import { OVERHEAD_APEX_OFFSET, OVERHEAD_REACH } from './overhead.move';
  */
 
 /** 盾打ちの射程（m）。 */
-export const SHIELD_BASH_RANGE = 2.6;
-/** 盾打ちで吹き飛ばす距離（m。未ガードで命中したとき）。 */
-export const SHIELD_BASH_KNOCKBACK = 3.0;
+const { params: P, ...MOVE } = BOSS_MOVES_DATA.shieldBash;
+
+export const SHIELD_BASH_RANGE = MOVE.stages[0]?.range ?? 0;
+export const SHIELD_BASH_KNOCKBACK = MOVE.stages[0]?.knockback ?? 0;
 /** 追撃の踏み込み: 相手との距離をこの値（m）まで詰める。 */
-export const SLASH_REACH_TARGET = 3.2;
+export const SLASH_REACH_TARGET = P.slashReachTarget;
 /** 追撃の踏み込みの最大距離（m）。 */
-export const SLASH_LUNGE_MAX = 3.0;
+export const SLASH_LUNGE_MAX = P.slashLungeMax;
 /** 追撃の踏み込みを行う F（段の F1〜）。 */
-export const SLASH_LUNGE_FRAMES = 18;
-
-const BASH: BossStageDef = {
-  id: 'shieldBash.1',
-  startup: 26,
-  active: 5,
-  recovery: 12,
-  damage: 60,
-  poiseDamage: 60,
-  guardStaminaCost: 40,
-  moveDistance: 0,
-  arcDeg: 90,
-  range: SHIELD_BASH_RANGE,
-  telegraph: 'normal',
-  knockback: SHIELD_BASH_KNOCKBACK,
-  // 追尾は発生の 12F 前まで（向き固定の猶予）
-  trackEndFrame: 14,
-};
-
-const SLASH: BossStageDef = {
-  id: 'shieldBash.2',
-  startup: 36,
-  active: 6,
-  recovery: 50,
-  damage: 100,
-  poiseDamage: 70,
-  guardStaminaCost: 60,
-  moveDistance: 0,
-  arcDeg: 60,
-  range: OVERHEAD_REACH,
-  heavy: true,
-  telegraph: 'heavy',
-  followUp: true,
-  trackEndFrame: 12,
-  trackRate: 0.5,
-};
+export const SLASH_LUNGE_FRAMES = P.slashLungeFrames;
 
 /** 追撃の踏み込みの総距離（m）。向きの方向に測った相手までの距離から決める。 */
 export function slashLungeDistance(forwardDistance: number): number {
@@ -79,11 +46,7 @@ const lunge = new WeakMap<object, number>();
 
 registerBossMove({
   id: 'shieldBash',
-  name: '盾打ち → 斬り下ろし',
-  phases: [1],
-  stages: [BASH, SLASH],
-  // 近距離の技。足を止めてから盾を構える
-  approach: { speed: 'walk', stopRange: 2.6 },
+  ...MOVE,
   hooks: {
     onStageStart(ctx) {
       if (ctx.stageIndex !== 1) return;

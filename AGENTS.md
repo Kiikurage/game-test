@@ -120,7 +120,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest ユニットテスト（`src/**/*.test.ts`） |
 | `npm run e2e` | Playwright E2E（ビルド → preview 配信 → ヘッドレス WebGPU で起動確認） |
-| `npm run perf -- [low\|medium\|high]` | 計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
+| `npm run perf -- [low\|medium\|high]` | （`GPU_NOVSYNC=1 PERF_PC=1 GPU_MODE=hardware` でパス別 GPU 時間と vsync 無しのフレーム時間）計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
 | `npm run profile -- [low\|medium\|high] [frames]` | 墓地・戦闘中の 1 フレームあたりの JS 時間を関数別に集計（CDP Profiler。手順は [`docs/performance.md`](docs/performance.md)） |
 | `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
 | `npm run assets:check [-- --dist]` | アセット検査（tech-direction §4.1・§4.3・§4.4）: 形式（glb / KTX2 / Ogg）・三角形数・テクスチャ解像度・ファイルサイズ・`manifest.json` の整合。`--dist` で `dist/` の内容ハッシュ名と配信予算（圧縮後: 合計 40MB・開始画面まで 5MB）も見る。予算は `scripts/assets/check.mjs` の `BUDGET`。CI が実行する |
@@ -171,22 +171,27 @@ src/
   audio/         Web Audio のバス・音量・ダッキング・resume（DOM 非依存の純粋ロジック + AudioContext ラッパー）
   input/         入力デバイス（キーボード/マウス・ゲームパッド・タッチ）。game には入力スナップショットだけ渡す（型は core/input.ts、操作割当は docs/controls.md）
   ui/            DOM オーバーレイ（非対応画面・横画面ヒント・今後の HUD）
+  presentation/  表示用状態（HUD・ボス HP バー・操作ヒント・通知）。game の状態とイベントを読み、`stepEnd` ごとに進める。DOM 非依存
 ```
 
-- 依存方向: `main` → `render` / `game` / `input` / `ui` / `audio` → `core`。`game` は `render` / `input` / `ui` / `audio` を import しない（game は音のイベントを出し、main が audio へ繋ぐ）。
+- 依存方向: `main` → `render` / `game` / `input` / `ui` / `audio` → `core`。`render` → `presentation` → `game`。`game` は `render` / `presentation` / `input` / `ui` / `audio` を import しない（game は音のイベントを出し、main が audio へ繋ぐ）。HUD などの表示用状態（残像・点滅・フェード）は game に置かず `presentation` に置く（`hudPresentation(game)`）。
 - シミュレーションは 60Hz 固定ステップ（`Game.update(dt)`）、描画はフレームごとに `alpha` で補間（`InterpolatedTransform`）。
   描画対象の位置・回転は `InterpolatedTransform` として game 側に持たせ、render 側は `sample(alpha, ...)` で読む。
 
 ### 新しいサブシステムの追加手順（共有ファイルを編集しない）
 
 `src/main.ts` / `src/game/game.ts` / `src/render/gameView.ts` は、新機能のために既存行を編集しない（並行 PR の競合を避ける）。
-自分のファイルを作り、次の登録口に登録する。`*.dev.ts` / `*.system.ts` / `*.view.ts` は各ファイルが自動で読み込まれる。
+自分のファイルを作り、次の登録口に登録する。`*.dev.ts` / `*.system.ts` / `*.view.ts` / `*.scene.ts` は各ファイルが自動で読み込まれる。
 
 | 足すもの | 作るファイル | 呼ぶ API |
 | --- | --- | --- |
 | ゲームロジック（毎ステップの更新・命中時の処理） | `src/game/<feature>/<feature>.system.ts` | `export const xSystem = registerGameSystem(id, (game) => ({ state?, update?(dt), onImpact?(e) }), { after?, before? })`（`src/game/systems.ts`）。状態は `game.systems.get(xSystem)` で型付きに取る |
 | 描画（シーンへの追加・毎フレーム更新・アセット読み込み） | `src/render/<feature>/<feature>.view.ts` | `registerViewPlugin(id, ({ game, view, gameRenderer, level }) => ({ load?(), update?(dt) }))`（`src/render/viewPlugins.ts`） |
+| フレームのパス（GTAO・体積霧・TAAU・ポストなど） | `src/render/<feature>/<feature>.pass.ts` | `registerFramePass({ id, stage, order?, gbuffer?, enabled?, build })`（`src/render/pipeline/framePasses.ts`。パス別 GPU 時間は `?debug` / `?perf`） |
+| 局所光源（篝火・たいまつ・燭台など影を落とさない点光源） | 自分の `*.view.ts` | `localLightsOf(view.scene).add({ position, color, intensity, distance, flickerPhase? })`（`src/render/lighting/localLights.ts`。クラスタードライティングで全マテリアルを照らす。マテリアルに偽のライトを足さない。起動時に登録し、消すときは `intensity = 0`） |
 | E2E・撮影用のデバッグフック（`window.__game.dev.*`） | `<feature>.dev.ts`（任意のディレクトリ） | `registerDevHooks(name, (ctx) => ({ ... }))` ＋ `declare module` で `DevHooks` に型を足す（`src/devHooks.ts`） |
+| `?scene=xxx` で選ぶシーン（ワールドの組み立て） | `src/game/**/<name>.scene.ts` | `registerScene(id, (params) => ({ level, options, cylinders }))`（`src/game/scenes.ts`）。レベルは `src/game/world/levels/*.json`（`loadLevelData` がスキーマ検証） |
+| 調整値などのゲームデータ | `src/game/data/<name>.json` ＋ 同名の `.ts`（スキーマ `s.*` を定義） | `loadData(schema, json, '<name>.json')`（`src/game/data/loadData.ts`）。data 配下の JSON は `data.test.ts` が全件の検証を確かめる |
 | `?xxx=` で起動する showcase（キャラクター確認表示） | `<feature>.dev.ts` | `registerShowcaseParams('xxx')`（`src/devHooks.ts`） |
 
 - 登録式にしていない既存の機能（プレイヤー・敵・被弾処理など）を変更するときは、従来どおり各ファイルを編集する。

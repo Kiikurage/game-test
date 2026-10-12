@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   BufferGeometry,
+  Color,
   Float32BufferAttribute,
   Group,
   Mesh,
@@ -17,6 +18,7 @@ import { createUberMaterial } from '../uberMaterial';
 import { createWaterFx, type SplashKind, type WaterFx } from './waterFx';
 import { buildWaterGrid, buildWaterSurface, isWater } from './waterLayout';
 import { createLightRig } from './waterLighting';
+import { localLightsOf } from '../lighting/localLights';
 import { createWaterMaterial } from './waterMaterial';
 import type { WaterFields } from './waterNodes';
 import { buildWaterShell } from './waterShell';
@@ -31,12 +33,17 @@ import {
   DRIP_SPOTS,
   insideWaterway,
   nearWaterwayMouth,
+  torchFlame,
   waterLayoutInput,
   waterwayLights,
+  waterwayTorches,
 } from './waterwayLevel';
 import { waterwaySystem } from '../../game/world/waterway.system';
 
 const DEG = Math.PI / 180;
+
+/** 壁のたいまつの光（実ライト。色はリニア）。 */
+const WATERWAY_TORCH_LIGHT = { color: new Color(1, 0.44, 0.16), intensity: 5, distance: 9 };
 
 /**
  * 地下水路のムード（暗く冷たい。主光源はたいまつ・床板の穴の光・苔の偽のライト）。
@@ -175,6 +182,18 @@ registerViewPlugin('waterway', ({ game, view, level, gameRenderer }) => {
   const grid = buildWaterGrid(waterLayoutInput(level, way), quality.simCell);
   const holeY = hatchBox ? hatchBox.y + hatchBox.hy : grid.floorY + 2.4;
   const rig = createLightRig(waterwayLights(grid.floorY), holeY);
+  // たいまつは実ライト（#322）。殻（石の壁・床）や人物はこれで照らされる。水面・霧・しぶき（光を受けない
+  // マテリアル）は同じ位置のたいまつを `lightAt` で足す
+  const localLights = localLightsOf(view.scene);
+  waterwayTorches(grid.floorY).forEach((t, i) => {
+    localLights.add({
+      position: torchFlame(t),
+      color: WATERWAY_TORCH_LIGHT.color,
+      intensity: WATERWAY_TORCH_LIGHT.intensity,
+      distance: WATERWAY_TORCH_LIGHT.distance,
+      flickerPhase: i * 2.13,
+    });
+  });
   const sim = drawEnabled ? new WaterSim(gameRenderer.renderer, grid) : null;
   const layoutTexture = createLayoutTexture(grid);
   const waterRects = way.rects.filter((r) => r.water);

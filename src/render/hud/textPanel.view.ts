@@ -2,11 +2,11 @@
 import { mountTextPanel, type TextPanelView } from '../../ui/hud/textPanel';
 import { registerViewPlugin } from '../viewPlugins';
 import { textPanelSystem } from '../../game/text/textPanel.system';
-import { hudSystem } from '../../game/hud/hud.system';
+import { hudPresentation } from '../../presentation/hud/hudPresentation';
 
 registerViewPlugin('textPanel', ({ game }) => {
   const model = game.systems.get(textPanelSystem);
-  const hud = game.systems.get(hudSystem);
+  const { hud } = hudPresentation(game);
   const view: TextPanelView = {
     get page() {
       return model.current;

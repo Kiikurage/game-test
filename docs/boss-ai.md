@@ -146,7 +146,7 @@ registerBossMove({
 | 120 | `end`: 戦闘再開（ボスは `setPhase(2)`。最初の技は遠距離帯の跳躍か灰の波） | `Boss` |
 
 - カメラ（`cameraClips.ts`）は仕様どおり（F60 までに +1.5m・FOV +6°・振動 0.8° を 60F、F100–F120 で戻す）なので調整なし。再生は `start` の瞬間から（クリップの F60 が咆哮に合う）。
-- 赤い縁取りは `postprocess.ts` の `ScreenEffect.rim`（死亡演出の `setScreenEffect` と同じ口。追加パスなし）。強さは `rimAtTransitionFrame`（立ち上がり 6F・保持 12F・減衰 12F）。
+- 赤い縁取りは `pipeline/passes/grade.pass.ts` の `ScreenEffect.rim`（死亡演出の `setScreenEffect` と同じ口。追加パスなし）。強さは `rimAtTransitionFrame`（立ち上がり 6F・保持 12F・減衰 12F）。
 - プレイヤーは移行中も操作できる（移動・ロール・回復。ボスの無敵は `UprightTarget.invulnerable`）。ロックオンも維持される。
 - 途中でボスがリセットされたら（死亡・篝火）、カメラ演出・ダッキングを止めて `bossTransition` `end`（`aborted: true`）を発行し、描画は盾と熾火をフェーズ 1 の見た目へ戻す。
 - 一時停止・スローでも合うよう、描画は `game.systems.get(bossTransitionSystem).frame`（移行 F。演出中でなければ -1）を読んで進める（盾の飛行も F から進める）。
@@ -220,8 +220,8 @@ it('大上段は左右ロールを F36–F46 で入力して回避できる', ()
 `bossEngaged` で出て、`bossDefeated` / `bossReset` / プレイヤーの死亡（`death` の `start`）で消える。上記イベントだけを購読する（ボスの内部状態は読まない）。
 
 ```
-src/game/hud/bossBarModel.ts    状態（琥珀色の残像 60F 遅延・目盛り・フェーズ移行の 20F 発光・30F フェード）。DOM 非依存
-src/game/hud/bossBar.system.ts  イベント購読と毎ステップの更新。bossBarSystem
+src/presentation/hud/bossBarModel.ts 状態（琥珀色の残像 60F 遅延・目盛り・フェーズ移行の 20F 発光・30F フェード）。DOM 非依存
+src/presentation/hud/hudPresentation.ts  イベント購読と毎ステップ（stepEnd）の更新。hudPresentation(game).bossBar
 src/ui/hud/bossBar.ts / .css    DOM（画面下中央、下端から 48px、幅 min(50vw, 560px)、高さ 12px、名前 16px）
 src/render/hud/bossBar.view.ts  ビュープラグイン。不透明度は HUD 全体のフェード（死亡演出・休憩）との積
 ```

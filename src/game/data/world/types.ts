@@ -1,7 +1,7 @@
 // インタラクト対象・効果の型（仕様書 14.8 節）。描画・DOM 非依存。コードに文面・座標・数値を埋め込まず、データで表す。
 import type { InteractVerb } from '../texts';
 
-/** 文面データ（`texts.ja.ts`）のキー。 */
+/** 文面データ（`texts.json` の `texts`）のキー。 */
 export type TextId = string;
 /** セーブの `flags` に入る文字列（`read.<id>` / `loot.<id>` / `pray.gate` / `world.wallG1Broken` など）。`boss.<id>` は撃破済みのボス。 */
 export type Flag = string;

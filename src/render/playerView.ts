@@ -7,7 +7,7 @@ import type { Character } from './assets/character';
 import { CharacterAssets } from './assets/characterAssets';
 import { PlayerAnimator, type PlayerAnimLayer } from './assets/playerAnimator';
 import { PlayerKitAssets, type CapeRig } from './player/playerKit';
-import { applyCharacterLight, type CharacterLight } from './characterLight';
+import { applyWeaponTelegraph, type WeaponTelegraph } from './weaponTelegraph';
 import { AMBUSH } from '../game/data';
 import { heavyChargeGlow } from './player/heavyChargeGlow';
 
@@ -39,7 +39,7 @@ export class PlayerView {
     private readonly animator: PlayerAnimator,
     readonly triangles: number,
     private readonly cape?: CapeRig,
-    private readonly light?: CharacterLight,
+    private readonly light?: WeaponTelegraph,
   ) {}
 
   private lastYaw = NaN;
@@ -71,8 +71,8 @@ export class PlayerView {
       return undefined;
     });
     const cape = kit?.equipKnight(character).cape;
-    // 逆光でも輪郭・武器が読めるよう補助光（リムライト・暗部の持ち上げ）を足す（#144）
-    const light = applyCharacterLight(character.root);
+    // 武器の発光（溜め攻撃のフィードバック）
+    const light = applyWeaponTelegraph(character.root);
     let triangles = 0;
     character.root.traverse((obj) => {
       if ((obj as { isMesh?: boolean }).isMesh) {
