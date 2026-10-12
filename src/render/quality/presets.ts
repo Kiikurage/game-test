@@ -81,8 +81,13 @@ export interface QualityPreset {
   readonly shadowMapSize: number;
   /** プレイヤー追従シャドウカメラがカバーする半径（m）。大きいほど遠くまで影が出るが解像度が粗くなる。 */
   readonly shadowRadius: number;
-  /** MSAA を使うか（4x）。 */
+  /** MSAA を使うか（4x）。TAAU と併用しない（TAAU が有効なら false にする）。 */
   readonly msaa: boolean;
+  /**
+   * TAAU（時間方向のアンチエイリアス + アップスケール。`render/taau/taau.pass.ts`）の内部解像度スケール。
+   * scene パスを出力解像度のこの倍率で描き、ジッタした複数フレームから出力解像度へ再構成する。0 で無効。
+   */
+  readonly taauScale: number;
   /** ブルームを有効にするか。 */
   readonly bloom: boolean;
   /** ブルームの強さ。 */
@@ -119,6 +124,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     shadowMapSize: 1024,
     shadowRadius: 16,
     msaa: false,
+    taauScale: 0,
     bloom: false,
     bloomStrength: 0,
     detailOctaves: 1,
@@ -150,6 +156,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     shadowMapSize: 1536,
     shadowRadius: 24,
     msaa: false,
+    taauScale: 0,
     bloom: true,
     bloomStrength: 0.35,
     detailOctaves: 2,
@@ -177,7 +184,9 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     level: 'high',
     shadowMapSize: 4096,
     shadowRadius: 32,
-    msaa: true,
+    // #318: MSAA の代わりに TAAU（内部 75% から再構成）。`?notaau` で MSAA に戻す
+    msaa: false,
+    taauScale: 0.75,
     bloom: true,
     bloomStrength: 0.45,
     detailOctaves: 3,
@@ -305,6 +314,10 @@ export interface PerfToggles {
   readonly noBloom: boolean;
   /** `?nomsaa`: MSAA を切る。 */
   readonly noMsaa: boolean;
+  /** `?notaau`: TAAU を切り、代わりに MSAA を使う（TAAU 導入前の high と同じ。`?nomsaa` と併用で AA なし）。 */
+  readonly noTaau: boolean;
+  /** `?taau=0.5..1`: TAAU の内部解像度スケールを上書きする（TAAU が有効な品質だけ。null は既定）。 */
+  readonly taauScale: number | null;
   /** `?nograss`: 草を置かない。 */
   readonly noGrass: boolean;
   /** `?noparticles`: パーティクルを描かない。 */
@@ -336,6 +349,8 @@ export function parsePerfToggles(search: string): PerfToggles {
     noShadow: on('noshadow'),
     noBloom: on('nobloom'),
     noMsaa: on('nomsaa'),
+    noTaau: on('notaau'),
+    taauScale: parseTaauScale(params.get('taau')),
     noGrass: on('nograss'),
     noParticles: on('noparticles'),
     noLights: on('nolights'),
@@ -344,12 +359,33 @@ export function parsePerfToggles(search: string): PerfToggles {
   };
 }
 
+/** `?taau=` の値（0.5..1）。範囲外・未指定は null。 */
+export function parseTaauScale(value: string | null): number | null {
+  if (value === null || value === '') return null;
+  const v = Number(value);
+  return Number.isFinite(v) && v >= 0.5 && v <= 1 ? v : null;
+}
+
 /** トグルに応じて品質プリセットの該当項目を落とす（変更なしなら同じオブジェクトを返す）。 */
 export function applyPerfToggles(preset: QualityPreset, toggles: PerfToggles): QualityPreset {
-  if (!toggles.noBloom && !toggles.noMsaa && !toggles.noGrass && !toggles.noLights) return preset;
+  const taauOn = preset.taauScale > 0;
+  const noTaau = toggles.noTaau && taauOn;
+  const taauScale = toggles.taauScale;
+  const rescale = taauScale !== null && taauOn && !noTaau;
+  if (
+    !toggles.noBloom &&
+    !toggles.noMsaa &&
+    !toggles.noGrass &&
+    !toggles.noLights &&
+    !noTaau &&
+    !rescale
+  )
+    return preset;
   return {
     ...preset,
     ...(toggles.noBloom && { bloom: false, bloomStrength: 0 }),
+    ...(noTaau && { taauScale: 0, msaa: true }),
+    ...(rescale && { taauScale }),
     ...(toggles.noMsaa && { msaa: false }),
     ...(toggles.noGrass && { grassCount: 0 }),
     ...(toggles.noLights && { particles: { ...preset.particles, bonfireLight: false } }),

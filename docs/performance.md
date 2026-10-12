@@ -143,6 +143,16 @@ Apple GPU（タイル型）では連続するレンダーパスが重なって�
 パス別（2 回目、ms）: shadow 0.23〜0.29 / scene 0.65〜1.39 / bloom 0.15〜0.16 / output 0.07。
 vsync 無しの frame は 1.6〜2.5ms（400fps 以上）で、PC high の 120fps（8.3ms）に対して現状は余裕がある。frame ≒ 描画 CPU なので CPU 律速。
 
+### TAAU（#318。high で MSAA の代わり）
+
+high は scene パスを内部 75%（`preset.taauScale`）で描き、`render/taau/taau.pass.ts`（temporal 段）で出力解像度へ再構成する。
+`?notaau` で TAAU 導入前の MSAA に戻る。`?taau=0.5..1` で内部解像度スケールを上書きできる。
+
+- 同じ条件（Mac・PC high・1280x720・`GPU_NOVSYNC=1 PERF_PC=1 GPU_MODE=hardware npm run perf -- high`）で導入前後を続けて計測。
+- パス別（ms）: scene 0.65〜1.42 → 0.47〜1.06（内部 75%）、taau 0.28〜0.30（入力 RTT + 再構成 + 履歴コピー）、他は同じ。
+- gpu busy 合計: 導入前 1.11〜1.95 / 導入後 1.24〜1.87（ほぼ同じ。scene の減少と taau の増加が相殺）。
+- 描画 CPU は +0.3〜0.5ms（パスが 2 つ増える分。計測時は他の作業と並走しており揺れがある）。
+
 ### JS の CPU 時間（`npm run profile`。墓地・戦闘中・敵 9 体・242 フレーム）
 
 | mode | JS ms/frame（CDP） | GC ms/frame | sim ms/frame | render ms/frame | worst frame ms |
@@ -285,6 +295,8 @@ toggles: noParticles flatMat             有効な切り分けトグル
 | `?scale=<0.25..1>` | 動的解像度を切って内部解像度の倍率を固定 | `<URL>/?perf&scale=0.5` |
 | `?quality=low\|medium\|high` | 品質プリセットを強制 | `<URL>/?perf&quality=low` |
 | `?nomsaa` | MSAA を切る | `<URL>/?perf&nomsaa` |
+| `?notaau` | TAAU を切り MSAA に戻す（high） | `<URL>/?perf&notaau` |
+| `?taau=0.5` | TAAU の内部解像度スケールを上書き | `<URL>/?perf&taau=0.5` |
 | `?nobloom` | ブルームを省く | `<URL>/?perf&nobloom` |
 | `?noshadow` | シャドウマップを描かない | `<URL>/?perf&noshadow` |
 | `?nograss` | 草を置かない | `<URL>/?perf&nograss` |
