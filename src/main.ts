@@ -19,17 +19,15 @@ import { resetTuning } from './game/tuning';
 import { CharacterShowcase, type ShowcaseState } from './render/assets/showcase';
 import { PlayerView, type PlayerViewState } from './render/playerView';
 import { EnemyViews } from './render/enemyView';
-import { ASHEN_FOUNDATION } from './game/world/ashenFoundation';
 import { EnvironmentAssets } from './render/assets/environment';
-import { createLevel, levelGameOptions } from './game/world/level';
 import { SaveStore, getLocalStorage } from './core/persistence';
-import { COMBAT_DEBUG_ENEMIES } from './game/world/combatDebug';
-import { terrainHeight } from './game/world/terrain';
-import { createTestTerrainCollisionMesh, testSceneColliders } from './game/world/testScene';
+import { createScene } from './game/scenes';
 import { createDevHooks, isShowcaseRequested, type DevHooks } from './devHooks';
 
 // `*.dev.ts`（デバッグフック・showcase の URL パラメータの登録）を自動で読み込む。新機能は main.ts を編集しない。
 import.meta.glob('./**/*.dev.ts', { eager: true });
+// `*.scene.ts`（`?scene=` で選ぶシーンの登録。src/game/scenes.ts）を自動で読み込む。
+import.meta.glob('./**/*.scene.ts', { eager: true });
 
 /** E2E / デバッグ用に公開する読み取り専用の状態。 */
 interface DebugState {
@@ -100,30 +98,18 @@ export async function createGameApp(
     const gameRenderer = await createRenderer(root, quality);
     rendererTask.done();
     const input = new InputSystem(root);
-    // 既定はレベル「灰の礎」。`?scene=test` で従来のテストシーン（雰囲気確認用）、
-    // `?scene=combat` はテストシーンに亡者兵 1 体を置いた戦闘デバッグシーン、
-    // `?scene=boss` はテストシーンにボスだけを置いた回避検証シーン（`?debug` で UI。boss/bossDebug.*）
-    const sceneParam = new URLSearchParams(location.search).get('scene');
-    const level =
-      sceneParam === 'test' || sceneParam === 'combat' || sceneParam === 'boss'
-        ? null
-        : createLevel(ASHEN_FOUNDATION);
+    // シーンは `?scene=` で選ぶ（既定はレベル「灰の礎」。登録は `*.scene.ts`）
+    const { level, options: sceneOptions, cylinders } = createScene(location.search);
     const game = await Game.create({
       input,
       save: new SaveStore(getLocalStorage()),
-      ...(level
-        ? levelGameOptions(level)
-        : {
-            terrain: createTestTerrainCollisionMesh(),
-            terrainHeight,
-            ...(sceneParam === 'combat' && { enemies: COMBAT_DEBUG_ENEMIES }),
-          }),
+      ...sceneOptions,
       // `?enemies=0`: 敵を配置しない（敵に邪魔されない移動の E2E・地形の確認用）
       ...(new URLSearchParams(location.search).get('enemies') === '0' && { enemies: [] }),
     });
     physicsTask.done();
     const view = new GameView(game, gameRenderer, level ?? undefined);
-    game.addStaticCylinders(level ? level.cylinders : testSceneColliders());
+    game.addStaticCylinders(cylinders);
     // ?env=0: 環境メッシュを置かない（グレーボックスのまま。負荷比較用）
     if (level && new URLSearchParams(location.search).get('env') !== '0') {
       // 環境メッシュ（墓地・礼拝堂）。読み込みに失敗してもグレーボックスのまま遊べる
