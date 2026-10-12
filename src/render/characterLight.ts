@@ -249,7 +249,10 @@ function withCharacterLight(src: Material, controls: RimControls, isWeapon: bool
   const color = (src as { color?: Color }).color;
   const map = (src as { map?: unknown }).map;
   // 反射色の近似: テクスチャがあっても暗部の持ち上げは単色の平均で足りる
-  const albedo = vec3(color?.r ?? 0.5, color?.g ?? 0.5, color?.b ?? 0.5).mul(map ? 0.35 : 0.8);
+  // 色・係数はユニフォーム（定数で埋め込むと素材ごとにシェーダが分かれ、パイプラインが増える。#326）
+  const albedo = uniform(color ? color.clone() : new Color(0.5, 0.5, 0.5)).mul(
+    uniform(map ? 0.35 : 0.8),
+  );
   material.emissiveNode = characterLightNode(albedo, controls, isWeapon);
   return material;
 }

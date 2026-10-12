@@ -298,7 +298,8 @@ function createUndeadMaterial(
     material.normalScale.copy(src.normalScale);
   }
 
-  const srcColor = vec3(src.color.r, src.color.g, src.color.b);
+  // 色・係数はユニフォームで持つ（定数で埋め込むと変種・素材ごとにシェーダが分かれ、パイプラインが増える。#326）
+  const srcColor = uniform(src.color.clone());
   const base = src.map ? texture(src.map).rgb.mul(srcColor) : srcColor;
   const lum = luminance(base);
   // 小物（UV 無し）はローカル座標でノイズを引く
@@ -313,18 +314,14 @@ function createUndeadMaterial(
   const emberGlow = vec3(EMBER_COLOR.r, EMBER_COLOR.g, EMBER_COLOR.b).mul(controls.ember);
 
   if (role === 'skin') {
-    const skin = new Color(variant.skin);
-    const bruise = new Color(variant.bruise);
+    const skin = uniform(new Color(variant.skin));
+    const bruise = uniform(new Color(variant.bruise));
     // 暗い灰褐色。元テクスチャは明度だけ借りる（髭・陰影を残す）。
-    const tone = vec3(skin.r, skin.g, skin.b).mul(lum.mul(1.6).add(0.45)).mul(3.4);
+    const tone = skin.mul(lum.mul(1.6).add(0.45)).mul(3.4);
     // 痣・腐敗の斑
     const isFace = src.name === 'MI_Head';
     const blotch = smoothstep(-0.35, 0.6, bakedNoise(vec3(uv0.mul(isFace ? 22 : 9), 0.37)));
-    albedo = mix(
-      tone,
-      vec3(bruise.r, bruise.g, bruise.b).mul(lum.add(0.4)).mul(3.4),
-      blotch.mul(0.5),
-    );
+    albedo = mix(tone, bruise.mul(lum.add(0.4)).mul(3.4), blotch.mul(0.5));
     // 落ち窪んだ眼窩: 眼の周りを暗くする
     if (isFace) albedo = albedo.mul(float(1).sub(eyeMaskNode(uv0, EYE_RADIUS * 3.2).mul(0.7)));
     material.roughness = 0.88;
@@ -341,44 +338,40 @@ function createUndeadMaterial(
       .mul(eyeMask)
       .mul(faceOnly)
       .mul(controls.kill.eyeGlow)
-      .mul(1.6 * variant.eyeGlow);
+      .mul(uniform(1.6 * variant.eyeGlow));
     emissive = emissive.add(emberGlow.mul(crack).mul(0.6));
   } else if (role === 'cloth') {
-    const tint = new Color(variant.cloth);
+    const tint = uniform(new Color(variant.cloth));
     // 色を落としてから布の色を乗せる。足元ほど泥で暗くなる。
     const desat = mix(vec3(lum), base, 0.35);
     const dirt = smoothstep(0.0, 1.1, positionWorld.y).mul(0.45).add(0.55);
     const stain = smoothstep(-0.2, 0.5, bakedNoise(vec3(uv0.mul(14), 0.37)))
       .mul(0.35)
       .add(0.65);
-    albedo = desat
-      .mul(vec3(tint.r, tint.g, tint.b))
-      .mul(7.0)
-      .mul(dirt)
-      .mul(stain);
+    albedo = desat.mul(tint).mul(7.0).mul(dirt).mul(stain);
     material.metalness = src.metalness;
     material.roughness = 1;
     if (src.metalnessMap) material.metalnessMap = src.metalnessMap;
     if (src.roughnessMap) material.roughnessMap = src.roughnessMap;
     emissive = emberGlow.mul(crack).mul(0.9);
   } else {
-    const rust = new Color(variant.rust);
+    const rust = uniform(new Color(variant.rust));
     // 装備メッシュ: 錆は #154 の頂点カラー（エッジ・下面・雨垂れに集まる低コントラストの色）に焼き込み済みなので、
     // ノイズで混ぜ直さず（迷彩状のまだらになる）そのまま使う。亡者らしく少しだけ変種の錆色へ寄せる。
     // UV の無い元素材の小物・肩当て（頂点カラー無し）は従来どおりノイズで鉄と錆を混ぜる。
     // 錆: ノイズで鉄の暗色と赤茶の錆を混ぜる。ボスは錆の縁が熾火で光る。
     const rustMask = smoothstep(-0.25, 0.35, bakedNoise(noiseCoord(11).add(3.7)));
     const iron = vec3(0.17, 0.16, 0.15).mul(lum.mul(0.8).add(0.5));
-    const rusty = vec3(rust.r, rust.g, rust.b).mul(lum.mul(0.9).add(0.35));
-    const steel = variant.steel ?? 0;
+    const rusty = rust.mul(lum.mul(0.9).add(0.35));
+    const steel = uniform(variant.steel ?? 0);
     const bakedColor = vertexColor().rgb;
     // 冷たい鋼寄せ（ボス）: 錆の茶を彩度を落として青灰へ。上向きの面には灰が薄く積もる
     const coolSteel = vec3(luminance(bakedColor))
       .mul(vec3(0.9, 1.0, 1.16))
       .mul(1.35);
-    const dust = smoothstep(0.55, 1.0, normalWorld.y).mul(0.05 * steel);
+    const dust = smoothstep(0.55, 1.0, normalWorld.y).mul(steel.mul(0.05));
     albedo = baked
-      ? mix(mix(bakedColor, coolSteel, steel), vec3(rust.r, rust.g, rust.b).mul(0.35), 0.08)
+      ? mix(mix(bakedColor, coolSteel, steel), rust.mul(0.35), 0.08)
           .mul(1.25)
           .add(vec3(0.5, 0.48, 0.45).mul(dust))
       : mix(iron, rusty, rustMask);
