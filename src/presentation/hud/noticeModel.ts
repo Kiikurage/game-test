@@ -1,4 +1,4 @@
-import { NOTICE } from '../data/guide';
+import { NOTICE } from './guideData';
 
 export interface Notice {
   /** 通知ごとに増える通し番号（同じ文言が続いても表示を更新できる）。 */

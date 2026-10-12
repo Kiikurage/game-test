@@ -171,9 +171,10 @@ src/
   audio/         Web Audio のバス・音量・ダッキング・resume（DOM 非依存の純粋ロジック + AudioContext ラッパー）
   input/         入力デバイス（キーボード/マウス・ゲームパッド・タッチ）。game には入力スナップショットだけ渡す（型は core/input.ts、操作割当は docs/controls.md）
   ui/            DOM オーバーレイ（非対応画面・横画面ヒント・今後の HUD）
+  presentation/  表示用状態（HUD・ボス HP バー・操作ヒント・通知）。game の状態とイベントを読み、`stepEnd` ごとに進める。DOM 非依存
 ```
 
-- 依存方向: `main` → `render` / `game` / `input` / `ui` / `audio` → `core`。`game` は `render` / `input` / `ui` / `audio` を import しない（game は音のイベントを出し、main が audio へ繋ぐ）。
+- 依存方向: `main` → `render` / `game` / `input` / `ui` / `audio` → `core`。`render` → `presentation` → `game`。`game` は `render` / `presentation` / `input` / `ui` / `audio` を import しない（game は音のイベントを出し、main が audio へ繋ぐ）。HUD などの表示用状態（残像・点滅・フェード）は game に置かず `presentation` に置く（`hudPresentation(game)`）。
 - シミュレーションは 60Hz 固定ステップ（`Game.update(dt)`）、描画はフレームごとに `alpha` で補間（`InterpolatedTransform`）。
   描画対象の位置・回転は `InterpolatedTransform` として game 側に持たせ、render 側は `sample(alpha, ...)` で読む。
 

@@ -1,6 +1,6 @@
 import './hud.css';
 
-/** HUD が読む表示用状態（`game/hud` の `HudModel` が満たす。ui は game に依存しない）。 */
+/** HUD が読む表示用状態（`presentation/hud` の `HudModel` が満たす。ui は game に依存しない）。 */
 export interface HudView {
   readonly hpMax: number;
   readonly hpRatio: number;

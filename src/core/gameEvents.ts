@@ -104,6 +104,13 @@ export type BossDefeatCue =
   'defeat' | 'touchdown' | 'collapse' | 'text' | 'fogClear' | 'bonfire' | 'control';
 
 export interface GameEventMap {
+  /**
+   * 固定ステップ 1 回分の終わり（`Game.update` の最後）。表示層（`src/presentation/`）が HUD などの
+   * 表示用状態をステップ単位で進めるのに使う。
+   */
+  stepEnd: {
+    readonly dt: number;
+  };
   /** 足音。 */
   footstep: {
     readonly surface: FootstepSurface;

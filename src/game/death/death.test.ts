@@ -8,7 +8,6 @@ import { FakeInput } from '../testing/fakeInput';
 import type { EnemySpawn } from '../world/level';
 import { deathSystem } from './death.system';
 import { bonfireSystem } from '../bonfire/bonfire.system';
-import { hudSystem } from '../hud/hud.system';
 
 const DT = 1 / 60;
 
@@ -84,7 +83,6 @@ describe('death and respawn', () => {
     expect(phases(events)).toContain('hold');
     expect(death.visual.grade).toBe(1);
     expect(game.camera.presentation.fovOffsetDeg).toBeLessThan(-3.5);
-    expect(game.systems.get(hudSystem).opacity).toBe(0); // HUD は死亡中に隠れる
 
     run(120);
     expect(phases(events)).toContain('fadeOut');
