@@ -146,7 +146,7 @@ registerBossMove({
 | 120 | `end`: 戦闘再開（ボスは `setPhase(2)`。最初の技は遠距離帯の跳躍か灰の波） | `Boss` |
 
 - カメラ（`cameraClips.ts`）は仕様どおり（F60 までに +1.5m・FOV +6°・振動 0.8° を 60F、F100–F120 で戻す）なので調整なし。再生は `start` の瞬間から（クリップの F60 が咆哮に合う）。
-- 赤い縁取りは `postprocess.ts` の `ScreenEffect.rim`（死亡演出の `setScreenEffect` と同じ口。追加パスなし）。強さは `rimAtTransitionFrame`（立ち上がり 6F・保持 12F・減衰 12F）。
+- 赤い縁取りは `pipeline/passes/grade.pass.ts` の `ScreenEffect.rim`（死亡演出の `setScreenEffect` と同じ口。追加パスなし）。強さは `rimAtTransitionFrame`（立ち上がり 6F・保持 12F・減衰 12F）。
 - プレイヤーは移行中も操作できる（移動・ロール・回復。ボスの無敵は `UprightTarget.invulnerable`）。ロックオンも維持される。
 - 途中でボスがリセットされたら（死亡・篝火）、カメラ演出・ダッキングを止めて `bossTransition` `end`（`aborted: true`）を発行し、描画は盾と熾火をフェーズ 1 の見た目へ戻す。
 - 一時停止・スローでも合うよう、描画は `game.systems.get(bossTransitionSystem).frame`（移行 F。演出中でなければ -1）を読んで進める（盾の飛行も F から進める）。

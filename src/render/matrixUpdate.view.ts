@@ -29,7 +29,7 @@ registerViewPlugin('matrixUpdate', ({ view }) => {
   }
 
   // `?nodraw` では描画を呼ばないので行列も更新しない（従来どおり。描画が行列を更新していた）
-  const post = view.postProcess as { render: () => void };
+  const post = view.pipeline as { render: () => void };
   const render = post.render.bind(post);
   post.render = () => {
     scene.updateMatrixWorld();
