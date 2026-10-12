@@ -1,4 +1,5 @@
 import { PLUNGE } from '../data';
+import { PLAYER_CONTROL } from '../data/playerControl';
 import { cameraEffectsOf } from '../camera/cameraEffects.system';
 import { deathOf } from '../death/death.system';
 import { registerGameSystem } from '../systems';
@@ -17,7 +18,7 @@ export const PLUNGE_LAND_CUE = 'sfx.plunge-land';
 registerGameSystem('plunge', (game) => {
   const { player } = game;
   player.plungeTargetNear = (x, z, radius) => {
-    const below = player.feet.y - 0.3;
+    const below = player.feet.y - PLAYER_CONTROL.plungeTargetBelow;
     const near = (t: { position: { x: number; y: number; z: number }; alive: boolean }): boolean =>
       t.alive && t.position.y < below && Math.hypot(t.position.x - x, t.position.z - z) <= radius;
     return game.enemies.enemies.some(near) || game.dummies.some(near);

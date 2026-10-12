@@ -1,0 +1,315 @@
+{
+  "actions": {
+    "light1": {
+      "id": "light1",
+      "startup": 12,
+      "active": 4,
+      "recovery": 20,
+      "staminaCost": 14,
+      "damageMultiplier": 1,
+      "poiseDamage": 20,
+      "moveDistance": 0.5,
+      "arcDeg": 110,
+      "cancels": [
+        {
+          "to": "lightAttack",
+          "start": 20,
+          "end": 48
+        },
+        {
+          "to": "heavyAttack",
+          "start": 20,
+          "end": 48
+        },
+        {
+          "to": "dodge",
+          "start": 18,
+          "end": 36
+        },
+        {
+          "to": "guard",
+          "start": 22,
+          "end": 36
+        }
+      ],
+      "note": "横斬り"
+    },
+    "light2": {
+      "id": "light2",
+      "startup": 10,
+      "active": 4,
+      "recovery": 22,
+      "staminaCost": 14,
+      "damageMultiplier": 1.05,
+      "poiseDamage": 20,
+      "moveDistance": 0.5,
+      "arcDeg": 90,
+      "cancels": [
+        {
+          "to": "lightAttack",
+          "start": 18,
+          "end": 48
+        },
+        {
+          "to": "heavyAttack",
+          "start": 18,
+          "end": 48
+        },
+        {
+          "to": "dodge",
+          "start": 16,
+          "end": 36
+        },
+        {
+          "to": "guard",
+          "start": 20,
+          "end": 36
+        }
+      ],
+      "note": "斬り下ろし"
+    },
+    "light3": {
+      "id": "light3",
+      "startup": 16,
+      "active": 6,
+      "recovery": 30,
+      "staminaCost": 20,
+      "damageMultiplier": 1.3,
+      "poiseDamage": 35,
+      "moveDistance": 1,
+      "arcDeg": 40,
+      "range": 2.2,
+      "cancels": [
+        {
+          "to": "heavyAttack",
+          "start": 26,
+          "end": 64
+        },
+        {
+          "to": "dodge",
+          "start": 24,
+          "end": 52
+        },
+        {
+          "to": "guard",
+          "start": 28,
+          "end": 52
+        }
+      ],
+      "note": "突き。コンボ終点"
+    },
+    "heavy": {
+      "id": "heavy",
+      "startup": 22,
+      "active": 6,
+      "recovery": 38,
+      "staminaCost": 28,
+      "damageMultiplier": 1.8,
+      "poiseDamage": 60,
+      "moveDistance": 0.8,
+      "superArmor": {
+        "start": 6,
+        "end": 28,
+        "poiseBonus": 40
+      },
+      "cancels": [
+        {
+          "to": "dodge",
+          "start": 44,
+          "end": 66
+        }
+      ],
+      "note": "溜めなし"
+    },
+    "heavyCharged": {
+      "id": "heavyCharged",
+      "startup": 22,
+      "active": 6,
+      "recovery": 38,
+      "chargeFrames": 30,
+      "staminaCost": 34,
+      "damageMultiplier": 2.3,
+      "poiseDamage": 80,
+      "moveDistance": 1,
+      "superArmor": {
+        "start": 6,
+        "end": 28,
+        "poiseBonus": 40
+      },
+      "cancels": [
+        {
+          "to": "dodge",
+          "start": 44,
+          "end": 66
+        }
+      ],
+      "note": "フル溜め（溜め 30F の後に発生へ。溜め中は歩き速度 1.0 m/s）"
+    },
+    "runAttack": {
+      "id": "runAttack",
+      "startup": 14,
+      "active": 5,
+      "recovery": 30,
+      "staminaCost": 20,
+      "damageMultiplier": 1.2,
+      "poiseDamage": 40,
+      "moveDistance": 2,
+      "cancels": [],
+      "note": "ダッシュまたは走り中に攻撃"
+    },
+    "guardCounter": {
+      "id": "guardCounter",
+      "startup": 14,
+      "active": 5,
+      "recovery": 28,
+      "staminaCost": 16,
+      "damageMultiplier": 1.4,
+      "poiseDamage": 50,
+      "moveDistance": 0.8,
+      "cancels": [],
+      "note": "ガード被弾から 30F 以内に攻撃。盾の打撃"
+    },
+    "backstab": {
+      "id": "backstab",
+      "startup": 10,
+      "active": 3,
+      "recovery": 34,
+      "staminaCost": 16,
+      "damageMultiplier": 4,
+      "poiseDamage": 100,
+      "moveDistance": 0.9,
+      "cancels": [],
+      "note": "致命の一撃（#39）。未発見の敵の背面 ±60°・1.6m 以内で軽攻撃。背後 0.9m へ 6F で吸着（条件・吸着の数値は AMBUSH）"
+    },
+    "plunge": {
+      "id": "plunge",
+      "startup": 0,
+      "active": 4,
+      "recovery": 24,
+      "staminaCost": 20,
+      "damageMultiplier": 2.2,
+      "poiseDamage": 60,
+      "moveDistance": 0,
+      "cancels": [],
+      "note": "落下攻撃（#39）。高さ 1.5m 以上、ガード不能、空中補正 ±1.5 m/s"
+    },
+    "roll": {
+      "id": "roll",
+      "startup": 3,
+      "active": 0,
+      "recovery": 29,
+      "staminaCost": 20,
+      "poiseDamage": 0,
+      "moveDistance": 3.2,
+      "invuln": {
+        "start": 4,
+        "end": 15
+      },
+      "cancels": [
+        {
+          "to": "attack",
+          "start": 26,
+          "end": 32
+        },
+        {
+          "to": "guard",
+          "start": 26,
+          "end": 32
+        },
+        {
+          "to": "heal",
+          "start": 26,
+          "end": 32
+        },
+        {
+          "to": "move",
+          "start": 26,
+          "end": 32
+        }
+      ]
+    },
+    "backstep": {
+      "id": "backstep",
+      "startup": 2,
+      "active": 0,
+      "recovery": 20,
+      "staminaCost": 12,
+      "poiseDamage": 0,
+      "moveDistance": 2,
+      "invuln": {
+        "start": 1,
+        "end": 8
+      },
+      "cancels": [
+        {
+          "to": "attack",
+          "start": 18,
+          "end": 22
+        }
+      ],
+      "note": "ロックオン中または移動入力なしでロール入力"
+    },
+    "heal": {
+      "id": "heal",
+      "startup": 25,
+      "active": 0,
+      "recovery": 29,
+      "staminaCost": 0,
+      "poiseDamage": 0,
+      "moveDistance": 0,
+      "applyFrame": 26,
+      "healAmount": 120,
+      "cancels": [
+        {
+          "to": "dodge",
+          "start": 30,
+          "end": 54
+        },
+        {
+          "to": "attack",
+          "start": 36,
+          "end": 54
+        },
+        {
+          "to": "guard",
+          "start": 36,
+          "end": 54
+        }
+      ],
+      "note": "回復中の移動 1.0 m/s。F26 より前に被弾して仰け反ると回復は失われ瓶だけ消費"
+    },
+    "healEmpty": {
+      "id": "healEmpty",
+      "startup": 20,
+      "active": 0,
+      "recovery": 0,
+      "staminaCost": 0,
+      "poiseDamage": 0,
+      "moveDistance": 0,
+      "cancels": [],
+      "note": "空振り（瓶 0 本で入力）。回復しない。移動 1.0 m/s"
+    }
+  },
+  "plunge": {
+    "minClearance": 0.6,
+    "minHeight": 1,
+    "maxHeight": 3,
+    "highHeight": 1.5,
+    "lowMultiplier": 1.6,
+    "unawareFactor": 1.5,
+    "staminaMin": 20,
+    "radius": 1.4,
+    "hitStopFrames": 10,
+    "airCorrection": 1.5,
+    "airLockCorrection": 2.5,
+    "airLockCorrectionAssist": 3.5,
+    "airLockPullSeconds": 0.25,
+    "landStiffnessHeight": 2,
+    "landFrames": 10,
+    "freeSteerDrop": 0.5,
+    "targetReach": 2.5
+  },
+  "plungeUnawareMultiplier": 3.3,
+  "heavyChargeMoveSpeed": 1,
+  "runAttackMinSpeedRatio": 0.75
+}

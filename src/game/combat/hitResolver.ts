@@ -1,5 +1,11 @@
 import type { HitKind } from '../../core/gameEvents';
-import { GUARD, STAGGERED_DAMAGE_MULTIPLIER, guardChipDamage, isHeavyHit } from '../data';
+import {
+  GUARD,
+  SECTOR_RAY_HEIGHT,
+  STAGGERED_DAMAGE_MULTIPLIER,
+  guardChipDamage,
+  isHeavyHit,
+} from '../data';
 import { vec3, type Capsule, type Vec3 } from './geometry';
 import { cloneShape, shapeHitsHeart, type HitShape } from './shapes';
 
@@ -317,7 +323,7 @@ export class HitResolver {
 }
 
 /** 壁越し判定の始点。扇形の原点は足元なので胸の高さへ持ち上げる（地面に当たらないように）。 */
-const CHEST_Y = 1.0;
+const CHEST_Y = SECTOR_RAY_HEIGHT;
 const RAY_ORIGIN: Vec3 = vec3();
 function rayOrigin(shape: HitShape): Vec3 {
   RAY_ORIGIN.x = shape.origin.x;
