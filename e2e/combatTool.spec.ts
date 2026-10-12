@@ -1,31 +1,18 @@
 import { expect, test } from '@playwright/test';
-import { clickInPage, startGame } from './helpers';
+import { bootGame, clickInPage } from './helpers';
 
-/** 戦闘デバッグツール（`?debug&scene=combat`）。ロジックの検証なので最小品質・低解像度・描画なしで開く。 */
-const QUERY = 'quality=low&scale=0.25&nodraw';
+/** 戦闘デバッグツール（`?debug&scene=combat`）。ロジックの検証なので最小品質・低解像度・描画なしで開く（bootGame の既定）。 */
 
 test('?debug&scene=combat shows action name, frame and windows, and steps one frame at a time', async ({
   page,
 }) => {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto(`./?scene=combat&debug&${QUERY}`);
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  const errors = await bootGame(page, { scene: 'combat', params: { debug: '' } });
 
   const panel = page.locator('.combat-tool');
   await expect(panel).toBeVisible();
   await expect(page.locator('.combat-tool-info')).toContainText('HP');
 
-  // 軽攻撃を 1 回入力（Pointer Lock は開始画面のクリックで取得済み。止まっているので次のステップで消費される）
-  await expect
-    .poll(() => page.evaluate(() => document.pointerLockElement !== null), { timeout: 10_000 })
-    .toBe(true);
+  // 軽攻撃を 1 回入力（止まっているので次のステップで消費される）
   await clickInPage(page);
   await page.evaluate(() => {
     window.__game?.dev.advance(1);
@@ -60,17 +47,12 @@ test('?debug&scene=combat shows action name, frame and windows, and steps one fr
 });
 
 test('without ?debug the combat debug UI is not shown', async ({ page }) => {
-  await page.goto(`./?scene=combat&${QUERY}`);
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  await bootGame(page, { scene: 'combat' });
   await expect(page.locator('.combat-tool')).toHaveCount(0);
   await expect(page.locator('.debug-hud')).toHaveCount(0);
 });
 
 test('?debug on other scenes does not add the combat panel', async ({ page }) => {
-  await page.goto(`./?scene=test&debug&${QUERY}`);
-  await startGame(page);
+  await bootGame(page, { scene: 'test', params: { debug: '' } });
   await expect(page.locator('.combat-tool')).toHaveCount(0);
 });

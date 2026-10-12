@@ -20,9 +20,7 @@ const CULL_DISTANCE = 42;
 
 registerViewPlugin('crypt', ({ game, view, level, gameRenderer }) => {
   if (!level) return {};
-  const { level: quality } = gameRenderer.quality.preset;
-  const detail = quality === 'low' ? 0 : quality === 'medium' ? 1 : 2;
-  const crypt = buildCrypt(level, detail);
+  const crypt = buildCrypt(level, gameRenderer.quality.preset.materialDetail);
   view.scene.add(crypt.root);
   propsByView.set(view, crypt);
   const meshes: { mesh: Mesh; x: number; z: number; r: number }[] = [];

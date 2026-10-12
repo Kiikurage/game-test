@@ -1,21 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
+import { bootGame, tapKey, waitSteps } from './helpers';
 
-test.describe.configure({ timeout: 120_000 });
-
-async function boot(page: Page, query = ''): Promise<void> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto(`./?scene=test&quality=low&scale=0.25&nodraw${query}`);
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(30);
-  expect(errors).toEqual([]);
-}
+const boot = (page: Page, params: Record<string, string> = {}) =>
+  bootGame(page, { scene: 'test', params });
 
 const rect = (page: Page, id: string) =>
   page.getByTestId(id).evaluate((e) => {
@@ -53,7 +40,7 @@ test.describe('mobile landscape 915x412 (Xperia 1 V)', () => {
   });
 
   test('respects the safe area (notch on the left, 16px beyond it)', async ({ page }) => {
-    await boot(page, '&safe=44,0,44,21');
+    await boot(page, { safe: '44,0,44,21' });
     const hp = await rect(page, 'hud-hp');
     expect(hp.x).toBe(44 + 16);
     expect(hp.y).toBe(16);
@@ -91,14 +78,15 @@ test.describe('PC 1280x720', () => {
     await page.evaluate(() => {
       window.__game?.dev.damage(150);
     });
+    await waitSteps(page, 1);
     await expect.poll(() => scaleX(page, 'hud-hp', 'main')).toBeCloseTo(0.5, 2);
     // 残像は遅れて減る（直後はまだ上端が高い）→ やがて HP に追いつく
     expect(await scaleX(page, 'hud-hp', 'ghost')).toBeGreaterThan(0.5);
-    await expect
-      .poll(() => scaleX(page, 'hud-hp', 'ghost'), { timeout: 60_000 })
-      .toBeCloseTo(0.5, 2);
+    await waitSteps(page, 180);
+    await expect.poll(() => scaleX(page, 'hud-hp', 'ghost')).toBeCloseTo(0.5, 2);
 
     await tapKey(page, 'KeyR');
+    await waitSteps(page, 120);
     await expect(page.getByTestId('hud-flask')).toContainText('×2');
   });
 });

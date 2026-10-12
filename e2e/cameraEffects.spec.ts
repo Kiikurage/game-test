@@ -1,23 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, waitSteps } from './helpers';
-
-test.describe.configure({ timeout: 180_000 });
+import { bootGame, waitSteps } from './helpers';
 
 /** 既定のレベルを最小品質・低解像度で起動する（敵は置かない。被弾は dev.hitPlayer で本物の命中経路に流す）。 */
-async function boot(page: Page): Promise<void> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?quality=low&scale=0.25&nodraw&enemies=0');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 30_000 })
-    .toBeGreaterThan(30);
-  await expect.poll(() => page.evaluate(() => window.__game?.sim.player.grounded)).toBe(true);
-  expect(errors).toEqual([]);
-}
+const boot = (page: Page) => bootGame(page, { enemies: false });
 
 const fx = (page: Page) =>
   page.evaluate(() => {

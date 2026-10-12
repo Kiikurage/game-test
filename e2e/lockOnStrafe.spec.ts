@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
-
-test.describe.configure({ timeout: 180_000 });
+import { bootGame, tapKey } from './helpers';
 
 /**
  * #256: ロックオン中に横移動し続けても、キャラクターが対象を向いたまま回らない（本番レベル・実際の敵）。
@@ -16,13 +14,8 @@ for (const [key, sign] of [
   test(`strafing with ${key} while locked on keeps facing the enemy and the body steady`, async ({
     page,
   }) => {
-    await page.goto('./?quality=low&scale=0.25');
-    await startGame(page);
-    await expect
-      .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
-      .toBeGreaterThan(30);
+    await bootGame(page, { draw: true, params: { scale: '0.25' } });
     await page.evaluate(() => {
-      window.__game?.dev.pause(true);
       // b-undead-1 は (22, 6) で西を向いて立っている。その手前 8m からロックオンする
       window.__game?.dev.teleport(14, 6, Math.PI / 2);
       window.__game?.dev.advance(5);
@@ -71,13 +64,8 @@ for (const [key, sign] of [
  * 実機と同じく 1 フレーム 1 ステップで進めた後、ステップの無いフレームを描き、上半身（両肩）の向きを毎フレーム測る。
  */
 test('the upper body does not keep spinning while strafing locked on', async ({ page }) => {
-  await page.goto('./?quality=low&scale=0.25');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
-    .toBeGreaterThan(30);
+  await bootGame(page, { draw: true, params: { scale: '0.25' } });
   await page.evaluate(() => {
-    window.__game?.dev.pause(true);
     window.__game?.dev.teleport(17, 6, Math.PI / 2);
     window.__game?.dev.advance(5);
   });

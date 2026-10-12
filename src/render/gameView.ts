@@ -16,7 +16,7 @@ import { createTestScene } from './testScene';
 import { ParticleSystem } from './particles';
 import { ParticleDemo, isParticleDemoEnabled } from './particles/demo';
 import { CombatDebugView } from './combatDebugView';
-import { profileScene, type RenderProfile } from './renderProfile';
+import { profileScene, type RenderProfile } from './quality';
 import { NavDebugView } from './navDebugView';
 import { GridNavigator } from '../game/enemy/gridNavigator';
 import { createViewPlugins, type ViewPlugin } from './viewPlugins';

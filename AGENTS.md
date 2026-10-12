@@ -123,6 +123,7 @@ Node.js 22.12 以上。初回は `npm ci`。
 | `npm run perf -- [low\|medium\|high]` | 計測視点（篝火・墓地・礼拝堂の門・内部）の draws / tris を表で出す（予算と削減策は [`docs/performance.md`](docs/performance.md)） |
 | `npm run profile -- [low\|medium\|high] [frames]` | 墓地・戦闘中の 1 フレームあたりの JS 時間を関数別に集計（CDP Profiler。手順は [`docs/performance.md`](docs/performance.md)） |
 | `npm run shot -- <出力パス>` | ビルドして数秒動かし PNG 保存。`<出力パス>-mobile.png`（915x412 DPR3）と `-pc.png`（1280x720）を出力。例: `npm run shot -- shots/foo` |
+| `npm run assets:check [-- --dist]` | アセット検査（tech-direction §4.1・§4.3・§4.4）: 形式（glb / KTX2 / Ogg）・三角形数・テクスチャ解像度・ファイルサイズ・`manifest.json` の整合。`--dist` で `dist/` の内容ハッシュ名と配信予算（圧縮後: 合計 40MB・開始画面まで 5MB）も見る。予算は `scripts/assets/check.mjs` の `BUDGET`。CI が実行する |
 | `npm run heroshots -- <出力ディレクトリ> [high\|medium]` | 品質ゲートのヒーローショット（`scripts/heroShots.json` の全視点）を撮り、各 PNG と `contact-sheet.png` を出す。`--mobile`（915x412 DPR3）、`--only <名前,...>`（`optional` の確認用視点も名前・area で撮れる。全部は `--all`）、`--compare <変更前のディレクトリ>`（左右比較の `compare-sheet.png`）。見た目に関わる PR は変更前後を載せる（[`docs/tech-direction.md`](docs/tech-direction.md) §7.1） |
 
 - PR 前に `npm run lint && npm run typecheck && npm test && npm run build && npm run e2e` を通す。
@@ -137,6 +138,7 @@ Node.js 22.12 以上。初回は `npm ci`。
   E2E は開始前に `scripts/gpuCheckSetup.mjs` がアダプタを調べ、ソフトウェア（fallback / SwiftShader）なら失敗する（`[gpu] ... -> hardware` がログに出る）。
   ヘッドレスでアダプタが取れないときは `GPU_HEADFUL=1` でウィンドウを出す。`npm run shot` / `heroshots` / `perf` / `profile` も同じ環境変数に従う。
   例: `GPU_MODE=hardware E2E_PORT=4321 npx playwright test e2e/launch.spec.ts --workers=1`
+- `public/assets/` のファイルは本番ビルドで内容ハッシュ名（`<名前>.<hash>.<拡張子>`）になる。URL は直書きせず `assetUrl('assets/...')`（`src/core/assetUrl.ts`）で作る（E2E からは `window.__game.dev.assetUrl`）。
 - 一部の Chrome は three r186 の `GPUTextureViewDescriptor.swizzle` を受け付けないため、本番コード
   （`src/core/webgpuCompat.ts`、`boot.ts` が起動時に導入）で恒等 swizzle を除去している。E2E / shot に専用のシムは無い。
 - 起動は `src/boot.ts`（軽量エントリ）→ `src/main.ts`（動的 import。three / rapier を含む）。E2E は開始画面を経由するので

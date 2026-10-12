@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyPerfToggles, parseFlatMatGroups, parsePerfToggles } from './perfToggles';
-import { QUALITY_PRESETS, selectQuality } from './quality';
+import {
+  applyPerfToggles,
+  parseFlatMatGroups,
+  parsePerfToggles,
+  QUALITY_PRESETS,
+  selectQuality,
+} from './presets';
 
 describe('parsePerfToggles', () => {
   it('is all off by default', () => {

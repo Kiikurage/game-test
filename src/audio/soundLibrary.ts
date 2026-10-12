@@ -41,6 +41,8 @@ export interface SoundLibraryOptions {
   readonly decode: (data: ArrayBuffer) => Promise<AudioBufferLike>;
   /** 素材の置き場（末尾 `/`）。例: `${BASE_URL}assets/audio/`。 */
   readonly baseUrl: string;
+  /** `baseUrl + file` を配信 URL（内容ハッシュ名）に変える。既定はそのまま。 */
+  readonly resolveUrl?: (url: string) => string;
   readonly opusSupported: boolean;
   /** テスト用に差し替え可能。既定は `fetch`。 */
   readonly fetchBytes?: (url: string) => Promise<ArrayBuffer>;
@@ -164,7 +166,8 @@ export class SoundLibrary {
   }
 
   private async decodeFile(file: string): Promise<AudioBufferLike> {
-    const data = await this.fetchBytes(this.opts.baseUrl + file);
+    const url = this.opts.baseUrl + file;
+    const data = await this.fetchBytes(this.opts.resolveUrl ? this.opts.resolveUrl(url) : url);
     return this.opts.decode(data);
   }
 }

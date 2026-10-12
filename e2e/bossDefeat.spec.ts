@@ -1,23 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
-
-test.describe.configure({ timeout: 120_000 });
+import { bootGame, tapKey } from './helpers';
 
 /**
  * ボス撃破演出（#86）: ボス HP を 0 にして撃破 → 撃破のセーブ → F300 に台座の篝火が灯る → F360 に操作可能で休める。
  * シミュレーションは `pause` + `advance` で進める（実時間に依存しない）。
  */
 test('defeating the boss lights the pedestal bonfire and returns control', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?arena=boss&quality=low&scale=0.25&nodraw');
-  await startGame(page);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  const errors = await bootGame(page, { params: { arena: 'boss' } });
   const defeat = () => page.evaluate(() => window.__game?.dev.bossDefeat());
   const advance = (steps: number) =>
     page.evaluate((n) => {

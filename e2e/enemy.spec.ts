@@ -1,20 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame, tapKey } from './helpers';
+import { bootGame, tapKey } from './helpers';
 
 /** 既定のレベル（灰の礎）を最小品質・低解像度で起動する（`?debug` で敵の可視化も確認）。 */
-async function boot(page: Page): Promise<string[]> {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?debug&quality=low&scale=0.25&nodraw');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
-    .toBeGreaterThan(30);
-  return errors;
-}
+const boot = (page: Page) => bootGame(page, { params: { debug: '' } });
 
 /** シミュレーションを止めて、指定ステップずつ進める（SwiftShader の描画速度に左右されない）。 */
 const advance = (page: Page, steps: number) =>
@@ -167,16 +155,7 @@ test('rolling at the right moment dodges a soldier attack (invulnerability frame
 test('the combat debug scene (?scene=combat) has exactly one soldier that comes to fight', async ({
   page,
 }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => errors.push(err.message));
-  await page.goto('./?scene=combat&quality=low&scale=0.25&nodraw');
-  await startGame(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
-    .toBeGreaterThan(30);
-  await page.evaluate(() => {
-    window.__game?.dev.pause(true);
-  });
+  const errors = await bootGame(page, { scene: 'combat' });
   const ids = await page.evaluate(() => window.__game?.sim.enemies.map((e) => e.id));
   expect(ids).toEqual(['combat-undead-1']);
   // 広場で待つと、亡者兵は気付き・接近し、攻撃を出す

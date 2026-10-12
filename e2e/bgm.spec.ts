@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { startGame } from './helpers';
+import { bootGame } from './helpers';
 
 // 実 AudioContext 上で、フィールド曲（開始時）とボス戦の流れ（入場 → フェーズ移行 → 撃破 → 篝火）に対して
 // 期待する曲・レイヤー・フェード（目標ゲインと秒数）が発行されることを検証する。
@@ -7,12 +7,7 @@ import { startGame } from './helpers';
 test('field and boss BGM flow: start, entry, phase-2 layer, defeat fade-out and victory song', async ({
   page,
 }) => {
-  test.setTimeout(150_000);
-  const errors: string[] = [];
-  page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
-
-  await page.goto('./?quality=low&scale=0.25&nodraw');
-  await startGame(page);
+  const errors = await bootGame(page);
   await expect
     .poll(() => page.evaluate(() => window.__game?.audio?.sfx.loaded ?? 0), { timeout: 30_000 })
     .toBeGreaterThan(5);

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startGame } from './helpers';
+import { bootGame, waitFrames, waitLoopSteps } from './helpers';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -11,23 +11,20 @@ function collectErrors(page: Page): string[] {
 }
 
 test('renders with the WebGPU backend and no console errors', async ({ page }) => {
-  test.setTimeout(120_000); // ソフトウェア描画ではフレームが遅いので長めにとる
-  const errors = collectErrors(page);
-  await page.goto('./?quality=low&scale=0.25&env=0');
-
-  await startGame(page);
+  // 描画あり（環境マップなし）で起動し、止めずにメインループ自体が回ることを見る
+  const errors = await bootGame(page, {
+    draw: true,
+    paused: false,
+    params: { scale: '0.25', env: '0' },
+  });
   await expect(page.locator('#app canvas')).toBeVisible();
 
   const backend = await page.evaluate(() => window.__game?.backend);
   expect(backend).toBe('webgpu');
 
   // メインループが回り、固定ステップのシミュレーションが進んでいる
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.frames ?? 0), { timeout: 90_000 })
-    .toBeGreaterThan(2);
-  await expect
-    .poll(() => page.evaluate(() => window.__game?.steps ?? 0), { timeout: 90_000 })
-    .toBeGreaterThan(5);
+  await waitFrames(page, 3);
+  await waitLoopSteps(page, 5);
 
   expect(errors).toEqual([]);
 });
@@ -80,6 +77,7 @@ test('creates an AudioContext that stays suspended until the start screen is tap
   expect(await readAudioState()).toBe('suspended');
 
   // 開始画面のタップ（ユーザー操作）で resume される
+  // 開始画面そのものの検証なので、bootGame ではなく開始画面をクリックする
   await page.getByTestId('start-screen').click();
   await expect.poll(readAudioState).toBe('running');
   expect(errors).toEqual([]);
