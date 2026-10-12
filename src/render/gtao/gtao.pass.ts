@@ -20,7 +20,7 @@ interface GtaoInternals {
 }
 
 /** 遮蔽の効き（0 = 無効、1 = GTAO の値そのまま）。直接光まで暗くしすぎないよう少し弱める。 */
-const AO_STRENGTH = 0.8;
+const AO_STRENGTH = 1;
 
 // GTAO（#319、tech-direction §3.2）: scene パスの深度と法線（MRT で同時に書いたもの）から環境遮蔽を求め、色に掛ける。
 // 半解像度で求め、深度・法線を見た空間デノイズ（合成時に画素ごと）で均してノイズを消す。
@@ -52,7 +52,7 @@ registerFramePass({
     });
     const aoNode = ao(depthTex, normalAt, ctx.camera);
     aoNode.resolutionScale = 0.5;
-    aoNode.radius.value = 1.2;
+    aoNode.radius.value = 2.5;
     aoNode.samples.value = 8;
 
     const denoised = denoise(aoNode.getTextureNode(), depthTex, normalAt, ctx.camera);
